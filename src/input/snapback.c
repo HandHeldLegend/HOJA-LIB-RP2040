@@ -138,24 +138,15 @@ int _add_axis(int pos, axis_s *a)
 
         int falling_distance = abs(pos - CENTERVAL);
 
-        if (falling_distance > (a->last_distance+10))
+        int dir = (pos < CENTERVAL) ? -1 : 1;
+        float nv = (float)falling_distance * a->arc_scaler;
+        a->buffer[a->idx] = ((int)nv * dir) + CENTERVAL;
+
+        a->last_distance = falling_distance;
+
+        if (!a->fall_timer)
         {
             a->falling = false;
-            // Set normally when not arcing
-            a->buffer[a->idx] = pos;
-        }
-        else
-        {
-            int dir = (pos < CENTERVAL) ? -1 : 1;
-            float nv = (float)falling_distance * a->arc_scaler;
-            a->buffer[a->idx] = ((int)nv * dir) + CENTERVAL;
-
-            a->last_distance = falling_distance;
-
-            if (!a->fall_timer)
-            {
-                a->falling = false;
-            }
         }
     }
     else
