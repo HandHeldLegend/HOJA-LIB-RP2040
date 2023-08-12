@@ -103,7 +103,7 @@ int _add_axis(int pos, axis_s *a)
             if ((a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT) && (a->last_distance < ARC_MIN_HEIGHT))
             {
                 
-                printf("SB Height: %d\n", a->last_distance);
+                //printf("SB Height: %d\n", a->last_distance);
                 
                 float scaler = ARC_MAX_HEIGHT / (float)a->last_distance;
                 int si = a->arc_start_idx;
@@ -138,7 +138,7 @@ int _add_axis(int pos, axis_s *a)
 
         int falling_distance = abs(pos - CENTERVAL);
 
-        if (falling_distance > a->last_distance)
+        if (falling_distance > (a->last_distance+10))
         {
             a->falling = false;
             // Set normally when not arcing
