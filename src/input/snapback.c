@@ -37,6 +37,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 #define MAXVAL 4095
 #define ARC_MAX_HEIGHT 355
 #define BUFFER_MAX 17
+#define ARC_MIN_HEIGHT 1800
 
 #define OUTBUFFER_SIZE 64
 
@@ -52,7 +53,7 @@ typedef struct
     uint8_t fall_timer;
     // Scaler that gets used until
     // next arc detection begins
-    float   arc_scaler;
+    float arc_scaler;
     uint8_t idx;
     uint8_t arc_start_idx;
 } axis_s;
@@ -99,8 +100,11 @@ int _add_axis(int pos, axis_s *a)
             int this_distance = abs(pos - CENTERVAL); // Get distance to center
 
             // Check if we are decending
-            if ((a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT))
+            if ((a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT) && (a->last_distance < ARC_MIN_HEIGHT))
             {
+                
+                printf("SB Height: %d\n", a->last_distance);
+                
                 float scaler = ARC_MAX_HEIGHT / (float)a->last_distance;
                 int si = a->arc_start_idx;
 
@@ -110,12 +114,12 @@ int _add_axis(int pos, axis_s *a)
                     int cp = abs(a->buffer[si] - CENTERVAL);
                     int dir = (a->buffer[si] < CENTERVAL) ? -1 : 1;
                     float nv = (float)cp * scaler;
-                    a->buffer[si] = ((int)nv*dir) + CENTERVAL;
-                    si = (si+1) % BUFFER_MAX;
+                    a->buffer[si] = ((int)nv * dir) + CENTERVAL;
+                    si = (si + 1) % BUFFER_MAX;
                 }
                 a->arc_scaler = scaler;
                 a->arc_width = 0;
-                a->last_distance = 0;
+                a->last_distance = this_distance;
                 a->rising = false;
                 a->falling = true;
                 a->fall_timer = a->arc_width;
@@ -128,18 +132,30 @@ int _add_axis(int pos, axis_s *a)
         }
     }
 
-    if(a->falling)
+    if (a->falling)
     {
         a->fall_timer--;
-        
-        int cp = abs(pos - CENTERVAL);
-        int dir = (pos < CENTERVAL) ? -1 : 1;
-        float nv = (float)cp * a->arc_scaler;
-        a->buffer[a->idx] = ((int)nv*dir) + CENTERVAL;
 
-        if(!a->fall_timer)
+        int falling_distance = abs(pos - CENTERVAL);
+
+        if (falling_distance > a->last_distance)
         {
             a->falling = false;
+            // Set normally when not arcing
+            a->buffer[a->idx] = pos;
+        }
+        else
+        {
+            int dir = (pos < CENTERVAL) ? -1 : 1;
+            float nv = (float)falling_distance * a->arc_scaler;
+            a->buffer[a->idx] = ((int)nv * dir) + CENTERVAL;
+
+            a->last_distance = falling_distance;
+
+            if (!a->fall_timer)
+            {
+                a->falling = false;
+            }
         }
     }
     else
