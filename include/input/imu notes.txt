@@ -1,0 +1,50 @@
+Using data from various sources and my own debugging here's what I've been able to discover
+REGISTER NOTES
+
+FUNC_CFG_ACCESS 0x1
+SET TO 0x1 to enable embedded functions config
+register
+
+CTRL1_XL 0x10
+0x80 1.66kHz (high performance mode)
+0xC 8G sensitivity mode (+/- 8G)
+0x2 BW_XL 100Hz anti-aliasing filter bandwidth
+
+CTRL2_G 0x11
+0x50 208 Hz (normal mode)
+0xC 2000dps precision mode
+
+CTRL3_C 0x12
+0x40 BDU enabled
+0x20 H_LACTIVE interrupts low level
+0x4 IF_INC enabled
+
+CTRL4_C 0x13
+0x80 XL_BW_SCAL_ODR bandwidth determined by setting BW_XL in CTRL1_XL
+0x4 I2C disabled YES
+DOES NOT MAP TO LSM6DSR
+
+CTRL8_XL 0x17 - 23
+0x80 LPF2_XL_EN accelerometer low pass filter enabled
+0x4 HP_SLOPE_XL_EN accelerometer slope filter/high pass filter select ON
+
+CTRL9_XL 0x18 - 24
+0x38 - Zen_XL, Yen_XL, Xen_XL (enable all accelerometer output)
+DOES NOT MAP TO LSM6DSR
+
+CTRL10_C 0x19 - 25
+0x38 - Zen_g, Yen_G, Xen_G enable all gyro output
+0x4 FUNC_EN enable function of filters and embedded functionality
+DOES NOT MAP TO LSM6DSR
+
+Output 16 bit vals for gyro standstill
+0x6E
+0x00
+
+0xD5
+0x255
+
+0x225
+0x255
+
+Pro Controller gyro maybe hasn't been analyzed as thoroughly...

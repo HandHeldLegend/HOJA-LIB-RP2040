@@ -1,0 +1,61 @@
+;
+; Copyright (c) Hand Held Legend, LLC 2023
+;
+
+; Emulation of a 4021 (x2) shift register
+.program nserial
+
+; pin 0 - data
+; pin 1 - clk
+start:
+  ; Get data for output and put out first bit
+  pull
+  ; Output and shift 1 bit
+  out pins, 1
+clock:
+  ; Wait for clock to go low
+  wait 0 pin, 0
+  ; Wait for clock to go high
+  wait 1 pin, 0
+  ; Output and shift 1 bit
+  out pins, 1
+  jmp clock
+
+% c-sdk {
+
+static inline void nserial_latch_jump(PIO pio, uint sm) {
+  // Jump to start to fetch new data
+  pio_sm_exec(pio, sm, 0x0000);
+}
+
+static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint pin) {
+
+    pio_sm_config c = nserial_program_get_default_config(offset);
+
+    // Map the state machine's OUT pin group to one pin, namely the `pin`
+    // parameter to this function.
+    // Use 1 out pin for data
+    sm_config_set_out_pins(&c, pin, 1);
+
+    // Set IN pin group (CLOCK)
+    sm_config_set_in_pins(&c, pin+1);
+
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+    pio_gpio_init(pio, pin+1);
+
+    gpio_pull_up(pin);
+    gpio_pull_up(pin+1);
+
+    // Set the pin direction to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    // Set input pins
+    pio_sm_set_consecutive_pindirs(pio, sm, pin+1, 1, false);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

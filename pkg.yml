@@ -1,0 +1,17 @@
+pkg.name: hoja-lib
+pkg.description: A library for USB game controllers.
+pkg.author: "Mitchell Cairns <mitch.cairns@handheldlegend.com>"
+pkg.homepage: "https://handheldlegend.com"
+pkg.keywords:
+    - gamecube
+    - nintendo
+    - switch
+    - xinput
+
+pkg.type: sdk
+
+#pkg.deps:
+    #- "@apache-mynewt-core/kernel/os"
+
+pkg.include_dirs:
+    - src
