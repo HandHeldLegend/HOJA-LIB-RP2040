@@ -69,6 +69,7 @@ void hoja_init()
 
   // Initialize RGB and set one color
   {
+    
     rgb_init();
 
     rgb_s c = {
