@@ -1,5 +1,6 @@
 #include "rgb.h"
 
+#ifdef HOJA_RGB_PIN
 // 21 steps is about 0.35 seconds
 // Formula is time period us / 16666us (60hz)
 #define RGB_FADE_STEPS 21
@@ -78,21 +79,6 @@ void _rgb_animate_step()
     }
 }
 
-// Enable the RGB transition to the next color
-void rgb_set_dirty()
-{
-    _rgb_out_dirty = true;
-}
-
-// Set all RGBs to one color
-void rgb_set_all(uint32_t color)
-{
-    for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
-    {
-        _rgb_next[i].color = color;
-    }
-}
-
 void _rgb_set_sequential(rgb_s *colors, uint8_t len, uint32_t color)
 {
     for(uint8_t i = 0; i < len; i++)
@@ -100,17 +86,41 @@ void _rgb_set_sequential(rgb_s *colors, uint8_t len, uint32_t color)
         colors[i].color = color;
     }
 }
+#endif
+
+// Enable the RGB transition to the next color
+void rgb_set_dirty()
+{
+    #ifdef HOJA_RGB_PIN
+    _rgb_out_dirty = true;
+    #endif
+}
+
+// Set all RGBs to one color
+void rgb_set_all(uint32_t color)
+{
+    #ifdef HOJA_RGB_PIN
+    for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    {
+        _rgb_next[i].color = color;
+    }
+    #endif
+}
+
 
 void rgb_load_preset()
 {
+    #ifdef HOJA_RGB_PIN
     for(uint8_t i = 0; i < RGB_GROUP_MAX; i++)
     {
         rgb_set_group(i, global_loaded_settings.rgb_colors[i]);
     }
+    #endif
 }
 
 void rgb_set_group(rgb_group_t group, uint32_t color)
 {
+    #ifdef HOJA_RGB_PIN
     switch(group)
     {
         default:
@@ -160,12 +170,15 @@ void rgb_set_group(rgb_group_t group, uint32_t color)
             _rgb_next[19].color = color;
             break;
     }
+    #endif
 }
 
 void rgb_init()
 {
+    #ifdef HOJA_RGB_PIN
     uint offset = pio_add_program(RGB_PIO, &ws2812_program);
     ws2812_program_init(RGB_PIO, RGB_SM, offset, HOJA_RGB_PIN, HOJA_RGBW_EN);
+    #endif
 }
 
 const uint32_t _rgb_interval = 16666;
@@ -174,8 +187,10 @@ const uint32_t _rgb_interval = 16666;
 // only performs actions if necessary
 void rgb_task(uint32_t timestamp)
 {
+    #ifdef HOJA_RGB_PIN
     if(interval_run(timestamp, _rgb_interval))
     {
         _rgb_animate_step();
     }
+    #endif
 }
