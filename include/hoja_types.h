@@ -129,7 +129,7 @@ typedef enum
 typedef enum
 {
     USBRATE_8 = 7600,
-    USBRATE_1 = 600,
+    USBRATE_1 = 100,
 } usb_rate_t;
 
 typedef enum
@@ -260,7 +260,6 @@ typedef struct
         {
             // Y and C-Up (N64)
             uint8_t b_y       : 1;
-
 
             // X and C-Left (N64)
             uint8_t b_x       : 1;

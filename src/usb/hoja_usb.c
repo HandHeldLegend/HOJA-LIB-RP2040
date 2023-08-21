@@ -38,7 +38,7 @@ bool hoja_usb_start(input_mode_t mode)
       break;
 
     case INPUT_MODE_XINPUT:
-      _hoja_usb_set_interval(USBRATE_8);
+      _hoja_usb_set_interval(USBRATE_1);
       _usb_hid_cb = xinput_hid_report;
       break;
   }
@@ -60,7 +60,14 @@ static inline bool _hoja_usb_ready()
 
 void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *analog_data)
 {
-    if (interval_resettable_run(timestamp, _usb_rate, _usb_clear))
+    if (_usb_mode == INPUT_MODE_XINPUT)
+    {
+      if(tud_xinput_ready())
+      {
+        _usb_hid_cb(button_data, analog_data);
+      }
+    }
+    else if (interval_resettable_run(timestamp, _usb_rate, _usb_clear))
     {
       if(_hoja_usb_ready())
       {
