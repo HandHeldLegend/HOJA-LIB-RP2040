@@ -44,6 +44,7 @@ void _n64_send_poll()
     pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_2));
     pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_x));
     pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_y));
+    analog_send_reset();
 }
 
 #define PAK_MSG_BYTES 36

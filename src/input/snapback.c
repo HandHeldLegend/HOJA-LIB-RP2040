@@ -1,20 +1,6 @@
 #include "snapback.h"
 #include <math.h>
 
-#define SB_0 0
-#define SB_1 0.2
-#define SB_2 0.4
-#define SB_3 0.6
-#define SB_4 0.78
-#define SB_5 0.88
-#define SB_6 0.98
-#define SB_7 1
-
-#define SNAPBACK_COUNT 20
-#define VEL_COUNT 16
-
-float _snapback_lut[8] = {SB_0, SB_1, SB_2, SB_3, SB_4, SB_5, SB_6, SB_7};
-
 uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 {
     if (new >= old)
@@ -30,14 +16,14 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
     return 0;
 }
 
-#define ARC_MAX_WIDTH 32
-#define ARC_MIN_WIDTH 6
-#define ARC_MAX_LOOP (ARC_MAX_WIDTH - 1)
+#define ARC_MAX_WIDTH 80
+#define ARC_MIN_WIDTH 20
+
 #define CENTERVAL 2048
 #define MAXVAL 4095
-#define ARC_MAX_HEIGHT 355
-#define BUFFER_MAX 17
-#define ARC_MIN_HEIGHT 1800
+#define ARC_MAX_HEIGHT 250
+#define BUFFER_MAX 41
+#define ARC_MIN_HEIGHT 1400
 
 #define OUTBUFFER_SIZE 64
 
@@ -179,18 +165,30 @@ int _add_axis(int pos, axis_s *a)
     return ret;
 }
 
+volatile uint32_t last_time = 0;
+volatile uint32_t analog_interval = 0;
+
 void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output)
 {
+
+    analog_interval = timestamp - last_time;
+    last_time = timestamp;
+
     static axis_s lx = {0};
     static axis_s ly = {0};
     static axis_s rx = {0};
     static axis_s ry = {0};
 
-    /**/
     output->lx = _add_axis(input->lx, &lx);
     output->ly = _add_axis(input->ly, &ly);
     output->rx = _add_axis(input->rx, &rx);
     output->ry = _add_axis(input->ry, &ry);
+
+    //output->lx = input->lx;
+    //output->ly = input->ly;
+    //output->rx = input->rx;
+    //output->ry = input->ry;
+
 }
 
 uint8_t _snapback_report[64] = {0};
@@ -236,6 +234,13 @@ void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
                 // Send packet
                 _snapback_report[0] = WEBUSB_CMD_ANALYZE_STOP;
                 _snapback_report[1] = _selection_idx;
+
+                /*DEBUG
+                _snapback_report[2] = (analog_interval>>24)&0xFF;
+                _snapback_report[3] = (analog_interval>>16)&0xFF;
+                _snapback_report[4] = (analog_interval>>8)&0xFF;
+                _snapback_report[5] = (analog_interval&0xFF);*/
+
                 tud_vendor_n_write(0, _snapback_report, 64);
                 tud_vendor_n_flush(0);
                 _capturing = false;

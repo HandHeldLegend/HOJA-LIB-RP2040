@@ -404,6 +404,7 @@ void switch_commands_process(sw_input_s *input_data)
       //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
 
       tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
+      analog_send_reset();
     }
   }
 }

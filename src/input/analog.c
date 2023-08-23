@@ -1,6 +1,6 @@
 #include "analog.h"
 
-const uint32_t _analog_interval = 500;
+const uint32_t _analog_interval = 200;
 
 bool _analog_calibrate = false;
 bool _analog_centered = false;
@@ -9,13 +9,28 @@ bool _analog_capture_angle = false;
 a_data_s *_data_in = NULL;
 a_data_s scaled_analog_data = {0};
 a_data_s *_data_out = NULL;
+a_data_s *_data_buffered = NULL;
 
 button_data_s *_buttons = NULL;
 
-void analog_init(a_data_s *in, a_data_s *out, button_data_s *buttons)
+static int _lx_distance = 0;
+static int _ly_distance = 0;
+static int _rx_distance = 0;
+static int _ry_distance = 0;
+
+void analog_send_reset()
+{
+    _lx_distance = 0;
+    _ly_distance = 0;
+    _rx_distance = 0;
+    _ry_distance = 0;
+}
+
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *buffered, button_data_s *buttons)
 {
     _data_in    = in;
     _data_out   = out;
+    _data_buffered = buffered;
     _buttons    = buttons;
     stick_scaling_get_settings();
     stick_scaling_init();
@@ -108,6 +123,20 @@ void _analog_calibrate_loop()
     }
 }
 
+void _analog_distance_check(int in, int *out, int *distance)
+{
+    int d = abs(in-2048);
+    if (d > *distance)
+    {
+        *distance = d;
+        *out = in;
+    }
+    else if (!d)
+    {
+        *out = 2048;
+    }
+}
+
 void analog_task(uint32_t timestamp)
 {
     if (interval_run(timestamp, _analog_interval))
@@ -123,7 +152,13 @@ void analog_task(uint32_t timestamp)
         else
         {
             stick_scaling_process_data(_data_in, &scaled_analog_data);
-            snapback_process(timestamp, &scaled_analog_data, _data_out);
+            snapback_process(timestamp, &scaled_analog_data, _data_buffered);
+            
+            // Run distance checks
+            _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_distance);
+            _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_distance);
+            _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_distance);
+            _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_distance);
         }
     }
 }

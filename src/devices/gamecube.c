@@ -49,6 +49,7 @@ void _gamecube_send_poll()
 
   pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_l));
   pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_r));
+  analog_send_reset();
 }
 
 void _gamecube_reset_state()

@@ -5,10 +5,19 @@ bool _hoja_usb_task_enable = false;
 button_data_s _button_data = {0};
 button_data_s _button_data_processed = {0};
 
-a_data_s _analog_data = {0};
-a_data_s _analog_data_processed = {0};
+// The raw input analog data
+a_data_s _analog_data_input = {0};
+// The buffered analog data
+// This is processed, but not the final output
+a_data_s _analog_data_buffered = {0};
+// This is the outgoing analog data
+a_data_s _analog_data_output = {0};
 
 button_remap_s *_hoja_remap = NULL;
+
+uint32_t _timer_owner_0;
+uint32_t _timer_owner_1;
+auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
 
@@ -17,8 +26,12 @@ bool _remap_enabled = false;
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
-  _hoja_timestamp = time_us_32();
-
+  if(mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_0))
+  {
+    _hoja_timestamp = time_us_32();
+    mutex_exit(&_hoja_timer_mutex);
+  }
+  
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
   safe_mode_task(&_button_data);
@@ -28,12 +41,12 @@ void _hoja_task_0()
   {
     // Process USB if needed
     tud_task();
-    snapback_webcapture_task(_hoja_timestamp, &_analog_data_processed);
-    hoja_usb_task(_hoja_timestamp, &_button_data_processed, &_analog_data_processed);
+    snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
+    hoja_usb_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
   }
   else
   {
-    hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_processed);
+    hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
   }
 }
 
@@ -42,6 +55,11 @@ void _hoja_task_1()
 {
   for (;;)
   {
+    if(mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_1))
+    {
+      _hoja_timestamp = time_us_32();
+      mutex_exit(&_hoja_timer_mutex);
+    }
     // Check if we need to save
     settings_core1_save_check();
 
@@ -93,13 +111,13 @@ void hoja_init()
     {
       settings_reset_to_default();
       sleep_ms(200);
-      analog_init(&_analog_data, &_analog_data_processed, &_button_data);
+      analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
     else
     {
       rgb_load_preset();
       rgb_set_dirty();
-      analog_init(&_analog_data, &_analog_data_processed, &_button_data);
+      analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
   }
 

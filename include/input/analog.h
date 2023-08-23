@@ -4,7 +4,8 @@
 #include "hoja_includes.h"
 #include "interval.h"
 
-void analog_init(a_data_s *in, a_data_s *out, button_data_s *buttons);
+void analog_send_reset();
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *buffered, button_data_s *buttons);
 void analog_calibrate_start();
 void analog_calibrate_stop();
 void analog_calibrate_save();
