@@ -112,17 +112,25 @@ void set_shipmode(uint8_t ship_mode)
   // Unhandled.
 }
 
+
+bool shouldControllerRumble(const uint8_t *data) {
+
+    bool lbd = data[3] & 0x80;
+    bool hbd = data[1] & 0x8;
+
+    // Get High band amplitude
+    uint8_t hba = (data[1] & 0xFE);
+    uint8_t lba = (data[3] & 0x7F);
+    
+    return ( (hba>1) && !hbd) || ((lba>0x40) && !lbd);
+}
+
+uint8_t test[] = {0x7a, 0xf8, 0x62, 0x80};
+
 // Translate and handle rumble
 void rumble_translate(const uint8_t *data)
 {
-    float amp_range_inc    = 100.0f/0x7F;
-
-    // Get High band amplitude
-    uint8_t hba = (data[1] & 0xFE)/2;
-
-    float ha = (float) hba*amp_range_inc;
-    cb_hoja_rumble_enable((ha>10.0f)?true:false);
-
+    cb_hoja_rumble_enable(shouldControllerRumble(data));
     //printf("Amplitude: %.2f\n", ha);
 }
 

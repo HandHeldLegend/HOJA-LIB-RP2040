@@ -67,7 +67,7 @@ void _hoja_task_1()
     analog_task(_hoja_timestamp);
 
     // Do IMU stuff
-    imu_task(_hoja_timestamp);
+    //imu_task(_hoja_timestamp);
 
     rgb_task(_hoja_timestamp);
 

@@ -23,7 +23,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 #define MAXVAL 4095
 #define ARC_MAX_HEIGHT 250
 #define BUFFER_MAX 41
-#define ARC_MIN_HEIGHT 1400
+#define ARC_MIN_HEIGHT 1850
 
 #define OUTBUFFER_SIZE 64
 
@@ -72,68 +72,21 @@ int _add_axis(int pos, axis_s *a)
         ret = a->buffer[a->idx];
     }
 
-    if (a->rising)
-    {
-        // If we are arcing
-        // and we have a scaler
-        // scale the inputs
-        if (a->arc_width >= BUFFER_MAX)
-        {
-            a->rising = false;
-        }
-        else
-        {
-            int this_distance = abs(pos - CENTERVAL); // Get distance to center
-
-            // Check if we are decending
-            if ((a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT) && (a->last_distance < ARC_MIN_HEIGHT))
-            {
-                
-                //printf("SB Height: %d\n", a->last_distance);
-                
-                float scaler = ARC_MAX_HEIGHT / (float)a->last_distance;
-                int si = a->arc_start_idx;
-
-                // We are snapping back
-                for (uint8_t i = 0; i < a->arc_width; i++)
-                {
-                    int cp = abs(a->buffer[si] - CENTERVAL);
-                    int dir = (a->buffer[si] < CENTERVAL) ? -1 : 1;
-                    float nv = (float)cp * scaler;
-                    a->buffer[si] = ((int)nv * dir) + CENTERVAL;
-                    si = (si + 1) % BUFFER_MAX;
-                }
-                a->arc_scaler = scaler;
-                a->arc_width = 0;
-                a->last_distance = this_distance;
-                a->rising = false;
-                a->falling = true;
-                a->fall_timer = a->arc_width;
-            }
-            else
-            {
-                a->arc_width += 1;
-                a->last_distance = this_distance;
-            }
-        }
-    }
-
     if (a->falling)
     {
-        a->fall_timer--;
 
+        a->fall_timer--;
         int falling_distance = abs(pos - CENTERVAL);
 
         int dir = (pos < CENTERVAL) ? -1 : 1;
         float nv = (float)falling_distance * a->arc_scaler;
         a->buffer[a->idx] = ((int)nv * dir) + CENTERVAL;
 
-        a->last_distance = falling_distance;
-
         if (!a->fall_timer)
         {
             a->falling = false;
         }
+
     }
     else
     {
@@ -141,14 +94,58 @@ int _add_axis(int pos, axis_s *a)
         a->buffer[a->idx] = pos;
     }
 
+    if (a->rising)
+    {
+        int this_distance = abs(pos - CENTERVAL); // Get distance to center
+        a->arc_width += 1;
+
+        if ( (a->arc_width >= BUFFER_MAX) || (this_distance >= ARC_MIN_HEIGHT))
+        {
+            a->arc_width = 0;
+            a->rising = false;
+        }
+        // Check if we are decending
+        else if (( a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT))
+        {
+            
+            //printf("SB Height: %d\n", a->last_distance);
+            
+            float scaler = ARC_MAX_HEIGHT / (float)a->last_distance;
+            int si = a->arc_start_idx;
+
+            // We are snapping back
+            for (uint8_t i = 0; i < a->arc_width; i++)
+            {
+                int cp = abs(a->buffer[si] - CENTERVAL);
+                int dir = (a->buffer[si] < CENTERVAL) ? -1 : 1;
+                float nv = (float)cp * scaler;
+                a->buffer[si] = ((int)nv * dir) + CENTERVAL;
+                si = (si + 1) % BUFFER_MAX;
+            }
+
+            // Set current position to scaler
+            int diro = (pos < CENTERVAL) ? -1 : 1;
+            float nvo = (float)this_distance * scaler;
+            a->buffer[a->idx] = ((int)nvo * diro) + CENTERVAL;
+
+            a->arc_scaler = scaler;
+            a->rising = false;
+            a->falling = true;
+            a->fall_timer = a->arc_width+4;
+            a->arc_width = 0;
+        }
+        else
+        {
+            a->last_distance = this_distance;
+        }
+    }
+
     if (_is_between(CENTERVAL, pos, a->last_pos))
     {
         // We are starting a new arc
         a->rising = true;
-        a->falling = false;
-        a->fall_timer = 0;
-        a->arc_width = 0;
-        a->arc_width += 1;
+        a->fall_timer = 1;
+        a->arc_width = 1;
         a->last_distance = 0;
         a->arc_start_idx = a->idx;
     }
@@ -184,6 +181,7 @@ void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output)
     output->rx = _add_axis(input->rx, &rx);
     output->ry = _add_axis(input->ry, &ry);
 
+    // DEBUG
     //output->lx = input->lx;
     //output->ly = input->ly;
     //output->rx = input->rx;
