@@ -80,7 +80,8 @@ void settings_reset_to_default()
   {
     global_loaded_settings.imu_calibration[i] = 0xFF;
   }
-  memset(&global_loaded_settings.imu_offsets[0], 0, 12);
+  memset(global_loaded_settings.imu_0_offsets, 0, sizeof(int8_t)*6);
+  memset(global_loaded_settings.imu_1_offsets, 0, sizeof(int8_t)*6);
   _generate_mac();
 }
 

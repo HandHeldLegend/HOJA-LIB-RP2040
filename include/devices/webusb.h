@@ -45,6 +45,9 @@ typedef enum
   // Set gamecube Special Command function
   WEBUSB_CMD_GCSP_SET = 0x08,
 
+  // Start IMU Calibration process
+  WEBUSB_CMD_IMU_CALIBRATION_START = 0x09,
+
   WEBUSB_CMD_SAVEALL = 0xF1,
 } webusb_cmd_t;
 

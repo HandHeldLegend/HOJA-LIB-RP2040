@@ -19,6 +19,13 @@ void webusb_command_processor(uint8_t *data)
 
             break;
 
+        case WEBUSB_CMD_IMU_CALIBRATION_START:
+            {
+                printf("WebUSB: Got IMU calibration START command.\n");
+                imu_calibrate_start();
+            }
+            break;
+
         case WEBUSB_CMD_FW_SET:
             {
                 reset_usb_boot(0, 0);

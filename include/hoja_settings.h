@@ -35,7 +35,8 @@ typedef struct
     uint8_t imu_calibration[26];
 
     // IMU Offsets for more precision
-    uint8_t imu_offsets[12];
+    int8_t imu_0_offsets[6];
+    int8_t imu_1_offsets[6];
 
     // RGB Color Store
     uint32_t rgb_colors[12];

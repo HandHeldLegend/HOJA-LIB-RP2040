@@ -105,7 +105,7 @@ int _add_axis(int pos, axis_s *a)
             a->rising = false;
         }
         // Check if we are decending
-        else if (( a->last_distance > this_distance) && (a->last_distance > ARC_MAX_HEIGHT))
+        else if (( a->last_distance > this_distance+25) && (a->last_distance > ARC_MAX_HEIGHT))
         {
             
             //printf("SB Height: %d\n", a->last_distance);
