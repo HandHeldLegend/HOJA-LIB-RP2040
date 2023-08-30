@@ -46,6 +46,12 @@ uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
     return col.color;
 }
 
+// Slowly fades out all LEDs evenly
+void _rgb_fade_step()
+{
+    
+}
+
 void _rgb_animate_step()
 {
     static uint8_t steps = RGB_FADE_STEPS;
