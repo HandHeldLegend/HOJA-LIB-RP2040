@@ -1,6 +1,8 @@
 #include "webusb.h"
+#include "interval.h"
 
 uint8_t _webusb_out_buffer[64] = {0x00};
+bool _webusb_output_enabled = false;
 
 void webusb_save_confirm()
 {
@@ -39,6 +41,8 @@ void webusb_command_processor(uint8_t *data)
                 _webusb_out_buffer[2] = HOJA_FW_VERSION & 0xFF;
                 tud_vendor_n_write(0, _webusb_out_buffer, 64);
                 tud_vendor_n_flush(0);
+
+                webusb_enable_output(true);
             }
             break;
 
@@ -163,4 +167,37 @@ void webusb_command_processor(uint8_t *data)
             }
             break;
     }
+}
+
+#define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
+
+void webusb_input_report_task(uint32_t timestamp, a_data_s *analog)
+{
+    if(!tud_vendor_n_write_available(0))
+    {
+        return;
+    }
+
+    if(interval_run(timestamp, 8000))
+    {
+        uint8_t webusb_input_report[64] = {0};
+        webusb_input_report[0] = WEBUSB_CMD_INPUT_REPORT;
+        webusb_input_report[1] = CLAMP_0_255(analog->lx>>4);
+        webusb_input_report[2] = CLAMP_0_255(analog->ly>>4);
+        webusb_input_report[3] = CLAMP_0_255(analog->rx>>4);
+        webusb_input_report[4] = CLAMP_0_255(analog->ry>>4);
+        tud_vendor_n_write(0, webusb_input_report, 64);
+        tud_vendor_n_flush(0);
+    }
+    
+}
+
+bool webusb_output_enabled()
+{
+    return _webusb_output_enabled;
+}
+
+void webusb_enable_output(bool enable)
+{
+    _webusb_output_enabled = enable;
 }

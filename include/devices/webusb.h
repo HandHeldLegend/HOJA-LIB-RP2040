@@ -48,10 +48,16 @@ typedef enum
   // Start IMU Calibration process
   WEBUSB_CMD_IMU_CALIBRATION_START = 0x09,
 
+  // Command for analog input report
+  WEBUSB_CMD_INPUT_REPORT = 0xE0,
+
   WEBUSB_CMD_SAVEALL = 0xF1,
 } webusb_cmd_t;
 
 void webusb_save_confirm();
 void webusb_command_processor(uint8_t *data);
+void webusb_input_report_task(uint32_t timestamp, a_data_s *analog);
+bool webusb_output_enabled();
+void webusb_enable_output(bool enable);
 
 #endif

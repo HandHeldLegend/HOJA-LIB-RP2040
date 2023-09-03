@@ -214,11 +214,14 @@ bool _snapback_add_value(int val)
 
 void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
 {
-    if (!tud_vendor_n_mounted(0))
+    if(!tud_vendor_n_write_available(0))
+    {
         return;
+    }
 
     if (interval_run(timestamp, CAP_INTERVAL))
     {
+        
 
         static bool _capturing = false;
         static int *selection = NULL;
