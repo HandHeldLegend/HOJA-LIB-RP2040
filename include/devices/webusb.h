@@ -58,6 +58,7 @@ void webusb_save_confirm();
 void webusb_command_processor(uint8_t *data);
 void webusb_input_report_task(uint32_t timestamp, a_data_s *analog);
 bool webusb_output_enabled();
+bool webusb_ready_blocking();
 void webusb_enable_output(bool enable);
 
 #endif

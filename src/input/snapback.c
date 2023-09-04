@@ -214,15 +214,9 @@ bool _snapback_add_value(int val)
 
 void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
 {
-    if(!tud_vendor_n_write_available(0))
-    {
-        return;
-    }
 
     if (interval_run(timestamp, CAP_INTERVAL))
     {
-        
-
         static bool _capturing = false;
         static int *selection = NULL;
         static bool _got_selection = false;
@@ -241,9 +235,11 @@ void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
                 _snapback_report[3] = (analog_interval>>16)&0xFF;
                 _snapback_report[4] = (analog_interval>>8)&0xFF;
                 _snapback_report[5] = (analog_interval&0xFF);*/
-
-                tud_vendor_n_write(0, _snapback_report, 64);
-                tud_vendor_n_flush(0);
+                if (webusb_ready_blocking(5000))
+                {
+                    tud_vendor_n_write(0, _snapback_report, 64);
+                    tud_vendor_n_flush(0);
+                }
                 _capturing = false;
                 _got_selection = false;
             }

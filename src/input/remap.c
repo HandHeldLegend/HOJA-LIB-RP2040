@@ -212,6 +212,7 @@ void remap_send_data_webusb(input_mode_t mode)
   b[19] = (_tmp_unset_struct->val & 0xFF);
   b[20] = global_loaded_settings.gc_sp_mode;
   
+  webusb_ready_blocking(0);
   tud_vendor_n_flush(0);
   tud_vendor_n_write(0, b, 64);
 }
