@@ -178,7 +178,7 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog)
         return;
     }
 
-    if(interval_run(timestamp, 8000))
+    if(interval_run(timestamp, 16000))
     {
         uint8_t webusb_input_report[64] = {0};
         webusb_input_report[0] = WEBUSB_CMD_INPUT_REPORT;
