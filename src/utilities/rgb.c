@@ -102,6 +102,15 @@ void rgb_set_dirty()
     #endif
 }
 
+void rgb_set_instant()
+{
+    #ifdef HOJA_RGB_PIN
+    memcpy(_rgb_current, _rgb_next, sizeof(rgb_s)*HOJA_RGB_COUNT);
+    _rgb_update_all();
+    memcpy(_rgb_last, _rgb_current, sizeof(rgb_s)*HOJA_RGB_COUNT);
+    #endif
+}
+
 // Set all RGBs to one color
 void rgb_set_all(uint32_t color)
 {

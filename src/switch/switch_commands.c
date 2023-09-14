@@ -58,8 +58,22 @@ void set_timer()
 
 void set_battconn()
 {
+  typedef union
+  {
+    struct
+    {
+      uint8_t connection  : 4;
+      uint8_t bat_lvl     : 4;
+    };
+    uint8_t bat_status;
+  } bat_status_u;
+
+  bat_status_u s = {
+    .bat_lvl = 8,
+    .connection = 1
+  };
   // Always set to USB connected
-  _switch_command_buffer[1] = 0x01;
+  _switch_command_buffer[1] = s.bat_status;
 }
 
 void set_devinfo()
@@ -125,13 +139,29 @@ bool shouldControllerRumble(const uint8_t *data) {
     return ( (hba>1) && !hbd) || ((lba>0x40) && !lbd);
 }
 
+float _get_rumble_intensity(const uint8_t *data) {
+
+}
+
 uint8_t test[] = {0x7a, 0xf8, 0x62, 0x80};
 
 // Translate and handle rumble
 void rumble_translate(const uint8_t *data)
-{
-    cb_hoja_rumble_enable(shouldControllerRumble(data));
-    //printf("Amplitude: %.2f\n", ha);
+{ 
+    if(shouldControllerRumble(data))
+    {
+      uint8_t upper = (data[1] & 0xFE)/2;
+      uint8_t lower = (data[3] & 0x7F)-0x40;
+      float il = (float) lower / 64.0f;
+      float iu = (float) upper / 128.0f;
+      float i = (((il>iu) ? il : iu)*0.1f)+0.9f;
+      i = (i>=1.0f) ? 1.0f : i;
+      cb_hoja_rumble_enable(i);
+    }
+    else
+    {
+      cb_hoja_rumble_enable(0);
+    }
 }
 
 // Sends mac address with 0x81 command (unknown?)

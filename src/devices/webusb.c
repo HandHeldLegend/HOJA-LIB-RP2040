@@ -206,6 +206,7 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog)
         {
             tud_vendor_n_write(0, webusb_input_report, 64);
             tud_vendor_n_flush(0);
+            analog_send_reset();
         }
     }
 }
