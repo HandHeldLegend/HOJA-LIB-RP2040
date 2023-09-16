@@ -380,22 +380,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   switch (request->bmRequestType_bit.type)
   {
   case TUSB_REQ_TYPE_STANDARD:
-
-    if(_usb_mode==INPUT_MODE_GCUSB)
-    {
-      // HID Descriptor GC Mode
-      uint8_t const desc_type  = tu_u16_high(request->wValue);
-      if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
-      {
-        TU_VERIFY(tud_control_xfer(rhport, request, (void*)(uintptr_t) &gc_hid_report_descriptor, 106));
-      }
-      else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
-      {
-        tud_control_xfer(rhport, request, (void*)(uintptr_t) &gc_hid_report_descriptor, 106);
-      }
-      else return false;
-    }
-    
+    // Unused for vendor control transfer
+    // TinyUSB hooks in and forces this for Vendor requests only
 
   case TUSB_REQ_TYPE_VENDOR:
     switch (request->bRequest)

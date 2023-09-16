@@ -89,17 +89,14 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
         buffer[10] = 0x04;
         buffer[19] = 0x04;
         buffer[28] = 0x04;
+        _gc_first = true;
     }
     else
     {
         memcpy(&buffer[2], &data, 8);
     }
 
-    if (tud_ginput_n_write(0, buffer, 37)>0)
-    {
-        tud_ginput_n_flush(0);
-        analog_send_reset();
-        _gc_first = true;
-    }
+    tud_ginput_report(0, buffer, 37);
+    analog_send_reset();
 }   
 
