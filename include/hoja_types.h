@@ -119,11 +119,12 @@ typedef struct
 
 typedef enum
 {
-    INPUT_MODE_SWPRO,
-    INPUT_MODE_XINPUT,
-    INPUT_MODE_GAMECUBE,
-    INPUT_MODE_N64,
-    INPUT_MODE_SNES
+    INPUT_MODE_SWPRO    = 0,
+    INPUT_MODE_XINPUT   = 1,
+    INPUT_MODE_GAMECUBE = 2,
+    INPUT_MODE_N64      = 3,
+    INPUT_MODE_SNES     = 4,
+    INPUT_MODE_GCUSB    = 5,
 } input_mode_t;
 
 typedef enum

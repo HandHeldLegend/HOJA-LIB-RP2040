@@ -1,121 +1,102 @@
 #include "gcinput.h"
 
-/** GAMECUBE HID MODE **/
-// 1. Device Descriptor
-// 2. HID Report Descriptor
-// 3. Configuration Descriptor
-// 4. TinyUSB Config
-/**--------------------------**/
-
-/**** GameCube Adapter Device Descriptor ****/
-const tusb_desc_device_t gc_device_descriptor = {
-    .bLength = 18,
-    .bDescriptorType = TUSB_DESC_DEVICE,
-    .bcdUSB = 0x0200,
-    .bDeviceClass = 0x00,
-    .bDeviceSubClass = 0x00,
-    .bDeviceProtocol = 0x00,
-
-    .bMaxPacketSize0 = 64,
-    .idVendor = 0x057E,
-    .idProduct = 0x0337,
-
-    .bcdDevice = 0x0200,
-    .iManufacturer = 0x01,
-    .iProduct = 0x02,
-    .iSerialNumber = 0x03,
-    .bNumConfigurations = 0x01
-};
-
-/**** GameCube Adapter HID Report Descriptor ****/
-const uint8_t gc_hid_report_descriptor[] = {
-    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x05,        // Usage (Game Pad)
-    0xA1, 0x01,        // Collection (Application)
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x11,        //     Report ID (17)
-    0x19, 0x00,        //     Usage Minimum (Undefined)
-    0x2A, 0xFF, 0x00,  //     Usage Maximum (0xFF)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x05,        //     Report Count (5)
-    0x91, 0x00,        //     Output (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,              //   End Collection
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x21,        //     Report ID (33)
-    0x05, 0x00,        //     Usage Page (Undefined)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x25, 0xFF,        //     Logical Maximum (-1)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x01,        //     Report Count (1)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x09,        //     Usage Page (Button)
-    0x19, 0x01,        //     Usage Minimum (0x01)
-    0x29, 0x08,        //     Usage Maximum (0x08)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x25, 0x01,        //     Logical Maximum (1)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x02,        //     Report Count (2)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
-    0x09, 0x30,        //     Usage (X)
-    0x09, 0x31,        //     Usage (Y)
-    0x09, 0x32,        //     Usage (Z)
-    0x09, 0x33,        //     Usage (Rx)
-    0x09, 0x34,        //     Usage (Ry)
-    0x09, 0x35,        //     Usage (Rz)
-    0x15, 0x81,        //     Logical Minimum (-127)
-    0x25, 0x7F,        //     Logical Maximum (127)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x06,        //     Report Count (6)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0xC0,              //   End Collection
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x13,        //     Report ID (19)
-    0x19, 0x00,        //     Usage Minimum (Undefined)
-    0x2A, 0xFF, 0x00,  //     Usage Maximum (0xFF)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x01,        //     Report Count (1)
-    0x91, 0x00,        //     Output (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,              //   End Collection
-    0xC0,              // End Collection
-};
-
-/**** GameCube Adapter Configuration Descriptor ****/
-#define GC_CGCDES_LEN   9 + 9 + 9 + 7 + 7
-const uint8_t gc_configuration_descriptor[] = {
-    // Configuration number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, 41, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 500),
-    // Interface
-    9, TUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, TUSB_CLASS_HID, 0x00, 0x00, 0x00,
-    // HID Descriptor
-    9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0110), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(gc_hid_report_descriptor)),
-    // Endpoint Descriptor
-    7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(37), 8,
-    // Endpoint Descriptor
-    7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(6), 8,
-};
-
-const uint8_t gc_configuration_descriptor_performance[] = {
-    // Configuration number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, 41, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 500),
-    // Interface
-    9, TUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, TUSB_CLASS_HID, 0x00, 0x00, 0x00,
-    // HID Descriptor
-    9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0110), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(gc_hid_report_descriptor)),
-    // Endpoint Descriptor
-    7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(37), 1,
-    // Endpoint Descriptor
-    7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(6), 1,
-};
+#define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
 /**--------------------------**/
 /**--------------------------**/
+
+bool _gc_first = false;
+bool _gc_enable = false;
+
+void gcinput_enable(bool enable)
+{
+    _gc_enable = enable;
+}
 
 void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
 {
+    static gc_input_s data = {0};
+    static uint8_t buffer[36] = {0};
 
-}
+    buffer[0] = 0x21;
+
+    float lx = (analog_data->lx*0.0488f) + 28;
+    float ly = (analog_data->ly*0.0488f) + 28;
+    float rx = (analog_data->rx*0.0488f) + 28;
+    float ry = (analog_data->ry*0.0488f) + 28;
+
+    data.button_a = button_data->button_a;
+    data.button_b = button_data->button_b;
+    data.button_x = button_data->button_x;
+    data.button_y = button_data->button_y;
+    data.button_start = button_data->button_plus;
+
+    data.button_l = button_data->trigger_zl;
+    data.button_r = button_data->trigger_zr;
+    data.button_z = button_data->trigger_r;
+
+    data.stick_x = CLAMP_0_255(lx);
+    data.stick_y = CLAMP_0_255(ly);
+    data.cstick_x = CLAMP_0_255(rx);
+    data.cstick_y = CLAMP_0_255(ry);
+
+    data.dpad_down  = button_data->dpad_down;
+    data.dpad_up    = button_data->dpad_up;
+    data.dpad_left  = button_data->dpad_left;
+    data.dpad_right = button_data->dpad_right;
+
+    int outl = 0;
+    int outr = 0;
+
+    // Handle trigger SP stuff
+    switch(global_loaded_settings.gc_sp_mode)
+    {
+        default:
+            data.trigger_l = button_data->trigger_zl ? 255 : 0;
+            data.trigger_r = button_data->trigger_zr ? 255 : 0;
+            break;
+
+        case GC_SP_MODE_LT:
+            outl = button_data->trigger_l ? (HOJA_ANALOG_LIGHT) : 0;
+            data.trigger_l = button_data->trigger_zl ? 255 : outl;
+            data.trigger_r = button_data->trigger_zr ? 255 : 0;
+            break;
+
+        case GC_SP_MODE_RT:
+            outr = button_data->trigger_l ? (HOJA_ANALOG_LIGHT) : 0;
+            data.trigger_r = button_data->trigger_zr ? 255 : outr;
+            data.trigger_l = button_data->trigger_zl ? 255 : 0;
+            break;
+
+        case GC_SP_MODE_ADC:
+            data.trigger_l = analog_data->lt >> 4;
+            data.trigger_r = analog_data->rt >> 4;
+            break;
+    }
+
+    if(!_gc_first)
+    {
+        /*GC adapter notes for new data
+
+        with only black USB plugged in
+        - no controller, byte 1 is 0
+        - controller plugged in to port 1, byte 1 is 0x10
+        - controller plugged in port 2, byte 10 is 0x10
+        with both USB plugged in
+        - no controller, byte 1 is 0x04
+        - controller plugged in to port 1, byte is 0x14 */
+        buffer[1] = 0x14;
+        buffer[10] = 0x04;
+        buffer[19] = 0x04;
+        buffer[28] = 0x04;
+        _gc_first = true;
+    }
+    else
+    {
+        memcpy(&buffer[2], &data, 8);
+    }
+
+    tud_ginput_report(0, buffer, 37);
+    analog_send_reset();
+}   
+

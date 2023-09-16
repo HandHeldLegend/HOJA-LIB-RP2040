@@ -48,6 +48,9 @@ typedef enum
   // Start IMU Calibration process
   WEBUSB_CMD_IMU_CALIBRATION_START = 0x09,
 
+  WEBUSB_CMD_VIBRATE_SET = 0x0A,
+  WEBUSB_CMD_VIBRATE_GET = 0xAA,
+
   // Command for analog input report
   WEBUSB_CMD_INPUT_REPORT = 0xE0,
 

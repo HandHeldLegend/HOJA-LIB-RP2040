@@ -69,6 +69,7 @@ void settings_reset_to_default()
       COLOR_YELLOW.color,
       COLOR_BLUE.color,
     },
+    .rumble_intensity = 100,
   };
   memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
   remap_reset_default(INPUT_MODE_SWPRO);
@@ -135,6 +136,13 @@ void settings_save_webindicate()
 void settings_save()
 {
   _save_flag = true;
+}
+
+void settings_set_rumble(uint8_t intensity)
+{
+  intensity = (intensity>100) ? 100 : intensity;
+  global_loaded_settings.rumble_intensity = intensity;
+  cb_hoja_set_rumble_intensity(intensity);
 }
 
 void settings_set_centers(int lx, int ly, int rx, int ry)

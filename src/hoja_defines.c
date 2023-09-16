@@ -7,4 +7,5 @@ const char* global_string_descriptor[] = {
     HOJA_MANUFACTURER,              // 1: Manufacturer
     HOJA_PRODUCT,        // 2: Product
     "000000",           // 3: Serials, should use chip ID
+    "GC Mode" // 4 Identifier for GC Mode
 };

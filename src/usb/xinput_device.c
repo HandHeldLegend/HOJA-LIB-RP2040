@@ -121,7 +121,7 @@ uint16_t xinputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
 {
     const char* TAG = "xinputd_open";
     // Verify our descriptor is the correct class
-    TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == desc_itf->bInterfaceClass, 0);
+    TU_VERIFY(0x5D == desc_itf->bInterfaceSubClass, 0);
 
     // len = interface + hid + n*endpoints
     uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) +

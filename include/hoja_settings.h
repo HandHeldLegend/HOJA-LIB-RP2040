@@ -49,6 +49,8 @@ typedef struct
 
     gc_sp_mode_t gc_sp_mode;
 
+    uint8_t rumble_intensity;
+
 } hoja_settings_s;
 
 extern hoja_settings_s global_loaded_settings;
@@ -64,5 +66,6 @@ void settings_set_angles(float *l_angles, float *r_angles);
 void settings_set_mode(input_mode_t mode);
 void settings_set_gc_sp(gc_sp_mode_t sp_mode);
 void settings_set_snapback(uint8_t axis, uint8_t level);
+void settings_set_rumble(uint8_t intensity);
 
 #endif

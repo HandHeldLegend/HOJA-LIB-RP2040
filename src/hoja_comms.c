@@ -29,6 +29,10 @@ void hoja_comms_init(input_mode_t input_mode)
             hoja_usb_start(INPUT_MODE_XINPUT);
             break;
 
+        case INPUT_MODE_GCUSB:
+            hoja_usb_start(INPUT_MODE_GCUSB);
+            break;
+
         case INPUT_MODE_GAMECUBE:
             _comms_cb = gamecube_comms_task;
         break;

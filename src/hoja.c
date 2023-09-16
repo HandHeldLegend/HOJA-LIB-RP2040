@@ -93,19 +93,7 @@ void hoja_init()
   // Set up hardware first
   cb_hoja_hardware_setup();
 
-  // Initialize RGB and set one color
-  {
-    
-    rgb_init();
-
-    rgb_s c = {
-        .r = 150,
-        .g = 128,
-        .b = 200,
-    };
-    rgb_set_all(c.color);
-    rgb_set_dirty();
-  }
+  rgb_init();
   
   // Read buttons to get a current state
   cb_hoja_read_buttons(&_button_data);
@@ -118,6 +106,8 @@ void hoja_init()
     {
       settings_reset_to_default();
       sleep_ms(200);
+      rgb_load_preset();
+      rgb_set_dirty();
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
     else
@@ -147,6 +137,10 @@ void hoja_init()
   {
     _hoja_usb_task_enable = false;
     _hoja_input_mode = INPUT_MODE_N64;
+  }
+  else if (_button_data.button_plus)
+  {
+    _hoja_input_mode = INPUT_MODE_GCUSB;
   }
 
   // Initialize button remapping
