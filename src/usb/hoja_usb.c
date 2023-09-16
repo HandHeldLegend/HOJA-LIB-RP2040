@@ -200,6 +200,20 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     }
     break;
 
+  case INPUT_MODE_GCUSB:
+    if (!report_id && !report_type)
+    {
+      if (buffer[0] == 0x11)
+      {
+        cb_hoja_rumble_enable((buffer[1] > 0) ? 1 : 0);
+      }
+      else if (buffer[0] == 0x13)
+      {
+          printf("GC INIT CMD RECEIVED");
+      }
+    }
+    break;
+
   case INPUT_MODE_XINPUT:
     if (!report_id && !report_type)
     {

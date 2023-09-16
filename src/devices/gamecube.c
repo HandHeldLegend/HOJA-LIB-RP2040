@@ -9,6 +9,7 @@ pio_sm_config _gamecube_c;
 
 volatile bool _gc_got_data = false;
 bool _gc_running = false;
+bool _gc_rumble = false;
 
 uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
@@ -70,6 +71,7 @@ void __time_critical_func(_gamecube_command_handler)()
     if(_byteCounter==0)
     {
       _workingCmd = 0x00;
+      _gc_rumble = ((dat&0x3)>0) ? true : false;
       while(c--) asm("nop");
       joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
       _gamecube_send_poll();
@@ -147,12 +149,18 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
   {
     if(interval_resettable_run(timestamp, 40000, _gc_got_data))
     {
-      printf("RESET.");
       _gamecube_reset_state();
       sleep_ms(100);
     }
     else
     {
+      static bool _rumblestate = false;
+      if (_gc_rumble != _rumblestate)
+      {
+        _rumblestate = _gc_rumble;
+        cb_hoja_rumble_enable(_rumblestate ? 1 : 0);
+      }
+
       _gc_got_data = false;
       _out_buffer.blank_2 = 1;
       _out_buffer.button_a = buttons->button_a;

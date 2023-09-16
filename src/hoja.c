@@ -118,6 +118,9 @@ void hoja_init()
     }
   }
 
+  // Set rumble intensity
+  cb_hoja_set_rumble_intensity(global_loaded_settings.rumble_intensity);
+
   // For switch Pro stuff
   switch_analog_calibration_init();
 
