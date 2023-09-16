@@ -21,7 +21,6 @@ void webusb_command_processor(uint8_t *data)
     switch (data[0])
     {
     default:
-
         break;
 
     case WEBUSB_CMD_IMU_CALIBRATION_START:
@@ -42,13 +41,14 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[0] = WEBUSB_CMD_FW_GET;
         _webusb_out_buffer[1] = (HOJA_FW_VERSION & 0xFF00) >> 8;
         _webusb_out_buffer[2] = HOJA_FW_VERSION & 0xFF;
+        webusb_enable_output(false);
 
         if (webusb_ready_blocking(4000))
         {
             tud_vendor_n_write(0, _webusb_out_buffer, 64);
             tud_vendor_n_flush(0);
         }
-
+        sleep_ms(30);
         webusb_enable_output(true);
     }
     break;
@@ -129,24 +129,12 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_SNAPBACK_SET:
     {
         printf("WebUSB: Got Snapback SET command.\n");
-        settings_set_snapback(data[1], data[2]);
     }
     break;
 
     case WEBUSB_CMD_SNAPBACK_GET:
     {
         printf("DEPRECIATED: WebUSB: Got Snapback GET command.\n");
-        _webusb_out_buffer[0] = WEBUSB_CMD_SNAPBACK_GET;
-        _webusb_out_buffer[1] = 0;
-        _webusb_out_buffer[2] = 0;
-        _webusb_out_buffer[3] = 0;
-        _webusb_out_buffer[4] = 0;
-
-        if (webusb_ready_blocking(4000))
-        {
-            tud_vendor_n_write(0, _webusb_out_buffer, 64);
-            tud_vendor_n_flush(0);
-        }
     }
     break;
 
@@ -176,6 +164,28 @@ void webusb_command_processor(uint8_t *data)
         printf("WebUSB: Got Remap SET default command.\n");
         remap_reset_default(data[1]);
         remap_send_data_webusb(data[1]);
+    }
+    break;
+
+    case WEBUSB_CMD_VIBRATE_GET:
+    {
+        printf("WebUSB: Got Vibrate GET command.");
+        memset(_webusb_out_buffer, 0, 64);
+        _webusb_out_buffer[0] = WEBUSB_CMD_VIBRATE_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.rumble_intensity;
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_VIBRATE_SET:
+    {
+        printf("WebUSB: Got Vibrate SET command.");
+        settings_set_rumble(data[1]);
     }
     break;
 

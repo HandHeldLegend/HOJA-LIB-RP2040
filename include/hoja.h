@@ -8,10 +8,9 @@ void cb_hoja_hardware_setup();
 void cb_hoja_read_buttons(button_data_s *data);
 void cb_hoja_read_analog(a_data_s *data);
 void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b);
-
 void cb_hoja_rumble_enable(float intensity);
-
 void cb_hoja_task_1_hook(uint32_t timestamp);
+void cb_hoja_set_rumble_intensity(uint8_t intensity);
 
 void hoja_init();
 

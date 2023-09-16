@@ -106,12 +106,14 @@ void hoja_init()
     {
       settings_reset_to_default();
       sleep_ms(200);
+      rgb_load_preset();
+      rgb_set_dirty();
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
     else
     {
-      //rgb_load_preset();
-      //rgb_set_dirty();
+      rgb_load_preset();
+      rgb_set_dirty();
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
   }

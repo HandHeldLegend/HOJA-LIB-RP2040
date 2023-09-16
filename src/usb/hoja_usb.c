@@ -303,20 +303,16 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 // Vendor Device Class CB for receiving data
 void tud_vendor_rx_cb(uint8_t itf)
 {
+  uint8_t buffer[64];
 
-  uint8_t buffer[6] = {0};
-  uint32_t size = 0;
+  tud_vendor_n_read(0, buffer, 64);
+  tud_vendor_n_read_flush(0);
 
-  rgb_s col = {.r = buffer[0], .g = buffer[1], .b = buffer[2]};
-  rgb_set_all(col.color);
-  rgb_set_dirty();
-
-  /*
   if (_usb_mode == INPUT_MODE_SWPRO)
   {
     printf("WebUSB Data Received.\n");
     webusb_command_processor(buffer);
-  }*/
+  }
 }
 
 
