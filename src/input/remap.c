@@ -57,6 +57,7 @@ void _remap_load_remap(input_mode_t mode, button_remap_s **remap_out, buttons_un
       *unset_out = &(global_loaded_settings.remap_switch.disabled);
       break;
 
+    case INPUT_MODE_GCUSB:
     case INPUT_MODE_GAMECUBE:
       *remap_out = &(global_loaded_settings.remap_gamecube.remap);
       *unset_out = &(global_loaded_settings.remap_gamecube.disabled);

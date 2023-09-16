@@ -49,6 +49,7 @@
 #include "desc_bos.h"
 // XInput TinyUSB Driver
 #include "xinput_device.h"
+#include "ginput_device.h"
 
 #include "gcinput.h"
 #include "xinput.h"

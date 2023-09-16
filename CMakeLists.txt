@@ -11,6 +11,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput_device.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_device.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 

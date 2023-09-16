@@ -11,4 +11,6 @@ extern const char* global_string_descriptor[];
 #define GAMEPAD_PIO pio1
 #define GAMEPAD_SM 0
 
+#define VENDOR_REQUEST_GET_MS_OS_DESCRIPTOR 7
+
 #endif
