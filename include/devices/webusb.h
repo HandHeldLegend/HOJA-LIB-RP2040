@@ -10,9 +10,8 @@ typedef enum
   // Get firmware version
   WEBUSB_CMD_FW_GET = 0xAF,
 
-  // Get Device ID
-  WEBUSB_CMD_ID_GET = 0xBF,
-  
+  // Get Device Capability
+  WEBUSB_CMD_CAPABILITIES_GET = 0xBE,
 
   WEBUSB_CMD_RGB_SET = 0x01,
   WEBUSB_CMD_RGB_GET = 0xA1,

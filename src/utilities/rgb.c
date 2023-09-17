@@ -12,6 +12,18 @@ rgb_s _rgb_next[HOJA_RGB_COUNT]     = {0};
 rgb_s _rgb_current[HOJA_RGB_COUNT]  = {0};
 rgb_s _rgb_last[HOJA_RGB_COUNT]     = {0};
 
+const uint8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
+const uint8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
+const uint8_t _rgb_group_dpad[] = HOJA_RGB_GROUP_DPAD;
+const uint8_t _rgb_group_minus[] = HOJA_RGB_GROUP_MINUS;
+const uint8_t _rgb_group_capture[] = HOJA_RGB_GROUP_CAPTURE;
+const uint8_t _rgb_group_home[] = HOJA_RGB_GROUP_HOME;
+const uint8_t _rgb_group_plus[] = HOJA_RGB_GROUP_PLUS;
+const uint8_t _rgb_group_y[] = HOJA_RGB_GROUP_Y;
+const uint8_t _rgb_group_x[] = HOJA_RGB_GROUP_X;
+const uint8_t _rgb_group_a[] = HOJA_RGB_GROUP_A;
+const uint8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
+
 static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
     return
             ((uint32_t) (r) << 8) |
@@ -85,11 +97,11 @@ void _rgb_animate_step()
     }
 }
 
-void _rgb_set_sequential(rgb_s *colors, uint8_t len, uint32_t color)
+void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32_t color)
 {
     for(uint8_t i = 0; i < len; i++)
     {
-        colors[i].color = color;
+        colors[leds[i]].color = color;
     }
 }
 #endif
@@ -142,47 +154,47 @@ void rgb_set_group(rgb_group_t group, uint32_t color)
         break;
 
         case RGB_GROUP_RS:
-            _rgb_set_sequential(&_rgb_next[0], 4, color);
+            _rgb_set_sequential(_rgb_group_rs, sizeof(_rgb_group_rs), _rgb_next, color);
             break;
 
         case RGB_GROUP_LS:
-            _rgb_set_sequential(&_rgb_next[4], 4, color);
+            _rgb_set_sequential(_rgb_group_ls, sizeof(_rgb_group_ls), _rgb_next, color);
             break;
 
         case RGB_GROUP_DPAD:
-            _rgb_set_sequential(&_rgb_next[8], 4, color);
+            _rgb_set_sequential(_rgb_group_dpad, sizeof(_rgb_group_dpad), _rgb_next, color);
             break;
 
         case RGB_GROUP_MINUS:
-            _rgb_next[12].color = color;
+            _rgb_set_sequential(_rgb_group_minus, sizeof(_rgb_group_minus), _rgb_next, color);
             break;
 
         case RGB_GROUP_CAPTURE:
-            _rgb_next[13].color = color;
+            _rgb_set_sequential(_rgb_group_capture, sizeof(_rgb_group_capture), _rgb_next, color);
             break;
 
         case RGB_GROUP_HOME:
-            _rgb_next[14].color = color;
+            _rgb_set_sequential(_rgb_group_home, sizeof(_rgb_group_home), _rgb_next, color);
             break;
 
         case RGB_GROUP_PLUS:
-            _rgb_next[15].color = color;
+            _rgb_set_sequential(_rgb_group_plus, sizeof(_rgb_group_plus), _rgb_next, color);
             break;
 
         case RGB_GROUP_Y:
-            _rgb_next[16].color = color;
+            _rgb_set_sequential(_rgb_group_y, sizeof(_rgb_group_y), _rgb_next, color);
             break;
 
         case RGB_GROUP_X:
-            _rgb_next[17].color = color;
+            _rgb_set_sequential(_rgb_group_x, sizeof(_rgb_group_x), _rgb_next, color);
             break;
 
         case RGB_GROUP_A:
-            _rgb_next[18].color = color;
+            _rgb_set_sequential(_rgb_group_a, sizeof(_rgb_group_a), _rgb_next, color);
             break;
 
         case RGB_GROUP_B:
-            _rgb_next[19].color = color;
+            _rgb_set_sequential(_rgb_group_b, sizeof(_rgb_group_b), _rgb_next, color);
             break;
     }
     #endif

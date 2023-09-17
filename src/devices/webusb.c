@@ -4,6 +4,20 @@
 uint8_t _webusb_out_buffer[64] = {0x00};
 bool _webusb_output_enabled = false;
 
+hoja_capabilities_t _webusb_capabilities = {
+    .analog_stick_left = HOJA_CAPABILITY_ANALOG_STICK_L,
+    .analog_stick_right = HOJA_CAPABILITY_ANALOG_STICK_R,
+    .analog_trigger_left = HOJA_CAPABILITY_ANALOG_TRIGGER_L,
+    .analog_trigger_right = HOJA_CAPABILITY_ANALOG_TRIGGER_R,
+    .bluetooth = HOJA_CAPABILITY_BLUETOOTH,
+    .rgb = HOJA_CAPABILITY_RGB,
+    .gyroscope = HOJA_CAPABILITY_GYRO,
+    .nintendo_serial = HOJA_CAPABILITY_NINTENDO_SERIAL,
+    .nintendo_joybus = HOJA_CAPABILITY_NINTENDO_JOYBUS,
+    .rumble = HOJA_CAPABILITY_RUMBLE,
+    .padding = 0,
+};
+
 void webusb_save_confirm()
 {
     printf("Sending Save receipt...\n");
@@ -23,6 +37,23 @@ void webusb_command_processor(uint8_t *data)
     default:
         break;
 
+    case WEBUSB_CMD_CAPABILITIES_GET:
+    {
+        printf("WebUSB: Got Capabilities GET command.\n");
+        _webusb_out_buffer[0] = WEBUSB_CMD_CAPABILITIES_GET;
+        memcpy(&_webusb_out_buffer[1], &_webusb_capabilities, sizeof(uint8_t)*2);
+
+        webusb_enable_output(false);
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+        sleep_ms(30);
+        webusb_enable_output(true);
+    }
+    break;
+
     case WEBUSB_CMD_IMU_CALIBRATION_START:
     {
         printf("WebUSB: Got IMU calibration START command.\n");
@@ -41,6 +72,8 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[0] = WEBUSB_CMD_FW_GET;
         _webusb_out_buffer[1] = (HOJA_FW_VERSION & 0xFF00) >> 8;
         _webusb_out_buffer[2] = HOJA_FW_VERSION & 0xFF;
+        _webusb_out_buffer[3] = (HOJA_DEVICE_ID & 0xFF00) >> 8;
+        _webusb_out_buffer[4] = (HOJA_DEVICE_ID & 0xFF);
         webusb_enable_output(false);
 
         if (webusb_ready_blocking(4000))
@@ -123,18 +156,6 @@ void webusb_command_processor(uint8_t *data)
             tud_vendor_n_write(0, _webusb_out_buffer, 64);
             tud_vendor_n_flush(0);
         }
-    }
-    break;
-
-    case WEBUSB_CMD_SNAPBACK_SET:
-    {
-        printf("WebUSB: Got Snapback SET command.\n");
-    }
-    break;
-
-    case WEBUSB_CMD_SNAPBACK_GET:
-    {
-        printf("DEPRECIATED: WebUSB: Got Snapback GET command.\n");
     }
     break;
 

@@ -52,23 +52,7 @@ void settings_reset_to_default()
     .r_angle_distances = {
       600, 600, 600, 600, 600, 600, 600, 600,
     },
-    .rgb_colors = {
-      COLOR_RED.color,
-      COLOR_ORANGE.color,
-
-      COLOR_YELLOW.color,
-
-      COLOR_GREEN.color,
-      COLOR_BLUE.color,
-      COLOR_CYAN.color,
-      COLOR_PURPLE.color,
-
-      COLOR_RED.color,
-      COLOR_GREEN.color,
-      COLOR_BLUE.color,
-      COLOR_YELLOW.color,
-      COLOR_BLUE.color,
-    },
+    .rgb_colors = HOJA_RGB_DEFAULTS,
     .rumble_intensity = 100,
   };
   memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
