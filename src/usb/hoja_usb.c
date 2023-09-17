@@ -329,7 +329,6 @@ void tud_vendor_rx_cb(uint8_t itf)
   }
 }
 
-
 const tusb_desc_webusb_url_t desc_url =
     {
         .bLength = 3 + sizeof(HOJA_WEBUSB_URL) - 1,
@@ -372,8 +371,6 @@ uint8_t MS_Extended_Feature_Descriptor[] =
         'B', 0, '7', 0, '7', 0, '2', 0, '-', 0, 'B', 0, '3', 0, 'A', 0, 'F', 0, '2', 0,
         'B', 0, '6', 0, 'F', 0, 'D', 0, 'E', 0, '1', 0, 'C', 0, '}', 0,
         0x00, 0x00, 0x00, 0x00};
-
-
 
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
@@ -474,7 +471,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   // stall unknown request
   return false;
 }
-
 
 /********* USB Data Handling Utilities ***************/
 /**

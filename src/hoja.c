@@ -34,7 +34,7 @@ void _hoja_task_0()
   
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
-  safe_mode_task(&_button_data);
+  safe_mode_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
 
   if (_hoja_usb_task_enable)
