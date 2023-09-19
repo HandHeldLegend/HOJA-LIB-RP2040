@@ -65,7 +65,7 @@ void analog_calibrate_start()
 
 void analog_calibrate_stop()
 {
-    rgb_load_preset();
+    rgb_preset_reload();
     rgb_set_dirty();
 
     _analog_calibrate = false;
@@ -81,7 +81,7 @@ void analog_calibrate_stop()
 
 void analog_calibrate_save()
 {
-    rgb_load_preset();
+    rgb_preset_reload();
     rgb_set_dirty();
 
     _analog_calibrate = false;

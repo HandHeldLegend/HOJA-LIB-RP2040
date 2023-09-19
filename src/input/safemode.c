@@ -28,7 +28,7 @@ void safe_mode_task(uint32_t timestamp, button_data_s *in)
             }
             else
             {
-                rgb_load_preset();
+                rgb_preset_reload();
             }
 
             rgb_set_dirty();

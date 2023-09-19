@@ -69,7 +69,7 @@ void imu_calibrate_start()
 
 void imu_calibrate_stop()
 {
-  rgb_load_preset();
+  rgb_preset_reload();
   rgb_set_dirty();
 
   settings_save_webindicate();

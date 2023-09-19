@@ -1,7 +1,5 @@
 #include "hoja.h"
 
-bool _hoja_usb_task_enable = false;
-
 button_data_s _button_data = {0};
 button_data_s _button_data_processed = {0};
 
@@ -23,6 +21,20 @@ volatile uint32_t _hoja_timestamp = 0;
 
 bool _remap_enabled = false;
 
+rgb_preset_t _hoja_gamecube_led_preset = {
+  .a = PRESET_GC_A,
+  .b = PRESET_GC_B,
+  .x = PRESET_GC_OTHER,
+  .y = PRESET_GC_OTHER,
+  .dpad = PRESET_GC_OTHER,
+  .ls = PRESET_GC_OTHER,
+  .rs = PRESET_GC_C,
+  .plus = PRESET_GC_OTHER,
+  .minus = PRESET_GC_OTHER,
+  .home = COLOR_RED,
+  .capture = PRESET_GC_OTHER,
+};
+
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
@@ -37,24 +49,7 @@ void _hoja_task_0()
   safe_mode_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
 
-  if (_hoja_usb_task_enable)
-  {
-    // Process USB if needed
-    tud_task();
-
-    // Webusb stuff
-    if(webusb_output_enabled())
-    {
-      snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
-      webusb_input_report_task(_hoja_timestamp, &_analog_data_output);
-    }
-    
-    hoja_usb_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
-  }
-  else
-  {
-    hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
-  }
+  hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
 }
 
 // Core 1 task loop entrypoint
@@ -106,14 +101,14 @@ void hoja_init()
     {
       settings_reset_to_default();
       sleep_ms(200);
-      rgb_load_preset();
-      rgb_set_dirty();
+      rgb_load_preset((rgb_preset_t *) &global_loaded_settings.rgb_colors[0]);
+      
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
     else
     {
-      rgb_load_preset();
-      rgb_set_dirty();
+      rgb_load_preset((rgb_preset_t *) &global_loaded_settings.rgb_colors[0]);
+      
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
   }
@@ -124,8 +119,9 @@ void hoja_init()
   // For switch Pro stuff
   switch_analog_calibration_init();
 
-  _hoja_usb_task_enable = true;
   input_mode_t _hoja_input_mode = 0;
+
+  _hoja_input_mode = global_loaded_settings.input_mode;
 
   if (_button_data.button_x)
   {
@@ -133,17 +129,28 @@ void hoja_init()
   }
   else if (_button_data.button_a)
   {
-    _hoja_usb_task_enable = false;
-    _hoja_input_mode = INPUT_MODE_GAMECUBE;
+    _hoja_input_mode = INPUT_MODE_SWPRO;
   }
-  else if (_button_data.button_b)
+  else if (_button_data.dpad_down)
   {
-    _hoja_usb_task_enable = false;
     _hoja_input_mode = INPUT_MODE_N64;
+  }
+  else if (_button_data.dpad_right)
+  {
+    _hoja_input_mode = INPUT_MODE_GAMECUBE;
+    rgb_load_preset(&_hoja_gamecube_led_preset);
   }
   else if (_button_data.button_plus)
   {
     _hoja_input_mode = INPUT_MODE_GCUSB;
+  }
+
+  rgb_set_dirty();
+
+  if(_button_data.button_home)
+  {
+    global_loaded_settings.input_mode = _hoja_input_mode;
+    settings_save();
   }
 
   // Initialize button remapping

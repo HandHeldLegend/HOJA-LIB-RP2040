@@ -11,6 +11,7 @@ bool _rgb_out_dirty = false;
 rgb_s _rgb_next[HOJA_RGB_COUNT]     = {0};
 rgb_s _rgb_current[HOJA_RGB_COUNT]  = {0};
 rgb_s _rgb_last[HOJA_RGB_COUNT]     = {0};
+rgb_preset_t *_rgb_preset;
 
 const uint8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
 const uint8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
@@ -134,14 +135,22 @@ void rgb_set_all(uint32_t color)
     #endif
 }
 
-
-void rgb_load_preset()
+void rgb_preset_reload()
 {
-    #ifdef HOJA_RGB_PIN
+    uint32_t *p = (uint32_t *) _rgb_preset;
+
     for(uint8_t i = 0; i < RGB_GROUP_MAX; i++)
     {
-        rgb_set_group(i, global_loaded_settings.rgb_colors[i]);
+        rgb_set_group(i, p[i]);
     }
+}
+
+void rgb_load_preset(rgb_preset_t *preset)
+{
+    #ifdef HOJA_RGB_PIN
+    _rgb_preset = preset;
+    rgb_preset_reload();
+    
     #endif
 }
 

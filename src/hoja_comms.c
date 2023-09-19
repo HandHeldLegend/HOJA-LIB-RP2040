@@ -22,14 +22,17 @@ void hoja_comms_init(input_mode_t input_mode)
     switch(input_mode)
     {
         case INPUT_MODE_SWPRO:
+            _comms_cb = hoja_usb_task;
             hoja_usb_start(INPUT_MODE_SWPRO);
             break;
 
         case INPUT_MODE_XINPUT:
+            _comms_cb = hoja_usb_task;
             hoja_usb_start(INPUT_MODE_XINPUT);
             break;
 
         case INPUT_MODE_GCUSB:
+            _comms_cb = hoja_usb_task;
             hoja_usb_start(INPUT_MODE_GCUSB);
             break;
 

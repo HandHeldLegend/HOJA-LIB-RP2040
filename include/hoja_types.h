@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 
+
 /**
  * 
  * uint8_t array[0]:  | analog_stick_left | analog_stick_right | analog_trigger_left | analog_trigger_right | gyroscope | bluetooth | rgb | rumble |
@@ -140,6 +141,20 @@ typedef struct
         uint32_t color;
     };
 } rgb_s;
+
+typedef struct {
+    rgb_s rs;
+    rgb_s ls;
+    rgb_s dpad;
+    rgb_s minus;
+    rgb_s capture;
+    rgb_s home;
+    rgb_s plus;
+    rgb_s y;
+    rgb_s x;
+    rgb_s a;
+    rgb_s b;
+} rgb_preset_t;
 
 typedef enum
 {

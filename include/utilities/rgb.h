@@ -31,11 +31,19 @@ typedef enum{
     RGB_GROUP_MAX,
 } rgb_group_t;
 
+// GC Mode Preset Defines
+#define PRESET_GC_A     (rgb_s) {.r = 0x00, .g = 0x18, .b = 0x0A}
+#define PRESET_GC_B     (rgb_s) {.r = 0x0F, .g = 0x02, .b = 0x02}
+#define PRESET_GC_C     (rgb_s) {.r = 0x14, .g = 0x0B, .b = 0x00}
+#define PRESET_GC_OTHER (rgb_s) {.r = 0x04, .g = 0x04, .b = 0x04}
+
 void rgb_set_instant();
 
 void rgb_set_dirty();
 
-void rgb_load_preset();
+void rgb_preset_reload();
+
+void rgb_load_preset(rgb_preset_t *preset);
 
 void rgb_set_group(rgb_group_t group, uint32_t color);
 
