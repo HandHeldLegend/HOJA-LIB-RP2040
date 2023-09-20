@@ -12,6 +12,8 @@ rgb_s _rgb_next[HOJA_RGB_COUNT]     = {0};
 rgb_s _rgb_current[HOJA_RGB_COUNT]  = {0};
 rgb_s _rgb_last[HOJA_RGB_COUNT]     = {0};
 rgb_preset_t *_rgb_preset;
+rgb_preset_t _rgb_preset_loaded;
+uint8_t _rgb_brightness = 100;
 
 const uint8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
 const uint8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
@@ -30,6 +32,25 @@ static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
             ((uint32_t) (r) << 8) |
             ((uint32_t) (g) << 16) |
             (uint32_t) (b);
+}
+
+void _rgb_set_color_brightness(rgb_s *color)
+{
+    if(!_rgb_brightness)
+    {
+        color->color = 0x00;
+    }
+    else if(_rgb_brightness==100)
+    {
+        return;
+    }
+    else
+    {
+        float r = (float) _rgb_brightness/100.0f;
+        color->r = (float) color->r * r;
+        color->g = (float) color->g * r;
+        color->b = (float) color->b * r;
+    }
 }
 
 void _rgb_normalize_output_power(rgb_s *color)
@@ -122,6 +143,11 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
 }
 #endif
 
+void rgb_set_brightness(uint8_t brightness)
+{
+    _rgb_brightness = (brightness > 100) ? 100 : brightness;
+}
+
 // Enable the RGB transition to the next color
 void rgb_set_dirty()
 {
@@ -149,7 +175,9 @@ void rgb_set_all(uint32_t color)
     #ifdef HOJA_RGB_PIN
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
-        _rgb_next[i].color = color;
+        rgb_s col = {.color = color};
+        _rgb_set_color_brightness(&col);
+        _rgb_next[i].color = col.color;
         _rgb_normalize_output_power(&_rgb_next[i]);
     }
     #endif
@@ -157,10 +185,12 @@ void rgb_set_all(uint32_t color)
 
 void rgb_preset_reload()
 {
-    uint32_t *p = (uint32_t *) _rgb_preset;
+    memcpy(&_rgb_preset_loaded, _rgb_preset, sizeof(rgb_preset_t));
+    uint32_t *p = (uint32_t *) &_rgb_preset_loaded;
 
     for(uint8_t i = 0; i < RGB_GROUP_MAX; i++)
     {
+        _rgb_set_color_brightness((rgb_s *) &p[i]);
         rgb_set_group(i, p[i]);
     }
 }

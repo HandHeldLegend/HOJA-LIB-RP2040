@@ -86,6 +86,13 @@ void _hoja_task_0()
   safe_mode_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
 
+  // Webusb stuff
+  if(webusb_output_enabled())
+  {
+    snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
+    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered);
+  }
+
   hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
 }
 
@@ -168,14 +175,15 @@ void hoja_init()
   {
     _hoja_input_mode = INPUT_MODE_SWPRO;
   }
-  else if (_button_data.dpad_down)
+  else if (_button_data.dpad_down && !_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_N64;
   }
   else if (_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_GAMECUBE;
-    rgb_load_preset(&_hoja_gamecube_led_preset);
+    rgb_set_brightness(10);
+    rgb_preset_reload();
   }
   else if (_button_data.button_plus)
   {

@@ -37,6 +37,8 @@ typedef enum{
 #define PRESET_GC_C     (rgb_s) {.r = 0x14, .g = 0x0B, .b = 0x00}
 #define PRESET_GC_OTHER (rgb_s) {.r = 0x04, .g = 0x04, .b = 0x04}
 
+void rgb_set_brightness(uint8_t brightness);
+
 void rgb_set_instant();
 
 void rgb_set_dirty();

@@ -77,13 +77,6 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
 {
   tud_task();
 
-  // Webusb stuff
-  if(webusb_output_enabled())
-  {
-    snapback_webcapture_task(timestamp, analog_data);
-    webusb_input_report_task(timestamp, analog_data);
-  }
-
   if ((_usb_mode == INPUT_MODE_XINPUT) || (_usb_mode == INPUT_MODE_GCUSB) )
   {
     if (_usb_ready_cb())
