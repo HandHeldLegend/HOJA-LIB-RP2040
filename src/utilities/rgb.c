@@ -32,8 +32,22 @@ static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
             (uint32_t) (b);
 }
 
+void _rgb_normalize_output_power(rgb_s *color)
+{
+    float total = (float) (color->r + color->g + color->b);
+    
+    float rf = (float)color->r / total;
+    float gf = (float)color->g / total;
+    float bf = (float)color->b / total;
+
+    color->r = (float)color->r * rf;
+    color->g = gf* (float)color->g;
+    color->b = bf* (float)color->b;
+}
+
 void _rgb_update_all()
 {
+    
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         pio_sm_put_blocking(RGB_PIO, RGB_SM, _rgb_current[i].color);
@@ -103,6 +117,7 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
     for(uint8_t i = 0; i < len; i++)
     {
         colors[leds[i]].color = color;
+        _rgb_normalize_output_power(&colors[leds[i]]);
     }
 }
 #endif
@@ -119,6 +134,10 @@ void rgb_set_instant()
 {
     #ifdef HOJA_RGB_PIN
     memcpy(_rgb_current, _rgb_next, sizeof(rgb_s)*HOJA_RGB_COUNT);
+    for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    {
+        _rgb_normalize_output_power(&_rgb_current[i]);
+    }
     _rgb_update_all();
     memcpy(_rgb_last, _rgb_current, sizeof(rgb_s)*HOJA_RGB_COUNT);
     #endif
@@ -131,6 +150,7 @@ void rgb_set_all(uint32_t color)
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         _rgb_next[i].color = color;
+        _rgb_normalize_output_power(&_rgb_next[i]);
     }
     #endif
 }

@@ -35,6 +35,43 @@ rgb_preset_t _hoja_gamecube_led_preset = {
   .capture = PRESET_GC_OTHER,
 };
 
+// USER DEFINED CALLBACKS
+// DO NOT EDIT
+__attribute__ ((weak)) void cb_hoja_hardware_setup()
+{
+}
+
+__attribute__ ((weak)) void cb_hoja_read_buttons(button_data_s *data)
+{
+  (void) &data;
+}
+
+__attribute__ ((weak)) void cb_hoja_read_analog(a_data_s *data)
+{
+  (void) &data;
+}
+
+__attribute__ ((weak)) void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b)
+{
+  (void) &data_a;
+  (void) &data_b;
+}
+
+__attribute__ ((weak)) void cb_hoja_rumble_enable(float intensity)
+{
+  (void) intensity;
+}
+
+__attribute__ ((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
+{
+  (void) timestamp;
+}
+
+__attribute__ ((weak)) void cb_hoja_set_rumble_intensity(uint8_t intensity)
+{
+  (void) intensity;
+}
+
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
