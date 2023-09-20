@@ -55,6 +55,8 @@ void _rgb_set_color_brightness(rgb_s *color)
 
 void _rgb_normalize_output_power(rgb_s *color)
 {
+    if(!color->color) return;
+    
     float total = (float) (color->r + color->g + color->b);
     
     float rf = (float)color->r / total;
