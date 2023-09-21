@@ -46,5 +46,6 @@ void hoja_comms_init(input_mode_t input_mode)
 
         case INPUT_MODE_SNES:
             _comms_cb = nspi_comms_task;
+        break;
     }
 }

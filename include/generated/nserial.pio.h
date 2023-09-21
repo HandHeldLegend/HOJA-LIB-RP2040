@@ -13,7 +13,11 @@
 // ------- //
 
 #define nserial_wrap_target 0
-#define nserial_wrap 5
+#define nserial_wrap 11
+
+#define nserial_offset_startserial 0u
+#define nserial_offset_clearserial 6u
+#define nserial_offset_latchstart 8u
 
 static const uint16_t nserial_program_instructions[] = {
             //     .wrap_target
@@ -23,13 +27,19 @@ static const uint16_t nserial_program_instructions[] = {
     0x20a0, //  3: wait   1 pin, 0                   
     0x6001, //  4: out    pins, 1                    
     0x0002, //  5: jmp    2                          
+    0xa0e3, //  6: mov    osr, null                  
+    0x0000, //  7: jmp    0                          
+    0x2020, //  8: wait   0 pin, 0                   
+    0x20a0, //  9: wait   1 pin, 0                   
+    0xc000, // 10: irq    nowait 0                   
+    0x0008, // 11: jmp    8                          
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program nserial_program = {
     .instructions = nserial_program_instructions,
-    .length = 6,
+    .length = 12,
     .origin = -1,
 };
 
@@ -39,29 +49,43 @@ static inline pio_sm_config nserial_program_get_default_config(uint offset) {
     return c;
 }
 
-static inline void nserial_latch_jump(PIO pio, uint sm) {
-  // Jump to start to fetch new data
-  pio_sm_exec(pio, sm, 0x0000);
-}
 static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_sm_config c = nserial_program_get_default_config(offset);
+    gpio_init(pin);
+    gpio_init(pin+1);
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+    pio_gpio_init(pio, pin+1);
     // Map the state machine's OUT pin group to one pin, namely the `pin`
     // parameter to this function.
     // Use 1 out pin for data
     sm_config_set_out_pins(&c, pin, 1);
     // Set IN pin group (CLOCK)
     sm_config_set_in_pins(&c, pin+1);
-    // Set this pin's GPIO function (connect PIO to the pad)
-    pio_gpio_init(pio, pin);
-    pio_gpio_init(pio, pin+1);
-    gpio_pull_up(pin);
-    gpio_pull_up(pin+1);
+    float div = clock_get_hz(clk_sys) / (2000000);
+    sm_config_set_clkdiv(&c, div);
     // Set the pin direction to output at the PIO
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
     // Set input pins
     pio_sm_set_consecutive_pindirs(pio, sm, pin+1, 1, false);
+    sm_config_set_out_shift(&c, false, false, 16);
     // Load our configuration, and jump to the start of the program
     pio_sm_init(pio, sm, offset, &c);
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+static inline void nserial_program_latch_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = nserial_program_get_default_config(offset);
+    gpio_init(pin);
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+    sm_config_set_in_pins(&c, pin);
+    float div = clock_get_hz(clk_sys) / (2000000);
+    sm_config_set_clkdiv(&c, div);
+    // Set input pins
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset+nserial_offset_latchstart, &c);
     // Set the state machine running
     pio_sm_set_enabled(pio, sm, true);
 }
