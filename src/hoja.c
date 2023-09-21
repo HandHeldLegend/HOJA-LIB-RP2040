@@ -175,6 +175,10 @@ void hoja_init()
   {
     _hoja_input_mode = INPUT_MODE_SWPRO;
   }
+  else if (_button_data.dpad_left)
+  {
+    _hoja_input_mode = INPUT_MODE_SNES;
+  }
   else if (_button_data.dpad_down && !_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_N64;

@@ -1,22 +1,22 @@
 #include "nspi.h"
 
+static bool _nspi_running;
 static uint _nspi_irq;
 static PIO  _nspi_pio;
 static uint _nspi_sm;
 static uint _nspi_offset;
-static uint32_t _nspi_buffer;
+static uint32_t _nspi_buffer = 0xFFFFFFFF;
 
 void nspi_load_buffer()
 {
-  _nspi_buffer = 0xA0;
   pio_sm_put_blocking(_nspi_pio, 0, _nspi_buffer);
 }
 
 void nspi_isr_handler(uint gpio, uint32_t events)
 {
   gpio_acknowledge_irq(HOJA_LATCH_PIN, IO_IRQ_BANK0);
-  nspi_load_buffer();
   nserial_latch_jump(_nspi_pio, _nspi_sm);
+  nspi_load_buffer();
 }
 
 void nspi_init()
@@ -29,7 +29,7 @@ void nspi_init()
 
   irq_set_exclusive_handler(_nspi_irq, (void*) nspi_isr_handler);
   // Enable GPIO ISR
-  gpio_set_irq_enabled(HOJA_LATCH_PIN, GPIO_IRQ_EDGE_FALL, true);
+  gpio_set_irq_enabled(HOJA_LATCH_PIN, GPIO_IRQ_EDGE_RISE, true);
 
   // Set up PIO for NSPI
   _nspi_pio = pio0;
@@ -40,7 +40,42 @@ void nspi_init()
   irq_set_enabled(_nspi_irq, true);
 }
 
-void nspi_deinit()
+void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  if(!_nspi_running)
+  {
+    nspi_init();
+    _nspi_running = true;
+  }
+  else
+  {
+    static nspi_input_s buffer = {.value = 0xFFFF};
 
+    buffer.a = !buttons->button_a;
+    buffer.b = !buttons->button_b;
+    buffer.x = !buttons->button_x;
+    buffer.y = !buttons->button_y;
+
+    int up = (buttons->dpad_up | (analog->lx > (2048+1024)) );
+    int down = -(buttons->dpad_down | (analog->lx < (2048-1024)) );
+
+    int right = (buttons->dpad_right | (analog->ly > (2048+1024)) );
+    int left = -(buttons->dpad_left | (analog->ly < (2048-1024)) );
+
+    int updown = up+down;
+    int rightleft = right+left;
+
+    buffer.dup    = (updown==1)   ? 0 : 1;
+    buffer.ddown  = (updown==-1)  ? 0 : 1;
+    buffer.dright = (rightleft==1)  ? 0 : 1;
+    buffer.dleft  = (rightleft==-1) ? 0 : 1;
+
+    buffer.select = !buttons->button_minus;
+    buffer.start  = !buttons->button_plus;
+
+    buffer.l = ! (buttons->trigger_l | buttons->trigger_zl);
+    buffer.r = ! (buttons->trigger_r | buttons->trigger_zr);
+
+    _nspi_buffer = (buffer.value << 16) | 0xFFFF;
+  }
 }

@@ -60,6 +60,7 @@
 
 #include "gamecube.h"
 #include "n64.h"
+#include "nspi.h"
 
 #include "remap.h"
 #include "hoja.h"
