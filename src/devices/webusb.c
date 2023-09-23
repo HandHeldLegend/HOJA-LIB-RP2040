@@ -176,7 +176,15 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_GCSP_SET:
     {
         printf("WebUSB: Got GCSP SET command.\n");
-        remap_set_gc_sp(data[1]);
+        
+        if(data[1] == 0xFF)
+        {
+            global_loaded_settings.gc_sp_light_trigger = data[2];
+        }
+        else
+        {
+            remap_set_gc_sp(data[1]);
+        }
     }
     break;
 

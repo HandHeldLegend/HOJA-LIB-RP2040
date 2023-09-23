@@ -19,22 +19,6 @@ auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
 
-bool _remap_enabled = false;
-
-rgb_preset_t _hoja_gamecube_led_preset = {
-  .a = PRESET_GC_A,
-  .b = PRESET_GC_B,
-  .x = PRESET_GC_OTHER,
-  .y = PRESET_GC_OTHER,
-  .dpad = PRESET_GC_OTHER,
-  .ls = PRESET_GC_OTHER,
-  .rs = PRESET_GC_C,
-  .plus = PRESET_GC_OTHER,
-  .minus = PRESET_GC_OTHER,
-  .home = COLOR_RED,
-  .capture = PRESET_GC_OTHER,
-};
-
 // USER DEFINED CALLBACKS
 // DO NOT EDIT
 __attribute__ ((weak)) void cb_hoja_hardware_setup()
@@ -122,11 +106,6 @@ void _hoja_task_1()
   }
 }
 
-void hoja_remapping_enable(bool enable)
-{
-  _remap_enabled = enable;
-}
-
 void hoja_init()
 {
   // Set up hardware first
@@ -175,23 +154,27 @@ void hoja_init()
   {
     _hoja_input_mode = INPUT_MODE_SWPRO;
   }
+  else if (_button_data.button_y)
+  {
+    _hoja_input_mode = INPUT_MODE_GCUSB;
+  }
   else if (_button_data.dpad_left)
   {
     _hoja_input_mode = INPUT_MODE_SNES;
+    rgb_set_brightness(10);
+    rgb_preset_reload();
   }
   else if (_button_data.dpad_down && !_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_N64;
+    rgb_set_brightness(10);
+    rgb_preset_reload();
   }
   else if (_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_GAMECUBE;
     rgb_set_brightness(10);
     rgb_preset_reload();
-  }
-  else if (_button_data.button_plus)
-  {
-    _hoja_input_mode = INPUT_MODE_GCUSB;
   }
 
   rgb_set_dirty();

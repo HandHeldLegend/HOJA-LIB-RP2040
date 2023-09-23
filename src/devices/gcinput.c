@@ -16,7 +16,7 @@ void gcinput_enable(bool enable)
 void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
 {
     static gc_input_s data = {0};
-    static uint8_t buffer[36] = {0};
+    static uint8_t buffer[37] = {0};
 
     buffer[0] = 0x21;
 
@@ -57,16 +57,31 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
             break;
 
         case GC_SP_MODE_LT:
-            outl = button_data->trigger_l ? (HOJA_ANALOG_LIGHT) : 0;
+            outl = button_data->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
             data.trigger_l = button_data->trigger_zl ? 255 : outl;
             data.trigger_r = button_data->trigger_zr ? 255 : 0;
             break;
 
         case GC_SP_MODE_RT:
-            outr = button_data->trigger_l ? (HOJA_ANALOG_LIGHT) : 0;
+            outr = button_data->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
             data.trigger_r = button_data->trigger_zr ? 255 : outr;
             data.trigger_l = button_data->trigger_zl ? 255 : 0;
             break;
+
+        case GC_SP_MODE_TRAINING:
+          data.trigger_l = button_data->trigger_zl ? 255 : 0;
+          data.trigger_r = button_data->trigger_zr ? 255 : 0;
+
+          if(button_data->trigger_l)
+          {
+            data.button_a = 1;
+            data.trigger_l = 255;
+            data.trigger_r = 255;
+            data.button_l = 1;
+            data.button_r = 1;
+          }
+
+          break;
 
         case GC_SP_MODE_ADC:
             data.trigger_l = analog_data->lt >> 4;

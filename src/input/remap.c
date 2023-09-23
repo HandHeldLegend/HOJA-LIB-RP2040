@@ -211,7 +211,10 @@ void remap_send_data_webusb(input_mode_t mode)
   b[17] = _tmp_remap_struct->button_stick_right;
   b[18] = (_tmp_unset_struct->val & 0xFF00) >> 8;
   b[19] = (_tmp_unset_struct->val & 0xFF);
+
+  // SEND OUTPUT FOR GC SP STUFF
   b[20] = global_loaded_settings.gc_sp_mode;
+  b[21] = global_loaded_settings.gc_sp_light_trigger;
   
   webusb_ready_blocking(0);
   tud_vendor_n_flush(0);

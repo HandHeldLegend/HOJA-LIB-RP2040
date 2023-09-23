@@ -21,6 +21,7 @@ void hoja_comms_init(input_mode_t input_mode)
     _hoja_input_mode = input_mode;
     switch(input_mode)
     {
+        default:
         case INPUT_MODE_SWPRO:
             _comms_cb = hoja_usb_task;
             hoja_usb_start(INPUT_MODE_SWPRO);
@@ -38,14 +39,14 @@ void hoja_comms_init(input_mode_t input_mode)
 
         case INPUT_MODE_GAMECUBE:
             _comms_cb = gamecube_comms_task;
-        break;
+            break;
 
         case INPUT_MODE_N64:
             _comms_cb = n64_comms_task;
-        break;
+            break;
 
         case INPUT_MODE_SNES:
             _comms_cb = nspi_comms_task;
-        break;
+            break;
     }
 }

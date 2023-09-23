@@ -124,7 +124,10 @@ typedef enum
     GC_SP_MODE_NONE = 0, // No function. LT and RT are output full according to digital button.
     GC_SP_MODE_LT   = 1, // SP buttton inputs light trigger left
     GC_SP_MODE_RT   = 2, // SP buttton inputs light trigger right
-    GC_SP_MODE_ADC  = 3, // Controlled fully by analog, SP button is unused
+    GC_SP_MODE_TRAINING = 3, // Training mode reset
+    GC_SP_MODE_ADC  = 4, // Controlled fully by analog, SP button is unused
+
+    GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
 } gc_sp_mode_t;
 
 typedef struct
@@ -230,20 +233,21 @@ typedef struct
         struct
         {
             // D-Pad
-            uint8_t dpad_up         : 1;
-            uint8_t dpad_down       : 1;
-            uint8_t dpad_left       : 1;
-            uint8_t dpad_right      : 1;
+            uint8_t dpad_up     : 1;
+            uint8_t dpad_down   : 1;
+            uint8_t dpad_left   : 1;
+            uint8_t dpad_right  : 1;
             // Buttons
-            uint8_t button_a       : 1;
-            uint8_t button_b     : 1;
-            uint8_t button_x     : 1;
+            uint8_t button_a    : 1;
+            uint8_t button_b    : 1;
+            uint8_t button_x    : 1;
             uint8_t button_y    : 1;
+
             // Triggers
-            uint8_t trigger_l       : 1;
-            uint8_t trigger_zl      : 1;
-            uint8_t trigger_r       : 1;
-            uint8_t trigger_zr      : 1;
+            uint8_t trigger_l   : 1;
+            uint8_t trigger_zl  : 1;
+            uint8_t trigger_r   : 1;
+            uint8_t trigger_zr  : 1;
 
             // Special Functions
             uint8_t button_plus     : 1;

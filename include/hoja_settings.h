@@ -48,8 +48,8 @@ typedef struct
     remap_profile_s remap_snes;
 
     gc_sp_mode_t gc_sp_mode;
-
     uint8_t rumble_intensity;
+    uint8_t gc_sp_light_trigger;
 
 } hoja_settings_s;
 
