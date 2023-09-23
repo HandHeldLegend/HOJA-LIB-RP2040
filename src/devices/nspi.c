@@ -72,8 +72,8 @@ void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analo
     buffer.select = !buttons->button_minus;
     buffer.start  = !buttons->button_plus;
 
-    buffer.l = ! (buttons->trigger_l | buttons->trigger_zl);
-    buffer.r = ! (buttons->trigger_r | buttons->trigger_zr);
+    buffer.l = ! buttons->trigger_l;
+    buffer.r = ! buttons->trigger_r;
 
     _nspi_buffer = buffer.value<<16;
   }

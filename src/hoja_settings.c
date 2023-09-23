@@ -32,6 +32,9 @@ bool settings_load()
     return false;
   }
 
+  // Validate some settings
+  global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger<50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
+
   return true;
 }
 
@@ -54,6 +57,7 @@ void settings_reset_to_default()
     },
     .rgb_colors = HOJA_RGB_DEFAULTS,
     .rumble_intensity = 100,
+    .gc_sp_light_trigger = 50,
   };
   memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
   remap_reset_default(INPUT_MODE_SWPRO);

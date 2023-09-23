@@ -6,8 +6,8 @@ button_data_s *_buttons_in;
 button_data_s *_buttons_out;
 
 input_mode_t    _remap_mode;
-button_remap_s *_remap_struct;
-buttons_unset_s *_unset_struct;
+button_remap_s  _remap_struct;
+buttons_unset_s _unset_struct;
 
 mapcode_t _remap_arr[MAPCODE_MAX];
 
@@ -15,8 +15,8 @@ mapcode_t _remap_arr[MAPCODE_MAX];
 mapcode_t       _button_remap_code;
 bool            _button_remap_listen = false;
 mapcode_t       _tmp_remap_arr[MAPCODE_MAX];
-button_remap_s  *_tmp_remap_struct;
-buttons_unset_s *_tmp_unset_struct;
+button_remap_s  _tmp_remap_struct;
+buttons_unset_s _tmp_unset_struct;
 input_mode_t    _tmp_remap_mode;
 
 const button_remap_s default_remap = {
@@ -47,35 +47,35 @@ const buttons_unset_s default_n64_unset       = {.val = (1<<MAPCODE_B_STICKL) | 
 const buttons_unset_s default_gamecube_unset  = {.val = (1<<MAPCODE_B_MINUS) | (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_L)};
 const buttons_unset_s default_snes_unset      = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_ZL) | (1<<MAPCODE_T_ZR)};
 
-void _remap_load_remap(input_mode_t mode, button_remap_s **remap_out, buttons_unset_s **unset_out)
+void _remap_load_remap(input_mode_t mode, button_remap_s* remap, buttons_unset_s* unset)
 {
   switch(mode)
   {
     default:
     case INPUT_MODE_SWPRO:
-      *remap_out = &(global_loaded_settings.remap_switch.remap);
-      *unset_out = &(global_loaded_settings.remap_switch.disabled);
+      remap->val = global_loaded_settings.remap_switch.remap.val;
+      unset->val = global_loaded_settings.remap_switch.disabled.val;
       break;
 
     case INPUT_MODE_GCUSB:
     case INPUT_MODE_GAMECUBE:
-      *remap_out = &(global_loaded_settings.remap_gamecube.remap);
-      *unset_out = &(global_loaded_settings.remap_gamecube.disabled);
+      remap->val = global_loaded_settings.remap_gamecube.remap.val;
+      unset->val = global_loaded_settings.remap_gamecube.disabled.val;
       break;
 
     case INPUT_MODE_XINPUT:
-      *remap_out = &(global_loaded_settings.remap_xinput.remap);
-      *unset_out = &(global_loaded_settings.remap_xinput.disabled);
+      remap->val = global_loaded_settings.remap_xinput.remap.val;
+      unset->val = global_loaded_settings.remap_xinput.disabled.val;
       break;
 
     case INPUT_MODE_N64:
-      *remap_out = &(global_loaded_settings.remap_n64.remap);
-      *unset_out = &(global_loaded_settings.remap_n64.disabled);
+      remap->val = global_loaded_settings.remap_n64.remap.val;
+      unset->val = global_loaded_settings.remap_n64.disabled.val;
       break;
 
     case INPUT_MODE_SNES:
-      *remap_out = &(global_loaded_settings.remap_snes.remap);
-      *unset_out = &(global_loaded_settings.remap_snes.disabled);
+      remap->val = global_loaded_settings.remap_snes.remap.val;
+      unset->val = global_loaded_settings.remap_snes.disabled.val;
       break;
   }
 }
@@ -154,7 +154,7 @@ void _remap_listener(uint16_t buttons, bool clear)
       if(_tmp_remap_arr[i] == _button_remap_code)
       {
         // If we have a match, we must unset the output
-        _tmp_unset_struct->val |= (1<<i);
+        _tmp_unset_struct.val |= (1<<i);
       }
     }
 
@@ -162,11 +162,11 @@ void _remap_listener(uint16_t buttons, bool clear)
     _tmp_remap_arr[output_button] = _button_remap_code;
 
     // Undo any unset that might exist on this output
-    _tmp_unset_struct->val &= ~(1<<output_button);
+    _tmp_unset_struct.val &= ~(1<<output_button);
 
     printf("Assigned %i to output %i\n", output_button, _button_remap_code);
     _button_remap_listen = false;
-    _remap_pack_remap(_tmp_remap_struct, _tmp_remap_arr);
+    _remap_pack_remap(&_tmp_remap_struct, _tmp_remap_arr);
     remap_send_data_webusb(_tmp_remap_mode);
   }
   else if(clear)
@@ -176,11 +176,11 @@ void _remap_listener(uint16_t buttons, bool clear)
       if(_tmp_remap_arr[i] == _button_remap_code)
       {
         printf("Disabled function for button %i\n", i);
-        _tmp_unset_struct->val |= (1<<i);
+        _tmp_unset_struct.val |= (1<<i);
         _button_remap_listen = false;
       }
     }
-    _remap_pack_remap(_tmp_remap_struct, _tmp_remap_arr);
+    _remap_pack_remap(&_tmp_remap_struct, _tmp_remap_arr);
     remap_send_data_webusb(_tmp_remap_mode);
   }
 }
@@ -188,30 +188,33 @@ void _remap_listener(uint16_t buttons, bool clear)
 void remap_send_data_webusb(input_mode_t mode)
 {
   _remap_load_remap(mode, &_tmp_remap_struct, &_tmp_unset_struct);
-  _remap_unpack_remap(_tmp_remap_arr, _tmp_remap_struct);
+  _remap_unpack_remap(_tmp_remap_arr, &_tmp_remap_struct);
   remap_listen_stop();
   uint8_t b[64] = {0};
   b[0]  = WEBUSB_CMD_REMAP_GET;
   b[1]  = mode;
-  b[2]  = _tmp_remap_struct->dpad_up;
-  b[3]  = _tmp_remap_struct->dpad_down;
-  b[4]  = _tmp_remap_struct->dpad_left;
-  b[5]  = _tmp_remap_struct->dpad_right;
-  b[6]  = _tmp_remap_struct->button_a;
-  b[7]  = _tmp_remap_struct->button_b;
-  b[8]  = _tmp_remap_struct->button_x;
-  b[9]  = _tmp_remap_struct->button_y;
-  b[10] = _tmp_remap_struct->trigger_l;
-  b[11] = _tmp_remap_struct->trigger_zl;
-  b[12] = _tmp_remap_struct->trigger_r;
-  b[13] = _tmp_remap_struct->trigger_zr;
-  b[14] = _tmp_remap_struct->button_plus;
-  b[15] = _tmp_remap_struct->button_minus;
-  b[16] = _tmp_remap_struct->button_stick_left;
-  b[17] = _tmp_remap_struct->button_stick_right;
-  b[18] = (_tmp_unset_struct->val & 0xFF00) >> 8;
-  b[19] = (_tmp_unset_struct->val & 0xFF);
+  b[2]  = _tmp_remap_struct.dpad_up;
+  b[3]  = _tmp_remap_struct.dpad_down;
+  b[4]  = _tmp_remap_struct.dpad_left;
+  b[5]  = _tmp_remap_struct.dpad_right;
+  b[6]  = _tmp_remap_struct.button_a;
+  b[7]  = _tmp_remap_struct.button_b;
+  b[8]  = _tmp_remap_struct.button_x;
+  b[9]  = _tmp_remap_struct.button_y;
+  b[10] = _tmp_remap_struct.trigger_l;
+  b[11] = _tmp_remap_struct.trigger_zl;
+  b[12] = _tmp_remap_struct.trigger_r;
+  b[13] = _tmp_remap_struct.trigger_zr;
+  b[14] = _tmp_remap_struct.button_plus;
+  b[15] = _tmp_remap_struct.button_minus;
+  b[16] = _tmp_remap_struct.button_stick_left;
+  b[17] = _tmp_remap_struct.button_stick_right;
+  b[18] = (_tmp_unset_struct.val & 0xFF00) >> 8;
+  b[19] = (_tmp_unset_struct.val & 0xFF);
+
+  // SET SP MODE
   b[20] = global_loaded_settings.gc_sp_mode;
+  b[21] = global_loaded_settings.gc_sp_light_trigger;
   
   webusb_ready_blocking(0);
   tud_vendor_n_flush(0);
@@ -220,39 +223,53 @@ void remap_send_data_webusb(input_mode_t mode)
 
 void remap_reset_default(input_mode_t mode)
 {
-  _remap_load_remap(mode, &_remap_struct, &_unset_struct);
-
-  _remap_struct->val = default_remap.val;
-
   switch(mode)
   {
     default:
-      _unset_struct->val = default_unset.val;
+    case INPUT_MODE_SWPRO:
+      global_loaded_settings.remap_switch.remap.val    = default_remap.val;
+      global_loaded_settings.remap_switch.disabled.val = default_unset.val;
       break;
 
+    case INPUT_MODE_GCUSB:
     case INPUT_MODE_GAMECUBE:
-      _unset_struct->val = default_gamecube_unset.val;
+      global_loaded_settings.remap_gamecube.remap.val     = default_remap.val;
+      global_loaded_settings.remap_gamecube.disabled.val  = default_unset.val;
       break;
-    
+
+    case INPUT_MODE_XINPUT:
+      global_loaded_settings.remap_xinput.remap.val     = default_remap.val;
+      global_loaded_settings.remap_xinput.disabled.val  = default_unset.val;
+      break;
+
     case INPUT_MODE_N64:
-      _unset_struct->val = default_n64_unset.val;
+      global_loaded_settings.remap_n64.remap.val    = default_remap.val;
+      global_loaded_settings.remap_n64.disabled.val = default_unset.val;
       break;
 
     case INPUT_MODE_SNES:
-      _unset_struct->val = default_snes_unset.val;
+      global_loaded_settings.remap_snes.remap.val     = default_remap.val;
+      global_loaded_settings.remap_snes.disabled.val  = default_unset.val;
       break;
   }
-
-  _remap_unpack_remap(_remap_arr, _remap_struct);
 }
 
 void remap_init(input_mode_t mode, button_data_s *in, button_data_s *out)
 {
-  _buttons_in = in;
-  _buttons_out = out;
+  // Set the input and output input pointers
+  _buttons_in   = in;
+  _buttons_out  = out;
+
+  // set the internal remap mode
   _remap_mode = mode;
+
+  // Load the remap profile to our internal usage datasets
   _remap_load_remap(mode, &_remap_struct, &_unset_struct);
-  _remap_unpack_remap(_remap_arr, _remap_struct);
+
+  _unset_struct.val = 0;
+
+  // Unpack the remap profile to our remap array
+  _remap_unpack_remap(_remap_arr, &default_remap);
 }
 
 void remap_set_gc_sp(gc_sp_mode_t sp_mode)
@@ -263,13 +280,13 @@ void remap_set_gc_sp(gc_sp_mode_t sp_mode)
 void remap_listen_stop()
 {
   _button_remap_listen = false;
-  _remap_unpack_remap(_remap_arr, _remap_struct);
+  _remap_unpack_remap(_remap_arr, &_remap_struct);
 }
 
 void remap_listen_enable(input_mode_t mode, mapcode_t mapcode)
 {
   _remap_load_remap(mode, &_tmp_remap_struct, &_tmp_unset_struct);
-  _remap_unpack_remap(_tmp_remap_arr, _tmp_remap_struct);
+  _remap_unpack_remap(_tmp_remap_arr, &_tmp_remap_struct);
   /* Set the button we are assigning TO
    * EX we want to press a button that will activate
    * button A so we first input mapcode of MAPCODE_B_A */
@@ -280,6 +297,7 @@ void remap_listen_enable(input_mode_t mode, mapcode_t mapcode)
 
 void remap_buttons_task()
 {
+
   _buttons_out->buttons_all = 0x00;
   _buttons_out->buttons_system = 0x00;
 
@@ -292,29 +310,28 @@ void remap_buttons_task()
 
   if (!safe_mode_check())
   {
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus,  _remap_arr[MAPCODE_B_PLUS],   _unset_struct.button_plus);
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS],  _unset_struct.button_minus);
 
     _buttons_out->button_home = _buttons_in->button_home;
     _buttons_out->button_capture = _buttons_in->button_capture;
   }
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_up, _remap_arr[MAPCODE_DUP], _unset_struct->dpad_up);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_down, _remap_arr[MAPCODE_DDOWN], _unset_struct->dpad_down);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_left, _remap_arr[MAPCODE_DLEFT], _unset_struct->dpad_left);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_right, _remap_arr[MAPCODE_DRIGHT], _unset_struct->dpad_right);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_up,    _remap_arr[MAPCODE_DUP],    _unset_struct.dpad_up);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_down,  _remap_arr[MAPCODE_DDOWN],  _unset_struct.dpad_down);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_left,  _remap_arr[MAPCODE_DLEFT],  _unset_struct.dpad_left);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_right, _remap_arr[MAPCODE_DRIGHT], _unset_struct.dpad_right);
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_a, _remap_arr[MAPCODE_B_A], _unset_struct->button_a);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_b, _remap_arr[MAPCODE_B_B], _unset_struct->button_b);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_x, _remap_arr[MAPCODE_B_X], _unset_struct->button_x);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_y, _remap_arr[MAPCODE_B_Y], _unset_struct->button_y);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_a, _remap_arr[MAPCODE_B_A], _unset_struct.button_a);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_b, _remap_arr[MAPCODE_B_B], _unset_struct.button_b);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_x, _remap_arr[MAPCODE_B_X], _unset_struct.button_x);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_y, _remap_arr[MAPCODE_B_Y], _unset_struct.button_y);
 
-  // Now when L is pressed, it activates the data we set.
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_l, _remap_arr[MAPCODE_T_L],    _unset_struct->trigger_l);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_l,  _remap_arr[MAPCODE_T_L],   _unset_struct.trigger_l);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r,  _remap_arr[MAPCODE_T_R],   _unset_struct.trigger_r);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct.trigger_zl);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct.trigger_zr);
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_left,  _remap_arr[MAPCODE_B_STICKL],  _unset_struct.button_stick_left);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct.button_stick_right);
 }
