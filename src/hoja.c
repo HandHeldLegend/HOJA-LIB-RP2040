@@ -154,23 +154,27 @@ void hoja_init()
   {
     _hoja_input_mode = INPUT_MODE_SWPRO;
   }
+  else if (_button_data.button_y)
+  {
+    _hoja_input_mode = INPUT_MODE_GCUSB;
+  }
   else if (_button_data.dpad_left)
   {
     _hoja_input_mode = INPUT_MODE_SNES;
+    rgb_set_brightness(10);
+    rgb_preset_reload();
   }
   else if (_button_data.dpad_down && !_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_N64;
+    rgb_set_brightness(10);
+    rgb_preset_reload();
   }
   else if (_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_GAMECUBE;
     rgb_set_brightness(10);
     rgb_preset_reload();
-  }
-  else if (_button_data.button_plus)
-  {
-    _hoja_input_mode = INPUT_MODE_GCUSB;
   }
 
   rgb_set_dirty();

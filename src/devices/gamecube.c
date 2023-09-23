@@ -199,13 +199,13 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
           break;
 
         case GC_SP_MODE_LT:
-          outl = buttons->gc_sp ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+          outl = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
           _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : outl;
           _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
           break;
 
         case GC_SP_MODE_RT:
-          outr = buttons->gc_sp ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+          outr = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
           _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : outr;
           _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
           break;
@@ -215,7 +215,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
           _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
           _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
 
-          if(buttons->gc_sp)
+          if(buttons->trigger_l)
           {
             _out_buffer.button_a = 1;
             _out_buffer.analog_trigger_l = 255;

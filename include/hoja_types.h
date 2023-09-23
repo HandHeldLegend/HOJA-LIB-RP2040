@@ -233,30 +233,21 @@ typedef struct
         struct
         {
             // D-Pad
-            uint8_t dpad_up         : 1;
-            uint8_t dpad_down       : 1;
-            uint8_t dpad_left       : 1;
-            uint8_t dpad_right      : 1;
+            uint8_t dpad_up     : 1;
+            uint8_t dpad_down   : 1;
+            uint8_t dpad_left   : 1;
+            uint8_t dpad_right  : 1;
             // Buttons
-            uint8_t button_a       : 1;
-            uint8_t button_b     : 1;
-            uint8_t button_x     : 1;
+            uint8_t button_a    : 1;
+            uint8_t button_b    : 1;
+            uint8_t button_x    : 1;
             uint8_t button_y    : 1;
 
             // Triggers
-            union {
-                uint8_t trigger_l       : 1;
-                uint8_t gc_sp : 1;
-            };
-            
-            uint8_t trigger_zl      : 1;
-
-            union {
-                uint8_t trigger_r       : 1;
-                uint8_t gc_z : 1;
-            };
-            
-            uint8_t trigger_zr      : 1;
+            uint8_t trigger_l   : 1;
+            uint8_t trigger_zl  : 1;
+            uint8_t trigger_r   : 1;
+            uint8_t trigger_zr  : 1;
 
             // Special Functions
             uint8_t button_plus     : 1;
