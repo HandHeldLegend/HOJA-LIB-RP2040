@@ -161,20 +161,34 @@ void hoja_init()
   else if (_button_data.dpad_left)
   {
     _hoja_input_mode = INPUT_MODE_SNES;
-    rgb_set_brightness(10);
-    rgb_preset_reload();
   }
   else if (_button_data.dpad_down && !_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_N64;
-    rgb_set_brightness(10);
-    rgb_preset_reload();
   }
   else if (_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_GAMECUBE;
-    rgb_set_brightness(10);
-    rgb_preset_reload();
+    
+  }
+
+  switch(_hoja_input_mode)
+  {
+    case INPUT_MODE_GCUSB:
+    case INPUT_MODE_XINPUT:
+      break;
+
+    default:
+    case INPUT_MODE_SWPRO:
+      rgb_preset_reload();
+      break;
+
+    case INPUT_MODE_SNES:
+    case INPUT_MODE_GAMECUBE:
+    case INPUT_MODE_N64:
+      rgb_set_brightness(10);
+      rgb_preset_reload();
+      break;
   }
 
   rgb_set_dirty();
