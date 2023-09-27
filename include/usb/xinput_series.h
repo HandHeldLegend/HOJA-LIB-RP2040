@@ -1,5 +1,9 @@
 // Notes for Series Controller USB comms
+// 3 interfaces
+// Device Descriptor
 
+{
+=======
 #include <stdint.h>
 // 3 interfaces
 // Device Descriptor
@@ -20,7 +24,9 @@ uint8_t device_desc[] = {
     0x03,       // iSerialNumber (String Index)
     0x01,       // bNumConfigurations 1
     // 18 bytes
-};
+}
+
+
 
 // Config Descriptor
 uint8_t config_desc[] = {
@@ -222,7 +228,3 @@ uint8_t response5[] = {0x04, 0xb0, 0x02, 0x04, 0xe8,
 // end header
 0x01, 0x00, 0x00, 0x00, 0x00
 };
-
-
-
-

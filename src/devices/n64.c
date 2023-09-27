@@ -129,6 +129,7 @@ static void _n64_isr_txdone(void)
 
 void _n64_reset_state()
 {
+  //pio_sm_clear_fifos(GAMEPAD_PIO, GAMEPAD_SM);
   joybus_set_in(true, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
 }
 
