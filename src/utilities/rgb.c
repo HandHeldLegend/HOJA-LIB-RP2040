@@ -46,7 +46,20 @@ void _rgb_set_color_brightness(rgb_s *color)
     }
     else
     {
+
+        // Calculate relative brightness first
+        uint16_t rel = color->r + color->g + color->b;
+        float relfl = rel/255.0f;
+
+        // Get our new apparent brightness
         float r = (float) _rgb_brightness/100.0f;
+
+        // Don't process adjustment if the color is already
+        // less bright than our adjustment
+        if(relfl <= r) return;
+
+        r = r/relfl;
+
         color->r = (float) color->r * r;
         color->g = (float) color->g * r;
         color->b = (float) color->b * r;
