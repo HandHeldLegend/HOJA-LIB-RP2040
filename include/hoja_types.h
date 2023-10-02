@@ -125,7 +125,8 @@ typedef enum
     GC_SP_MODE_LT   = 1, // SP buttton inputs light trigger left
     GC_SP_MODE_RT   = 2, // SP buttton inputs light trigger right
     GC_SP_MODE_TRAINING = 3, // Training mode reset
-    GC_SP_MODE_ADC  = 4, // Controlled fully by analog, SP button is unused
+    GC_SP_MODE_DUALZ = 4, // Dual Z Button
+    GC_SP_MODE_ADC  = 5, // Controlled fully by analog, SP button is unused
 
     GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
 } gc_sp_mode_t;

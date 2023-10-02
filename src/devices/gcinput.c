@@ -83,6 +83,10 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
 
           break;
 
+        case GC_SP_MODE_DUALZ:
+          data.button_z |= button_data->trigger_l;
+          break;
+
         case GC_SP_MODE_ADC:
             data.trigger_l = analog_data->lt >> 4;
             data.trigger_r = analog_data->rt >> 4;

@@ -226,6 +226,10 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
 
           break;
 
+        case GC_SP_MODE_DUALZ:
+          _out_buffer.button_z |= buttons->trigger_l;
+          break;
+
         case GC_SP_MODE_ADC:
           _out_buffer.analog_trigger_l = analog->lt >> 4;
           _out_buffer.analog_trigger_r = analog->rt >> 4;
