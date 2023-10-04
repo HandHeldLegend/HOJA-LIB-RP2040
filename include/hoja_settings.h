@@ -50,6 +50,7 @@ typedef struct
     gc_sp_mode_t gc_sp_mode;
     uint8_t rumble_intensity;
     uint8_t gc_sp_light_trigger;
+    uint8_t rumble_floor;
 
 } hoja_settings_s;
 
@@ -67,5 +68,6 @@ void settings_set_mode(input_mode_t mode);
 void settings_set_gc_sp(gc_sp_mode_t sp_mode);
 void settings_set_snapback(uint8_t axis, uint8_t level);
 void settings_set_rumble(uint8_t intensity);
+void settings_set_rumble_floor(uint8_t floor);
 
 #endif

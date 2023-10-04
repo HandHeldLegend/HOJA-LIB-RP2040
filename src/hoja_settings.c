@@ -34,6 +34,8 @@ bool settings_load()
 
   // Validate some settings
   global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger<50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
+  settings_set_rumble_floor(global_loaded_settings.rumble_floor);
+  settings_set_rumble(global_loaded_settings.rumble_intensity);
 
   return true;
 }
@@ -56,7 +58,8 @@ void settings_reset_to_default()
       600, 600, 600, 600, 600, 600, 600, 600,
     },
     .rgb_colors = HOJA_RGB_DEFAULTS,
-    .rumble_intensity = 100,
+    .rumble_intensity = 50,
+    .rumble_floor = 0,
     .gc_sp_light_trigger = 50,
   };
   memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
@@ -126,11 +129,22 @@ void settings_save()
   _save_flag = true;
 }
 
+static bool _rumble_taken = false;
+
+void settings_set_rumble_floor(uint8_t floor)
+{
+  floor = (floor>50) ? 50 : floor;
+  global_loaded_settings.rumble_floor = floor;
+
+  cb_hoja_set_rumble_intensity(floor, 1);
+}
+
 void settings_set_rumble(uint8_t intensity)
 {
-  intensity = (intensity>100) ? 100 : intensity;
+  intensity = (intensity>50) ? 50 : intensity;
   global_loaded_settings.rumble_intensity = intensity;
-  cb_hoja_set_rumble_intensity(intensity);
+
+  cb_hoja_set_rumble_intensity(global_loaded_settings.rumble_floor, intensity);
 }
 
 void settings_set_centers(int lx, int ly, int rx, int ry)

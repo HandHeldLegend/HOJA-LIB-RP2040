@@ -218,6 +218,28 @@ void webusb_command_processor(uint8_t *data)
     }
     break;
 
+    case WEBUSB_CMD_VIBRATEFLOOR_GET:
+    {
+        printf("WebUSB: Got Vibrate FLOOR GET command.");
+        memset(_webusb_out_buffer, 0, 64);
+        _webusb_out_buffer[0] = WEBUSB_CMD_VIBRATEFLOOR_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.rumble_floor;
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_VIBRATEFLOOR_SET:
+    {
+        printf("WebUSB: Got Vibrate FLOOR SET command.");
+        settings_set_rumble_floor(data[1]);
+    }
+    break;
+
     case WEBUSB_CMD_SAVEALL:
     {
         printf("WebUSB: Got SAVE command.\n");

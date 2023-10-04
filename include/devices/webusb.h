@@ -50,6 +50,9 @@ typedef enum
   WEBUSB_CMD_VIBRATE_SET = 0x0A,
   WEBUSB_CMD_VIBRATE_GET = 0xAA,
 
+  WEBUSB_CMD_VIBRATEFLOOR_SET = 0x0B,
+  WEBUSB_CMD_VIBRATEFLOOR_GET = 0xAB,
+
   // Command for analog input report
   WEBUSB_CMD_INPUT_REPORT = 0xE0,
 
