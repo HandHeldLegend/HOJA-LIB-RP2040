@@ -3,7 +3,6 @@
 
 #include <inttypes.h>
 
-
 /**
  * 
  * uint8_t array[0]:  | analog_stick_left | analog_stick_right | analog_trigger_left | analog_trigger_right | gyroscope | bluetooth | rgb | rumble |
@@ -12,6 +11,8 @@
  * uint8_t array[1]:  | nintendo_serial | nintendo_joybus | padding  | padding  | padding  | padding  | padding  | padding  |
                    |      1 bit         |      1 bit      |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |
 */
+
+
 
 typedef struct
 {
@@ -162,6 +163,7 @@ typedef struct {
 
 typedef enum
 {
+    INPUT_MODE_LOAD     = -1,
     INPUT_MODE_SWPRO    = 0,
     INPUT_MODE_XINPUT   = 1,
     INPUT_MODE_GAMECUBE = 2,
@@ -169,6 +171,19 @@ typedef enum
     INPUT_MODE_SNES     = 4,
     INPUT_MODE_GCUSB    = 5,
 } input_mode_t;
+
+typedef enum
+{
+    INPUT_METHOD_AUTO  = -1,
+    INPUT_METHOD_WIRED = 0,
+    INPUT_METHOD_BLUETOOTH = 1,
+} input_method_t;
+
+typedef struct
+{
+    input_method_t  input_method;
+    input_mode_t    input_mode;
+} hoja_config_t;
 
 typedef enum
 {

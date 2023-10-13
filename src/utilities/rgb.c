@@ -15,17 +15,17 @@ rgb_preset_t *_rgb_preset;
 rgb_preset_t _rgb_preset_loaded;
 uint8_t _rgb_brightness = 100;
 
-const uint8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
-const uint8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
-const uint8_t _rgb_group_dpad[] = HOJA_RGB_GROUP_DPAD;
-const uint8_t _rgb_group_minus[] = HOJA_RGB_GROUP_MINUS;
-const uint8_t _rgb_group_capture[] = HOJA_RGB_GROUP_CAPTURE;
-const uint8_t _rgb_group_home[] = HOJA_RGB_GROUP_HOME;
-const uint8_t _rgb_group_plus[] = HOJA_RGB_GROUP_PLUS;
-const uint8_t _rgb_group_y[] = HOJA_RGB_GROUP_Y;
-const uint8_t _rgb_group_x[] = HOJA_RGB_GROUP_X;
-const uint8_t _rgb_group_a[] = HOJA_RGB_GROUP_A;
-const uint8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
+const int8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
+const int8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
+const int8_t _rgb_group_dpad[] = HOJA_RGB_GROUP_DPAD;
+const int8_t _rgb_group_minus[] = HOJA_RGB_GROUP_MINUS;
+const int8_t _rgb_group_capture[] = HOJA_RGB_GROUP_CAPTURE;
+const int8_t _rgb_group_home[] = HOJA_RGB_GROUP_HOME;
+const int8_t _rgb_group_plus[] = HOJA_RGB_GROUP_PLUS;
+const int8_t _rgb_group_y[] = HOJA_RGB_GROUP_Y;
+const int8_t _rgb_group_x[] = HOJA_RGB_GROUP_X;
+const int8_t _rgb_group_a[] = HOJA_RGB_GROUP_A;
+const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
 
 static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
     return
@@ -152,6 +152,7 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
 {
     for(uint8_t i = 0; i < len; i++)
     {
+        if (leds[i] == -1) continue;
         colors[leds[i]].color = color;
         _rgb_normalize_output_power(&colors[leds[i]]);
     }

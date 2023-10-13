@@ -7,6 +7,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja_comms.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/rgb.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/battery.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 
@@ -32,6 +33,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/swpro.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/webusb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/xinput.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/btinput.c
 )
 
 target_include_directories(hoja_lib INTERFACE

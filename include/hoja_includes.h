@@ -20,18 +20,19 @@
 #include "hardware/dma.h"
 #include "hardware/pwm.h"
 #include "hardware/spi.h"
+#include "hardware/i2c.h"
 #include "hardware/timer.h"
 #include "hardware/uart.h"
 #include "hardware/flash.h"
 #include "hardware/watchdog.h"
+
+#include "board_config.h"
 
 #include "hoja_types.h"
 #include "hoja_settings.h"
 #include "hoja_usb.h"
 #include "hoja_defines.h"
 #include "hoja_comms.h"
-
-#include "board_config.h"
 
 #include "stick_scaling.h"
 #include "analog.h"
@@ -43,6 +44,7 @@
 #include "nserial.pio.h"
 #include "joybus.pio.h"
 #include "rgb.h"
+#include "battery.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -50,6 +52,8 @@
 // XInput TinyUSB Driver
 #include "xinput_device.h"
 #include "ginput_device.h"
+
+#include "btinput.h"
 
 #include "gcinput.h"
 #include "xinput.h"

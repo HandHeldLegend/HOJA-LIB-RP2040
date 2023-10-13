@@ -12,7 +12,7 @@ void cb_hoja_rumble_enable(float intensity);
 void cb_hoja_task_1_hook(uint32_t timestamp);
 void cb_hoja_set_rumble_intensity(uint8_t floor, uint8_t intensity);
 
-void hoja_init();
+void hoja_init(hoja_config_t *config);
 
 void hoja_load_remap(button_remap_s *remap_profile);
 

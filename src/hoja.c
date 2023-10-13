@@ -85,11 +85,13 @@ void _hoja_task_1()
 {
   for (;;)
   {
+
     if(mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_1))
     {
       _hoja_timestamp = time_us_32();
       mutex_exit(&_hoja_timer_mutex);
     }
+
     // Check if we need to save
     settings_core1_save_check();
 
@@ -106,10 +108,21 @@ void _hoja_task_1()
   }
 }
 
-void hoja_init()
+void hoja_init(hoja_config_t *config)
 {
+
+  // Stop if there's no config
+  if(!config) return;
+
   // Set up hardware first
   cb_hoja_hardware_setup();
+
+  #if (HOJA_CAPABILITY_BLUETOOTH==1)
+    // I2C Setup
+    i2c_init(HOJA_I2C_BUS, 200 * 1000);
+    gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
+  #endif
 
   rgb_init();
   
@@ -142,9 +155,33 @@ void hoja_init()
   // For switch Pro stuff
   switch_analog_calibration_init();
 
-  input_mode_t _hoja_input_mode = 0;
+  // Set according to config
 
-  _hoja_input_mode = global_loaded_settings.input_mode;
+  input_mode_t    _hoja_input_mode    = 0;
+  input_method_t  _hoja_input_method  = 0;
+
+  if (config->input_mode == INPUT_MODE_LOAD)
+  {
+    _hoja_input_mode = global_loaded_settings.input_mode;
+  }
+  else 
+  {
+    _hoja_input_mode = config->input_mode;
+  }
+
+
+  if (config->input_method == INPUT_METHOD_AUTO)
+  {
+    if (util_wire_connected())
+    {
+      _hoja_input_method = INPUT_METHOD_WIRED;
+    }
+    else _hoja_input_method = INPUT_METHOD_BLUETOOTH;
+  }
+  else _hoja_input_method = config->input_method;
+  
+
+  // End set config
 
   if (_button_data.button_x)
   {
@@ -169,12 +206,12 @@ void hoja_init()
   else if (_button_data.dpad_right)
   {
     _hoja_input_mode = INPUT_MODE_GAMECUBE;
-    
   }
 
   switch(_hoja_input_mode)
   {
     case INPUT_MODE_GCUSB:
+      _hoja_input_method = INPUT_METHOD_WIRED;
     case INPUT_MODE_XINPUT:
       break;
 
@@ -186,6 +223,7 @@ void hoja_init()
     case INPUT_MODE_SNES:
     case INPUT_MODE_GAMECUBE:
     case INPUT_MODE_N64:
+      _hoja_input_method = INPUT_METHOD_WIRED;
       rgb_set_brightness(10);
       rgb_preset_reload();
       break;
@@ -202,15 +240,15 @@ void hoja_init()
   // Initialize button remapping
   remap_init(_hoja_input_mode, &_button_data, &_button_data_processed);
 
-  hoja_comms_init(_hoja_input_mode);
+  hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
   // Enable lockout victimhood :,)
   multicore_lockout_victim_init();
 
   // Launch second core
   multicore_launch_core1(_hoja_task_1);
-  // Launch first core
-  for (;;)
+
+  for(;;)
   {
     _hoja_task_0();
   }

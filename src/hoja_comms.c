@@ -16,9 +16,17 @@ input_mode_t hoja_comms_current_mode()
     return _hoja_input_mode;
 }
 
-void hoja_comms_init(input_mode_t input_mode)
+void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
 {
     _hoja_input_mode = input_mode;
+
+    if(input_method == INPUT_METHOD_BLUETOOTH)
+    {
+        _comms_cb = btinput_comms_task;
+        btinput_init(input_mode);
+        return;
+    } 
+
     switch(input_mode)
     {
         default:
