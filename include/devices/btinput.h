@@ -5,7 +5,7 @@
 
 typedef enum
 {
-    I2CINPUT_ID_INIT    = 0x00,
+    I2CINPUT_ID_INIT    = 0xF2,
     I2CINPUT_ID_INPUT   = 0x01,
     I2CINPUT_ID_STOP    = 0x02,
 } i2cinput_id_t;

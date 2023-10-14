@@ -42,7 +42,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         data.rt = analog->rt;
         
         memcpy(&data_out[1], &data, sizeof(data));
-        analog_send_reset();
+        //analog_send_reset();
 
         //if(i2c_get_write_available(HOJA_I2C_BUS))
         i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE, false, 8000);
