@@ -15,7 +15,7 @@ typedef struct
     // keep settings between updates
     uint16_t    settings_version;
     input_mode_t input_mode;
-    uint8_t     switch_mac_address[6];
+    uint8_t     switch_mac_address[6]; // Address of this controller
 
     int lx_center;
     int ly_center;
@@ -51,6 +51,8 @@ typedef struct
     uint8_t rumble_intensity;
     uint8_t gc_sp_light_trigger;
     uint8_t rumble_floor;
+
+    uint8_t switch_host_address[6]; // Host device we are paired to
 
 } hoja_settings_s;
 

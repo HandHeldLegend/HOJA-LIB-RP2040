@@ -7,6 +7,8 @@ typedef enum
 {
     I2CINPUT_ID_INIT    = 0xF2,
     I2CINPUT_ID_INPUT   = 0x01,
+    I2CINPUT_ID_STATUS  = 0xF4,
+    I2CINPUT_ID_SAVEMAC = 0xF3,
     I2CINPUT_ID_STOP    = 0x02,
 } i2cinput_id_t;
 
@@ -18,6 +20,12 @@ typedef struct
     uint8_t mode;
     uint8_t mac[6];
 } i2cinput_init_s;
+
+typedef struct
+{
+    uint8_t rumble_intensity; // 0-100 value representing rumble intensity
+    uint8_t connected_status; // Value representing if the BT is connected
+} i2cinput_status_s;
 
 typedef struct
 {
