@@ -74,6 +74,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
     if(interval_run(timestamp, 2000))
     {
+        
         data_out[0]         = I2CINPUT_ID_INPUT;
         data_out[HOJA_I2C_MSG_SIZE-3] = 0xDD;
         data_out[HOJA_I2C_MSG_SIZE-2] = 0xEE;
@@ -97,5 +98,6 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE, false, 8000);
         i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE, false, 8000);
         _btinput_message_parse(data_in);
+        analog_send_reset();
     }
 }

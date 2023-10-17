@@ -284,7 +284,8 @@ typedef struct
             uint8_t button_capture  : 1;
             uint8_t button_home     : 1;
             uint8_t button_safemode : 1;
-            uint8_t padding         : 5;
+            uint8_t button_shipping : 1;
+            uint8_t padding         : 4;
         };
         uint8_t buttons_system;
     };

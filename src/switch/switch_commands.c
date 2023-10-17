@@ -224,8 +224,6 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
     case 1:
 
       // Get host address and compare it.
-      
-
       for(uint i = 0; i < 6; i++)
       {
         if (global_loaded_settings.switch_host_address[i] != host_address[5-i])

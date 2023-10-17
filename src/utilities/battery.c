@@ -7,8 +7,28 @@ void util_battery_monitor_task(uint32_t timestamp)
 
 void util_battery_enable_ship_mode(void)
 {
-    uint8_t _write[2] = {0x09, 0x41};
-    int readcheck = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 4000);
+    cb_hoja_set_bluetooth_enabled(false);
+
+    sleep_ms(300);
+
+    const uint8_t _data[2] = {0x09, 0x51};
+    int s = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+
+    if(s == PICO_ERROR_GENERIC)
+    {
+        rgb_set_all(COLOR_WHITE.color);
+        rgb_set_instant();
+    }
+    else if (s== PICO_ERROR_TIMEOUT)
+    {
+        rgb_set_all(COLOR_PURPLE.color);
+        rgb_set_instant();
+    }
+    else if (s==2)
+    {
+        rgb_set_all(COLOR_YELLOW.color);
+        rgb_set_instant();
+    }
 }
 
 void util_battery_set_charge_rate(uint16_t rate_ma)

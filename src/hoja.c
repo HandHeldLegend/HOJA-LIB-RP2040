@@ -56,6 +56,16 @@ __attribute__ ((weak)) void cb_hoja_set_rumble_intensity(uint8_t floor, uint8_t 
   (void) intensity;
 }
 
+__attribute__ ((weak)) void cb_hoja_set_bluetooth_enabled(bool enable)
+{
+  (void) enable;
+}
+
+__attribute__ ((weak)) void cb_hoja_set_uart_enabled(bool enable)
+{
+  (void) enable;
+}
+
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
@@ -67,7 +77,7 @@ void _hoja_task_0()
   
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
-  safe_mode_task(_hoja_timestamp, &_button_data);
+  macro_handler_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
 
   // Webusb stuff
@@ -176,7 +186,17 @@ void hoja_init(hoja_config_t *config)
     {
       _hoja_input_method = INPUT_METHOD_WIRED;
     }
-    else _hoja_input_method = INPUT_METHOD_BLUETOOTH;
+    else 
+    {
+      rgb_set_all(COLOR_BLUE.color);
+      rgb_set_instant();
+      if(_button_data.button_minus && !_button_data.button_plus)
+      {
+        memset(global_loaded_settings.switch_host_address, 0, 6);
+      }
+      _hoja_input_method = INPUT_METHOD_BLUETOOTH;
+      cb_hoja_set_bluetooth_enabled(true);
+    }
   }
   else _hoja_input_method = config->input_method;
   

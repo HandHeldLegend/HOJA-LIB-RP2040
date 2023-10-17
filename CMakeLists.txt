@@ -23,7 +23,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/safemode.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/dinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/gcinput.c 
@@ -83,6 +83,7 @@ target_link_libraries(hoja_lib INTERFACE
   hardware_sync
   hardware_timer
   hardware_irq
+  hardware_i2c
 
   tinyusb_device
   tinyusb_board
