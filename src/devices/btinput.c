@@ -5,6 +5,14 @@
 
 void btinput_init(input_mode_t input_mode)
 {
+    rgb_set_all(COLOR_BLUE.color);
+    rgb_set_instant();
+
+    cb_hoja_set_bluetooth_enabled(true);
+    sleep_ms(600);
+    rgb_preset_reload();
+    rgb_set_dirty();
+
     static uint8_t data_out[HOJA_I2C_MSG_SIZE];
     data_out[HOJA_I2C_MSG_SIZE-3] = 0xDD;
     data_out[HOJA_I2C_MSG_SIZE-2] = 0xEE;

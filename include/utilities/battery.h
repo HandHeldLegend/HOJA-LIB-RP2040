@@ -25,6 +25,9 @@ typedef struct
     };
 } __attribute__ ((packed)) util_battery_status_s;
 
+void util_battery_monitor_task_usb(uint32_t timestamp);
+void util_battery_monitor_task_wireless(uint32_t timestamp);
+
 void util_battery_enable_ship_mode(void);
 void util_battery_set_charge_rate(uint16_t rate_ma);
 bool util_wire_connected();

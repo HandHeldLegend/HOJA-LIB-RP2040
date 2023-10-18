@@ -26,7 +26,8 @@ typedef struct
     uint8_t rumble : 1;
     uint8_t nintendo_serial : 1;
     uint8_t nintendo_joybus : 1;
-    uint8_t padding : 6;
+    uint8_t battery_pmic    : 1;
+    uint8_t padding         : 5;
 } hoja_capabilities_t;
 
 #define MAPCODE_MAX 16
@@ -174,9 +175,10 @@ typedef enum
 
 typedef enum
 {
-    INPUT_METHOD_AUTO  = -1,
-    INPUT_METHOD_WIRED = 0,
-    INPUT_METHOD_BLUETOOTH = 1,
+    INPUT_METHOD_AUTO  = -1, // Automatically determine if we are plugged or wireless
+    INPUT_METHOD_WIRED = 0, // Used for modes that should retain power even when unplugged
+    INPUT_METHOD_USB   = 1, // Use for USB modes where we should power off when unplugged
+    INPUT_METHOD_BLUETOOTH = 2, // Wireless Bluetooth modes
 } input_method_t;
 
 typedef struct
@@ -285,7 +287,8 @@ typedef struct
             uint8_t button_home     : 1;
             uint8_t button_safemode : 1;
             uint8_t button_shipping : 1;
-            uint8_t padding         : 4;
+            uint8_t button_sync     : 1;
+            uint8_t padding         : 3;
         };
         uint8_t buttons_system;
     };

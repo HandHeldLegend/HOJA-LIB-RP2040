@@ -20,12 +20,15 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
 {
     _hoja_input_mode = input_mode;
 
+    // Ignore bluetooth mode if we don't support it
+    #if (HOJA_CAPABILITY_BLUETOOTH==1)
     if(input_method == INPUT_METHOD_BLUETOOTH)
     {
         _comms_cb = btinput_comms_task;
         btinput_init(input_mode);
         return;
     } 
+    #endif
 
     switch(input_mode)
     {
