@@ -1,5 +1,6 @@
 #include "nspi.h"
 
+#if(HOJA_CAPABILITY_NINTENDO_SERIAL==1)
 static bool _nspi_running;
 static uint _nspi_irq;
 static PIO  _nspi_pio;
@@ -19,9 +20,11 @@ static void _nspi_isr_handler(void)
     analog_send_reset();
   }
 }
+#endif
 
 void nspi_init()
 {
+  #if(HOJA_CAPABILITY_NINTENDO_SERIAL==1)
   // Set up PIO for NSPI
   _nspi_pio = GAMEPAD_PIO;
   _nspi_irq = PIO1_IRQ_0;
@@ -37,10 +40,12 @@ void nspi_init()
   pio_sm_put_blocking(_nspi_pio, _nspi_sm, 0xFFFFFFFF);
 
   irq_set_enabled(_nspi_irq, true);
+  #endif
 }
 
 void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  #if(HOJA_CAPABILITY_NINTENDO_SERIAL==1)
   if(!_nspi_running)
   {
     nspi_init();
@@ -77,4 +82,5 @@ void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analo
 
     _nspi_buffer = buffer.value<<16;
   }
+  #endif
 }
