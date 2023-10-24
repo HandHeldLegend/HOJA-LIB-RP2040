@@ -1,6 +1,6 @@
 #include "rgb.h"
 
-#ifdef HOJA_RGB_PIN
+#if (HOJA_CAPABILITY_RGB==1)
 // 21 steps is about 0.35 seconds
 // Formula is time period us / 16666us (60hz)
 #define RGB_FADE_STEPS 21
@@ -161,20 +161,22 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
 
 void rgb_set_brightness(uint8_t brightness)
 {
+    #if (HOJA_CAPABILITY_RGB==1)
     _rgb_brightness = (brightness > 100) ? 100 : brightness;
+    #endif
 }
 
 // Enable the RGB transition to the next color
 void rgb_set_dirty()
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     _rgb_out_dirty = true;
     #endif
 }
 
 void rgb_set_instant()
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     memcpy(_rgb_current, _rgb_next, sizeof(rgb_s)*HOJA_RGB_COUNT);
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
@@ -188,7 +190,7 @@ void rgb_set_instant()
 // Set all RGBs to one color
 void rgb_set_all(uint32_t color)
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         rgb_s col = {.color = color};
@@ -201,6 +203,7 @@ void rgb_set_all(uint32_t color)
 
 void rgb_preset_reload()
 {
+    #if (HOJA_CAPABILITY_RGB==1)
     memcpy(&_rgb_preset_loaded, _rgb_preset, sizeof(rgb_preset_t));
     uint32_t *p = (uint32_t *) &_rgb_preset_loaded;
 
@@ -209,11 +212,12 @@ void rgb_preset_reload()
         _rgb_set_color_brightness((rgb_s *) &p[i]);
         rgb_set_group(i, p[i]);
     }
+    #endif
 }
 
 void rgb_load_preset(rgb_preset_t *preset)
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     _rgb_preset = preset;
     rgb_preset_reload();
     
@@ -222,7 +226,7 @@ void rgb_load_preset(rgb_preset_t *preset)
 
 void rgb_set_group(rgb_group_t group, uint32_t color)
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     switch(group)
     {
         default:
@@ -277,7 +281,7 @@ void rgb_set_group(rgb_group_t group, uint32_t color)
 
 void rgb_init()
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     uint offset = pio_add_program(RGB_PIO, &ws2812_program);
     ws2812_program_init(RGB_PIO, RGB_SM, offset, HOJA_RGB_PIN, HOJA_RGBW_EN);
     #endif
@@ -289,7 +293,7 @@ const uint32_t _rgb_interval = 16666;
 // only performs actions if necessary
 void rgb_task(uint32_t timestamp)
 {
-    #ifdef HOJA_RGB_PIN
+    #if (HOJA_CAPABILITY_RGB==1)
     if(interval_run(timestamp, _rgb_interval))
     {
         _rgb_animate_step();
