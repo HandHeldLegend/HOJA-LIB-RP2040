@@ -6,6 +6,7 @@
 
 void btinput_init(input_mode_t input_mode)
 {
+    #if (HOJA_CAPABILITY_BLUETOOTH==1)
     rgb_set_all(COLOR_BLUE.color);
     rgb_set_instant();
 
@@ -37,10 +38,12 @@ void btinput_init(input_mode_t input_mode)
     data_out[13] = global_loaded_settings.switch_host_address[5];
 
     i2c_write_blocking(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false);
+    #endif
 }
 
 void _btinput_message_parse(uint8_t *msg)
 {
+    #if (HOJA_CAPABILITY_BLUETOOTH==1)
     switch(msg[0])
     {
         default:
@@ -85,10 +88,12 @@ void _btinput_message_parse(uint8_t *msg)
         break;
     }
     memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
+    #endif
 }
 
 void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+    #if (HOJA_CAPABILITY_BLUETOOTH==1)
     static uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT];
     static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN];
     data_out[HOJA_I2C_MSG_SIZE_OUT-3] = 0xDD;
@@ -124,4 +129,5 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         _btinput_message_parse(data_in);
         analog_send_reset();
     }
+    #endif
 }
