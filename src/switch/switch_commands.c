@@ -139,12 +139,6 @@ bool shouldControllerRumble(const uint8_t *data) {
     return ( (hba>1) && !hbd) || ((lba>0x40) && !lbd);
 }
 
-float _get_rumble_intensity(const uint8_t *data) {
-
-}
-
-uint8_t test[] = {0x7a, 0xf8, 0x62, 0x80};
-
 // Translate and handle rumble
 void rumble_translate(const uint8_t *data)
 { 

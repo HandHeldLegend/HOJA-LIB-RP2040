@@ -13,7 +13,7 @@ bool _gc_rumble = false;
 
 uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
-static gamecube_input_s _out_buffer = {.stick_left_x = 127, .stick_left_y = 127, .stick_right_x=127, .stick_right_y=127};
+static gamecube_input_s _out_buffer = {.stick_left_x = 127, .stick_left_y = 127, .stick_right_x = 127, .stick_right_y = 127};
 
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 
@@ -64,15 +64,16 @@ void __time_critical_func(_gamecube_command_handler)()
 {
   uint16_t c = 40;
 
-  if(_workingCmd == 0x40)
+  if (_workingCmd == 0x40)
   {
-    _byteCounter-=1;
+    _byteCounter -= 1;
     uint8_t dat = pio_sm_get(GAMEPAD_PIO, GAMEPAD_SM);
-    if(_byteCounter==0)
+    if (_byteCounter == 0)
     {
       _workingCmd = 0x00;
-      _gc_rumble = ((dat&0x3)>0) ? true : false;
-      while(c--) asm("nop");
+      _gc_rumble = ((dat & 0x3) > 0) ? true : false;
+      while (c--)
+        asm("nop");
       joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
       _gamecube_send_poll();
     }
@@ -82,37 +83,38 @@ void __time_critical_func(_gamecube_command_handler)()
     _workingCmd = pio_sm_get(GAMEPAD_PIO, GAMEPAD_SM);
     switch (_workingCmd)
     {
-      default:
-        break;
-      case 0x00:
-        while(c--) asm("nop");
-        joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
-        _gamecube_send_probe();
+    default:
+      break;
+    case 0x00:
+      while (c--)
+        asm("nop");
+      joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+      _gamecube_send_probe();
       break;
 
-      case 0x40:
-        _byteCounter=2;
+    case 0x40:
+      _byteCounter = 2;
       break;
 
-      case 0x41:
-        while(c--) asm("nop");
-        joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
-        _gamecube_send_origin();
+    case 0x41:
+      while (c--)
+        asm("nop");
+      joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+      _gamecube_send_origin();
       break;
     }
   }
-
-  
 }
 
 static void _gamecube_isr_handler(void)
 {
   if (pio_interrupt_get(GAMEPAD_PIO, 0))
   {
-    _gc_got_data=true;
+    _gc_got_data = true;
     pio_interrupt_clear(GAMEPAD_PIO, 0);
     uint16_t c = 40;
-    while(c--) asm("nop");
+    while (c--)
+      asm("nop");
     _gamecube_command_handler();
   }
 }
@@ -147,7 +149,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
   }
   else
   {
-    if(interval_resettable_run(timestamp, 40000, _gc_got_data))
+    if (interval_resettable_run(timestamp, 40000, _gc_got_data))
     {
       _gamecube_reset_state();
       sleep_ms(100);
@@ -172,10 +174,10 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       _out_buffer.button_r = buttons->trigger_zr;
       _out_buffer.button_z = buttons->trigger_r;
 
-      float lx = (analog->lx*0.0488f) + 28;
-      float ly = (analog->ly*0.0488f) + 28;
-      float rx = (analog->rx*0.0488f) + 28;
-      float ry = (analog->ry*0.0488f) + 28;
+      float lx = (analog->lx * 0.0488f) + 28;
+      float ly = (analog->ly * 0.0488f) + 28;
+      float rx = (analog->rx * 0.0488f) + 28;
+      float ry = (analog->ry * 0.0488f) + 28;
 
       _out_buffer.stick_left_x = CLAMP_0_255(lx);
       _out_buffer.stick_left_y = CLAMP_0_255(ly);
@@ -191,49 +193,54 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       int outr = 0;
 
       // Handle trigger SP stuff
-      switch(global_loaded_settings.gc_sp_mode)
+      switch (global_loaded_settings.gc_sp_mode)
       {
-        default:
-          _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
-          _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
-          break;
+      default:
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
+        break;
 
-        case GC_SP_MODE_LT:
-          outl = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-          _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : outl;
-          _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
-          break;
+      case GC_SP_MODE_LT:
+        outl = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : outl;
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
+        break;
 
-        case GC_SP_MODE_RT:
-          outr = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-          _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : outr;
-          _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
-          break;
+      case GC_SP_MODE_RT:
+        outr = buttons->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : outr;
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
+        break;
 
-        case GC_SP_MODE_TRAINING:
+      case GC_SP_MODE_TRAINING:
 
-          _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
-          _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
 
-          if(buttons->trigger_l)
-          {
-            _out_buffer.button_a = 1;
-            _out_buffer.analog_trigger_l = 255;
-            _out_buffer.analog_trigger_r = 255;
-            _out_buffer.button_l = 1;
-            _out_buffer.button_r = 1;
-          }
+        if (buttons->trigger_l)
+        {
+          _out_buffer.button_a = 1;
+          _out_buffer.analog_trigger_l = 255;
+          _out_buffer.analog_trigger_r = 255;
+          _out_buffer.button_l = 1;
+          _out_buffer.button_r = 1;
+        }
 
-          break;
+        break;
 
-        case GC_SP_MODE_DUALZ:
-          _out_buffer.button_z |= buttons->trigger_l;
-          break;
+      case GC_SP_MODE_DUALZ:
+        _out_buffer.button_z |= buttons->trigger_l;
 
-        case GC_SP_MODE_ADC:
-          _out_buffer.analog_trigger_l = analog->lt >> 4;
-          _out_buffer.analog_trigger_r = analog->rt >> 4;
-          break;
+        _out_buffer.button_l = buttons->trigger_zl;
+        _out_buffer.button_r = buttons->trigger_zr;
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : 0;
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : 0;
+        break;
+
+      case GC_SP_MODE_ADC:
+        _out_buffer.analog_trigger_l = analog->lt >> 4;
+        _out_buffer.analog_trigger_r = analog->rt >> 4;
+        break;
       }
     }
   }

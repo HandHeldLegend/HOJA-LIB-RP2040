@@ -168,6 +168,12 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
+  // Reset pairing if needed.
+  if(_button_data.button_sync)
+  {
+    memset(global_loaded_settings.switch_host_address, 0, 6);
+  }
+
   // Set rumble intensity
   cb_hoja_set_rumble_intensity(global_loaded_settings.rumble_floor, global_loaded_settings.rumble_intensity);
 

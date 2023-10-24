@@ -48,7 +48,22 @@ void _btinput_message_parse(uint8_t *msg)
 
         case I2CINPUT_ID_STATUS:
         {
+            static uint8_t _i_rumble = 0;
             i2cinput_status_s status = {.rumble_intensity = msg[1], .connected_status = msg[2]};
+
+            if(_i_rumble != status.rumble_intensity)
+            {
+                _i_rumble = status.rumble_intensity;
+                if(!_i_rumble)
+                {
+                    cb_hoja_rumble_enable(0);
+                }
+                else
+                {
+                    cb_hoja_rumble_enable((float) _i_rumble/100.0f);
+                }
+                
+            }
         }
         break;
 
