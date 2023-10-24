@@ -15,6 +15,7 @@ hoja_capabilities_t _webusb_capabilities = {
     .nintendo_serial = HOJA_CAPABILITY_NINTENDO_SERIAL,
     .nintendo_joybus = HOJA_CAPABILITY_NINTENDO_JOYBUS,
     .rumble = HOJA_CAPABILITY_RUMBLE,
+    .battery_pmic = HOJA_CAPABILITY_BATTERY,
     .padding = 0,
 };
 

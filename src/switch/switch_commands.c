@@ -139,12 +139,6 @@ bool shouldControllerRumble(const uint8_t *data) {
     return ( (hba>1) && !hbd) || ((lba>0x40) && !lbd);
 }
 
-float _get_rumble_intensity(const uint8_t *data) {
-
-}
-
-uint8_t test[] = {0x7a, 0xf8, 0x62, 0x80};
-
 // Translate and handle rumble
 void rumble_translate(const uint8_t *data)
 { 
@@ -170,7 +164,14 @@ void info_set_mac()
   _switch_command_buffer[0] = 0x01;
   _switch_command_buffer[1] = 0x00;
   _switch_command_buffer[2] = 0x03;
-  memcpy(&_switch_command_buffer[3], &global_loaded_settings.switch_mac_address, 6*sizeof(uint8_t));
+
+  // Mac in LE
+  _switch_command_buffer[3] = global_loaded_settings.switch_mac_address[5];
+  _switch_command_buffer[4] = global_loaded_settings.switch_mac_address[4];
+  _switch_command_buffer[5] = global_loaded_settings.switch_mac_address[3];
+  _switch_command_buffer[6] = global_loaded_settings.switch_mac_address[2];
+  _switch_command_buffer[7] = global_loaded_settings.switch_mac_address[1];
+  _switch_command_buffer[8] = global_loaded_settings.switch_mac_address[0];
 }
 
 // A second part to the initialization,
@@ -202,19 +203,44 @@ void info_handler(uint8_t info_code)
   tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
 }
 
-void pairing_set(uint8_t phase)
+void pairing_set(uint8_t phase, const uint8_t *host_address)
 {
   // Respond with MAC address and "Pro Controller".
   const uint8_t pro_controller_string[24] = {0x00, 0x25, 0x08, 0x50, 0x72, 0x6F, 0x20, 0x43, 0x6F,
                                       0x6E, 0x74, 0x72, 0x6F, 0x6C, 0x6C, 0x65, 0x72, 0x00,
                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x68};
+
+  bool diff_host = false;
+
   switch(phase)
   {
     default:
     case 1:
+
+      // Get host address and compare it.
+      for(uint i = 0; i < 6; i++)
+      {
+        if (global_loaded_settings.switch_host_address[i] != host_address[5-i])
+        {
+          global_loaded_settings.switch_host_address[i] = host_address[5-i];
+          diff_host=true;
+        }
+      }
+      
+      // Save if we have an updated host address.
+      if(diff_host) settings_save();
+
       set_ack(0x81);
       _switch_command_buffer[14] = 1;
-      memcpy(&_switch_command_buffer[15], &global_loaded_settings.switch_mac_address, 6);
+
+      // Mac in LE
+      _switch_command_buffer[15] = global_loaded_settings.switch_mac_address[5];
+      _switch_command_buffer[16] = global_loaded_settings.switch_mac_address[4];
+      _switch_command_buffer[17] = global_loaded_settings.switch_mac_address[3];
+      _switch_command_buffer[18] = global_loaded_settings.switch_mac_address[2];
+      _switch_command_buffer[19] = global_loaded_settings.switch_mac_address[1];
+      _switch_command_buffer[20] = global_loaded_settings.switch_mac_address[0];
+
       memcpy(&_switch_command_buffer[15+6], pro_controller_string, 24);
       break;
     case 2:
@@ -263,7 +289,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
 
     case SW_CMD_SET_PAIRING:
       printf("Set pairing.\n");
-      pairing_set(data[11]);
+      pairing_set(data[11], &data[12]);
       break;
 
     case SW_CMD_SET_INPUTMODE:

@@ -293,7 +293,7 @@ void remap_buttons_task()
     _remap_listener(_buttons_in->buttons_all, c);
   }
 
-  if (!safe_mode_check())
+  if (!macro_safe_mode_check())
   {
     _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
     _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);

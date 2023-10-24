@@ -7,6 +7,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja_comms.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/rgb.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/battery.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 
@@ -22,7 +23,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/safemode.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/dinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/gcinput.c 
@@ -32,6 +33,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/swpro.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/webusb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/xinput.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/btinput.c
 )
 
 target_include_directories(hoja_lib INTERFACE
@@ -81,6 +83,7 @@ target_link_libraries(hoja_lib INTERFACE
   hardware_sync
   hardware_timer
   hardware_irq
+  hardware_i2c
 
   tinyusb_device
   tinyusb_board

@@ -9,8 +9,11 @@ void _generate_mac()
   for(uint8_t i = 0; i < 6; i++)
   {
     global_loaded_settings.switch_mac_address[i] = get_rand_32() & 0xFF;
+    if(!i) global_loaded_settings.switch_mac_address[i] &= 0xFE;
     printf("%X : ", global_loaded_settings.switch_mac_address[i]);
   }
+
+  global_loaded_settings.switch_mac_address[5] = 0x9B;
   printf("\n");
 }
 #define FLASH_TARGET_OFFSET (1200 * 1024)
@@ -36,6 +39,8 @@ bool settings_load()
   global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger<50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
   settings_set_rumble_floor(global_loaded_settings.rumble_floor);
   settings_set_rumble(global_loaded_settings.rumble_intensity);
+  global_loaded_settings.switch_mac_address[0] &= 0xFE;
+  global_loaded_settings.switch_mac_address[5] = 0x9B;
 
   return true;
 }

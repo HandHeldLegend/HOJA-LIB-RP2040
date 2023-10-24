@@ -48,39 +48,50 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
             switch (address)
             {
                 // Magic number determines if Pairing info is used
+                case 0x26:
                 case 0x00:
-                    return 0x00; // 0x95 if used
+                    return 0x95; // 0x95 if used, 0x00 if not
                     break;
 
                 // Size of pairing data
+                case 0x27:
                 case 0x01:
                     return 0x22;
                     break;
 
                 // Checksum
+                case 0x28:
+                case 0x29:
                 case 0x02:
                 case 0x03:
                     return 0x00;
                     break;
 
                 // Host BT address (Big-endian)
+                case 0x2A ... 0x2F:
+                    return global_loaded_settings.switch_host_address[address-0x2A];
+                    break;
                 case 0x04 ... 0x09:
-                    return 0x00; //loaded_settings.ns_host_bt_address[address-4];
+                    return global_loaded_settings.switch_host_address[address-4];
                     break;
 
                 // Bluetooth LTK (Little-endian) NOT IMPLEMENTED YET
+                case 0x30 ... 0x3F:
+                    return 0x00;
+                    break;
                 case 0x0A ... 0x19:
                     return 0x00;
                     break;
 
                 // Host capability 0x68 is Nintendo Switch. 0x08 is PC
+                case 0x4A:
                 case 0x24:
                     return 0x68;
                     break;
 
-                // Pairing section 2. Respond all 0xFF.
-                case 0x26 ... 0x4B:
-                    return 0xFF;
+                case 0x4B:
+                case 0x25:
+                    return 0;
                     break;
 
                 // No match... Return 0
