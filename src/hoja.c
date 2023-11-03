@@ -264,8 +264,7 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
-
-  rgb_set_dirty();
+  hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
   if (_button_data.button_home)
   {
@@ -276,7 +275,7 @@ void hoja_init(hoja_config_t *config)
   // Initialize button remapping
   remap_init(_hoja_input_mode, &_button_data, &_button_data_processed);
 
-  hoja_comms_init(_hoja_input_mode, _hoja_input_method);
+  rgb_set_dirty();
 
   // Enable lockout victimhood :,)
   multicore_lockout_victim_init();

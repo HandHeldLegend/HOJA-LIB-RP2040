@@ -223,7 +223,9 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
       {
         if ((buffer[3] > 0) || (buffer[4] > 0))
         {
-          cb_hoja_rumble_enable(true);
+          uint8_t xrv = (buffer[3]>buffer[4]) ? buffer[3] : buffer[4];
+          float xri = (float) xrv/255;
+          cb_hoja_rumble_enable(xri);
         }
         else
         {

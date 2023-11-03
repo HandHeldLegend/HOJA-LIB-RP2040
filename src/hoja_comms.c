@@ -30,6 +30,9 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
     } 
     #endif
 
+    button_data_s _tmp_btn = {0};
+    a_data_s _tmp_a = {0};
+
     switch(input_mode)
     {
         default:
@@ -50,10 +53,12 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
 
         case INPUT_MODE_GAMECUBE:
             _comms_cb = gamecube_comms_task;
+            hoja_comms_task(0, &_tmp_btn, &_tmp_a);
             break;
 
         case INPUT_MODE_N64:
             _comms_cb = n64_comms_task;
+            hoja_comms_task(0, &_tmp_btn, &_tmp_a);
             break;
 
         case INPUT_MODE_SNES:
