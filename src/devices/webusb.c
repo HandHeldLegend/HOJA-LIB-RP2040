@@ -38,6 +38,15 @@ void webusb_command_processor(uint8_t *data)
     default:
         break;
 
+    case WEBUSB_CMD_BB_SET:
+    {
+        #if(HOJA_CAPABILITY_BLUETOOTH)
+            cb_hoja_set_uart_enabled(true);
+            cb_hoja_set_bluetooth_enabled(true);
+        #endif
+    }
+    break;
+
     case WEBUSB_CMD_CAPABILITIES_GET:
     {
         printf("WebUSB: Got Capabilities GET command.\n");

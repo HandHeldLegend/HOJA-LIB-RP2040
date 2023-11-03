@@ -10,6 +10,9 @@ typedef enum
   // Get firmware version
   WEBUSB_CMD_FW_GET = 0xAF,
 
+  // Set Baseband update mode
+  WEBUSB_CMD_BB_SET = 0xBB,
+
   // Get Device Capability
   WEBUSB_CMD_CAPABILITIES_GET = 0xBE,
 
