@@ -1,6 +1,8 @@
 #ifndef HOJA_H
 #define HOJA_H
 
+#define HOJA_BACKEND_VERSION 0xA000
+
 #include "hoja_includes.h"
 #include "interval.h"
 

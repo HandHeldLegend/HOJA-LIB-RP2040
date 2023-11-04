@@ -88,4 +88,3 @@ target_link_libraries(hoja_lib INTERFACE
   tinyusb_device
   tinyusb_board
 )
-
