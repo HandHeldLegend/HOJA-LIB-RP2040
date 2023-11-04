@@ -84,6 +84,8 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[2] = HOJA_FW_VERSION & 0xFF;
         _webusb_out_buffer[3] = (HOJA_DEVICE_ID & 0xFF00) >> 8;
         _webusb_out_buffer[4] = (HOJA_DEVICE_ID & 0xFF);
+        _webusb_out_buffer[5] = (HOJA_BACKEND_VERSION & 0xFF00) >> 8;
+        _webusb_out_buffer[6] = (HOJA_BACKEND_VERSION & 0xFF);
         webusb_enable_output(false);
 
         if (webusb_ready_blocking(4000))
