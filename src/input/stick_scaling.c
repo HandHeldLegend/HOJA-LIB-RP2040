@@ -180,10 +180,10 @@ void stick_scaling_get_settings()
   // Copy values from settings to working mem here
   memcpy(_stick_l_calibrated_distances, global_loaded_settings.l_angle_distances, sizeof(float) * 8);
   memcpy(_stick_r_calibrated_distances, global_loaded_settings.r_angle_distances, sizeof(float) * 8);
-  _stick_l_center_x = global_loaded_settings.lx_center;
-  _stick_r_center_x = global_loaded_settings.rx_center;
-  _stick_l_center_y = global_loaded_settings.ly_center;
-  _stick_r_center_y = global_loaded_settings.ry_center;
+  _stick_l_center_x = global_loaded_settings.lx_center.center;
+  _stick_r_center_x = global_loaded_settings.rx_center.center;
+  _stick_l_center_y = global_loaded_settings.ly_center.center;
+  _stick_r_center_y = global_loaded_settings.ry_center.center;
 
   memcpy(_stick_l_calibrated_angles, global_loaded_settings.l_angles, sizeof(float) * 8);
   memcpy(_stick_r_calibrated_angles, global_loaded_settings.r_angles, sizeof(float) * 8);
@@ -349,8 +349,8 @@ void stick_scaling_process_data(a_data_s *in, a_data_s *out)
   _stick_angle_distance_scaled(la, ld, _stick_l_calibrated_angles, _stick_l_distance_scalers, &lx, &ly);
   _stick_angle_distance_scaled(ra, rd, _stick_r_calibrated_angles, _stick_r_distance_scalers, &rx, &ry);
 
-  out->lx = lx;
-  out->rx = rx;
-  out->ly = ly;
-  out->ry = ry;
+  out->lx = global_loaded_settings.lx_center.invert ? (4095 - lx) : lx;
+  out->ly = global_loaded_settings.ly_center.invert ? (4095 - ly) : ly;
+  out->rx = global_loaded_settings.rx_center.invert ? (4095 - rx) : rx;
+  out->ry = global_loaded_settings.ry_center.invert ? (4095 - ry) : ry;
 }

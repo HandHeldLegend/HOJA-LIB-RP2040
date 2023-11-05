@@ -124,6 +124,51 @@ void webusb_command_processor(uint8_t *data)
     }
     break;
 
+    case WEBUSB_CMD_ANALOG_INVERT_SET:
+    {
+        printf("WebUSB: Got analog invert SET command.\n");
+        switch(data[1])
+        {
+            default:
+            break;
+
+            case 0:
+            global_loaded_settings.lx_center.invert = (data[2]>0);
+            break;
+
+            case 1:
+            global_loaded_settings.ly_center.invert = (data[2]>0);
+            break;
+
+            case 2:
+            global_loaded_settings.rx_center.invert = (data[2]>0);
+            break;
+
+            case 3:
+            global_loaded_settings.ry_center.invert = (data[2]>0);
+            break;
+        }
+        stick_scaling_get_settings();
+    }
+    break;
+
+    case WEBUSB_CMD_ANALOG_INVERT_GET:
+    {
+        printf("WebUSB: Got analog invert GET command.\n");
+        _webusb_out_buffer[0] = WEBUSB_CMD_ANALOG_INVERT_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.lx_center.invert;
+        _webusb_out_buffer[2] = global_loaded_settings.ly_center.invert;
+        _webusb_out_buffer[3] = global_loaded_settings.rx_center.invert;
+        _webusb_out_buffer[4] = global_loaded_settings.ry_center.invert;
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
     case WEBUSB_CMD_OCTAGON_SET:
     {
         printf("WebUSB: Got angle capture command.\n");

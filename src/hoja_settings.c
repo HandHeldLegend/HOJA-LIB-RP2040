@@ -154,10 +154,18 @@ void settings_set_rumble(uint8_t intensity)
 
 void settings_set_centers(int lx, int ly, int rx, int ry)
 {
-  global_loaded_settings.lx_center = lx;
-  global_loaded_settings.ly_center = ly;
-  global_loaded_settings.rx_center = rx;
-  global_loaded_settings.ry_center = ry;
+  global_loaded_settings.lx_center.center = lx;
+  global_loaded_settings.ly_center.center = ly;
+  global_loaded_settings.rx_center.center = rx;
+  global_loaded_settings.ry_center.center = ry;
+}
+
+void settings_set_analog_inversion(bool lx, bool ly, bool rx, bool ry)
+{
+  global_loaded_settings.lx_center.invert = lx;
+  global_loaded_settings.ly_center.invert = ly;
+  global_loaded_settings.rx_center.invert = rx;
+  global_loaded_settings.ry_center.invert = ry;
 }
 
 void settings_set_distances(float *l_angle_distances, float *r_angle_distances)

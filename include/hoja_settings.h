@@ -9,6 +9,17 @@ typedef struct
     buttons_unset_s disabled;
 } remap_profile_s;
 
+typedef union
+{
+    struct
+    {
+        int center : 31;
+        bool invert : 1;
+    };
+    int value;
+    
+} analog_center_u;
+
 typedef struct
 {
     // We use a settings version to
@@ -17,11 +28,11 @@ typedef struct
     input_mode_t input_mode;
     uint8_t     switch_mac_address[6]; // Address of this controller
 
-    int lx_center;
-    int ly_center;
+    analog_center_u lx_center;
+    analog_center_u ly_center;
 
-    int rx_center;
-    int ry_center;
+    analog_center_u rx_center;
+    analog_center_u ry_center;
 
     // Angle Adjustments
     float l_angles[8];

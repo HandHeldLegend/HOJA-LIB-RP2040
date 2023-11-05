@@ -19,10 +19,10 @@ typedef enum
   WEBUSB_CMD_RGB_SET = 0x01,
   WEBUSB_CMD_RGB_GET = 0xA1,
 
-  // Set snapback setting
-  WEBUSB_CMD_SNAPBACK_SET = 0x02,
-  // Get all snapback settings
-  WEBUSB_CMD_SNAPBACK_GET = 0xA2,
+  // Set analog invert setting
+  WEBUSB_CMD_ANALOG_INVERT_SET = 0x02,
+  // Get all analog invert settings
+  WEBUSB_CMD_ANALOG_INVERT_GET = 0xA2,
 
   // Start calibration mode (standard)
   WEBUSB_CMD_CALIBRATION_START = 0x03,
