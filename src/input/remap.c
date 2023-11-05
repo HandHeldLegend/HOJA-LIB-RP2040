@@ -19,6 +19,9 @@ button_remap_s  *_tmp_remap_struct;
 buttons_unset_s *_tmp_unset_struct;
 input_mode_t    _tmp_remap_mode;
 
+bool _l_analog_digital_only = false;
+bool _r_analog_digital_only = false;
+
 const button_remap_s default_remap = {
     .dpad_up = MAPCODE_DUP,
     .dpad_down = MAPCODE_DDOWN,
@@ -78,6 +81,17 @@ void _remap_load_remap(input_mode_t mode, button_remap_s **remap_out, buttons_un
       *unset_out = &(global_loaded_settings.remap_snes.disabled);
       break;
   }
+
+  _l_analog_digital_only = (_remap_arr[MAPCODE_T_ZL]==MAPCODE_T_ZL 
+        && ((mode==INPUT_MODE_GAMECUBE)
+        || (mode==INPUT_MODE_GCUSB)
+        || (mode==INPUT_MODE_XINPUT)));
+
+  _r_analog_digital_only = (_remap_arr[MAPCODE_T_ZR]==MAPCODE_T_ZR 
+        && ((mode==INPUT_MODE_GAMECUBE)
+        || (mode==INPUT_MODE_GCUSB)
+        || (mode==INPUT_MODE_XINPUT)));
+  
 }
 
 void _remap_pack_remap(button_remap_s *remap, mapcode_t *array)
@@ -316,7 +330,7 @@ void remap_buttons_task()
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
   
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_L)
-    if(_remap_arr[MAPCODE_T_ZL]==MAPCODE_T_ZL)
+    if(_l_analog_digital_only)
     {
       _buttons_out->zl_analog = (_buttons_in->trigger_zl) ? 4080 : _buttons_in->zl_analog;
     }
@@ -329,7 +343,7 @@ void remap_buttons_task()
   #endif
 
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_R)
-    if(_remap_arr[MAPCODE_T_ZR]==MAPCODE_T_ZR)
+    if(_r_analog_digital_only)
     {
       _buttons_out->zr_analog = (_buttons_in->trigger_zr) ? 4080 : _buttons_in->zr_analog;
     }
