@@ -312,12 +312,40 @@ void remap_buttons_task()
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_x, _remap_arr[MAPCODE_B_X], _unset_struct->button_x);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_y, _remap_arr[MAPCODE_B_Y], _unset_struct->button_y);
 
-  // Now when L is pressed, it activates the data we set.
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_l, _remap_arr[MAPCODE_T_L],    _unset_struct->trigger_l);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
+  
+  #if(HOJA_CAPABILITY_ANALOG_TRIGGER_L)
+    if(_remap_arr[MAPCODE_T_ZL]==MAPCODE_T_ZL)
+    {
+      _buttons_out->zl_analog = (_buttons_in->trigger_zl) ? 4080 : _buttons_in->zl_analog;
+    }
+    else
+    {
+      _buttons_in->trigger_zl |= (_buttons_in->zl_analog >= HOJA_ANALOG_HAIRTRIGGER_L);
+    }
+  #else
+    _buttons_out->zl_analog = (_buttons_in->trigger_zl) ? 4080 : 0;
+  #endif
+
+  #if(HOJA_CAPABILITY_ANALOG_TRIGGER_R)
+    if(_remap_arr[MAPCODE_T_ZR]==MAPCODE_T_ZR)
+    {
+      _buttons_out->zr_analog = (_buttons_in->trigger_zr) ? 4080 : _buttons_in->zr_analog;
+    }
+    else
+    {
+      _buttons_in->trigger_zr |= (_buttons_in->zr_analog >= HOJA_ANALOG_HAIRTRIGGER_R);
+    }
+  #else
+    _buttons_out->zr_analog = (_buttons_in->trigger_zr) ? 4080 : 0;
+  #endif
+
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
+
+
 }

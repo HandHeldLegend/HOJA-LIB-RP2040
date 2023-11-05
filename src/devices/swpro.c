@@ -163,35 +163,35 @@ uint32_t _timeout = 0;
 
 void swpro_hid_report(button_data_s *button_data, a_data_s *analog_data)
 {
-  static sw_input_s data = {0};
+    static sw_input_s data = {0};
 
-  data.d_down = button_data->dpad_down;
-  data.d_right = button_data->dpad_right;
-  data.d_left = button_data->dpad_left;
-  data.d_up = button_data->dpad_up;
+    data.d_down = button_data->dpad_down;
+    data.d_right = button_data->dpad_right;
+    data.d_left = button_data->dpad_left;
+    data.d_up = button_data->dpad_up;
 
-  data.b_y = button_data->button_y;
-  data.b_x = button_data->button_x;
-  data.b_a = button_data->button_a;
-  data.b_b = button_data->button_b;
+    data.b_y = button_data->button_y;
+    data.b_x = button_data->button_x;
+    data.b_a = button_data->button_a;
+    data.b_b = button_data->button_b;
 
-  data.b_minus = button_data->button_minus;
-  data.b_plus = button_data->button_plus;
-  data.b_home = button_data->button_home;
-  data.b_capture = button_data->button_capture;
+    data.b_minus = button_data->button_minus;
+    data.b_plus = button_data->button_plus;
+    data.b_home = button_data->button_home;
+    data.b_capture = button_data->button_capture;
 
-  data.sb_right = button_data->button_stick_right;
-  data.sb_left = button_data->button_stick_left;
+    data.sb_right = button_data->button_stick_right;
+    data.sb_left = button_data->button_stick_left;
 
-  data.t_r = button_data->trigger_r;
-  data.t_l = button_data->trigger_l;
-  data.t_zl = button_data->trigger_zl;
-  data.t_zr = button_data->trigger_zr;
+    data.t_r = button_data->trigger_r;
+    data.t_l = button_data->trigger_l;
+    data.t_zl = button_data->trigger_zl;
+    data.t_zr = button_data->trigger_zr;
 
-  data.ls_x = analog_data->lx;
-  data.ls_y = analog_data->ly;
-  data.rs_x = analog_data->rx;
-  data.rs_y = analog_data->ry;
+    data.ls_x = analog_data->lx;
+    data.ls_y = analog_data->ly;
+    data.rs_x = analog_data->rx;
+    data.rs_y = analog_data->ry;
 
-  switch_commands_process(&data);
+    switch_commands_process(&data);
 }

@@ -292,6 +292,9 @@ typedef struct
         };
         uint8_t buttons_system;
     };
+
+    int zl_analog;
+    int zr_analog;
 } __attribute__ ((packed)) button_data_s;
 
 // Analog input data structure
@@ -301,8 +304,6 @@ typedef struct
     int ly;
     int rx;
     int ry;
-    int lt;
-    int rt;
 } a_data_s;
 
 // IMU data structure

@@ -25,6 +25,7 @@
 #include "hardware/uart.h"
 #include "hardware/flash.h"
 #include "hardware/watchdog.h"
+#include "hardware/adc.h"
 
 #include "board_config.h"
 

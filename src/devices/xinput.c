@@ -46,8 +46,8 @@ void xinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
   data.button_stick_l = button_data->button_stick_left;
   data.button_stick_r = button_data->button_stick_right;
 
-  data.analog_trigger_l = button_data->trigger_zl ? 255 : 0;
-  data.analog_trigger_r = button_data->trigger_zr ? 255 : 0;
+  data.analog_trigger_l = button_data->trigger_zl ? 255 : (button_data->zl_analog>>4);
+  data.analog_trigger_r = button_data->trigger_zr ? 255 : (button_data->zr_analog>>4);
 
   tud_xinput_report(&data, XID_REPORT_LEN);
   analog_send_reset();
