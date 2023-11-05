@@ -138,7 +138,7 @@ static bool _rumble_taken = false;
 
 void settings_set_rumble_floor(uint8_t floor)
 {
-  floor = (floor>50) ? 50 : floor;
+  floor = (floor>75) ? 75 : floor;
   global_loaded_settings.rumble_floor = floor;
 
   cb_hoja_set_rumble_intensity(floor, 1);
