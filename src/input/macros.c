@@ -1,8 +1,6 @@
 #include "macros.h"
 #include "interval.h"
 
-bool _safe_mode_on = false;
-
 typedef enum
 {
     MACRO_IDLE = 0,
@@ -58,5 +56,5 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
 bool macro_safe_mode_check()
 {
-    return _safe_mode_on;
+    return _safe_mode_state;
 }
