@@ -13,22 +13,22 @@ a_data_s *_data_buffered = NULL;
 
 button_data_s *_buttons = NULL;
 
-static int _lx_distance = 0;
-static int _ly_distance = 0;
-static int _rx_distance = 0;
-static int _ry_distance = 0;
+typedef struct {
+    int8_t tracked_direction;
+    int last_pos;
+} analog_distance_mem_s;
 
-static bool _lx_direction = false;
-static bool _ly_direction = false;
-static bool _rx_direction = false;
-static bool _ry_direction = false;
+static analog_distance_mem_s _lx_tracker_mem;
+static analog_distance_mem_s _ly_tracker_mem;
+static analog_distance_mem_s _rx_tracker_mem;
+static analog_distance_mem_s _ry_tracker_mem;
 
 void analog_send_reset()
 {
-    _lx_distance = 0;
-    _ly_distance = 0;
-    _rx_distance = 0;
-    _ry_distance = 0;
+    _lx_tracker_mem.tracked_direction = 0;
+    _ly_tracker_mem.tracked_direction = 0;
+    _rx_tracker_mem.tracked_direction = 0;
+    _ry_tracker_mem.tracked_direction = 0;
 }
 
 void analog_init(a_data_s *in, a_data_s *out, a_data_s *buffered, button_data_s *buttons)
@@ -128,31 +128,41 @@ void _analog_calibrate_loop()
     }
 }
 
-
-
-void _analog_distance_check(int in, int *out, int *distance, bool *direction)
+void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
 {
-    bool d_internal = (in >= 2048);
-    int d = abs(in-2048);
+    // Get movement direction
+    // If it's positive, we are moving UP, else DOWN
+    bool d = ( (in - dmem->last_pos) > 0 );
 
-    if(d_internal != *direction)
-    {
-        *direction = d_internal;
-        *distance = d;
-        *out = in;
-    }
-    else if (d > *distance)
-    {
-        *distance = d;
-        *out = in;
-    }
-    else if (!d)
+    // Handle perfect center
+    if(in==2048)
     {
         *out = 2048;
     }
-
-    // Debug
-    //*out = in;
+    // If we change direction...
+    else if(!dmem->tracked_direction)
+    {
+        dmem->tracked_direction = d ? 1 : -1;
+        // Set output
+        *out = in;
+    }
+    else if (d>0)
+    {
+        if(in>dmem->last_pos)
+        {
+            *out            =   in;
+            dmem->last_pos  =   in;
+        }
+    }
+    else if (d<0)
+    {
+        if(in<dmem->last_pos)
+        {
+            *out            =   in;
+            dmem->last_pos  =   in;
+        }
+    }
+    else *out = in;
 }
 
 void analog_task(uint32_t timestamp)
@@ -173,10 +183,10 @@ void analog_task(uint32_t timestamp)
             snapback_process(timestamp, &scaled_analog_data, _data_buffered);
             
             // Run distance checks
-            _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_distance, &_lx_direction);
-            _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_distance, &_ly_direction);
-            _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_distance, &_rx_direction);
-            _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_distance, &_ry_direction);
+            _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_tracker_mem);
+            _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_tracker_mem);
+            _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_tracker_mem);
+            _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_tracker_mem);
         }
     }
 }
