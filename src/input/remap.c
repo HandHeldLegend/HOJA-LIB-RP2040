@@ -342,7 +342,8 @@ void remap_buttons_task()
       _buttons_in->trigger_zl |= (_buttons_in->zl_analog >= HOJA_ANALOG_HAIRTRIGGER_L);
     }
   #else
-    _buttons_out->zl_analog = (_buttons_in->trigger_zl) ? 4080 : 0;
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
+    _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4080 : 0;
   #endif
 
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_R)
@@ -355,7 +356,8 @@ void remap_buttons_task()
       _buttons_in->trigger_zr |= (_buttons_in->zr_analog >= HOJA_ANALOG_HAIRTRIGGER_R);
     }
   #else
-    _buttons_out->zr_analog = (_buttons_in->trigger_zr) ? 4080 : 0;
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
+    _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4080 : 0;
   #endif
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
