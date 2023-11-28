@@ -146,7 +146,7 @@ void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
         // Set output
         *out = in;
     }
-    else if (d>0)
+    else if (dmem->tracked_direction>0)
     {
         if(in>dmem->last_pos)
         {
@@ -154,7 +154,7 @@ void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
             dmem->last_pos  =   in;
         }
     }
-    else if (d<0)
+    else if (dmem->tracked_direction<0)
     {
         if(in<dmem->last_pos)
         {
@@ -163,6 +163,9 @@ void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
         }
     }
     else *out = in;
+
+    // Set last pos
+    dmem->last_pos = in;
 }
 
 void analog_task(uint32_t timestamp)
