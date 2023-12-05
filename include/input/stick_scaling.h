@@ -10,6 +10,7 @@ void stick_scaling_init();
 
 void stick_scaling_reset_distances();
 
+void stick_scaling_get_octant_axis(a_data_s *in, uint8_t *axis, uint8_t *octant);
 bool stick_scaling_capture_distances(a_data_s *in);
 void stick_scaling_capture_center(a_data_s *in);
 bool stick_scaling_capture_angle(a_data_s *in);

@@ -169,6 +169,54 @@ void webusb_command_processor(uint8_t *data)
     }
     break;
 
+    case WEBUSB_CMD_SUBANGLE_GET:
+    {
+        printf("WebUSB: Got analog subangle GET command.\n");
+        _webusb_out_buffer[0] = WEBUSB_CMD_SUBANGLE_GET;
+
+        uint8_t axis = 0;
+        uint8_t octant = 0;
+        
+        analog_get_subangle_data(&axis, &octant);
+
+        _webusb_out_buffer[1] = axis;
+        _webusb_out_buffer[2] = octant;
+
+        switch(axis)
+        {
+            case 0:
+                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_sub_angles[octant]), sizeof(float));
+            break;
+
+            case 1:
+                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_sub_angles[octant]), sizeof(float));
+            break;
+        }
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_SUBANGLE_SET:
+    {
+        printf("WebUSB: Got analog subangle SET command.\n");
+        if(!data[1])
+        {
+            memcpy(&(global_loaded_settings.l_sub_angles[data[2]]), &(data[3]), sizeof(float));
+        }
+        else
+        {
+            memcpy(&(global_loaded_settings.r_sub_angles[data[2]]), &(data[3]), sizeof(float));
+        }
+
+        stick_scaling_init();
+    }
+    break;
+
     case WEBUSB_CMD_OCTAGON_SET:
     {
         printf("WebUSB: Got angle capture command.\n");

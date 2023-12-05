@@ -168,6 +168,13 @@ void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
     dmem->last_pos = in;
 }
 
+void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
+{
+    stick_scaling_get_octant_axis(_data_in, axis, octant);
+}
+
+#define STICK_INTERNAL_CENTER 2048
+
 void analog_task(uint32_t timestamp)
 {
     if (interval_run(timestamp, _analog_interval))
@@ -185,11 +192,22 @@ void analog_task(uint32_t timestamp)
             stick_scaling_process_data(_data_in, &scaled_analog_data);
             snapback_process(timestamp, &scaled_analog_data, _data_buffered);
             
-            // Run distance checks
-            _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_tracker_mem);
-            _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_tracker_mem);
-            _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_tracker_mem);
-            _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_tracker_mem);
+            if(webusb_output_enabled())
+            {
+                _data_out->lx = STICK_INTERNAL_CENTER;
+                _data_out->rx = STICK_INTERNAL_CENTER;
+                _data_out->ly = STICK_INTERNAL_CENTER;
+                _data_out->ry = STICK_INTERNAL_CENTER;
+            }
+            else
+            {
+                // Run distance checks
+                _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_tracker_mem);
+                _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_tracker_mem);
+                _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_tracker_mem);
+                _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_tracker_mem);
+            }
+            
         }
     }
 }
