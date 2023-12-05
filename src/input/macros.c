@@ -43,6 +43,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
             rgb_set_dirty();
         }
+
     }
 
     // Will fire when Shipping button is held for 3 seconds

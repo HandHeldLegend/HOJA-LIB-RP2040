@@ -28,9 +28,6 @@ int _stick_l_center_y;
 int _stick_r_center_x;
 int _stick_r_center_y;
 
-float _stick_l_sub_adjustments[8] = {0,0,0,0,0,0,0,0};
-float _stick_r_sub_adjustments[8] = {0,0,0,0,0,0,0,0};
-
 typedef struct
 {
   bool set;
@@ -39,8 +36,19 @@ typedef struct
   float parting_angle;
 } angle_sub_scale_s;
 
-angle_sub_scale_s l_sub_angle_states[8] = {0};
-angle_sub_scale_s r_sub_angle_states[8] = {0};
+angle_sub_scale_s _l_sub_angle_states[8] = {0};
+angle_sub_scale_s _r_sub_angle_states[8] = {0};
+
+float _stick_sub_angle_scale(float angle, angle_sub_scale_s *state)
+{
+  if(!state->set) return angle;
+
+  if(angle <= state->parting_angle)
+  {
+    return angle * state->scale_lower;
+  }
+  else return ( (angle - state->parting_angle) * state->scale_upper )+22.5f;
+}
 
 float _get_angle_distance(float angle1, float angle2) {
     // Calculate the absolute difference
@@ -145,7 +153,7 @@ void _stick_normalized_vector(float angle, float *x, float *y)
 }
 
 // Calculates the new angle and distance output
-void _stick_process_input(float angle, float distance, float *c_angles, float *d_scalers, float *a_scalers, float *out_x, float *out_y)
+void _stick_process_input(float angle, float distance, float *c_angles, float *d_scalers, float *a_scalers, angle_sub_scale_s *sub_state, float *out_x, float *out_y)
 {
   // First get the octant
   // This will determine which scalers we are using
@@ -170,6 +178,12 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
   // Get scaled angle
   float _sa = _ad * a_scalers[_o];
 
+  // Perform sub-adjust if we need to.
+  if(sub_state[_o].set)
+  {
+    _sa = _stick_sub_angle_scale(_sa, &(sub_state[_o]));
+  }
+
   // Add scaled angle to create final angle
   float _fa = _stick_angle_adjust(_angle_lut[_o], _sa);
 
@@ -184,7 +198,6 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
 
   *out_x = CLAMP_0_MAX((int)roundf(nx + STICK_INTERNAL_CENTER));
   *out_y = CLAMP_0_MAX((int)roundf(ny + STICK_INTERNAL_CENTER));
-  ;
 }
 
 // PRECALCULATE FUNCTIONS
@@ -213,6 +226,19 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
     }
   }
 
+  // PRECalculate sub-scaler states
+  void _precalculate_angle_substate(float *sub_angles_in, angle_sub_scale_s *state)
+  {
+    for(uint8_t i = 0; i < 8; i++)
+    {
+      if(sub_angles_in[i] == 0) continue;
+
+      state[i].set = true;
+      state[i].parting_angle = 22.5 + sub_angles_in[i];
+      state[i].scale_lower = (22.5f / state[i].parting_angle);
+      state[i].scale_upper = (22.5f / (45.0f - state[i].parting_angle) );
+    }
+  }
 
 // PUBLIC FUNCTIONS
 // Load stick scaling settings from global_loaded_settings
@@ -241,6 +267,9 @@ void stick_scaling_init()
 
   _precalculate_distance_scalers(global_loaded_settings.l_angle_distances, _stick_l_distance_scalers);
   _precalculate_distance_scalers(global_loaded_settings.r_angle_distances, _stick_r_distance_scalers);
+
+  _precalculate_angle_substate(global_loaded_settings.l_sub_angles, _l_sub_angle_states);
+  _precalculate_angle_substate(global_loaded_settings.r_sub_angles, _r_sub_angle_states);
 }
 
 uint16_t _stick_distances_tracker = 0x00;
@@ -377,8 +406,8 @@ void stick_scaling_process_data(a_data_s *in, a_data_s *out)
   float rx = 0;
   float ry = 0;
 
-  _stick_process_input(la, ld, global_loaded_settings.l_angles, _stick_l_distance_scalers, _stick_l_angle_scalers, &lx, &ly);
-  _stick_process_input(ra, rd, global_loaded_settings.r_angles, _stick_r_distance_scalers, _stick_r_angle_scalers, &rx, &ry);
+  _stick_process_input(la, ld, global_loaded_settings.l_angles, _stick_l_distance_scalers, _stick_l_angle_scalers, _l_sub_angle_states, &lx, &ly);
+  _stick_process_input(ra, rd, global_loaded_settings.r_angles, _stick_r_distance_scalers, _stick_r_angle_scalers, _r_sub_angle_states, &rx, &ry);
 
   out->lx = global_loaded_settings.lx_center.invert ? (4095 - lx) : lx;
   out->ly = global_loaded_settings.ly_center.invert ? (4095 - ly) : ly;
