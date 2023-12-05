@@ -54,8 +54,8 @@ void settings_reset_to_default()
     .ly_center = 2048,
     .rx_center = 2048,
     .ry_center = 2048,
-    .l_angles = {0,0,0,0,0,0,0,0},
-    .r_angles = {0,0,0,0,0,0,0,0},
+    .l_angles = {0,45,90,135,180,225,270,315},
+    .r_angles = {0,45,90,135,180,225,270,315},
     .l_angle_distances = {
       600, 600, 600, 600, 600, 600, 600, 600,
     },
@@ -73,10 +73,6 @@ void settings_reset_to_default()
   remap_reset_default(INPUT_MODE_GAMECUBE);
   remap_reset_default(INPUT_MODE_N64);
   remap_reset_default(INPUT_MODE_SNES);
-  for(uint16_t i = 0; i < 26; i++)
-  {
-    global_loaded_settings.imu_calibration[i] = 0xFF;
-  }
   memset(global_loaded_settings.imu_0_offsets, 0, sizeof(int8_t)*6);
   memset(global_loaded_settings.imu_1_offsets, 0, sizeof(int8_t)*6);
   _generate_mac();

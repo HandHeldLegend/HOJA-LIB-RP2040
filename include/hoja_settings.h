@@ -34,16 +34,16 @@ typedef struct
     analog_center_u rx_center;
     analog_center_u ry_center;
 
-    // Angle Adjustments
+    // Angles of most distant cardinal directions
     float l_angles[8];
     float r_angles[8];
 
     // Angle distances one for each of the 8 directions
+    // This is just stored as the literal raw angle value
+    // ANGLE ORDER
+    // E, NE, N, NW, W, SW, S, SE
     float l_angle_distances[8];
     float r_angle_distances[8];
-
-    // IMU Calibration
-    uint8_t imu_calibration[26];
 
     // IMU Offsets for more precision
     int8_t imu_0_offsets[6];
@@ -64,6 +64,10 @@ typedef struct
     uint8_t rumble_floor;
 
     uint8_t switch_host_address[6]; // Host device we are paired to
+
+    // Sub-Angle Notch Adjustments
+    float l_sub_angles[8];
+    float r_sub_angles[8];
 
 } hoja_settings_s;
 

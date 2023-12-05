@@ -326,16 +326,16 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
       set_ack(0x80);
 
       // Write IMU calibration data
-      if ((data[12] == 0x80) && (data[11] == 0x26))
-      {
-        for(uint16_t i = 0; i < 26; i++)
-        {
-          global_loaded_settings.imu_calibration[i] = data[16+i];
-          printf("0x%x, ", data[16+i]);
-          printf("\n");
-        }
-        settings_save(false);
-      }
+      //if ((data[12] == 0x80) && (data[11] == 0x26))
+      //{
+      //  for(uint16_t i = 0; i < 26; i++)
+      //  {
+      //    global_loaded_settings.imu_calibration[i] = data[16+i];
+      //    printf("0x%x, ", data[16+i]);
+      //    printf("\n");
+      //  }
+      //  settings_save(false);
+      //}
 
       break;
 
