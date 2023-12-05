@@ -59,6 +59,9 @@ typedef enum
   WEBUSB_CMD_SUBANGLE_SET = 0x0C,
   WEBUSB_CMD_SUBANGLE_GET = 0xAC,
 
+  WEBUSB_CMD_OCTOANGLE_SET = 0x0D,
+  WEBUSB_CMD_OCTOANGLE_GET = 0xAD,
+
   // Command for analog input report
   WEBUSB_CMD_INPUT_REPORT = 0xE0,
 
@@ -69,6 +72,8 @@ void webusb_save_confirm();
 void webusb_command_processor(uint8_t *data);
 void webusb_input_report_task(uint32_t timestamp, a_data_s *analog);
 bool webusb_output_enabled();
+
+bool webusb_ready();
 bool webusb_ready_blocking();
 void webusb_enable_output(bool enable);
 

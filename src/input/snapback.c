@@ -228,7 +228,7 @@ void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
                 _snapback_report[3] = (analog_interval>>16)&0xFF;
                 _snapback_report[4] = (analog_interval>>8)&0xFF;
                 _snapback_report[5] = (analog_interval&0xFF);*/
-                if (webusb_ready_blocking(5000))
+                if (webusb_ready_blocking(4000))
                 {
                     tud_vendor_n_write(0, _snapback_report, 64);
                     tud_vendor_n_flush(0);

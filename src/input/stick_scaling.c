@@ -368,6 +368,33 @@ void stick_scaling_get_octant_axis(a_data_s *in, uint8_t *axis, uint8_t *octant)
   }
 }
 
+void stick_scaling_get_octant_axis_offset(a_data_s *in, uint8_t *axis, uint8_t *octant)
+{
+  // Get angles of input
+  float la = _stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
+  float ra = _stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
+
+  float sla = _stick_angle_adjust(la, 22.5);
+  float sra = _stick_angle_adjust(ra, 22.5);
+
+  // Get distance of inputs
+  float ld = _stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
+  float rd = _stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
+
+  if (ld > STICK_CALIBRATION_DEADZONE)
+  {
+    int lo = _stick_get_octant(sla);
+    *axis = 0;
+    *octant = (uint8_t) lo;
+  }
+  else if (rd > STICK_CALIBRATION_DEADZONE)
+  {
+    int ro = _stick_get_octant(sra);
+    *axis = 1;
+    *octant = (uint8_t) ro;
+  }
+}
+
 // Captures a stick angle for octagon calibration
 bool stick_scaling_capture_angle(a_data_s *in)
 {

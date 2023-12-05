@@ -168,6 +168,11 @@ void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
     dmem->last_pos = in;
 }
 
+void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant)
+{
+    stick_scaling_get_octant_axis_offset(_data_in, axis, octant);
+}
+
 void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
 {
     stick_scaling_get_octant_axis(_data_in, axis, octant);

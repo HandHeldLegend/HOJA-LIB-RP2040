@@ -29,6 +29,8 @@ void webusb_save_confirm()
         tud_vendor_n_write(0, _webusb_out_buffer, 64);
         tud_vendor_n_flush(0);
     }
+
+    webusb_enable_output(true);
 }
 
 void webusb_command_processor(uint8_t *data)
@@ -217,6 +219,54 @@ void webusb_command_processor(uint8_t *data)
     }
     break;
 
+    case WEBUSB_CMD_OCTOANGLE_GET:
+    {
+        printf("WebUSB: Got analog octoangle GET command.\n");
+        _webusb_out_buffer[0] = WEBUSB_CMD_OCTOANGLE_GET;
+
+        uint8_t axis = 0;
+        uint8_t octant = 0;
+        
+        analog_get_octoangle_data(&axis, &octant);
+
+        _webusb_out_buffer[1] = axis;
+        _webusb_out_buffer[2] = octant;
+
+        switch(axis)
+        {
+            case 0:
+                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_angles[octant]), sizeof(float));
+            break;
+
+            case 1:
+                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_angles[octant]), sizeof(float));
+            break;
+        }
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_OCTOANGLE_SET:
+    {
+        printf("WebUSB: Got analog octoangle SET command.\n");
+        if(!data[1])
+        {
+            memcpy(&(global_loaded_settings.l_angles[data[2]]), &(data[3]), sizeof(float));
+        }
+        else
+        {
+            memcpy(&(global_loaded_settings.r_angles[data[2]]), &(data[3]), sizeof(float));
+        }
+
+        stick_scaling_init();
+    }
+    break;
+
     case WEBUSB_CMD_OCTAGON_SET:
     {
         printf("WebUSB: Got angle capture command.\n");
@@ -368,7 +418,7 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog)
         webusb_input_report[3] = CLAMP_0_255(analog->rx >> 4);
         webusb_input_report[4] = CLAMP_0_255(analog->ry >> 4);
 
-        if (webusb_ready_blocking(5000))
+        if (webusb_ready_blocking(4000))
         {
             tud_vendor_n_write(0, webusb_input_report, 64);
             tud_vendor_n_flush(0);
