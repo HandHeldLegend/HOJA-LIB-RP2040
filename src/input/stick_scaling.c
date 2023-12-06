@@ -231,12 +231,22 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
   {
     for(uint8_t i = 0; i < 8; i++)
     {
-      if(sub_angles_in[i] == 0) continue;
+      if(sub_angles_in[i] == 0)
+      {
+        state[i].set = false;
+        state[i].parting_angle = 22.5f;
+        state[i].scale_lower = 1;
+        state[i].scale_upper = 1;
+      }
+      else
+      {
+        state[i].set = true;
+        state[i].parting_angle = 22.5 + sub_angles_in[i];
+        state[i].scale_lower = (22.5f / state[i].parting_angle);
+        state[i].scale_upper = (22.5f / (45.0f - state[i].parting_angle) );
+      }
 
-      state[i].set = true;
-      state[i].parting_angle = 22.5 + sub_angles_in[i];
-      state[i].scale_lower = (22.5f / state[i].parting_angle);
-      state[i].scale_upper = (22.5f / (45.0f - state[i].parting_angle) );
+      
     }
   }
 
