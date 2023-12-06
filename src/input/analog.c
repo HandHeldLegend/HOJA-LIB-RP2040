@@ -58,6 +58,10 @@ void analog_calibrate_start()
 
     // Reset scaling distances
     stick_scaling_reset_distances();
+
+    memset(global_loaded_settings.l_sub_angles, 0, sizeof(float)*8);
+    memset(global_loaded_settings.r_sub_angles, 0, sizeof(float)*8);
+
     _analog_all_angles_got = false;
     _analog_centered = false;
     _analog_calibrate = true;
