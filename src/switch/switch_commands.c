@@ -321,6 +321,11 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     sw_spi_readfromaddress(data[12], data[11], data[15]);
     break;
 
+  case SW_CMD_SET_HCI:
+    // For now all options should shut down
+    util_battery_enable_ship_mode();
+    break;
+
   case SW_CMD_SET_SPI:
     printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
     set_ack(0x80);

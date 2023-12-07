@@ -61,6 +61,14 @@ void btinput_init(input_mode_t input_mode)
         rgb_set_instant();
 
         cb_hoja_set_bluetooth_enabled(true);
+
+        // Optional delay to ensure you have time to hook into the UART
+        #ifdef HOJA_BT_LOGGING_DEBUG
+            #if (HOJA_BT_LOGGING_DEBUG == 1 )
+            sleep_ms(5000);
+            #endif
+        #endif
+
         sleep_ms(600);
         rgb_preset_reload();
         rgb_set_dirty();
@@ -86,7 +94,13 @@ void btinput_init(input_mode_t input_mode)
         data_out[15] = global_loaded_settings.switch_host_address[4];
         data_out[16] = global_loaded_settings.switch_host_address[5];
 
-        i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+        int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+
+        if(stat==PICO_ERROR_GENERIC)
+        {
+            watchdog_reboot(0, 0, 0);
+        }
+
         imu_set_enabled(true);
     #endif
 }
@@ -100,6 +114,12 @@ void _btinput_message_parse(uint8_t *msg)
             memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
         break;
 
+        case I2CINPUT_ID_SHUTDOWN:
+        {
+            util_battery_enable_ship_mode();
+        }
+        break;
+
         case I2CINPUT_ID_STATUS:
         {
             static uint8_t _i_rumble = 0;
@@ -110,11 +130,11 @@ void _btinput_message_parse(uint8_t *msg)
                 _i_rumble = status.rumble_intensity;
                 if(!_i_rumble)
                 {
-                    //cb_hoja_rumble_enable(0);
+                    cb_hoja_rumble_enable(0);
                 }
                 else
                 {
-                    //cb_hoja_rumble_enable((float) _i_rumble/100.0f);
+                    cb_hoja_rumble_enable((float) _i_rumble/100.0f);
                 }
                 
             }
@@ -153,7 +173,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
         data_out[2] = 0xAA;
-        data_out[3]         = I2CINPUT_ID_INPUT;
+        data_out[3] = I2CINPUT_ID_INPUT;
 
         data.buttons_all    = buttons->buttons_all;
         data.buttons_system = buttons->buttons_system;
@@ -181,10 +201,11 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
         _pack_i2c_msg(&data, &(data_out[4]));
 
-        i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
-        analog_send_reset();
-        i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 16000);
-        _btinput_message_parse(data_in);
+        int write = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
+        if(write==HOJA_I2C_MSG_SIZE_OUT) analog_send_reset();
+
+        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 16000);
+        if(read==HOJA_I2C_MSG_SIZE_IN) _btinput_message_parse(data_in);
         
     }
     #endif

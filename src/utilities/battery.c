@@ -42,28 +42,32 @@ void util_battery_enable_ship_mode(void)
 {
     cb_hoja_set_bluetooth_enabled(false);
 
-    sleep_ms(300);
-
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    const uint8_t _data[2] = {0x09, 0x41};
-    int s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+    for(;;)
+    {
+        sleep_ms(300);
+        
+        const uint8_t _data[2] = {0x09, 0x41};
+        int s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
 
-    if(s2 == PICO_ERROR_GENERIC)
-    {
-        rgb_set_all(COLOR_WHITE.color);
-        rgb_set_instant();
-    }
-    else if (s2== PICO_ERROR_TIMEOUT)
-    {
-        rgb_set_all(COLOR_PURPLE.color);
-        rgb_set_instant();
-    }
-    else if (s2==2)
-    {
-        rgb_set_all(COLOR_YELLOW.color);
-        rgb_set_instant();
+        if(s2 == PICO_ERROR_GENERIC)
+        {
+            rgb_set_all(COLOR_WHITE.color);
+            rgb_set_instant();
+        }
+        else if (s2== PICO_ERROR_TIMEOUT)
+        {
+            rgb_set_all(COLOR_PURPLE.color);
+            rgb_set_instant();
+        }
+        else if (s2==2)
+        {
+            rgb_set_all(COLOR_YELLOW.color);
+            rgb_set_instant();
+        }
     }
     #endif
+
 }
 
 void util_battery_set_charge_rate(uint16_t rate_ma)
