@@ -80,6 +80,7 @@ void _hoja_task_0()
   cb_hoja_read_buttons(&_button_data);
   macro_handler_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
+  rgb_task(_hoja_timestamp);
 
   // Webusb stuff
   if (webusb_output_enabled())
@@ -88,8 +89,10 @@ void _hoja_task_0()
     webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered);
   }
 
+
   // Our communication core task
   hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+  
 
   if (_hoja_input_method == INPUT_METHOD_USB)
   {
@@ -118,8 +121,6 @@ void _hoja_task_1()
 
     // Do IMU stuff
     imu_task(_hoja_timestamp);
-
-    rgb_task(_hoja_timestamp);
 
     // Do callback for userland code insertion
     cb_hoja_task_1_hook(_hoja_timestamp);

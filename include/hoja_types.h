@@ -309,12 +309,67 @@ typedef struct
 // IMU data structure
 typedef struct
 {
-    int16_t ax;
-    int16_t ay;
-    int16_t az;
-    int16_t gx;
-    int16_t gy;
-    int16_t gz;
+    union
+    {
+        struct
+        {
+            uint8_t ax_8l : 8;
+            uint8_t ax_8h : 8;
+        };
+        int16_t ax;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t ay_8l : 8;
+            uint8_t ay_8h : 8;
+        };
+        int16_t ay;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t az_8l : 8;
+            uint8_t az_8h : 8;
+        };
+        int16_t az;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gx_8l : 8;
+            uint8_t gx_8h : 8;
+        };
+        int16_t gx;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t gy_8l : 8;
+            uint8_t gy_8h : 8;
+        };
+        int16_t gy;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gz_8l : 8;
+            uint8_t gz_8h : 8;
+        };
+        int16_t gz;
+    };
+    
+    bool retrieved;
 } __attribute__ ((packed)) imu_data_s;
 
 typedef struct
