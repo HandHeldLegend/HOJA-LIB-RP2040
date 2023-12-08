@@ -143,11 +143,6 @@ void rumble_translate(const uint8_t *data)
 {
   if (shouldControllerRumble(data))
   {
-
-    uint8_t u_pre = (data[1] > 0xC8) ? 0xC8 : data[1];
-    uint8_t l_pre = (data[3] > 0x72) ? 0x72 : data[3];
-    uint8_t l_plus_pre = (data[2] & 0x80);
-
     uint8_t upper = (data[1] & 0xFE) / 2;
     uint8_t lower = (((data[3] & 0x7F) - 0x40) * 2) + (data[2] == 0x80);
     float il = powf((float)lower / 100.0f, 2.0f);

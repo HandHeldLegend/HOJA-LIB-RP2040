@@ -54,7 +54,7 @@ void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
 
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 
-void btinput_init(input_mode_t input_mode)
+bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
         rgb_set_all(COLOR_BLUE.color);
@@ -96,12 +96,15 @@ void btinput_init(input_mode_t input_mode)
 
         int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
 
-        if(stat==PICO_ERROR_GENERIC)
+        if(stat<0)
         {
-            watchdog_reboot(0, 0, 0);
+            return false;
         }
 
         imu_set_enabled(true);
+        return true;
+    #else
+    return false;
     #endif
 }
 

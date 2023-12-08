@@ -91,7 +91,7 @@ typedef struct
     
 } i2cinput_input_s;
 
-void btinput_init(input_mode_t input_mode);
+bool btinput_init(input_mode_t input_mode);
 void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog);
 
 #endif
