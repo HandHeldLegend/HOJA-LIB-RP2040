@@ -3,6 +3,27 @@
 
 #include <inttypes.h>
 
+// HW Test union type
+typedef union
+{
+    struct
+    {
+        bool data_pin   : 1;
+        bool latch_pin  : 1;
+        bool clock_pin  : 1;
+        bool rgb_pin    : 1;
+        bool analog     : 1;
+        bool imu        : 1;
+        bool bluetooth  : 1;
+        bool battery    : 1;
+
+        uint8_t empty : (8);
+    };
+    uint16_t val;
+    
+} hoja_hw_test_u;
+
+
 /**
  * 
  * uint8_t array[0]:  | analog_stick_left | analog_stick_right | analog_trigger_left | analog_trigger_right | gyroscope | bluetooth | rgb | rumble |
@@ -11,9 +32,6 @@
  * uint8_t array[1]:  | nintendo_serial | nintendo_joybus | padding  | padding  | padding  | padding  | padding  | padding  |
                    |      1 bit         |      1 bit      |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |
 */
-
-
-
 typedef struct
 {
     uint8_t analog_stick_left      : 1;

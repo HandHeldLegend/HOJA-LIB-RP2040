@@ -402,6 +402,24 @@ void webusb_command_processor(uint8_t *data)
         settings_save();
     }
     break;
+
+
+    case WEBUSB_CMD_HWTEST_GET:
+    {
+        hoja_hw_test_u _test = {0};
+        _test.val = cb_hoja_hardware_test();
+
+        _webusb_out_buffer[0] = WEBUSB_CMD_HWTEST_GET;
+        memcpy(&(_webusb_out_buffer[1]), &(_test.val), 2);
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
     }
 }
 

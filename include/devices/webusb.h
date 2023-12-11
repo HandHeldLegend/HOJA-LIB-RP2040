@@ -65,6 +65,9 @@ typedef enum
   // Command for analog input report
   WEBUSB_CMD_INPUT_REPORT = 0xE0,
 
+  // Get the hardware test results
+  WEBUSB_CMD_HWTEST_GET = 0xF2,
+
   WEBUSB_CMD_SAVEALL = 0xF1,
 } webusb_cmd_t;
 

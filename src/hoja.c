@@ -20,6 +20,11 @@ auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
 
+__attribute__((weak)) uint16_t cb_hoja_hardware_test()
+{
+  return 0;
+}
+
 // USER DEFINED CALLBACKS
 // DO NOT EDIT
 __attribute__((weak)) void cb_hoja_hardware_setup()
@@ -129,7 +134,6 @@ void _hoja_task_1()
 
 void hoja_init(hoja_config_t *config)
 {
-
   // Stop if there's no config
   if (!config)
     return;

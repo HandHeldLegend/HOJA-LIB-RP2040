@@ -22,6 +22,22 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
     #endif
 }
 
+bool util_battery_comms_check()
+{
+    #if (HOJA_CAPABILITY_BATTERY == 1)
+        // We can poll the PMIC to get our plug status
+        uint8_t _getstatus[1] = {0x00};
+        uint8_t _readstatus[1] = {0x00};
+        util_battery_status_s _status_converted;
+        i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true);
+        int readcheck = i2c_read_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false);
+        if(readcheck < 1) return false;
+        return true;
+    #else
+        return false;
+    #endif
+}
+
 // Battery monitor task we run when wireless
 void util_battery_monitor_task_wireless(uint32_t timestamp)
 {
@@ -112,9 +128,7 @@ bool util_wire_connected()
 
         if ((readcheck == PICO_ERROR_GENERIC) || (readcheck == PICO_ERROR_TIMEOUT))
         {
-            rgb_set_all(COLOR_RED.color);
-            rgb_set_instant();
-            sleep_ms(1000);
+            // No battery, must be USB
             return true;
         }
 
