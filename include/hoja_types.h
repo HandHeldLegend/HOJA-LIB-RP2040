@@ -3,6 +3,27 @@
 
 #include <inttypes.h>
 
+// HW Test union type
+typedef union
+{
+    struct
+    {
+        bool data_pin   : 1;
+        bool latch_pin  : 1;
+        bool clock_pin  : 1;
+        bool rgb_pin    : 1;
+        bool analog     : 1;
+        bool imu        : 1;
+        bool bluetooth  : 1;
+        bool battery    : 1;
+
+        uint8_t empty : (8);
+    };
+    uint16_t val;
+    
+} hoja_hw_test_u;
+
+
 /**
  * 
  * uint8_t array[0]:  | analog_stick_left | analog_stick_right | analog_trigger_left | analog_trigger_right | gyroscope | bluetooth | rgb | rumble |
@@ -11,9 +32,6 @@
  * uint8_t array[1]:  | nintendo_serial | nintendo_joybus | padding  | padding  | padding  | padding  | padding  | padding  |
                    |      1 bit         |      1 bit      |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |   1 bit  |
 */
-
-
-
 typedef struct
 {
     uint8_t analog_stick_left      : 1;
@@ -309,12 +327,67 @@ typedef struct
 // IMU data structure
 typedef struct
 {
-    int16_t ax;
-    int16_t ay;
-    int16_t az;
-    int16_t gx;
-    int16_t gy;
-    int16_t gz;
+    union
+    {
+        struct
+        {
+            uint8_t ax_8l : 8;
+            uint8_t ax_8h : 8;
+        };
+        int16_t ax;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t ay_8l : 8;
+            uint8_t ay_8h : 8;
+        };
+        int16_t ay;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t az_8l : 8;
+            uint8_t az_8h : 8;
+        };
+        int16_t az;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gx_8l : 8;
+            uint8_t gx_8h : 8;
+        };
+        int16_t gx;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t gy_8l : 8;
+            uint8_t gy_8h : 8;
+        };
+        int16_t gy;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gz_8l : 8;
+            uint8_t gz_8h : 8;
+        };
+        int16_t gz;
+    };
+    
+    bool retrieved;
 } __attribute__ ((packed)) imu_data_s;
 
 typedef struct

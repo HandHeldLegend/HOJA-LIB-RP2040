@@ -1,3 +1,8 @@
+/**
+ * @file stick_scaling.c
+ * @brief This file contains the implementation of stick scaling functions.
+ */
+
 #include "stick_scaling.h"
 
 #define STICK_INTERNAL_CENTER 2048
@@ -50,16 +55,31 @@ float _stick_sub_angle_scale(float angle, angle_sub_scale_s *state)
   else return ( (angle - state->parting_angle) * state->scale_upper )+22.5f;
 }
 
+/**
+ * Calculates the distance between two angles in degrees.
+ *
+ * @param angle1 The first angle in degrees.
+ * @param angle2 The second angle in degrees.
+ * @return The distance between the two angles.
+ */
 float _get_angle_distance(float angle1, float angle2) {
-    // Calculate the absolute difference
-    float diff = fabs(angle1 - angle2);
+  // Calculate the absolute difference
+  float diff = fabs(angle1 - angle2);
 
-    // Take the shorter distance considering the circular range
-    float distance = fmin(diff, 360.0 - diff);
+  // Take the shorter distance considering the circular range
+  float distance = fmin(diff, 360.0 - diff);
 
-    return distance;
+  return distance;
 }
 
+/**
+ * Checks if an angle is between two given angles.
+ *
+ * @param angle The angle to check.
+ * @param a1 The first angle of the range.
+ * @param a2 The second angle of the range.
+ * @return true if the angle is between a1 and a2 (inclusive), false otherwise.
+ */
 bool _is_angle_between(float angle, float a1, float a2)
 {
   // Ensure startAngle is less than endAngle
@@ -71,7 +91,17 @@ bool _is_angle_between(float angle, float a1, float a2)
   }
 }
 
-// Returns octant based on processed data
+/**
+ * Returns the octant based on the processed data.
+ *
+ * This function takes an angle and an array of angles representing the boundaries of each octant.
+ * It iterates through the array and checks if the given angle falls between two consecutive angles.
+ * If the angle is found to be between two consecutive angles, the corresponding octant index is returned.
+ *
+ * @param angle The angle to be processed.
+ * @param c_angles An array of angles representing the boundaries of each octant.
+ * @return The octant index based on the processed data.
+ */
 int _stick_get_processed_octant(float angle, float *c_angles)
 {
   int out = 0;
@@ -86,7 +116,12 @@ int _stick_get_processed_octant(float angle, float *c_angles)
   return out;
 }
 
-// Returns an octant of 0 through 7 to indicate the cardinal direction.
+/**
+ * Returns an octant of 0 through 7 to indicate the cardinal direction.
+ *
+ * @param angle The angle in degrees.
+ * @return The octant value representing the cardinal direction.
+ */
 int _stick_get_octant(float angle)
 {
   // Ensure the angle is in the range [0, 360)
@@ -102,15 +137,25 @@ int _stick_get_octant(float angle)
 }
 
 
-// Uses an angle and returns the appropriate scaling value for the distance value
-// Angle order 
-// E, NE, N, NW, W, SW, S, SE
-
-// Adjusts angle by the adjustment parameter
-// and returns the appropriate angle (loops around if needed)
+/**
+ * @brief Adjusts the given angle by the adjustment parameter and returns the appropriate angle.
+ * 
+ * This function takes an angle value and adjusts it by the given adjustment parameter.
+ * If the adjusted angle exceeds 360 degrees, it wraps around to the range of 0 to 360 degrees.
+ * If the adjusted angle is less than 0 degrees, it wraps around to the range of 0 to 360 degrees.
+ * 
+ * Angle order E, NE, N, NW, W, SW, S, SE
+ * 
+ * @param angle The original angle value.
+ * @param adjustment The adjustment value to be added to the original angle.
+ * @return The adjusted angle value.
+ */
 float _stick_angle_adjust(float angle, float adjustment)
 {
+  // Adjust the angle by adding the adjustment parameter
   float out = angle + adjustment;
+  
+  // Wrap the adjusted angle around to the range of 0 to 360 degrees
   if (out > 360.0f)
     out -= 360;
   else if (out < 0)
@@ -118,8 +163,15 @@ float _stick_angle_adjust(float angle, float adjustment)
   return out;
 }
 
-// Returns the float angle given the XY coordinate pair and the
-// calibrated center point
+/**
+ * Calculates the angle in degrees given the XY coordinate pair and the calibrated center point.
+ *
+ * @param x The X coordinate.
+ * @param y The Y coordinate.
+ * @param center_x The X coordinate of the center point.
+ * @param center_y The Y coordinate of the center point.
+ * @return The angle in degrees.
+ */
 float _stick_get_angle(int x, int y, int center_x, int center_y)
 {
   float angle = atan2f((y - center_y), (x - center_x)) * 180.0f / M_PI;
@@ -135,8 +187,15 @@ float _stick_get_angle(int x, int y, int center_x, int center_y)
   return angle;
 }
 
-// Returns float distance between float coordinate pair
-// and saved coordinate center point
+/**
+ * Calculates the distance between a coordinate pair (x, y) and a center point (center_x, center_y).
+ *
+ * @param x The x-coordinate of the point.
+ * @param y The y-coordinate of the point.
+ * @param center_x The x-coordinate of the center point.
+ * @param center_y The y-coordinate of the center point.
+ * @return The distance between the point and the center point.
+ */
 float _stick_get_distance(int x, int y, int center_x, int center_y)
 {
   float dx = (float)x - (float)center_x;
@@ -144,7 +203,13 @@ float _stick_get_distance(int x, int y, int center_x, int center_y)
   return sqrtf(dx * dx + dy * dy);
 }
 
-// Produces a normalized vector at a given angle
+/**
+ * Calculates the normalized vector components (x, y) at a given angle.
+ *
+ * @param angle The angle in degrees.
+ * @param x     Pointer to store the x-component of the normalized vector.
+ * @param y     Pointer to store the y-component of the normalized vector.
+ */
 void _stick_normalized_vector(float angle, float *x, float *y)
 {
   float rad = angle * (M_PI / 180.0);
@@ -152,7 +217,18 @@ void _stick_normalized_vector(float angle, float *x, float *y)
   *y = sin(rad);
 }
 
-// Calculates the new angle and distance output
+/**
+ * Calculates the new angle and distance output based on the given input angle and distance.
+ *
+ * @param angle The input angle.
+ * @param distance The input distance.
+ * @param c_angles The array of calibrated angles.
+ * @param d_scalers The array of distance scalers.
+ * @param a_scalers The array of angle scalers.
+ * @param sub_state The array of sub-state for angle adjustment.
+ * @param out_x Pointer to store the output x-coordinate.
+ * @param out_y Pointer to store the output y-coordinate.
+ */
 void _stick_process_input(float angle, float distance, float *c_angles, float *d_scalers, float *a_scalers, angle_sub_scale_s *sub_state, float *out_x, float *out_y)
 {
   // First get the octant
@@ -202,7 +278,12 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
 
 // PRECALCULATE FUNCTIONS
 
-  // PRECalculate the distance scalers
+  /**
+   * Precalculates the distance scalers based on the input distances.
+   *
+   * @param distances_in The input distances.
+   * @param scalers_out The output scalers.
+   */
   void _precalculate_distance_scalers(float *distances_in, float *scalers_out)
   {
     for (uint8_t i = 0; i < 8; i++)
@@ -211,7 +292,12 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
     }
   }
 
-  // PRECalculate the angle scalers
+  /**
+   * Precalculates the angle scalers based on the input angles.
+   *
+   * @param angles_in The input angles array.
+   * @param scalers_out The output scalers array.
+   */
   void _precalculate_angle_scalers(float *angles_in, float *scalers_out)
   {
     for(uint8_t i = 0; i < 8; i++)
@@ -226,13 +312,19 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
     }
   }
 
-  // PRECalculate sub-scaler states
+  /**
+   * Precalculates the sub-scaler states based on the input sub-angles.
+   * 
+   * @param sub_angles_in The array of sub-angles.
+   * @param state The array of angle_sub_scale_s structures to store the calculated states.
+   */
   void _precalculate_angle_substate(float *sub_angles_in, angle_sub_scale_s *state)
   {
     for(uint8_t i = 0; i < 8; i++)
     {
       if(sub_angles_in[i] == 0)
       {
+        // If sub-angle is 0, set scaler values to default values
         state[i].set = false;
         state[i].parting_angle = 22.5f;
         state[i].scale_lower = 1;
@@ -240,13 +332,12 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
       }
       else
       {
+        // If sub-angle is not 0, calculate scaler values based on the sub-angle
         state[i].set = true;
         state[i].parting_angle = 22.5 + sub_angles_in[i];
         state[i].scale_lower = (22.5f / state[i].parting_angle);
         state[i].scale_upper = (22.5f / (45.0f - state[i].parting_angle) );
       }
-
-      
     }
   }
 
@@ -284,6 +375,13 @@ void stick_scaling_init()
 
 uint16_t _stick_distances_tracker = 0x00;
 
+/**
+ * @brief Resets the distances and angles for stick scaling.
+ * 
+ * This function resets the distances and angles used for stick scaling.
+ * It sets the stick distances tracker to 0x00 and clears the arrays
+ * for left and right angle distances, left and right angles.
+ */
 void stick_scaling_reset_distances()
 {
   _stick_distances_tracker = 0x00;
@@ -293,6 +391,15 @@ void stick_scaling_reset_distances()
   memset(global_loaded_settings.r_angles, 0, sizeof(float) * 8);
 }
 
+/**
+ * @brief Captures the distances and angles of the input stick.
+ *
+ * This function captures the angles and distances of the input stick and updates the calibrated
+ * distances and angles in the global settings. It also updates the stick distances tracker.
+ *
+ * @param in Pointer to the input data structure.
+ * @return Returns true if all distances have been captured, false otherwise.
+ */
 bool stick_scaling_capture_distances(a_data_s *in)
 {
   // Get angles of input
@@ -345,6 +452,13 @@ bool stick_scaling_capture_distances(a_data_s *in)
   return (_stick_distances_tracker == 0xFFFF);
 }
 
+/**
+ * @brief Captures the center values of the stick inputs.
+ *
+ * This function captures the center values of the stick inputs and stores them in the corresponding variables.
+ *
+ * @param in Pointer to the input data structure.
+ */
 void stick_scaling_capture_center(a_data_s *in)
 {
   _stick_l_center_x = in->lx;
@@ -354,6 +468,18 @@ void stick_scaling_capture_center(a_data_s *in)
   _stick_r_center_y = in->ry;
 }
 
+/**
+ * @brief Determines the octant and axis of the stick input.
+ *
+ * This function calculates the angles and distances of the stick inputs and determines
+ * the octant and axis based on the calculated values. The octant represents the direction
+ * in which the stick is tilted, while the axis represents whether it is the left stick or
+ * the right stick.
+ *
+ * @param in Pointer to the input data structure.
+ * @param axis Pointer to store the axis value (0 for left stick, 1 for right stick).
+ * @param octant Pointer to store the octant value (ranging from 0 to 7).
+ */
 void stick_scaling_get_octant_axis(a_data_s *in, uint8_t *axis, uint8_t *octant)
 {
   // Get angles of input
@@ -378,6 +504,21 @@ void stick_scaling_get_octant_axis(a_data_s *in, uint8_t *axis, uint8_t *octant)
   }
 }
 
+/**
+ * @brief Calculates the axis and octant offset based on stick input values.
+ *
+ * This function calculates the axis and octant offset based on the stick input values.
+ * It first calculates the angles of the input values using the stick center coordinates.
+ * Then, it adjusts the angles by 22.5 degrees.
+ * Next, it calculates the distance of the input values from the stick center coordinates.
+ * If the left stick distance is greater than the deadzone threshold, it calculates the octant of the adjusted left angle.
+ * If the right stick distance is greater than the deadzone threshold, it calculates the octant of the adjusted right angle.
+ * Finally, it assigns the axis and octant values to the provided pointers.
+ *
+ * @param in Pointer to the input data structure.
+ * @param axis Pointer to store the calculated axis value (0 for left stick, 1 for right stick).
+ * @param octant Pointer to store the calculated octant value.
+ */
 void stick_scaling_get_octant_axis_offset(a_data_s *in, uint8_t *axis, uint8_t *octant)
 {
   // Get angles of input
@@ -405,6 +546,17 @@ void stick_scaling_get_octant_axis_offset(a_data_s *in, uint8_t *axis, uint8_t *
   }
 }
 
+/**
+ * @brief Captures a stick angle for octagon calibration.
+ *
+ * This function captures the stick angle for octagon calibration. It calculates the angles and distances of the input stick positions and adjusts them to ensure they are in the correct octant. 
+ * If the distance of the left stick is greater than the deadzone threshold, it updates the angle and distance values for the corresponding octant in the global settings. 
+ * If the distance of the right stick is greater than the deadzone threshold, it updates the angle and distance values for the corresponding octant in the global settings. 
+ * After updating the values, it initializes the stick scaling and returns true. If neither stick distance is greater than the deadzone threshold, it returns false.
+ * 
+ * @param in Pointer to the input data structure.
+ * @return Returns true if the stick angle was captured and updated, false otherwise.
+ */
 // Captures a stick angle for octagon calibration
 bool stick_scaling_capture_angle(a_data_s *in)
 {
@@ -452,6 +604,16 @@ bool stick_scaling_capture_angle(a_data_s *in)
   return false;
 }
 
+/**
+ * @brief Process the input data from the stick and scale the values accordingly.
+ *
+ * This function takes the input data from the stick, including the raw angles and distances,
+ * and scales them based on the loaded settings and distance scalers. The processed values are
+ * then stored in the output structure.
+ *
+ * @param in Pointer to the input data structure containing the raw stick angles and distances.
+ * @param out Pointer to the output data structure where the processed stick values will be stored.
+ */
 void stick_scaling_process_data(a_data_s *in, a_data_s *out)
 {
   // Get raw angles of input

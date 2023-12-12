@@ -1,20 +1,38 @@
 #include "imu.h"
 
-#define IMU_READ_RATE 2350 // 400Hz min
+#define IMU_READ_RATE 2000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 8000
 
 imu_data_s _imu_buffer_a = {0};
 imu_data_s _imu_buffer_b = {0};
-bool _imu_dual_mode = false;
+
 imu_data_s _imu_buffer_avg = {0};
 
-uint8_t _imu_8_x[6] = {0};
-uint8_t _imu_8_y[6] = {0};
-uint8_t _imu_8_z[6] = {0};
+#define IMU_FIFO_COUNT 3
+#define IMU_FIFO_IDX_MAX (IMU_FIFO_COUNT-1)
+int _imu_fifo_idx = 0;
+imu_data_s _imu_fifo[IMU_FIFO_COUNT];
 
-uint8_t _acc_8_x[6] = {0};
-uint8_t _acc_8_y[6] = {0};
-uint8_t _acc_8_z[6] = {0};
+// Add data to our FIFO
+void imu_fifo_push(imu_data_s *imu_data)
+{
+    int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
+
+    _imu_fifo[_i].ax = imu_data->ax;
+    _imu_fifo[_i].ay = imu_data->ay;
+    _imu_fifo[_i].az = imu_data->az;
+
+    _imu_fifo[_i].gx = imu_data->gx;
+    _imu_fifo[_i].gy = imu_data->gy;
+    _imu_fifo[_i].gz = imu_data->gz;
+
+    _imu_fifo_idx = _i;
+}
+
+imu_data_s* imu_fifo_last()
+{
+  return &(_imu_fifo[_imu_fifo_idx]);
+}
 
 uint8_t _imu_read_idx = 0;
 bool _imu_enabled = false;
@@ -79,8 +97,6 @@ void imu_calibrate_stop()
   
 }
 
-auto_init_mutex(imu_mutex);
-
 void _imu_calibrate_task()
 {
   // Read IMU
@@ -107,83 +123,12 @@ void _imu_calibrate_task()
   }
 }
 
-void _imu_process_8(int16_t val, uint8_t *out)
-{
-  out[0] = (val & 0xFF);
-  out[1] = (val & 0xFF00) >> 8;
-}
-
-// Gets the last 3 IMU datasets and puts them out
-// for Nintendo Switch buffer
-void imu_switch_buffer_out(uint8_t *output)
-{
-  uint32_t owner_out;
-  while (!mutex_try_enter(&imu_mutex, &owner_out))
-  {
-  }
-
-  output[0] = _acc_8_y[0];
-  output[1] = _acc_8_y[1];
-
-  output[2] = _acc_8_x[0];
-  output[3] = _acc_8_x[1];
-
-  output[4] = _acc_8_z[0];
-  output[5] = _acc_8_z[1];
-
-  output[6] = _imu_8_y[0];
-  output[7] = _imu_8_y[1];
-
-  output[8] = _imu_8_x[0];
-  output[9] = _imu_8_x[1];
-
-  output[10] = _imu_8_z[0];
-  output[11] = _imu_8_z[1];
-
-  // Group 2
-
-  output[12] = _acc_8_y[2];
-  output[13] = _acc_8_y[3];
-
-  output[14] = _acc_8_x[2];
-  output[15] = _acc_8_x[3];
-
-  output[16] = _acc_8_z[2];
-  output[17] = _acc_8_z[3];
-
-  output[18] = _imu_8_y[2];
-  output[19] = _imu_8_y[3];
-
-  output[20] = _imu_8_x[2];
-  output[21] = _imu_8_x[3];
-
-  output[22] = _imu_8_z[2];
-  output[23] = _imu_8_z[3];
-
-  // Group 3
-
-  output[24] = _acc_8_y[4];
-  output[25] = _acc_8_y[5];
-
-  output[26] = _acc_8_x[4];
-  output[27] = _acc_8_x[5];
-
-  output[28] = _acc_8_z[4];
-  output[29] = _acc_8_z[5];
-
-  output[30] = _imu_8_y[4];
-  output[31] = _imu_8_y[5];
-
-  output[32] = _imu_8_x[4];
-  output[33] = _imu_8_x[5];
-
-  output[34] = _imu_8_z[4];
-  output[35] = _imu_8_z[5];
-
-  _imu_read_idx = 0;
-
-  mutex_exit(&imu_mutex);
-}
+// Depreciated
+//void _imu_process_8(int16_t val, uint8_t *out)
+//{
+//  out[0] = (val & 0xFF);
+//  out[1] = (val & 0xFF00) >> 8;
+//}
 
 void imu_set_enabled(bool enable)
 {
@@ -199,14 +144,15 @@ void imu_task(uint32_t timestamp)
     return;
   }
 
-  if (!_imu_enabled && (_imu_read_idx < 3))
+  if (!_imu_enabled)
     return;
 
   if (interval_run(timestamp, IMU_READ_RATE))
   {
     cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
 
-    if (_imu_dual_mode)
+    // If we received two buffers, average A and B
+    if (_imu_buffer_b.retrieved && _imu_buffer_a.retrieved)
     {
       _imu_buffer_avg.gx = _imu_average_value(_imu_buffer_a.gx-global_loaded_settings.imu_0_offsets[3], _imu_buffer_b.gx-global_loaded_settings.imu_1_offsets[3]);
       _imu_buffer_avg.gy = _imu_average_value(_imu_buffer_a.gy-global_loaded_settings.imu_0_offsets[4], _imu_buffer_b.gy-global_loaded_settings.imu_1_offsets[4]);
@@ -215,39 +161,17 @@ void imu_task(uint32_t timestamp)
       _imu_buffer_avg.ax = _imu_average_value(_imu_buffer_a.ax, _imu_buffer_b.ax);
       _imu_buffer_avg.ay = _imu_average_value(_imu_buffer_a.ay, _imu_buffer_b.ay);
       _imu_buffer_avg.az = _imu_average_value(_imu_buffer_a.az, _imu_buffer_b.az);
-    }
 
-    uint32_t owner_out;
-    while (!mutex_try_enter(&imu_mutex, &owner_out))
+      imu_fifo_push(&_imu_buffer_avg);
+    }
+    else if (_imu_buffer_a.retrieved)
     {
+      imu_fifo_push(&_imu_buffer_a);
     }
 
-    uint8_t o = _imu_read_idx * 2;
-
-    if (_imu_dual_mode)
-    {
-      _imu_process_8(_imu_buffer_avg.gx, &_imu_8_x[o]);
-      _imu_process_8(_imu_buffer_avg.gy, &_imu_8_y[o]);
-      _imu_process_8(_imu_buffer_avg.gz, &_imu_8_z[o]);
-
-      _imu_process_8(_imu_buffer_avg.ax, &_acc_8_x[o]);
-      _imu_process_8(_imu_buffer_avg.ay, &_acc_8_y[o]);
-      _imu_process_8(_imu_buffer_avg.az, &_acc_8_z[o]);
-    }
-    else
-    {
-      _imu_process_8(_imu_buffer_a.gx, &_imu_8_x[o]);
-      _imu_process_8(_imu_buffer_a.gy, &_imu_8_y[o]);
-      _imu_process_8(_imu_buffer_a.gz, &_imu_8_z[o]);
-
-      _imu_process_8(_imu_buffer_a.ax, &_acc_8_x[o]);
-      _imu_process_8(_imu_buffer_a.ay, &_acc_8_y[o]);
-      _imu_process_8(_imu_buffer_a.az, &_acc_8_z[o]);
-    }
-
-    mutex_exit(&imu_mutex);
-
-    if (_imu_read_idx < 3)
-      _imu_read_idx++;
+    _imu_buffer_a.retrieved = false;
+    _imu_buffer_b.retrieved = false;
   }
+
+  
 }

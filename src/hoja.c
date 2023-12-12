@@ -20,6 +20,11 @@ auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
 
+__attribute__((weak)) uint16_t cb_hoja_hardware_test()
+{
+  return 0;
+}
+
 // USER DEFINED CALLBACKS
 // DO NOT EDIT
 __attribute__((weak)) void cb_hoja_hardware_setup()
@@ -80,16 +85,19 @@ void _hoja_task_0()
   cb_hoja_read_buttons(&_button_data);
   macro_handler_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
+  rgb_task(_hoja_timestamp);
 
   // Webusb stuff
   if (webusb_output_enabled())
   {
     snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
-    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered);
+    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered, NULL);
   }
+
 
   // Our communication core task
   hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+  
 
   if (_hoja_input_method == INPUT_METHOD_USB)
   {
@@ -119,8 +127,6 @@ void _hoja_task_1()
     // Do IMU stuff
     imu_task(_hoja_timestamp);
 
-    rgb_task(_hoja_timestamp);
-
     // Do callback for userland code insertion
     cb_hoja_task_1_hook(_hoja_timestamp);
   }
@@ -128,7 +134,6 @@ void _hoja_task_1()
 
 void hoja_init(hoja_config_t *config)
 {
-
   // Stop if there's no config
   if (!config)
     return;

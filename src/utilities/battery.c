@@ -22,6 +22,22 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
     #endif
 }
 
+bool util_battery_comms_check()
+{
+    #if (HOJA_CAPABILITY_BATTERY == 1)
+        // We can poll the PMIC to get our plug status
+        uint8_t _getstatus[1] = {0x00};
+        uint8_t _readstatus[1] = {0x00};
+        util_battery_status_s _status_converted;
+        i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true);
+        int readcheck = i2c_read_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false);
+        if(readcheck < 1) return false;
+        return true;
+    #else
+        return false;
+    #endif
+}
+
 // Battery monitor task we run when wireless
 void util_battery_monitor_task_wireless(uint32_t timestamp)
 {
@@ -42,28 +58,32 @@ void util_battery_enable_ship_mode(void)
 {
     cb_hoja_set_bluetooth_enabled(false);
 
-    sleep_ms(300);
-
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    const uint8_t _data[2] = {0x09, 0x41};
-    int s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+    for(;;)
+    {
+        sleep_ms(300);
+        
+        const uint8_t _data[2] = {0x09, 0x41};
+        int s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
 
-    if(s2 == PICO_ERROR_GENERIC)
-    {
-        rgb_set_all(COLOR_WHITE.color);
-        rgb_set_instant();
-    }
-    else if (s2== PICO_ERROR_TIMEOUT)
-    {
-        rgb_set_all(COLOR_PURPLE.color);
-        rgb_set_instant();
-    }
-    else if (s2==2)
-    {
-        rgb_set_all(COLOR_YELLOW.color);
-        rgb_set_instant();
+        if(s2 == PICO_ERROR_GENERIC)
+        {
+            rgb_set_all(COLOR_WHITE.color);
+            rgb_set_instant();
+        }
+        else if (s2== PICO_ERROR_TIMEOUT)
+        {
+            rgb_set_all(COLOR_PURPLE.color);
+            rgb_set_instant();
+        }
+        else if (s2==2)
+        {
+            rgb_set_all(COLOR_YELLOW.color);
+            rgb_set_instant();
+        }
     }
     #endif
+
 }
 
 void util_battery_set_charge_rate(uint16_t rate_ma)
@@ -108,9 +128,7 @@ bool util_wire_connected()
 
         if ((readcheck == PICO_ERROR_GENERIC) || (readcheck == PICO_ERROR_TIMEOUT))
         {
-            rgb_set_all(COLOR_RED.color);
-            rgb_set_instant();
-            sleep_ms(1000);
+            // No battery, must be USB
             return true;
         }
 

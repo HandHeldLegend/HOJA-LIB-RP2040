@@ -10,6 +10,7 @@ typedef enum
     I2CINPUT_ID_STATUS  = 0xF4,
     I2CINPUT_ID_SAVEMAC = 0xF3,
     I2CINPUT_ID_STOP    = 0x02,
+    I2CINPUT_ID_SHUTDOWN = 0xA0,
 } i2cinput_id_t;
 
 #define I2CINPUT_INIT_SIZE 7
@@ -90,7 +91,7 @@ typedef struct
     
 } i2cinput_input_s;
 
-void btinput_init(input_mode_t input_mode);
+bool btinput_init(input_mode_t input_mode);
 void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog);
 
 #endif

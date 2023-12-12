@@ -7,6 +7,7 @@
 #include "hoja_includes.h"
 #include "interval.h"
 
+uint16_t cb_hoja_hardware_test();
 void cb_hoja_hardware_setup();
 void cb_hoja_read_buttons(button_data_s *data);
 void cb_hoja_read_analog(a_data_s *data);

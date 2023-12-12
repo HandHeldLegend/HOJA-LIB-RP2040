@@ -33,6 +33,19 @@ void webusb_save_confirm()
     webusb_enable_output(true);
 }
 
+/**
+ * @brief Processes the webUSB commands received.
+ *
+ * This function takes a pointer to the data received and processes the webUSB commands based on the value of data[0].
+ * It performs different actions based on the command received, such as enabling Bluetooth, getting device capabilities,
+ * starting IMU calibration, setting firmware, getting firmware information, starting analog calibration, stopping analog calibration,
+ * setting analog invert, getting analog invert, getting analog subangle, setting analog subangle, getting analog octoangle,
+ * setting analog octoangle, setting octagon angle capture, setting RGB color, getting RGB color, setting remap, getting remap,
+ * setting GCSP (GameCube Speed Profile), setting remap to default, getting vibrate intensity, setting vibrate intensity floor,
+ * saving settings, getting hardware test result.
+ *
+ * @param data Pointer to the data received.
+ */
 void webusb_command_processor(uint8_t *data)
 {
     switch (data[0])
@@ -42,10 +55,10 @@ void webusb_command_processor(uint8_t *data)
 
     case WEBUSB_CMD_BB_SET:
     {
-        #if(HOJA_CAPABILITY_BLUETOOTH)
-            cb_hoja_set_uart_enabled(true);
-            cb_hoja_set_bluetooth_enabled(true);
-        #endif
+#if (HOJA_CAPABILITY_BLUETOOTH)
+        cb_hoja_set_uart_enabled(true);
+        cb_hoja_set_bluetooth_enabled(true);
+#endif
     }
     break;
 
@@ -53,7 +66,7 @@ void webusb_command_processor(uint8_t *data)
     {
         printf("WebUSB: Got Capabilities GET command.\n");
         _webusb_out_buffer[0] = WEBUSB_CMD_CAPABILITIES_GET;
-        memcpy(&_webusb_out_buffer[1], &_webusb_capabilities, sizeof(uint8_t)*2);
+        memcpy(&_webusb_out_buffer[1], &_webusb_capabilities, sizeof(uint8_t) * 2);
 
         webusb_enable_output(false);
         if (webusb_ready_blocking(4000))
@@ -129,25 +142,25 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_ANALOG_INVERT_SET:
     {
         printf("WebUSB: Got analog invert SET command.\n");
-        switch(data[1])
+        switch (data[1])
         {
-            default:
+        default:
             break;
 
-            case 0:
-            global_loaded_settings.lx_center.invert = (data[2]>0);
+        case 0:
+            global_loaded_settings.lx_center.invert = (data[2] > 0);
             break;
 
-            case 1:
-            global_loaded_settings.ly_center.invert = (data[2]>0);
+        case 1:
+            global_loaded_settings.ly_center.invert = (data[2] > 0);
             break;
 
-            case 2:
-            global_loaded_settings.rx_center.invert = (data[2]>0);
+        case 2:
+            global_loaded_settings.rx_center.invert = (data[2] > 0);
             break;
 
-            case 3:
-            global_loaded_settings.ry_center.invert = (data[2]>0);
+        case 3:
+            global_loaded_settings.ry_center.invert = (data[2] > 0);
             break;
         }
         stick_scaling_get_settings();
@@ -178,20 +191,20 @@ void webusb_command_processor(uint8_t *data)
 
         uint8_t axis = 0;
         uint8_t octant = 0;
-        
+
         analog_get_subangle_data(&axis, &octant);
 
         _webusb_out_buffer[1] = axis;
         _webusb_out_buffer[2] = octant;
 
-        switch(axis)
+        switch (axis)
         {
-            case 0:
-                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_sub_angles[octant]), sizeof(float));
+        case 0:
+            memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_sub_angles[octant]), sizeof(float));
             break;
 
-            case 1:
-                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_sub_angles[octant]), sizeof(float));
+        case 1:
+            memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_sub_angles[octant]), sizeof(float));
             break;
         }
 
@@ -206,7 +219,7 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_SUBANGLE_SET:
     {
         printf("WebUSB: Got analog subangle SET command.\n");
-        if(!data[1])
+        if (!data[1])
         {
             memcpy(&(global_loaded_settings.l_sub_angles[data[2]]), &(data[3]), sizeof(float));
         }
@@ -226,20 +239,20 @@ void webusb_command_processor(uint8_t *data)
 
         uint8_t axis = 0;
         uint8_t octant = 0;
-        
+
         analog_get_octoangle_data(&axis, &octant);
 
         _webusb_out_buffer[1] = axis;
         _webusb_out_buffer[2] = octant;
 
-        switch(axis)
+        switch (axis)
         {
-            case 0:
-                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_angles[octant]), sizeof(float));
+        case 0:
+            memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.l_angles[octant]), sizeof(float));
             break;
 
-            case 1:
-                memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_angles[octant]), sizeof(float));
+        case 1:
+            memcpy(&(_webusb_out_buffer[3]), &(global_loaded_settings.r_angles[octant]), sizeof(float));
             break;
         }
 
@@ -254,7 +267,7 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_OCTOANGLE_SET:
     {
         printf("WebUSB: Got analog octoangle SET command.\n");
-        if(!data[1])
+        if (!data[1])
         {
             memcpy(&(global_loaded_settings.l_angles[data[2]]), &(data[3]), sizeof(float));
         }
@@ -331,8 +344,8 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_GCSP_SET:
     {
         printf("WebUSB: Got GCSP SET command.\n");
-        
-        if(data[1] == 0xFF)
+
+        if (data[1] == 0xFF)
         {
             global_loaded_settings.gc_sp_light_trigger = data[2];
         }
@@ -402,21 +415,47 @@ void webusb_command_processor(uint8_t *data)
         settings_save();
     }
     break;
+
+    case WEBUSB_CMD_HWTEST_GET:
+    {
+        hoja_hw_test_u _test = {0};
+        _test.val = cb_hoja_hardware_test();
+
+        _webusb_out_buffer[0] = WEBUSB_CMD_HWTEST_GET;
+        memcpy(&(_webusb_out_buffer[1]), &(_test.val), 2);
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
     }
 }
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
-
-void webusb_input_report_task(uint32_t timestamp, a_data_s *analog)
+void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons)
 {
     if (interval_run(timestamp, 16000))
     {
         uint8_t webusb_input_report[64] = {0};
         webusb_input_report[0] = WEBUSB_CMD_INPUT_REPORT;
-        webusb_input_report[1] = CLAMP_0_255(analog->lx >> 4);
-        webusb_input_report[2] = CLAMP_0_255(analog->ly >> 4);
-        webusb_input_report[3] = CLAMP_0_255(analog->rx >> 4);
-        webusb_input_report[4] = CLAMP_0_255(analog->ry >> 4);
+
+        if(analog != NULL)
+        {
+            webusb_input_report[1] = CLAMP_0_255(analog->lx >> 4);
+            webusb_input_report[2] = CLAMP_0_255(analog->ly >> 4);
+            webusb_input_report[3] = CLAMP_0_255(analog->rx >> 4);
+            webusb_input_report[4] = CLAMP_0_255(analog->ry >> 4);
+        }
+
+        if (buttons != NULL)
+        {
+            webusb_input_report[5] = buttons->buttons_all & 0xFF;
+            webusb_input_report[6] = (buttons->buttons_all >> 8) & 0xFF;
+            webusb_input_report[7] = buttons->buttons_system;
+        }
 
         if (webusb_ready_blocking(4000))
         {
