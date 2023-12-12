@@ -91,7 +91,7 @@ void _hoja_task_0()
   if (webusb_output_enabled())
   {
     snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
-    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered);
+    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered, NULL);
   }
 
 

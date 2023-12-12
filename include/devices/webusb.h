@@ -73,7 +73,7 @@ typedef enum
 
 void webusb_save_confirm();
 void webusb_command_processor(uint8_t *data);
-void webusb_input_report_task(uint32_t timestamp, a_data_s *analog);
+void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons);
 bool webusb_output_enabled();
 
 bool webusb_ready();
