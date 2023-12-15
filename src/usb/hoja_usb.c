@@ -44,6 +44,7 @@ bool hoja_usb_start(input_mode_t mode)
   {
   default:
   case INPUT_MODE_SWPRO:
+    imu_set_enabled(true);
     _hoja_usb_set_interval(USBRATE_8);
     _usb_hid_cb = swpro_hid_report;
     _usb_ready_cb = tud_hid_ready;
