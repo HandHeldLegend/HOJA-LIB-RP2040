@@ -55,9 +55,9 @@ typedef enum{
 #define PRESET_GC_C     (rgb_s) {.r = 0x14, .g = 0x0B, .b = 0x00}
 #define PRESET_GC_OTHER (rgb_s) {.r = 0x04, .g = 0x04, .b = 0x04}
 
-void rgb_save_mode();
+void rgb_update_speed(uint8_t speed);
 
-void rgb_indicate(uint32_t color, uint32_t duration);
+void rgb_indicate(uint32_t color);
 
 void rgb_flash(uint32_t color);
 

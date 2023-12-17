@@ -25,7 +25,10 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
     if(input_method == INPUT_METHOD_BLUETOOTH)
     {
         _comms_cb = btinput_comms_task;
-        if(btinput_init(input_mode)) return;
+        if(btinput_init(input_mode)) 
+        {
+            return;
+        }
         // Do not return if we failed to init
     } 
     #endif

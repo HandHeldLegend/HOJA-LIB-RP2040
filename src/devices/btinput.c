@@ -57,9 +57,8 @@ uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
-        rgb_set_all(COLOR_BLUE.color);
-        rgb_set_instant();
 
+        rgb_flash((input_mode == INPUT_MODE_SWPRO) ? COLOR_WHITE.color : COLOR_GREEN.color);
         cb_hoja_set_bluetooth_enabled(true);
 
         // Optional delay to ensure you have time to hook into the UART

@@ -228,22 +228,30 @@ void hoja_init(hoja_config_t *config)
 
   rgb_mode_t rgbmode = global_loaded_settings.rgb_mode;
   uint8_t rgbbrightness = 100;
+  uint32_t indicate_color = COLOR_WHITE.color;
 
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
   {
     case INPUT_MODE_GCUSB:
+      indicate_color = COLOR_CYAN.color;
       _hoja_input_method = INPUT_METHOD_USB;
+      break;
     case INPUT_MODE_XINPUT:
+      indicate_color = COLOR_GREEN.color;
+      break;
+
     default:
     case INPUT_MODE_SWPRO:
+      indicate_color = COLOR_WHITE.color;
       break;
 
     case INPUT_MODE_SNES:
     case INPUT_MODE_GAMECUBE:
     case INPUT_MODE_N64:
-      rgbbrightness = 10;
+      rgbbrightness = 15;
+      indicate_color = COLOR_PURPLE.color;
       break;
   }
 
@@ -263,6 +271,7 @@ void hoja_init(hoja_config_t *config)
   }
 
   rgb_init(rgbmode, rgbbrightness);
+  rgb_indicate(indicate_color);
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 

@@ -46,6 +46,18 @@ const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
 
 rgb_mode_t _rgb_mode = 0;
 
+/**
+ * @brief Typedef for the callback function used in RGB animations.
+ * 
+ * This typedef defines a function pointer type named `rgb_anim_cb` that points to a function
+ * with a void return type and no parameters. This callback function is used in RGB animations
+ * to perform custom actions at specific points in the animation sequence.
+ */
+typedef void (*rgb_anim_cb)(void);
+
+rgb_anim_cb _rgb_anim_cb = NULL;
+rgb_anim_cb _rgb_anim_override_cb = NULL;
+
 // Public CHSV color functions
 #define HSV_SECTION_6 (0x20)
 #define HSV_SECTION_3 (0x40)
@@ -264,21 +276,6 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
 }
 #endif
 
-void _rgb_set_mode(rgb_mode_t mode)
-{
-    #if (HOJA_CAPABILITY_RGB == 1)
-        _rgb_mode = mode;
-    #endif
-}
-
-void rgb_save_mode()
-{
-    #if (HOJA_CAPABILITY_RGB == 1)
-        global_loaded_settings.rgb_mode = _rgb_mode;
-        settings_save();
-    #endif
-}
-
 void _rgb_set_brightness(uint8_t brightness)
 {
 #if (HOJA_CAPABILITY_RGB == 1)
@@ -291,19 +288,6 @@ void _rgb_set_dirty()
 {
 #if (HOJA_CAPABILITY_RGB == 1)
     _rgb_out_dirty = true;
-#endif
-}
-
-void rgb_set_instant()
-{
-#if (HOJA_CAPABILITY_RGB == 1)
-    memcpy(_rgb_current, _rgb_next, sizeof(rgb_s) * HOJA_RGB_COUNT);
-    for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
-    {
-        _rgb_normalize_output_power(&_rgb_current[i]);
-    }
-    _rgb_update_all();
-    memcpy(_rgb_last, _rgb_current, sizeof(rgb_s) * HOJA_RGB_COUNT);
 #endif
 }
 
@@ -409,58 +393,58 @@ void rgb_set_group(rgb_group_t group, uint32_t color)
 #endif
 }
 
-bool _rgb_pio_done = false;
-void rgb_init(rgb_mode_t mode, int brightness)
+void rgb_update_speed(uint8_t speed)
 {
-#if (HOJA_CAPABILITY_RGB == 1)
-    if(!_rgb_pio_done)
-    {
-        uint offset = pio_add_program(RGB_PIO, &ws2812_program);
-        ws2812_program_init(RGB_PIO, RGB_SM, offset, HOJA_RGB_PIN, HOJA_RGBW_EN);
-        _rgb_pio_done = true;
-    }
-
-    if(global_loaded_settings.rgb_step_speed == 0)
-    {
-        global_loaded_settings.rgb_step_speed = 5;
+    if(speed != global_loaded_settings.rgb_step_speed)
+    {  
+        if(global_loaded_settings.rgb_step_speed == 0)
+        {
+            global_loaded_settings.rgb_step_speed = 5;
+        }
+        global_loaded_settings.rgb_step_speed = speed;
     }
     
     _rgb_rainbow_step = global_loaded_settings.rgb_step_speed;
 
-    _rgb_mode_setup = false;
+    uint16_t steps16 = 0;
 
-    uint16_t steps_with_space = 0;
-
-    switch(mode)
+    switch(_rgb_mode)
     {
         default:
         case RGB_MODE_PRESET:
+            _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
+            _rgb_anim_steps_new = RGB_DEFAULT_FADE_STEPS;
+            break;
+
         case RGB_MODE_RAINBOW:
+            _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
+            _rgb_anim_steps_new = RGB_DEFAULT_FADE_STEPS;
+            break;
+
         case RGB_MODE_RAINBOWOFFSET:
+            _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
+            _rgb_anim_steps_new = RGB_DEFAULT_FADE_STEPS;
+            break;
+
         case RGB_MODE_FLASH:
             _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
             _rgb_anim_steps_new = RGB_DEFAULT_FADE_STEPS;
             break;
 
         case RGB_MODE_CYCLE:
+            _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
+            steps16 = (_rgb_rainbow_step * 5);
+            if(steps16>250) steps16 = 250;
+            _rgb_anim_steps_new = 255 - (uint8_t) steps16;
+            break;
+
         case RGB_MODE_CYCLEOFFSET:
             _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-            steps_with_space = (_rgb_rainbow_step * 5);
-            if(steps_with_space>250) steps_with_space = 250;
-            _rgb_anim_steps_new = 255 - (uint8_t) steps_with_space;
+            steps16 = (_rgb_rainbow_step * 5);
+            if(steps16>250) steps16 = 250;
+            _rgb_anim_steps_new = 255 - (uint8_t) steps16;
             break;
     }
-
-    if(brightness>-1)
-    {
-        brightness = (brightness > 255) ? 255 : brightness;
-        _rgb_set_brightness(brightness);
-    }
-   
-    _rgb_set_mode(mode);
-    _rgb_set_dirty();
-
-#endif
 }
 
 void _rgbanim_rainbow_do()
@@ -537,8 +521,6 @@ void _rgbanim_cycleoffset_do()
     {
         _cycle_idx = 0;
 
-        
-
         bool _not_set = true;
         for(uint8_t i = 0; i<6; i++)
         {
@@ -560,11 +542,9 @@ void _rgbanim_cycleoffset_do()
         }
         _rgb_mode_setup = true;
 
-        uint8_t idx = 0;
         for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
         {
-            _cycle_offset_idx[i] = (idx) % 6;
-            idx++;
+            _cycle_offset_idx[i] = get_rand_32() % 6;
         }
     }
     else
@@ -575,11 +555,12 @@ void _rgbanim_cycleoffset_do()
     for(uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         _rgb_next[i].color = global_loaded_settings.rainbow_colors[_cycle_offset_idx[i]];
-        _cycle_offset_idx[i] = (_cycle_offset_idx[i] + 1) % 6;
+        _cycle_offset_idx[i] = get_rand_32() % 6;
     }
     _rgb_set_dirty();
 }
 
+// Flash the RGBs a color
 void rgb_flash(uint32_t color)
 {
     _rgb_flash_color = color;
@@ -608,7 +589,73 @@ void _rgbanim_flash_do()
     }
 }
 
+uint32_t _rgb_indicate_color = 0x00;
+void _rgb_indicate_do()
+{
+    _rgb_set_all(_rgb_indicate_color);
+    _rgb_set_dirty();
+}
 
+void rgb_indicate(uint32_t color)
+{
+    _rgb_indicate_color = color;
+    _rgb_anim_override_cb = _rgb_indicate_do;
+}
+
+bool _rgb_pio_done = false;
+void rgb_init(rgb_mode_t mode, int brightness)
+{
+#if (HOJA_CAPABILITY_RGB == 1)
+    if(!_rgb_pio_done)
+    {
+        uint offset = pio_add_program(RGB_PIO, &ws2812_program);
+        ws2812_program_init(RGB_PIO, RGB_SM, offset, HOJA_RGB_PIN, HOJA_RGBW_EN);
+        _rgb_pio_done = true;
+    }
+
+    _rgb_mode = mode;
+    _rgb_mode_setup = false;
+
+    switch(_rgb_mode)
+    {
+        default:
+        case RGB_MODE_PRESET:
+            _rgb_anim_cb = _rgbanim_preset_do;
+            break;
+
+        case RGB_MODE_RAINBOW:
+            _rgb_anim_cb = _rgbanim_rainbow_do;
+            break;
+
+        case RGB_MODE_RAINBOWOFFSET:
+            _rgb_anim_cb = _rgbanim_rainbowoffset_do;
+            break;
+
+        case RGB_MODE_FLASH:
+            _rgb_anim_cb = _rgbanim_flash_do;
+            break;
+
+        case RGB_MODE_CYCLE:
+            _rgb_anim_cb = _rgbanim_cycle_do;
+            break;
+
+        case RGB_MODE_CYCLEOFFSET:
+            _rgb_anim_cb = _rgbanim_cycleoffset_do;
+            break;
+    }
+
+    rgb_update_speed(global_loaded_settings.rgb_step_speed);
+
+    if(brightness>-1)
+    {
+        brightness = (brightness > 255) ? 255 : brightness;
+        _rgb_set_brightness(brightness);
+    }
+   
+    _rgb_set_dirty();
+
+#endif
+}
 
 // One tick of RGB logic
 // only performs actions if necessary
@@ -619,51 +666,20 @@ void rgb_task(uint32_t timestamp)
     {
         bool _done = _rgb_animate_step();
 
-        switch (_rgb_mode)
+        if(_rgb_anim_override_cb != NULL)
         {
-
-        default:
-        case RGB_MODE_PRESET:
             if(_done)
             {
-                _rgbanim_preset_do();
+                _rgb_anim_override_cb();
+                _rgb_anim_override_cb = NULL;
             }
-            break;
-
-        case RGB_MODE_RAINBOW:
-            if (_done)
-            {
-                _rgbanim_rainbow_do();
-            }
-            break;
-
-        case RGB_MODE_RAINBOWOFFSET:
-            if (_done)
-            {
-                _rgbanim_rainbowoffset_do();
-            }
-            break;
-
-        case RGB_MODE_CYCLE:
-            if (_done)
-            {
-                _rgbanim_cycle_do();
-            }
-            break;
-
-        case RGB_MODE_CYCLEOFFSET:
-            if (_done)
-            {
-                _rgbanim_cycleoffset_do();
-            }
-            break;
-
-        case RGB_MODE_FLASH:
+        }
+        else if (_rgb_anim_cb != NULL)
+        {
             if(_done)
             {
-                _rgbanim_flash_do();
+                _rgb_anim_cb();
             }
-            break;
         }
     }
 #endif

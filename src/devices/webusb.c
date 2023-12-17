@@ -347,8 +347,7 @@ void webusb_command_processor(uint8_t *data)
         }
         else if(idx == 6)
         {
-            global_loaded_settings.rgb_step_speed = data[2];
-            rgb_init(global_loaded_settings.rgb_mode, -1);
+            rgb_update_speed(data[2]);
         }
         
     }
