@@ -293,15 +293,17 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_RGB_SET:
     {
         printf("WebUSB: Got RGB SET command.\n");
+
+        uint8_t idx = data[1] % 12;
+
         rgb_s col =
             {
                 .r = data[2],
                 .g = data[3],
                 .b = data[4],
             };
-        global_loaded_settings.rgb_colors[data[1]] = col.color;
-        rgb_set_group(data[1], col.color);
-        rgb_set_dirty();
+        global_loaded_settings.rgb_colors[idx] = col.color;
+        rgb_set_group(idx, col.color);
     }
     break;
 
@@ -319,6 +321,80 @@ void webusb_command_processor(uint8_t *data)
             _webusb_out_buffer[t + 1] = c.g;
             _webusb_out_buffer[t + 2] = c.b;
         }
+        
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_USERCYCLE_SET:
+    {
+        printf("WebUSB: Got RAINBOW SET command.\n");
+        uint8_t idx = data[1] % 7;
+        rgb_s col =
+            {
+                .r = data[2],
+                .g = data[3],
+                .b = data[4],
+            };
+
+        if(idx < 6)
+        {
+            global_loaded_settings.rainbow_colors[idx] = col.color;
+        }
+        else if(idx == 6)
+        {
+            global_loaded_settings.rgb_step_speed = data[2];
+            rgb_init(global_loaded_settings.rgb_mode, -1);
+        }
+        
+    }
+    break;
+
+    case WEBUSB_CMD_USERCYCLE_GET:
+    {
+        printf("WebUSB: Got RAINBOW GET command.\n");
+        memset(_webusb_out_buffer, 0, 64);
+        _webusb_out_buffer[0] = WEBUSB_CMD_USERCYCLE_GET;
+
+        for (uint8_t i = 0; i < 6; i++)
+        {
+            rgb_s c = {.color = global_loaded_settings.rainbow_colors[i]};
+            uint8_t t = (i * 3) + 1;
+            _webusb_out_buffer[t] = c.r;
+            _webusb_out_buffer[t + 1] = c.g;
+            _webusb_out_buffer[t + 2] = c.b;
+        }
+
+        _webusb_out_buffer[19] = global_loaded_settings.rgb_step_speed;
+        
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_RGBMODE_SET:
+    {
+        printf("WebUSB: Got RGBMODE SET command.\n");
+        rgb_mode_t mode = data[1] % RGB_MODE_MAX;
+        global_loaded_settings.rgb_mode = mode;
+        rgb_init(mode, -1);
+    }
+    break;
+
+    case WEBUSB_CMD_RGBMODE_GET:
+    {
+        printf("WebUSB: Got RGBMODE GET command.\n");
+        memset(_webusb_out_buffer, 0, 64);
+        _webusb_out_buffer[0] = WEBUSB_CMD_RGBMODE_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.rgb_mode;
+
         if (webusb_ready_blocking(4000))
         {
             tud_vendor_n_write(0, _webusb_out_buffer, 64);

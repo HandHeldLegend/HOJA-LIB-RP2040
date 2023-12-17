@@ -38,10 +38,23 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
             }
             else
             {
-                rgb_preset_reload();
+                //rgb_preset_reload();
             }
 
-            rgb_set_dirty();
+            //rgb_set_dirty();
+        }
+
+        static bool dpres = false;
+        static rgb_mode_t _tmpmode = 0;
+        if(in->dpad_up && !dpres)
+        {
+            dpres = true;
+        }
+        else if (!in->dpad_up && dpres)
+        {
+            dpres = false;
+            _tmpmode = (_tmpmode + 1) % RGB_MODE_MAX;
+            rgb_init(_tmpmode, 100);
         }
 
     }

@@ -57,8 +57,8 @@ void imu_calibrate_start()
       .g = 0xFF,
       .b = 0,
   };
-  rgb_set_all(c.color);
-  rgb_set_dirty();
+
+  rgb_flash(c.color);
 
   // Reset offsets to 0
   memset(global_loaded_settings.imu_0_offsets, 0x00, sizeof(int8_t) * 6);
@@ -87,8 +87,8 @@ void imu_calibrate_start()
 
 void imu_calibrate_stop()
 {
-  rgb_preset_reload();
-  rgb_set_dirty();
+
+  rgb_init(global_loaded_settings.rgb_mode, -1);
 
   settings_save_webindicate();
   settings_save();

@@ -76,6 +76,13 @@ void settings_reset_to_default()
   memset(global_loaded_settings.imu_0_offsets, 0, sizeof(int8_t)*6);
   memset(global_loaded_settings.imu_1_offsets, 0, sizeof(int8_t)*6);
   _generate_mac();
+
+  global_loaded_settings.rainbow_colors[0] = COLOR_RED.color;
+  global_loaded_settings.rainbow_colors[1] = COLOR_ORANGE.color;
+  global_loaded_settings.rainbow_colors[2] = COLOR_YELLOW.color;
+  global_loaded_settings.rainbow_colors[3] = COLOR_GREEN.color;
+  global_loaded_settings.rainbow_colors[4] = COLOR_BLUE.color;
+  global_loaded_settings.rainbow_colors[5] = COLOR_PURPLE.color;
 }
 
 volatile bool _save_flag = false;

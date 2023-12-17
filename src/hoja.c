@@ -148,7 +148,7 @@ void hoja_init(hoja_config_t *config)
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
 
-  rgb_init();
+  
 
   // Read buttons to get a current state
   cb_hoja_read_buttons(&_button_data);
@@ -161,14 +161,11 @@ void hoja_init(hoja_config_t *config)
     {
       settings_reset_to_default();
       sleep_ms(200);
-      rgb_load_preset((rgb_preset_t *)&global_loaded_settings.rgb_colors[0]);
-
+    
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
     else
     {
-      rgb_load_preset((rgb_preset_t *)&global_loaded_settings.rgb_colors[0]);
-
       analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
     }
   }
@@ -229,6 +226,9 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
+  rgb_mode_t rgbmode = global_loaded_settings.rgb_mode;
+  uint8_t rgbbrightness = 100;
+
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
@@ -236,21 +236,14 @@ void hoja_init(hoja_config_t *config)
     case INPUT_MODE_GCUSB:
       _hoja_input_method = INPUT_METHOD_USB;
     case INPUT_MODE_XINPUT:
-      // Don't change input method
-      break;
-
     default:
     case INPUT_MODE_SWPRO:
-      // Don't change input method
-      rgb_preset_reload();
       break;
 
     case INPUT_MODE_SNES:
     case INPUT_MODE_GAMECUBE:
     case INPUT_MODE_N64:
-      _hoja_input_method = INPUT_METHOD_WIRED;
-      rgb_set_brightness(10);
-      rgb_preset_reload();
+      rgbbrightness = 10;
       break;
   }
 
@@ -258,8 +251,8 @@ void hoja_init(hoja_config_t *config)
   {
     if (!util_wire_connected())
     {
-      rgb_set_brightness(75);
-      rgb_preset_reload();
+      
+      rgbbrightness = 70;
       _hoja_input_method = INPUT_METHOD_BLUETOOTH;
     }
     else
@@ -268,6 +261,8 @@ void hoja_init(hoja_config_t *config)
       _hoja_input_method = INPUT_METHOD_USB;
     }
   }
+
+  rgb_init(rgbmode, rgbbrightness);
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
@@ -279,8 +274,6 @@ void hoja_init(hoja_config_t *config)
 
   // Initialize button remapping
   remap_init(_hoja_input_mode, &_button_data, &_button_data_processed);
-
-  rgb_set_dirty();
 
   // Enable lockout victimhood :,)
   multicore_lockout_victim_init();

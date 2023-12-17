@@ -53,8 +53,8 @@ void analog_calibrate_start()
         .g = 0,
         .b = 0,
     };
-    rgb_set_all(c.color);
-    rgb_set_dirty();
+
+    rgb_flash(c.color);
 
     // Reset scaling distances
     stick_scaling_reset_distances();
@@ -69,8 +69,6 @@ void analog_calibrate_start()
 
 void analog_calibrate_stop()
 {
-    rgb_preset_reload();
-    rgb_set_dirty();
 
     _analog_calibrate = false;
 
@@ -81,12 +79,12 @@ void analog_calibrate_stop()
     stick_scaling_set_settings();
 
     stick_scaling_init();
+
+    rgb_init(global_loaded_settings.rgb_mode, -1);
 }
 
 void analog_calibrate_save()
 {
-    rgb_preset_reload();
-    rgb_set_dirty();
 
     _analog_calibrate = false;
 
@@ -117,13 +115,13 @@ void _analog_calibrate_loop()
     else if (stick_scaling_capture_distances(_data_in) && !_analog_all_angles_got)
     {
         _analog_all_angles_got = true;
+ 
         rgb_s c = {
             .r = 0,
             .g = 128,
             .b = 128,
         };
-        rgb_set_all(c.color);
-        rgb_set_dirty();
+        rgb_flash(c.color);
     }
 
     if(_buttons->button_home)

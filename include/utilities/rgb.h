@@ -15,6 +15,24 @@
 #define COLOR_PURPLE (rgb_s) {.r = 0x61, .g = 0x00, .b=0xff}
 #define COLOR_PINK   (rgb_s) {.r = 0xff, .g = 0x2B, .b=0xD0}
 #define COLOR_WHITE  (rgb_s) {.r = 0xa1, .g = 0xa1, .b=0xa1}
+#define COLOR_BLACK  (rgb_s) {.r = 0x00, .g = 0x00, .b=0x00}
+
+typedef struct
+{
+    uint16_t hue;
+    uint16_t saturation;
+    uint16_t value;
+} hsv_s;
+
+typedef enum {
+    RGB_MODE_PRESET = 0,
+    RGB_MODE_RAINBOW,
+    RGB_MODE_RAINBOWOFFSET,
+    RGB_MODE_CYCLE,
+    RGB_MODE_CYCLEOFFSET,
+    RGB_MODE_FLASH,
+    RGB_MODE_MAX,
+} rgb_mode_t;
 
 typedef enum{
     RGB_GROUP_RS = 0,
@@ -37,21 +55,15 @@ typedef enum{
 #define PRESET_GC_C     (rgb_s) {.r = 0x14, .g = 0x0B, .b = 0x00}
 #define PRESET_GC_OTHER (rgb_s) {.r = 0x04, .g = 0x04, .b = 0x04}
 
-void rgb_set_brightness(uint8_t brightness);
+void rgb_save_mode();
 
-void rgb_set_instant();
+void rgb_indicate(uint32_t color, uint32_t duration);
 
-void rgb_set_dirty();
-
-void rgb_preset_reload();
-
-void rgb_load_preset(rgb_preset_t *preset);
+void rgb_flash(uint32_t color);
 
 void rgb_set_group(rgb_group_t group, uint32_t color);
 
-void rgb_set_all(uint32_t color);
-
-void rgb_init();
+void rgb_init(rgb_mode_t mode, int brightness);
 
 void rgb_task(uint32_t timestamp);
 

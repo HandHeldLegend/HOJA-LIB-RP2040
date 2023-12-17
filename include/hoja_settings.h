@@ -69,6 +69,10 @@ typedef struct
     float l_sub_angles[8];
     float r_sub_angles[8];
 
+    uint8_t rgb_mode;
+    uint32_t rainbow_colors[6];
+    uint8_t rgb_step_speed;
+
 } hoja_settings_s;
 
 extern hoja_settings_s global_loaded_settings;
