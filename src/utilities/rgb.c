@@ -55,8 +55,10 @@ rgb_mode_t _rgb_mode = 0;
  */
 typedef void (*rgb_anim_cb)(void);
 
+typedef bool (*rgb_override_anim_cb)(void);
+
 rgb_anim_cb _rgb_anim_cb = NULL;
-rgb_anim_cb _rgb_anim_override_cb = NULL;
+rgb_override_anim_cb _rgb_anim_override_cb = NULL;
 
 // Public CHSV color functions
 #define HSV_SECTION_6 (0x20)
@@ -590,16 +592,24 @@ void _rgbanim_flash_do()
 }
 
 uint32_t _rgb_indicate_color = 0x00;
-void _rgb_indicate_do()
+bool _rgb_indicate_override_do()
 {
+    static uint8_t _rgb_indicate_steps = 0;
     _rgb_set_all(_rgb_indicate_color);
     _rgb_set_dirty();
+
+    if(_rgb_indicate_steps++ == 2)
+    {
+        _rgb_indicate_steps = 0;
+        return true;
+    }
+    return false;
 }
 
 void rgb_indicate(uint32_t color)
 {
     _rgb_indicate_color = color;
-    _rgb_anim_override_cb = _rgb_indicate_do;
+    _rgb_anim_override_cb = _rgb_indicate_override_do;
 }
 
 bool _rgb_pio_done = false;
@@ -670,8 +680,10 @@ void rgb_task(uint32_t timestamp)
         {
             if(_done)
             {
-                _rgb_anim_override_cb();
-                _rgb_anim_override_cb = NULL;
+                if(_rgb_anim_override_cb())
+                {
+                    _rgb_anim_override_cb = NULL;
+                }
             }
         }
         else if (_rgb_anim_cb != NULL)

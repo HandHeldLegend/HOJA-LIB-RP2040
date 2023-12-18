@@ -69,8 +69,6 @@ bool btinput_init(input_mode_t input_mode)
         #endif
 
         sleep_ms(600);
-        rgb_preset_reload();
-        rgb_set_dirty();
 
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
@@ -119,6 +117,19 @@ void _btinput_message_parse(uint8_t *msg)
         case I2CINPUT_ID_SHUTDOWN:
         {
             util_battery_enable_ship_mode();
+        }
+        break;
+
+        case I2CINPUT_ID_CONNECTED:
+        {
+            if(msg[1] == 0x01)
+            {
+                rgb_init(global_loaded_settings.rgb_mode, -1);
+            }
+            else
+            {
+                rgb_flash(COLOR_BLUE.color);
+            }
         }
         break;
 
