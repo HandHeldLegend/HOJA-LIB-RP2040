@@ -49,7 +49,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
     if(interval_resettable_run(timestamp, 3000000, !in->button_shipping))
     {
         // Sleeps the controller
-        util_battery_enable_ship_mode();
+        hoja_shutdown();
     }
 }
 

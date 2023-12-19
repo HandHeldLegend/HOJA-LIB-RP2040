@@ -18,6 +18,7 @@ void cb_hoja_set_rumble_intensity(uint8_t floor, uint8_t intensity);
 void cb_hoja_set_bluetooth_enabled(bool enable);
 void cb_hoja_set_uart_enabled(bool enable);
 
+void hoja_shutdown();
 void hoja_init(hoja_config_t *config);
 
 void hoja_load_remap(button_remap_s *remap_profile);

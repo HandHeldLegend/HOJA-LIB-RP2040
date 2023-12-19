@@ -55,7 +55,20 @@ typedef enum{
 #define PRESET_GC_C     (rgb_s) {.r = 0x14, .g = 0x0B, .b = 0x00}
 #define PRESET_GC_OTHER (rgb_s) {.r = 0x04, .g = 0x04, .b = 0x04}
 
+/**
+ * @brief Typedef for the callback function used in RGB animations.
+ * 
+ * This typedef defines a function pointer type named `rgb_anim_cb` that points to a function
+ * with a void return type and no parameters. This callback function is used in RGB animations
+ * to perform custom actions at specific points in the animation sequence.
+ */
+typedef void (*rgb_anim_cb)(void);
+
+typedef bool (*rgb_override_anim_cb)(void);
+
 void rgb_update_speed(uint8_t speed);
+
+void rgb_shutdown_start();
 
 void rgb_indicate(uint32_t color);
 

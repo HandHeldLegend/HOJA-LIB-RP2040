@@ -13,7 +13,7 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
         _connected = util_wire_connected();
         if(!_connected)
         {
-            util_battery_enable_ship_mode();
+            hoja_shutdown();
         }
     }
 
@@ -59,28 +59,26 @@ void util_battery_enable_ship_mode(void)
     cb_hoja_set_bluetooth_enabled(false);
 
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    for(;;)
+    int s2 = 0;
+    while(!s2)
     {
-        sleep_ms(300);
-        
         const uint8_t _data[2] = {0x09, 0x41};
-        int s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+        s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
 
         if(s2 == PICO_ERROR_GENERIC)
         {
-            rgb_set_all(COLOR_WHITE.color);
-            rgb_set_instant();
+            //rgb_indicate(COLOR_WHITE.color);
         }
         else if (s2== PICO_ERROR_TIMEOUT)
         {
-            rgb_set_all(COLOR_PURPLE.color);
-            rgb_set_instant();
+            //rgb_indicate(COLOR_PURPLE.color);
         }
         else if (s2==2)
         {
-            rgb_set_all(COLOR_YELLOW.color);
-            rgb_set_instant();
+            //rgb_indicate(COLOR_YELLOW.color);
         }
+
+        sleep_ms(300);
     }
     #endif
 

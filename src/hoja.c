@@ -72,6 +72,22 @@ __attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
   (void)enable;
 }
 
+
+void hoja_shutdown()
+{
+  static bool _shutdown_started = false;
+  if(_shutdown_started) return;
+  
+  _shutdown_started = true;
+  #if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
+    rgb_shutdown_start();
+  #elif (HOJA_CAPABILITY_BATTERY == 1)
+    util_battery_enable_ship_mode();
+  #else 
+    watchdog_reboot(0, 0);
+  #endif
+}
+
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
@@ -147,8 +163,6 @@ void hoja_init(hoja_config_t *config)
   gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
-
-  
 
   // Read buttons to get a current state
   cb_hoja_read_buttons(&_button_data);

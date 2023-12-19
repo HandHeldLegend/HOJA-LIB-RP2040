@@ -120,36 +120,46 @@ void _btinput_message_parse(uint8_t *msg)
         }
         break;
 
-        case I2CINPUT_ID_CONNECTED:
-        {
-            if(msg[1] == 0x01)
-            {
-                rgb_init(global_loaded_settings.rgb_mode, -1);
-            }
-            else
-            {
-                rgb_flash(COLOR_BLUE.color);
-            }
-        }
-        break;
-
         case I2CINPUT_ID_STATUS:
         {
             static uint8_t _i_rumble = 0;
+            static uint8_t _i_connected = 0;
             i2cinput_status_s status = {.rumble_intensity = msg[1], .connected_status = msg[2]};
 
-            if(_i_rumble != status.rumble_intensity)
+            if(_i_connected)
             {
-                _i_rumble = status.rumble_intensity;
-                if(!_i_rumble)
+                if( (_i_rumble != status.rumble_intensity))
                 {
-                    cb_hoja_rumble_enable(0);
+                    _i_rumble = status.rumble_intensity;
+                    _i_rumble = (_i_rumble > 100) ? 100 : _i_rumble;
+
+                    if(!_i_rumble)
+                    {
+                        cb_hoja_rumble_enable(0);
+                    }
+                    else
+                    {
+                        
+                        cb_hoja_rumble_enable((float) _i_rumble/100.0f);
+                    }   
+                }
+            }
+            else
+            {
+                cb_hoja_rumble_enable(0);
+            }
+
+            if (_i_connected != status.connected_status)
+            {
+                _i_connected = status.connected_status;
+                if(!_i_connected)
+                {
+                    rgb_flash(COLOR_BLUE.color);
                 }
                 else
                 {
-                    cb_hoja_rumble_enable((float) _i_rumble/100.0f);
+                    rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
-                
             }
         }
         break;
