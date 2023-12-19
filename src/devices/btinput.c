@@ -116,7 +116,7 @@ void _btinput_message_parse(uint8_t *msg)
 
         case I2CINPUT_ID_SHUTDOWN:
         {
-            util_battery_enable_ship_mode();
+            hoja_shutdown();
         }
         break;
 
