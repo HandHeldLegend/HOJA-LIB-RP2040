@@ -84,7 +84,7 @@ void hoja_shutdown()
   #elif (HOJA_CAPABILITY_BATTERY == 1)
     util_battery_enable_ship_mode();
   #else 
-    watchdog_reboot(0, 0);
+    watchdog_reboot(0, 0, 0);
   #endif
 }
 

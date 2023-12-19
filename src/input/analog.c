@@ -214,7 +214,6 @@ void analog_task(uint32_t timestamp)
                 _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_tracker_mem);
                 _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_tracker_mem);
             }
-            
         }
     }
 }

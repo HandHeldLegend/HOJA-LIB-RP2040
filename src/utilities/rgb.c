@@ -479,26 +479,6 @@ void _rgbanim_cycle_do()
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
-
-        bool _not_set = true;
-        for (uint8_t i = 0; i < 6; i++)
-        {
-            if (global_loaded_settings.rainbow_colors[i] != 0)
-            {
-                _not_set = false;
-                break;
-            }
-        }
-
-        if (_not_set)
-        {
-            global_loaded_settings.rainbow_colors[0] = COLOR_RED.color;
-            global_loaded_settings.rainbow_colors[1] = COLOR_BLUE.color;
-            global_loaded_settings.rainbow_colors[2] = COLOR_RED.color;
-            global_loaded_settings.rainbow_colors[3] = COLOR_BLUE.color;
-            global_loaded_settings.rainbow_colors[4] = COLOR_RED.color;
-            global_loaded_settings.rainbow_colors[5] = COLOR_BLUE.color;
-        }
         _rgb_mode_setup = true;
     }
     else
@@ -516,25 +496,6 @@ void _rgbanim_cycleoffset_do()
     {
         _cycle_idx = 0;
 
-        bool _not_set = true;
-        for (uint8_t i = 0; i < 6; i++)
-        {
-            if (global_loaded_settings.rainbow_colors[i] != 0)
-            {
-                _not_set = false;
-                break;
-            }
-        }
-
-        if (_not_set)
-        {
-            global_loaded_settings.rainbow_colors[0] = COLOR_RED.color;
-            global_loaded_settings.rainbow_colors[1] = COLOR_GREEN.color;
-            global_loaded_settings.rainbow_colors[2] = COLOR_BLUE.color;
-            global_loaded_settings.rainbow_colors[3] = COLOR_RED.color;
-            global_loaded_settings.rainbow_colors[4] = COLOR_GREEN.color;
-            global_loaded_settings.rainbow_colors[5] = COLOR_BLUE.color;
-        }
         _rgb_mode_setup = true;
 
         for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
