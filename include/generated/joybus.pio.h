@@ -13,7 +13,7 @@
 // ------ //
 
 #define joybus_wrap_target 0
-#define joybus_wrap 19
+#define joybus_wrap 20
 
 #define joybus_offset_joybusin 0u
 #define joybus_offset_joybusout 9u
@@ -37,16 +37,17 @@ static const uint16_t joybus_program_instructions[] = {
     0x17ea, // 14: jmp    !osre, 10       side 0 [7] 
     0xb842, // 15: nop                    side 1     
     0xba42, // 16: nop                    side 1 [2] 
-    0xb142, // 17: nop                    side 0 [1] 
-    0xc001, // 18: irq    nowait 1                   
-    0x000a, // 19: jmp    10                         
+    0xb342, // 17: nop                    side 0 [3] 
+    0xb842, // 18: nop                    side 1     
+    0xc001, // 19: irq    nowait 1                   
+    0x000a, // 20: jmp    10                         
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program joybus_program = {
     .instructions = joybus_program_instructions,
-    .length = 20,
+    .length = 21,
     .origin = -1,
 };
 

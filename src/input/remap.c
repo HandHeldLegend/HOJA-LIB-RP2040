@@ -303,21 +303,20 @@ void remap_buttons_task()
     _remap_listener(_buttons_in->buttons_all, c);
   }
 
-  if (!macro_safe_mode_check())
+  if (macro_safe_mode_check())
   {
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);
+    _buttons_in->button_capture = 0;
+    _buttons_in->button_home = 0;
+    _buttons_in->button_plus = 0;
+    _buttons_in->button_minus = 0;
+    _buttons_in->dpad_up = 0;
+  }
 
-    _buttons_out->button_home = _buttons_in->button_home;
-    _buttons_out->button_capture = _buttons_in->button_capture;
-  }
-  else
-  {
-    _buttons_out->button_capture = 0;
-    _buttons_out->button_home = 0;
-    _buttons_out->button_plus = 0;
-    _buttons_out->button_minus = 0;
-  }
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
+  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);
+
+  _buttons_out->button_home     = _buttons_in->button_home;
+  _buttons_out->button_capture  = _buttons_in->button_capture;
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_up, _remap_arr[MAPCODE_DUP], _unset_struct->dpad_up);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_down, _remap_arr[MAPCODE_DDOWN], _unset_struct->dpad_down);

@@ -40,7 +40,8 @@ do_zero:
     nop side 1
 do_end:
     nop side 1 [2]
-    nop side 0 [1]
+    nop side 0 [3]
+    nop side 1
     irq nowait 1
     jmp output
 .wrap
