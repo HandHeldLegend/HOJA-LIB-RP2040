@@ -72,6 +72,10 @@ __attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
   (void)enable;
 }
 
+button_data_s *hoja_get_raw_button_data()
+{
+  return &_button_data;;
+}
 
 void hoja_shutdown()
 {
@@ -285,6 +289,7 @@ void hoja_init(hoja_config_t *config)
   }
 
   rgb_init(rgbmode, rgbbrightness);
+  //rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
   rgb_indicate(indicate_color);
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);

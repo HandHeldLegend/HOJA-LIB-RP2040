@@ -307,7 +307,7 @@ void _rgb_preset_reload()
     for (uint8_t i = 0; i < RGB_GROUP_MAX; i++)
     {
         _rgb_set_color_brightness((rgb_s *)&p[i]);
-        rgb_set_group(i, p[i]);
+        rgb_set_group(i, p[i], false);
     }
 #endif
 }
@@ -330,59 +330,73 @@ void _rgbanim_preset_do()
     }
 }
 
-void rgb_set_group(rgb_group_t group, uint32_t color)
+void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
 {
 #if (HOJA_CAPABILITY_RGB == 1)
+
+    const uint8_t *_rgb_group = NULL;
+
     switch (group)
     {
     default:
         break;
 
     case RGB_GROUP_RS:
-        _rgb_set_sequential(_rgb_group_rs, sizeof(_rgb_group_rs), _rgb_next, color);
+        _rgb_group = _rgb_group_rs;
         break;
 
     case RGB_GROUP_LS:
-        _rgb_set_sequential(_rgb_group_ls, sizeof(_rgb_group_ls), _rgb_next, color);
+        _rgb_group = _rgb_group_ls;
         break;
 
     case RGB_GROUP_DPAD:
-        _rgb_set_sequential(_rgb_group_dpad, sizeof(_rgb_group_dpad), _rgb_next, color);
+        _rgb_group = _rgb_group_dpad;
         break;
 
     case RGB_GROUP_MINUS:
-        _rgb_set_sequential(_rgb_group_minus, sizeof(_rgb_group_minus), _rgb_next, color);
+        _rgb_group = _rgb_group_minus;
         break;
 
     case RGB_GROUP_CAPTURE:
-        _rgb_set_sequential(_rgb_group_capture, sizeof(_rgb_group_capture), _rgb_next, color);
+        _rgb_group = _rgb_group_capture;
         break;
 
     case RGB_GROUP_HOME:
-        _rgb_set_sequential(_rgb_group_home, sizeof(_rgb_group_home), _rgb_next, color);
+        _rgb_group = _rgb_group_home;
         break;
 
     case RGB_GROUP_PLUS:
-        _rgb_set_sequential(_rgb_group_plus, sizeof(_rgb_group_plus), _rgb_next, color);
+        _rgb_group = _rgb_group_plus;
         break;
 
     case RGB_GROUP_Y:
-        _rgb_set_sequential(_rgb_group_y, sizeof(_rgb_group_y), _rgb_next, color);
+        _rgb_group = _rgb_group_y;
         break;
 
     case RGB_GROUP_X:
-        _rgb_set_sequential(_rgb_group_x, sizeof(_rgb_group_x), _rgb_next, color);
+        _rgb_group = _rgb_group_x;
         break;
 
     case RGB_GROUP_A:
-        _rgb_set_sequential(_rgb_group_a, sizeof(_rgb_group_a), _rgb_next, color);
+        _rgb_group = _rgb_group_a;
         break;
 
     case RGB_GROUP_B:
-        _rgb_set_sequential(_rgb_group_b, sizeof(_rgb_group_b), _rgb_next, color);
+        _rgb_group = _rgb_group_b;
         break;
     }
-    _rgb_set_dirty();
+
+    if(instant)
+    {
+        //_rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_last, color);
+        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_current, color);
+        _rgb_update_all();
+    }
+    else
+    {
+         _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_next, color);
+         _rgb_set_dirty();
+    }
 #endif
 }
 
@@ -560,6 +574,67 @@ bool _rgb_indicate_override_do()
     return false;
 }
 
+void _rgbanim_reactive_do()
+{
+    static button_data_s current = {0};
+
+    button_data_s *data = hoja_get_raw_button_data();
+    bool _set = false;
+
+    if(data->buttons_all != current.buttons_all)
+    {   
+        if(data->button_a)
+        rgb_set_group(RGB_GROUP_A, global_loaded_settings.rgb_colors[RGB_GROUP_A], true);
+
+        if(data->button_b)
+        rgb_set_group(RGB_GROUP_B, global_loaded_settings.rgb_colors[RGB_GROUP_B], true);
+
+        if(data->button_x)
+        rgb_set_group(RGB_GROUP_X, global_loaded_settings.rgb_colors[RGB_GROUP_X], true);
+
+        if(data->button_y)
+        rgb_set_group(RGB_GROUP_Y, global_loaded_settings.rgb_colors[RGB_GROUP_Y], true);
+
+        if(data->button_plus)
+        rgb_set_group(RGB_GROUP_PLUS, global_loaded_settings.rgb_colors[RGB_GROUP_PLUS], true);
+
+        if(data->button_minus)
+        rgb_set_group(RGB_GROUP_MINUS, global_loaded_settings.rgb_colors[RGB_GROUP_MINUS], true);
+
+        if( (data->dpad_up) | (data->dpad_down) | (data->dpad_left) | (data->dpad_right))
+        rgb_set_group(RGB_GROUP_DPAD, global_loaded_settings.rgb_colors[RGB_GROUP_DPAD], true);
+
+        if(data->button_stick_right)
+        rgb_set_group(RGB_GROUP_RS, global_loaded_settings.rgb_colors[RGB_GROUP_RS], true);
+
+        if(data->button_stick_left)
+        rgb_set_group(RGB_GROUP_LS, global_loaded_settings.rgb_colors[RGB_GROUP_LS], true);
+
+        current.buttons_all = data->buttons_all;
+        _set = true;
+    }
+
+    if(data->buttons_system != current.buttons_system)
+    {
+
+
+        if(data->button_home != current.button_home)
+        rgb_set_group(RGB_GROUP_HOME, global_loaded_settings.rgb_colors[RGB_GROUP_HOME], true);
+
+        if(data->button_capture != current.button_capture)
+        rgb_set_group(RGB_GROUP_CAPTURE, global_loaded_settings.rgb_colors[RGB_GROUP_CAPTURE], true);
+
+        current.buttons_system = data->buttons_system;
+        _set = true;
+    }
+
+    if(_set)
+    {
+        _rgb_set_all(0x000000);
+        _rgb_set_dirty();
+    }
+}
+
 void rgb_indicate(uint32_t color)
 {
     _rgb_indicate_color = color;
@@ -627,6 +702,10 @@ void rgb_init(rgb_mode_t mode, int brightness)
     case RGB_MODE_CYCLEOFFSET:
         _rgb_anim_cb = _rgbanim_cycleoffset_do;
         break;
+
+    case RGB_MODE_REACTIVE:
+        _rgb_anim_cb = _rgbanim_reactive_do;
+        break;
     }
 
     rgb_update_speed(global_loaded_settings.rgb_step_speed);
@@ -651,7 +730,7 @@ void rgb_task(uint32_t timestamp)
     {
         bool _done = _rgb_animate_step();
 
-        if (_done)
+        if (_done || (_rgb_mode == RGB_MODE_REACTIVE))
         {
             if (_rgb_anim_override)
             {

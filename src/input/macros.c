@@ -31,10 +31,10 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
             if (_safe_mode_state)
             {
-                rgb_set_group(RGB_GROUP_PLUS, 0);
-                rgb_set_group(RGB_GROUP_HOME, 0);
-                rgb_set_group(RGB_GROUP_MINUS, 0);
-                rgb_set_group(RGB_GROUP_CAPTURE, 0);
+                rgb_set_group(RGB_GROUP_PLUS, 0, false);
+                rgb_set_group(RGB_GROUP_HOME, 0, false);
+                rgb_set_group(RGB_GROUP_MINUS, 0, false);
+                rgb_set_group(RGB_GROUP_CAPTURE, 0, false);
             }
             else
             {

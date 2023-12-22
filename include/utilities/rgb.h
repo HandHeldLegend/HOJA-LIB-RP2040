@@ -31,6 +31,7 @@ typedef enum {
     RGB_MODE_CYCLE,
     RGB_MODE_CYCLEOFFSET,
     RGB_MODE_FLASH,
+    RGB_MODE_REACTIVE,
     RGB_MODE_MAX,
 } rgb_mode_t;
 
@@ -74,7 +75,7 @@ void rgb_indicate(uint32_t color);
 
 void rgb_flash(uint32_t color);
 
-void rgb_set_group(rgb_group_t group, uint32_t color);
+void rgb_set_group(rgb_group_t group, uint32_t color, bool instant);
 
 void rgb_init(rgb_mode_t mode, int brightness);
 

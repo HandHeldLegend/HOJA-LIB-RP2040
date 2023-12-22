@@ -303,7 +303,7 @@ void webusb_command_processor(uint8_t *data)
                 .b = data[4],
             };
         global_loaded_settings.rgb_colors[idx] = col.color;
-        rgb_set_group(idx, col.color);
+        rgb_set_group(idx, col.color, false);
     }
     break;
 
