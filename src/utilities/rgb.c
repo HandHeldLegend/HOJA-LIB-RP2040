@@ -19,6 +19,7 @@ rgb_s _rgb_last[HOJA_RGB_COUNT] = {0};
 rgb_preset_t *_rgb_preset;
 rgb_preset_t _rgb_preset_loaded;
 uint8_t _rgb_brightness = 100;
+bool _rgb_task_constant = false;
 
 bool _rgb_mode_setup = false;
 
@@ -388,9 +389,9 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
 
     if(instant)
     {
-        //_rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_last, color);
+        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_last, color);
+        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_next, color);
         _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_current, color);
-        _rgb_update_all();
     }
     else
     {
@@ -574,12 +575,39 @@ bool _rgb_indicate_override_do()
     return false;
 }
 
+#define INTENSITY_DEADZONE 50
+#define INTENSITY_CAP 2048
+float _rgb_stick_get_intensity(int x, int y)
+{
+    float dx = fabs((float) x - 2048);
+    float dy = fabs((float) y - 2048);
+    
+    // Calculate the distance from the center of the stick
+    float dist = sqrtf((dx * dx) + (dy * dy));
+
+    float intensity = dist/2048.0f;
+    intensity = (intensity > 1.0f) ? 1.0f : intensity;
+    intensity = (intensity < 0.0f) ? 0.0f : intensity;
+    return intensity;
+}
+
 void _rgbanim_reactive_do()
 {
     static button_data_s current = {0};
 
     button_data_s *data = hoja_get_raw_button_data();
+    a_data_s *analog = hoja_get_buffered_analog_data();
     bool _set = false;
+
+    // Get distance of left and right sticks
+    float _ls_intensity = _rgb_stick_get_intensity(analog->lx, analog->ly);
+    float _rs_intensity = _rgb_stick_get_intensity(analog->rx, analog->ry);
+
+    if(!_rgb_mode_setup )
+    {
+        _rgb_mode_setup = true;
+        _rgb_task_constant = true;
+    }
 
     if(data->buttons_all != current.buttons_all)
     {   
@@ -604,12 +632,6 @@ void _rgbanim_reactive_do()
         if( (data->dpad_up) | (data->dpad_down) | (data->dpad_left) | (data->dpad_right))
         rgb_set_group(RGB_GROUP_DPAD, global_loaded_settings.rgb_colors[RGB_GROUP_DPAD], true);
 
-        if(data->button_stick_right)
-        rgb_set_group(RGB_GROUP_RS, global_loaded_settings.rgb_colors[RGB_GROUP_RS], true);
-
-        if(data->button_stick_left)
-        rgb_set_group(RGB_GROUP_LS, global_loaded_settings.rgb_colors[RGB_GROUP_LS], true);
-
         current.buttons_all = data->buttons_all;
         _set = true;
     }
@@ -630,9 +652,30 @@ void _rgbanim_reactive_do()
 
     if(_set)
     {
-        _rgb_set_all(0x000000);
+        rgb_set_group(RGB_GROUP_A, 0, false);
+        rgb_set_group(RGB_GROUP_B, 0, false);
+        rgb_set_group(RGB_GROUP_X, 0, false);
+        rgb_set_group(RGB_GROUP_Y, 0, false);
+
+        rgb_set_group(RGB_GROUP_PLUS, 0, false);
+        rgb_set_group(RGB_GROUP_MINUS, 0, false);
+        rgb_set_group(RGB_GROUP_DPAD, 0, false);
+        rgb_set_group(RGB_GROUP_HOME, 0, false);
+        rgb_set_group(RGB_GROUP_CAPTURE, 0, false);
         _rgb_set_dirty();
     }
+
+    rgb_s _black = {.color = 0x000000};
+
+    // Set left and right stick colors
+    rgb_s _ls_setcolor = {.color = global_loaded_settings.rgb_colors[RGB_GROUP_LS]};
+    rgb_s _ls_color = {.color = _rgb_blend(&_black, &_ls_setcolor, _ls_intensity)};
+    rgb_set_group(RGB_GROUP_LS, _ls_color.color, true);
+
+    rgb_s _rs_setcolor = {.color = global_loaded_settings.rgb_colors[RGB_GROUP_RS]};
+    rgb_s _rs_color = {.color = _rgb_blend(&_black, &_rs_setcolor, _rs_intensity)};
+    rgb_set_group(RGB_GROUP_RS, _rs_color.color, true);
+    _rgb_update_all();
 }
 
 void rgb_indicate(uint32_t color)
@@ -675,6 +718,7 @@ void rgb_init(rgb_mode_t mode, int brightness)
 
     _rgb_mode = mode;
     _rgb_mode_setup = false;
+    _rgb_task_constant = false;
 
     switch (_rgb_mode)
     {
@@ -730,11 +774,10 @@ void rgb_task(uint32_t timestamp)
     {
         bool _done = _rgb_animate_step();
 
-        if (_done || (_rgb_mode == RGB_MODE_REACTIVE))
+        if (_done || _rgb_task_constant)
         {
             if (_rgb_anim_override)
             {
-
                 if (_rgb_anim_override_cb())
                 {
                     _rgb_anim_override = false;

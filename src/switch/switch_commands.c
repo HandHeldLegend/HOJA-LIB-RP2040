@@ -486,6 +486,7 @@ void switch_commands_process(sw_input_s *input_data)
       _switch_command_buffer[27] = _imu_tmp->ax_8h;
       _switch_command_buffer[28] = _imu_tmp->az_8l; // Z-axis
       _switch_command_buffer[29] = _imu_tmp->az_8h;
+
       _switch_command_buffer[30] = _imu_tmp->gy_8l;
       _switch_command_buffer[31] = _imu_tmp->gy_8h;
       _switch_command_buffer[32] = _imu_tmp->gx_8l;

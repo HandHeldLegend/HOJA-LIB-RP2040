@@ -72,6 +72,11 @@ __attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
   (void)enable;
 }
 
+a_data_s *hoja_get_buffered_analog_data()
+{
+  return &_analog_data_buffered;
+}
+
 button_data_s *hoja_get_raw_button_data()
 {
   return &_button_data;;
