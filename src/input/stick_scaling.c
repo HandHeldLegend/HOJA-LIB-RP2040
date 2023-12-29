@@ -7,7 +7,7 @@
 
 #define STICK_INTERNAL_CENTER 2048
 #define STICK_MAX 4095
-#define STICK_DEAD_ZONE 24
+#define STICK_DEAD_ZONE 125
 #define STICK_CALIBRATION_DEADZONE 125
 #define STICK_SCALE_DISTANCE STICK_INTERNAL_CENTER
 
@@ -288,7 +288,7 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
   {
     for (uint8_t i = 0; i < 8; i++)
     {
-      scalers_out[i] = (STICK_SCALE_DISTANCE) / (distances_in[i]);
+      scalers_out[i] = (STICK_SCALE_DISTANCE ) / (distances_in[i]-STICK_DEAD_ZONE);
     }
   }
 
@@ -629,7 +629,12 @@ void stick_scaling_process_data(a_data_s *in, a_data_s *out)
   float rx = 0;
   float ry = 0;
 
+  if(ld <= STICK_DEAD_ZONE) ld = 0;
+  else ld -= STICK_DEAD_ZONE;
   _stick_process_input(la, ld, global_loaded_settings.l_angles, _stick_l_distance_scalers, _stick_l_angle_scalers, _l_sub_angle_states, &lx, &ly);
+
+  if(rd <= STICK_DEAD_ZONE) rd = 0;
+  else rd -= STICK_DEAD_ZONE;
   _stick_process_input(ra, rd, global_loaded_settings.r_angles, _stick_r_distance_scalers, _stick_r_angle_scalers, _r_sub_angle_states, &rx, &ry);
 
   out->lx = global_loaded_settings.lx_center.invert ? (4095 - lx) : lx;
