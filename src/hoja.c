@@ -223,7 +223,11 @@ void hoja_init(hoja_config_t *config)
 
   // Macros for mode switching
   {
-    if (_button_data.button_x)
+    if(_button_data.button_b)
+    {
+      _hoja_input_mode = INPUT_MODE_DS4;
+    }
+    else if (_button_data.button_x)
     {
       _hoja_input_mode = INPUT_MODE_XINPUT;
     }
@@ -268,6 +272,10 @@ void hoja_init(hoja_config_t *config)
     default:
     case INPUT_MODE_SWPRO:
       indicate_color = COLOR_WHITE.color;
+      break;
+
+    case INPUT_MODE_DS4:
+      indicate_color = COLOR_BLUE.color;
       break;
 
     case INPUT_MODE_SNES:

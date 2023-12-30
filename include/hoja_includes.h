@@ -60,6 +60,7 @@
 #include "xinput.h"
 #include "dinput.h"
 #include "swpro.h"
+#include "ds4input.h"
 
 #include "webusb.h"
 

@@ -189,6 +189,7 @@ typedef enum
     INPUT_MODE_N64      = 3,
     INPUT_MODE_SNES     = 4,
     INPUT_MODE_GCUSB    = 5,
+    INPUT_MODE_DS4      = 6,
 } input_mode_t;
 
 typedef enum

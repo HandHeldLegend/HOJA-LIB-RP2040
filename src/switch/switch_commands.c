@@ -49,7 +49,7 @@ void set_timer()
   static int16_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
   // printf("Td=%d \n", _switch_timer);
-  _switch_timer += 3;
+  _switch_timer += 2;
   if (_switch_timer > 0xFF)
   {
     _switch_timer -= 0xFF;
