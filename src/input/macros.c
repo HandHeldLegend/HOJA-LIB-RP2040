@@ -63,20 +63,25 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
             #endif
 
         }
-        else
+        else if (i == INPUT_METHOD_BLUETOOTH)
         {
             #ifdef HOJA_CAPABILITY_BLUETOOTH
                 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
-
-                    // Check if we are connected 
-                    if (util_wire_connected())
-                    // Do nothing
-                    {           }
-                    // Sleeps the controller 
-                    else {hoja_shutdown();}
+                    if(util_wire_connected())
+                    {
+                        hoja_reboot_memory_u reboot_memory = {
+                            .gamepad_mode = 0, 
+                            .reboot_reason = 0,
+                        };
+                        reboot_with_memory(reboot_memory.value);
+                    }
+                    else
+                    {
+                        hoja_shutdown();
+                    }
                     
                 #endif
-            #endif 
+            #endif
         }
         
     }
