@@ -724,14 +724,14 @@ bool _rgb_shutdown_start_override_do()
 {
     if(_rgb_shutdown_restart)
     {
-        watchdog_reboot(0, 0, 0);
+        hoja_shutdown_instant();
     }
     else
     {
         #if (HOJA_CAPABILITY_BATTERY == 1)
             util_battery_enable_ship_mode();
         #else
-            watchdog_reboot(0, 0, 0);
+            hoja_shutdown_instant();
         #endif
     }
     return true;

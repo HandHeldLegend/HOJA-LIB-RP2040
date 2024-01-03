@@ -67,19 +67,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
         {
             #ifdef HOJA_CAPABILITY_BLUETOOTH
                 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
-                    if(util_wire_connected())
-                    {
-                        hoja_reboot_memory_u reboot_memory = {
-                            .gamepad_mode = 0, 
-                            .reboot_reason = 0,
-                        };
-                        reboot_with_memory(reboot_memory.value);
-                    }
-                    else
-                    {
-                        hoja_shutdown();
-                    }
-                    
+                    hoja_shutdown();
                 #endif
             #endif
         }

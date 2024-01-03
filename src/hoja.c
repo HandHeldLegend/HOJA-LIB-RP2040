@@ -87,6 +87,13 @@ button_data_s *hoja_get_raw_button_data()
   return &_button_data;;
 }
 
+void hoja_shutdown_instant()
+{
+    cb_hoja_set_bluetooth_enabled(false);
+    cb_hoja_set_uart_enabled(false);
+    watchdog_reboot(0, 0, 0);
+}
+
 void hoja_shutdown()
 {
   static bool _shutdown_started = false;
@@ -98,7 +105,7 @@ void hoja_shutdown()
   #elif (HOJA_CAPABILITY_BATTERY == 1)
     util_battery_enable_ship_mode();
   #else 
-    watchdog_reboot(0, 0, 0);
+    hoja_shutdown_instant();
   #endif
 }
 

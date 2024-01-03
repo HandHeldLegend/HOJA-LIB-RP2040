@@ -67,18 +67,20 @@ void util_battery_enable_ship_mode(void)
 
         if(s2 == PICO_ERROR_GENERIC)
         {
-            //rgb_indicate(COLOR_WHITE.color);
+            hoja_shutdown_instant();
         }
         else if (s2== PICO_ERROR_TIMEOUT)
         {
-            //rgb_indicate(COLOR_PURPLE.color);
+            hoja_shutdown_instant();
         }
         else if (s2==2)
         {
             //rgb_indicate(COLOR_YELLOW.color);
         }
 
-        sleep_ms(300);
+        sleep_ms(1000);
+
+        hoja_shutdown_instant();
     }
     #endif
 
