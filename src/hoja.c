@@ -72,6 +72,11 @@ __attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
   (void)enable;
 }
 
+input_method_t hoja_get_input_method()
+{
+  return _hoja_input_method;
+}
+
 a_data_s *hoja_get_buffered_analog_data()
 {
   return &_analog_data_buffered;
@@ -89,7 +94,7 @@ void hoja_shutdown()
   
   _shutdown_started = true;
   #if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
-    rgb_shutdown_start();
+    rgb_shutdown_start(false);
   #elif (HOJA_CAPABILITY_BATTERY == 1)
     util_battery_enable_ship_mode();
   #else 
@@ -162,6 +167,16 @@ void hoja_init(hoja_config_t *config)
   // Stop if there's no config
   if (!config)
     return;
+
+  // Get our reboot reason
+  hoja_reboot_memory_u reboot_mem = {.value = reboot_get_memory()};
+
+  if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
+  {
+    // We're rebooting from a BT start
+    // We need to set the input method to BT
+    config->input_method = INPUT_METHOD_BLUETOOTH;
+  }
 
   // Set up hardware first
   cb_hoja_hardware_setup();

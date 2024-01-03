@@ -69,7 +69,7 @@ typedef bool (*rgb_override_anim_cb)(void);
 
 void rgb_update_speed(uint8_t speed);
 
-void rgb_shutdown_start();
+void rgb_shutdown_start(bool restart);
 
 void rgb_indicate(uint32_t color);
 

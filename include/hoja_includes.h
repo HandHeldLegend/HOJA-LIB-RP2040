@@ -70,6 +70,7 @@
 #include "nspi.h"
 
 #include "remap.h"
+#include "reboot.h"
 #include "hoja.h"
 
 // Switch pro includes

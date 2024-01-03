@@ -719,14 +719,27 @@ void rgb_indicate(uint32_t color)
     _rgb_anim_override = true;
 }
 
+bool _rgb_shutdown_restart = false;
 bool _rgb_shutdown_start_override_do()
 {
-    util_battery_enable_ship_mode();
+    if(_rgb_shutdown_restart)
+    {
+        watchdog_reboot(0, 0, 0);
+    }
+    else
+    {
+        #if (HOJA_CAPABILITY_BATTERY == 1)
+            util_battery_enable_ship_mode();
+        #else
+            watchdog_reboot(0, 0, 0);
+        #endif
+    }
     return true;
 }
 
-void rgb_shutdown_start()
+void rgb_shutdown_start(bool restart)
 {
+    _rgb_shutdown_restart = restart;
     _rgb_anim_cb = NULL;
 
     _rgb_anim_steps = 10;
