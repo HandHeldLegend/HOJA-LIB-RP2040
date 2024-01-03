@@ -22,7 +22,8 @@ const tusb_desc_device_t swpro_device_descriptor = {
     .iManufacturer = 0x01,
     .iProduct = 0x02,
     .iSerialNumber = 0x03,
-    .bNumConfigurations = 0x01};
+    .bNumConfigurations = 0x01
+    };
 
 const uint8_t swpro_hid_report_descriptor[] = {
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)

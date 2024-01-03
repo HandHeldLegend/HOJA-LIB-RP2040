@@ -3,6 +3,25 @@
 
 #include <inttypes.h>
 
+typedef enum
+{
+    ADAPTER_REBOOT_REASON_NULL = 0,
+    ADAPTER_REBOOT_REASON_BTSTART,
+    ADAPTER_REBOOT_REASON_MODECHANGE,
+} hoja_reboot_reason_t;
+
+typedef union
+{
+    struct
+    {
+        uint8_t reboot_reason : 8;
+        uint8_t gamepad_mode : 8;
+        uint8_t padding_1 : 8;
+        uint8_t padding_2 : 8;
+    };
+    uint32_t value;
+} hoja_reboot_memory_u;
+
 // HW Test union type
 typedef union
 {
@@ -189,6 +208,8 @@ typedef enum
     INPUT_MODE_N64      = 3,
     INPUT_MODE_SNES     = 4,
     INPUT_MODE_GCUSB    = 5,
+    INPUT_MODE_DS4      = 6,
+    INPUT_MODE_XHID     = 7,
 } input_mode_t;
 
 typedef enum
@@ -207,7 +228,8 @@ typedef struct
 
 typedef enum
 {
-    USBRATE_8 = 7600,
+    USBRATE_8 = 7500,
+    USBRATE_4 = 1500,
     USBRATE_1 = 100,
 } usb_rate_t;
 

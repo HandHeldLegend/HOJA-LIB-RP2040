@@ -60,6 +60,8 @@
 #include "xinput.h"
 #include "dinput.h"
 #include "swpro.h"
+#include "ds4input.h"
+#include "xinputhid.h"
 
 #include "webusb.h"
 
@@ -68,6 +70,7 @@
 #include "nspi.h"
 
 #include "remap.h"
+#include "reboot.h"
 #include "hoja.h"
 
 // Switch pro includes

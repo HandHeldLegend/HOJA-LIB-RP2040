@@ -31,10 +31,10 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
             if (_safe_mode_state)
             {
-                rgb_set_group(RGB_GROUP_PLUS, 0);
-                rgb_set_group(RGB_GROUP_HOME, 0);
-                rgb_set_group(RGB_GROUP_MINUS, 0);
-                rgb_set_group(RGB_GROUP_CAPTURE, 0);
+                rgb_set_group(RGB_GROUP_PLUS, 0, false);
+                rgb_set_group(RGB_GROUP_HOME, 0, false);
+                rgb_set_group(RGB_GROUP_MINUS, 0, false);
+                rgb_set_group(RGB_GROUP_CAPTURE, 0, false);
             }
             else
             {
@@ -48,8 +48,37 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
     // otherwise the state resets
     if(interval_resettable_run(timestamp, 3000000, !in->button_shipping))
     {
-        // Sleeps the controller
-        hoja_shutdown();
+        input_method_t i = hoja_get_input_method();
+        if( (i == INPUT_METHOD_USB) || (i == INPUT_METHOD_WIRED) )
+        {
+            #ifdef HOJA_CAPABILITY_BLUETOOTH
+                #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+                    hoja_reboot_memory_u reboot_memory = {
+                        .gamepad_mode = hoja_comms_current_mode(), 
+                        .reboot_reason = ADAPTER_REBOOT_REASON_BTSTART,
+                        };
+
+                    reboot_with_memory(reboot_memory.value);
+                #endif
+            #endif
+
+        }
+        else
+        {
+            #ifdef HOJA_CAPABILITY_BLUETOOTH
+                #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+
+                    // Check if we are connected 
+                    if (util_wire_connected())
+                    // Do nothing
+                    {           }
+                    // Sleeps the controller 
+                    else {hoja_shutdown();}
+                    
+                #endif
+            #endif 
+        }
+        
     }
 }
 
