@@ -266,6 +266,7 @@ void hoja_init(hoja_config_t *config)
       _hoja_input_method = INPUT_METHOD_USB;
       break;
     case INPUT_MODE_XINPUT:
+    case INPUT_MODE_XHID:
       indicate_color = COLOR_GREEN.color;
       break;
 

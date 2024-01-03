@@ -34,16 +34,37 @@ uint8_t _cycle_offset_idx[HOJA_RGB_COUNT] = {0};
 rgb_s _rainbow_next = {0};
 
 const int8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
+const uint8_t _rs_size = sizeof(_rgb_group_rs) / sizeof(_rgb_group_rs[0]);
+
 const int8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
+const uint8_t _ls_size = sizeof(_rgb_group_ls) / sizeof(_rgb_group_ls[0]);
+
 const int8_t _rgb_group_dpad[] = HOJA_RGB_GROUP_DPAD;
+const uint8_t _dpad_size = sizeof(_rgb_group_dpad) / sizeof(_rgb_group_dpad[0]);
+
 const int8_t _rgb_group_minus[] = HOJA_RGB_GROUP_MINUS;
+const uint8_t _minus_size = sizeof(_rgb_group_minus) / sizeof(_rgb_group_minus[0]);
+
 const int8_t _rgb_group_capture[] = HOJA_RGB_GROUP_CAPTURE;
+const uint8_t _capture_size = sizeof(_rgb_group_capture) / sizeof(_rgb_group_capture[0]);
+
 const int8_t _rgb_group_home[] = HOJA_RGB_GROUP_HOME;
+const uint8_t _home_size = sizeof(_rgb_group_home) / sizeof(_rgb_group_home[0]);
+
 const int8_t _rgb_group_plus[] = HOJA_RGB_GROUP_PLUS;
+const uint8_t _plus_size = sizeof(_rgb_group_plus) / sizeof(_rgb_group_plus[0]);
+
 const int8_t _rgb_group_y[] = HOJA_RGB_GROUP_Y;
+const uint8_t _y_size = sizeof(_rgb_group_y) / sizeof(_rgb_group_y[0]);
+
 const int8_t _rgb_group_x[] = HOJA_RGB_GROUP_X;
+const uint8_t _x_size = sizeof(_rgb_group_x) / sizeof(_rgb_group_x[0]);
+
 const int8_t _rgb_group_a[] = HOJA_RGB_GROUP_A;
+const uint8_t _a_size = sizeof(_rgb_group_a) / sizeof(_rgb_group_a[0]);
+
 const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
+const uint8_t _b_size = sizeof(_rgb_group_b) / sizeof(_rgb_group_b[0]);
 
 rgb_mode_t _rgb_mode = 0;
 
@@ -264,6 +285,7 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
     {
         if (leds[i] == -1)
             continue;
+
         colors[leds[i]].color = color;
         _rgb_normalize_output_power(&colors[leds[i]]);
     }
@@ -335,7 +357,8 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
 {
 #if (HOJA_CAPABILITY_RGB == 1)
 
-    const uint8_t *_rgb_group = NULL;
+    const uint8_t *_rgb_group = _rgb_group_rs;
+    uint8_t size = 1;
 
     switch (group)
     {
@@ -343,59 +366,70 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
         break;
 
     case RGB_GROUP_RS:
-        _rgb_group = _rgb_group_rs;
+        _rgb_group = (_rgb_group_rs);
+        size = _rs_size;
         break;
 
     case RGB_GROUP_LS:
         _rgb_group = _rgb_group_ls;
+        size = _ls_size;
         break;
 
     case RGB_GROUP_DPAD:
         _rgb_group = _rgb_group_dpad;
+        size = _dpad_size;
         break;
 
     case RGB_GROUP_MINUS:
         _rgb_group = _rgb_group_minus;
+        size = _minus_size;
         break;
 
     case RGB_GROUP_CAPTURE:
         _rgb_group = _rgb_group_capture;
+        size = _capture_size;
         break;
 
     case RGB_GROUP_HOME:
         _rgb_group = _rgb_group_home;
+        size = _home_size;
         break;
 
     case RGB_GROUP_PLUS:
         _rgb_group = _rgb_group_plus;
+        size = _plus_size;
         break;
 
     case RGB_GROUP_Y:
         _rgb_group = _rgb_group_y;
+        size = _y_size;
         break;
 
     case RGB_GROUP_X:
         _rgb_group = _rgb_group_x;
+        size = _x_size;
         break;
 
     case RGB_GROUP_A:
         _rgb_group = _rgb_group_a;
+        size = _a_size;
         break;
 
     case RGB_GROUP_B:
         _rgb_group = _rgb_group_b;
+        size = _b_size;
         break;
     }
 
     if(instant)
     {
-        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_last, color);
-        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_next, color);
-        _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_current, color);
+        _rgb_set_sequential(_rgb_group, size, _rgb_last, color);
+        _rgb_set_sequential(_rgb_group, size, _rgb_next, color);
+        _rgb_set_sequential(_rgb_group, size, _rgb_current, color);
     }
     else
     {
-         _rgb_set_sequential(_rgb_group, sizeof(_rgb_group), _rgb_next, color);
+         _rgb_set_sequential(_rgb_group, size, _rgb_next, color);
          _rgb_set_dirty();
     }
 #endif

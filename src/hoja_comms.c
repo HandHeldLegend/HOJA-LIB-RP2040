@@ -44,6 +44,11 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
             hoja_usb_start(INPUT_MODE_SWPRO);
             break;
 
+        case INPUT_MODE_XHID:
+            _comms_cb = hoja_usb_task;
+            hoja_usb_start(INPUT_MODE_XHID);
+            break;
+
         case INPUT_MODE_DS4:
             _comms_cb = hoja_usb_task;
             hoja_usb_start(INPUT_MODE_DS4);

@@ -190,6 +190,7 @@ typedef enum
     INPUT_MODE_SNES     = 4,
     INPUT_MODE_GCUSB    = 5,
     INPUT_MODE_DS4      = 6,
+    INPUT_MODE_XHID     = 7,
 } input_mode_t;
 
 typedef enum
@@ -208,7 +209,8 @@ typedef struct
 
 typedef enum
 {
-    USBRATE_8 = 7600,
+    USBRATE_8 = 7500,
+    USBRATE_4 = 1500,
     USBRATE_1 = 100,
 } usb_rate_t;
 

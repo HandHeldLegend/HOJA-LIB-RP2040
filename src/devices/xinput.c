@@ -32,7 +32,7 @@ void xinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
   data.dpad_left = button_data->dpad_left;
   data.dpad_right = button_data->dpad_right;
 
-  //data.button_guide = button_data->button_minus;
+  data.button_guide = button_data->button_home;
   data.button_back = button_data->button_minus;
   data.button_menu = button_data->button_plus;
   data.bumper_r = button_data->trigger_r;

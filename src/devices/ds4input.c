@@ -84,7 +84,7 @@ const tusb_desc_device_t ds4_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-    const uint8_t ds4_hid_report_descriptor[] = {
+const uint8_t ds4_hid_report_descriptor[] = {
         0x05, 0x01,         /*  Usage Page (Desktop),               */
         0x09, 0x05,         /*  Usage (Gamepad),                    */
         0xA1, 0x01,         /*  Collection (Application),           */
@@ -338,7 +338,7 @@ const tusb_desc_device_t ds4_device_descriptor = {
         0xC0                /*  End Collection                      */
 };
 
-    const uint8_t ds4_configuration_descriptor[] = {
+const uint8_t ds4_configuration_descriptor[] = {
         // Configuration number, interface count, string index, total length, attribute, power in mA
         TUD_CONFIG_DESCRIPTOR(1, 1, 0, 41, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
@@ -347,9 +347,9 @@ const tusb_desc_device_t ds4_device_descriptor = {
         // HID Descriptor
         9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(ds4_hid_report_descriptor)),
         // Endpoint Descriptor
-        7, TUSB_DESC_ENDPOINT, 0x84, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 1,
+        7, TUSB_DESC_ENDPOINT, 0x84, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4,
         // Endpoint Descriptor
-        7, TUSB_DESC_ENDPOINT, 0x03, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 5
+        7, TUSB_DESC_ENDPOINT, 0x03, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4
     };
 
     void ds4_hid_report(button_data_s *button_data, a_data_s *analog_data)
@@ -368,8 +368,6 @@ const tusb_desc_device_t ds4_device_descriptor = {
         // Z input is steering motion
         // Y input is tilting left/right
 
-        
-
         // Tilt forward/Back
         data.gyro_x = -_imu_tmp->gx;
 
@@ -386,7 +384,34 @@ const tusb_desc_device_t ds4_device_descriptor = {
         //data.accel_y = _imu_tmp->ay;
         //data.accel_z = _imu_tmp->az;
 
-        data.imu_timestamp = 188;
+        data.imu_timestamp = 1;
+
+        data.button_cross = button_data->button_b;
+        data.button_circle = button_data->button_a;
+        data.button_square = button_data->button_y;
+        data.button_triangle = button_data->button_x;
+
+        data.button_l3 = button_data->button_stick_left;
+        data.button_r3 = button_data->button_stick_right;
+
+        data.button_l1 = button_data->trigger_l;
+        data.button_r1 = button_data->trigger_r;
+
+        data.button_l2 = button_data->trigger_zl;
+        data.button_r2 = button_data->trigger_zr;
+
+        data.trigger_l2 = button_data->zl_analog>>4;
+        data.trigger_r2 = button_data->zr_analog>>4;
+
+        data.button_share = button_data->button_capture;
+        data.button_options = button_data->button_plus;
+        data.button_ps = button_data->button_home;
+        data.button_touchpad = button_data->button_minus;
+
+        uint8_t lr = 1 - button_data->dpad_left + button_data->dpad_right;
+        uint8_t ud = 1 + button_data->dpad_up - button_data->dpad_down;
+
+        data.dpad = dir_to_hat(HAT_MODE_NS, lr, ud);
 
         memcpy(output_buffer, &data, sizeof(ds4_input_s));
         tud_hid_report(0x01, output_buffer, 64);

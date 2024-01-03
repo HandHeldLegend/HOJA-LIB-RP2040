@@ -13,9 +13,15 @@ imu_data_s _imu_buffer_avg = {0};
 int _imu_fifo_idx = 0;
 imu_data_s _imu_fifo[IMU_FIFO_COUNT];
 
+auto_init_mutex(_imu_mutex);
+uint32_t _imu_owner_0;
+uint32_t _imu_owner_1;
+
 // Add data to our FIFO
 void imu_fifo_push(imu_data_s *imu_data)
 {
+    while(!mutex_try_enter(&_imu_mutex, &_imu_owner_0)) {}
+
     int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
 
     _imu_fifo[_i].ax = imu_data->ax;
@@ -27,11 +33,16 @@ void imu_fifo_push(imu_data_s *imu_data)
     _imu_fifo[_i].gz = imu_data->gz;
 
     _imu_fifo_idx = _i;
+
+    mutex_exit(&_imu_mutex);
 }
 
 imu_data_s* imu_fifo_last()
 {
-  return &(_imu_fifo[_imu_fifo_idx]);
+  while(!mutex_try_enter(&_imu_mutex, &_imu_owner_1)) {}
+  int idx = _imu_fifo_idx;
+  mutex_exit(&_imu_mutex);
+  return &(_imu_fifo[idx]);
 }
 
 uint8_t _imu_read_idx = 0;

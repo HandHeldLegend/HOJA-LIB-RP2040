@@ -58,8 +58,14 @@ bool hoja_usb_start(input_mode_t mode)
 
   case INPUT_MODE_DS4:
     imu_set_enabled(true);
-    _hoja_usb_set_interval(USBRATE_1);
+    _hoja_usb_set_interval(USBRATE_4);
     _usb_hid_cb = ds4_hid_report;
+    _usb_ready_cb = tud_hid_ready;
+    break;
+
+  case INPUT_MODE_XHID:
+    _hoja_usb_set_interval(USBRATE_4);
+    _usb_hid_cb = xhid_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
 
@@ -85,14 +91,14 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
 {
   tud_task();
 
-  if ((_usb_mode == INPUT_MODE_XINPUT) || (_usb_mode == INPUT_MODE_GCUSB) )
+  if (_usb_rate==USBRATE_1)
   {
     if (_usb_ready_cb())
     {
       _usb_hid_cb(button_data, analog_data);
     }
   }
-  else if (interval_resettable_run(timestamp, 7500, _usb_clear))
+  else if (interval_resettable_run(timestamp, _usb_rate, _usb_clear))
   {
     if (_usb_ready_cb())
     {
@@ -129,6 +135,10 @@ uint8_t const *tud_descriptor_device_cb(void)
   case INPUT_MODE_DS4:
     return (uint8_t const *)&ds4_device_descriptor;
     break;
+
+  case INPUT_MODE_XHID:
+    return (uint8_t const *)&xhid_device_descriptor;
+    break;
   }
 }
 
@@ -156,6 +166,10 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 
   case INPUT_MODE_DS4:
     return (uint8_t const *)&ds4_configuration_descriptor;
+    break;
+
+  case INPUT_MODE_XHID:
+    return (uint8_t const *)&xhid_configuration_descriptor;
     break;
   }
 }
@@ -271,6 +285,10 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 
   case INPUT_MODE_DS4:
     return ds4_hid_report_descriptor;
+    break;
+
+  case INPUT_MODE_XHID:
+    return xhid_hid_report_descriptor;
     break;
   }
   return NULL;
