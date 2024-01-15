@@ -84,6 +84,8 @@ void util_battery_enable_ship_mode(void)
     }
     #endif
 
+    hoja_shutdown_instant();
+
 }
 
 void util_battery_set_charge_rate(uint16_t rate_ma)

@@ -4,6 +4,8 @@
 #define HOJA_I2C_MSG_SIZE_OUT   32
 #define HOJA_I2C_MSG_SIZE_IN    8
 
+ uint32_t _mode_color = 0;
+
 void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
 {
     output[0] = (input->buttons_all & 0xFF);
@@ -58,7 +60,22 @@ bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
 
-        rgb_flash((input_mode == INPUT_MODE_SWPRO) ? COLOR_WHITE.color : COLOR_GREEN.color);
+        switch(input_mode)
+        {
+            case INPUT_MODE_SWPRO:
+                _mode_color = COLOR_WHITE.color;
+            break;
+
+            case INPUT_MODE_XINPUT:
+                _mode_color = COLOR_GREEN.color;
+            break;
+
+            default:
+                input_mode = INPUT_MODE_SWPRO;
+                _mode_color = COLOR_WHITE.color;
+            break;
+        }
+        rgb_flash(_mode_color);
         cb_hoja_set_bluetooth_enabled(true);
 
         // Optional delay to ensure you have time to hook into the UART
@@ -68,7 +85,7 @@ bool btinput_init(input_mode_t input_mode)
             #endif
         #endif
 
-        sleep_ms(600);
+        sleep_ms(1000);
 
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
@@ -154,7 +171,7 @@ void _btinput_message_parse(uint8_t *msg)
                 _i_connected = status.connected_status;
                 if(!_i_connected)
                 {
-                    rgb_flash(COLOR_BLUE.color);
+                    rgb_flash(_mode_color);
                 }
                 else
                 {

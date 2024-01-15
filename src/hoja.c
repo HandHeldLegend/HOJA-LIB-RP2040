@@ -279,36 +279,6 @@ void hoja_init(hoja_config_t *config)
   uint8_t rgbbrightness = 100;
   uint32_t indicate_color = COLOR_WHITE.color;
 
-  // Checks for retro and modes where we don't care about
-  // checking the plug status
-  switch (_hoja_input_mode)
-  {
-    case INPUT_MODE_GCUSB:
-      indicate_color = COLOR_CYAN.color;
-      _hoja_input_method = INPUT_METHOD_USB;
-      break;
-    case INPUT_MODE_XINPUT:
-    case INPUT_MODE_XHID:
-      indicate_color = COLOR_GREEN.color;
-      break;
-
-    default:
-    case INPUT_MODE_SWPRO:
-      indicate_color = COLOR_WHITE.color;
-      break;
-
-    case INPUT_MODE_DS4:
-      indicate_color = COLOR_BLUE.color;
-      break;
-
-    case INPUT_MODE_SNES:
-    case INPUT_MODE_GAMECUBE:
-    case INPUT_MODE_N64:
-      rgbbrightness = 15;
-      indicate_color = COLOR_PURPLE.color;
-      break;
-  }
-
   if (config->input_method == INPUT_METHOD_AUTO)
   {
     if (!util_wire_connected())
@@ -322,6 +292,38 @@ void hoja_init(hoja_config_t *config)
       util_battery_set_charge_rate(100);
       _hoja_input_method = INPUT_METHOD_USB;
     }
+  }
+
+  // Checks for retro and modes where we don't care about
+  // checking the plug status
+  switch (_hoja_input_mode)
+  {
+    case INPUT_MODE_GCUSB:
+      indicate_color = COLOR_CYAN.color;
+      //_hoja_input_method = INPUT_METHOD_USB;
+      break;
+    case INPUT_MODE_XINPUT:
+    case INPUT_MODE_XHID:
+      indicate_color = COLOR_GREEN.color;
+      break;
+
+    default:
+    case INPUT_MODE_SWPRO:
+      indicate_color = COLOR_WHITE.color;
+      break;
+
+    case INPUT_MODE_DS4:
+      //hoja_input_method = INPUT_METHOD_USB;
+      indicate_color = COLOR_BLUE.color;
+      break;
+
+    case INPUT_MODE_SNES:
+    case INPUT_MODE_GAMECUBE:
+    case INPUT_MODE_N64:
+      _hoja_input_method = INPUT_METHOD_WIRED;
+      rgbbrightness = 15;
+      indicate_color = COLOR_PURPLE.color;
+      break;
   }
 
   rgb_init(rgbmode, rgbbrightness);
