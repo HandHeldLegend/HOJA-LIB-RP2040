@@ -71,7 +71,7 @@ void rgb_update_speed(uint8_t speed);
 
 void rgb_shutdown_start(bool restart);
 
-void rgb_indicate(uint32_t color);
+void rgb_indicate(uint32_t color, uint8_t repetitions);
 
 void rgb_flash(uint32_t color);
 

@@ -6,6 +6,7 @@
 // #define RGB_FADE_STEPS 21
 #define RGB_DEFAULT_FADE_STEPS 21 // 21
 // 60hz
+#define RGB_INDICATE_STEPS 21
 #define RGB_TASK_INTERVAL 16666
 
 uint8_t _rgb_anim_steps = 0;
@@ -595,17 +596,21 @@ void _rgbanim_flash_do()
 }
 
 uint32_t _rgb_indicate_color = 0x00;
+uint8_t _rgb_indicate_reps = 0;
+uint8_t _rgb_indicate_steps_storage = 0x00;
 bool _rgb_indicate_override_do()
 {
     static uint8_t _rgb_indicate_steps = 0;
     _rgb_set_all(_rgb_indicate_color);
     _rgb_set_dirty();
 
-    if (_rgb_indicate_steps++ == 1)
+    if (_rgb_indicate_steps++ >= _rgb_indicate_reps)
     {
         _rgb_indicate_steps = 0;
+        _rgb_anim_steps = _rgb_indicate_steps_storage;
         return true;
     }
+    
     return false;
 }
 
@@ -712,8 +717,11 @@ void _rgbanim_reactive_do()
     _rgb_update_all();
 }
 
-void rgb_indicate(uint32_t color)
+void rgb_indicate(uint32_t color, uint8_t repetitions)
 {
+    _rgb_indicate_reps = repetitions;
+    _rgb_indicate_steps_storage = _rgb_anim_steps;
+    _rgb_anim_steps = RGB_INDICATE_STEPS;
     _rgb_indicate_color = color;
     _rgb_anim_override_cb = _rgb_indicate_override_do;
     _rgb_anim_override = true;

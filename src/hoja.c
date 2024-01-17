@@ -328,7 +328,7 @@ void hoja_init(hoja_config_t *config)
 
   rgb_init(rgbmode, rgbbrightness);
   //rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
-  rgb_indicate(indicate_color);
+  rgb_indicate(indicate_color, 1);
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
