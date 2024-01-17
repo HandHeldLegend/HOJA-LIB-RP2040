@@ -7,6 +7,7 @@ typedef enum
 {
     I2CINPUT_ID_INIT    = 0xF2,
     I2CINPUT_ID_INPUT   = 0x01,
+    I2CINPUT_ID_GETVERSION = 0xFF,
     I2CINPUT_ID_STATUS  = 0xF4,
     I2CINPUT_ID_SAVEMAC = 0xF3,
     I2CINPUT_ID_STOP    = 0x02,
@@ -91,6 +92,7 @@ typedef struct
     
 } i2cinput_input_s;
 
+uint16_t btinput_get_version();
 bool btinput_init(input_mode_t input_mode);
 void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog);
 

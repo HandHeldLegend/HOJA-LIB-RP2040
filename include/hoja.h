@@ -3,6 +3,7 @@
 
 #define HOJA_BACKEND_VERSION 0x0001
 #define HOJA_SETTINGS_VERSION 0xA001
+#define HOJA_BASEBAND_VERSION 0xA001
 
 #include "hoja_includes.h"
 #include "interval.h"

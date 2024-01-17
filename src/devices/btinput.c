@@ -56,6 +56,46 @@ void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
 
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 
+
+#define BTINPUT_GET_VERSION_ATTEMPTS 10
+
+uint16_t btinput_get_version()
+{
+    uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
+    
+    uint16_t v = 0xFFFF;
+    #ifdef HOJA_CAPABILITY_BLUETOOTH
+    #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+    cb_hoja_set_bluetooth_enabled(true);
+    sleep_ms(500);
+
+    while(attempts--)
+    {
+        data_out[0] = 0xDD;
+        data_out[1] = 0xEE;
+        data_out[2] = 0xAA;
+
+        data_out[3] = I2CINPUT_ID_GETVERSION;
+
+        int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+        sleep_ms(4);
+        uint8_t data_in[HOJA_I2C_MSG_SIZE_IN];
+        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 16000);
+
+        if(read==HOJA_I2C_MSG_SIZE_IN)
+        {
+            attempts=0;
+            printf("BT Version received and response got.");
+            v = (data_in[1] << 8) | data_in[2];
+        }
+    }
+
+    cb_hoja_set_bluetooth_enabled(false);
+    #endif
+    #endif
+    return v;
+}
+
 bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
