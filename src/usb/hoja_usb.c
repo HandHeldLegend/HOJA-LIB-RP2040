@@ -223,7 +223,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        cb_hoja_rumble_enable((buffer[1] > 0) ? 0.65f : 0);
+        cb_hoja_rumble_set(100.0f, (buffer[1] > 0) ? 0.65f : 0);
       }
       else if (buffer[0] == 0x13)
       {
@@ -241,11 +241,11 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
         {
           uint8_t xrv = (buffer[3]>buffer[4]) ? buffer[3] : buffer[4];
           float xri = (float) xrv/255;
-          cb_hoja_rumble_enable(xri);
+          cb_hoja_rumble_set(100, xri);
         }
         else
         {
-          cb_hoja_rumble_enable(false);
+          cb_hoja_rumble_set(0, false);
         }
       }
     }

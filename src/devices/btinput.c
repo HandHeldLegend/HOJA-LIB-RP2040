@@ -192,18 +192,18 @@ void _btinput_message_parse(uint8_t *msg)
 
                     if(!_i_rumble)
                     {
-                        cb_hoja_rumble_enable(0);
+                        cb_hoja_rumble_set(0, 0);
                     }
                     else
                     {
                         
-                        cb_hoja_rumble_enable((float) _i_rumble/100.0f);
+                        cb_hoja_rumble_set(100, (float) _i_rumble/100.0f);
                     }   
                 }
             }
             else
             {
-                cb_hoja_rumble_enable(0);
+                cb_hoja_rumble_set(0,0);
             }
 
             if (_i_connected != status.connected_status)

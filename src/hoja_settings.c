@@ -144,7 +144,7 @@ void settings_set_rumble_floor(uint8_t floor)
   floor = (floor>75) ? 75 : floor;
   global_loaded_settings.rumble_floor = floor;
 
-  cb_hoja_set_rumble_intensity(floor, 1);
+  cb_hoja_rumble_init();
 }
 
 void settings_set_rumble(uint8_t intensity)
@@ -152,7 +152,7 @@ void settings_set_rumble(uint8_t intensity)
   intensity = (intensity>50) ? 50 : intensity;
   global_loaded_settings.rumble_intensity = intensity;
 
-  cb_hoja_set_rumble_intensity(global_loaded_settings.rumble_floor, intensity);
+  cb_hoja_rumble_init();
 }
 
 void settings_set_centers(int lx, int ly, int rx, int ry)

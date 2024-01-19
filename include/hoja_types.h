@@ -3,6 +3,9 @@
 
 #include <inttypes.h>
 
+#define HOJA_RUMBLE_TYPE_ERM 0
+#define HOJA_RUMBLE_TYPE_HAPTIC 1
+
 typedef enum
 {
     ADAPTER_REBOOT_REASON_NULL = 0,
@@ -35,6 +38,7 @@ typedef union
         bool imu        : 1;
         bool bluetooth  : 1;
         bool battery    : 1;
+        bool rumble     : 1;
 
         uint8_t empty : (8);
     };

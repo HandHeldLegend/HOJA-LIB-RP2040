@@ -47,9 +47,16 @@ __attribute__((weak)) void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data
   (void)&data_b;
 }
 
-__attribute__((weak)) void cb_hoja_rumble_enable(float intensity)
+__attribute__((weak)) void cb_hoja_rumble_init()
 {
-  (void)intensity;
+
+}
+
+// Set the ERM intensity callback
+__attribute__((weak)) void cb_hoja_rumble_set(float frequency, float amplitude)
+{
+  (void)frequency;
+  (void)amplitude;
 }
 
 __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
@@ -57,9 +64,10 @@ __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
   (void)timestamp;
 }
 
-__attribute__((weak)) void cb_hoja_set_rumble_intensity(uint8_t floor, uint8_t intensity)
+void hoja_get_rumble_intensity(uint8_t *lower, uint8_t *upper)
 {
-  (void)intensity;
+  *lower = global_loaded_settings.rumble_floor;
+  *upper = global_loaded_settings.rumble_intensity;
 }
 
 __attribute__((weak)) void cb_hoja_set_bluetooth_enabled(bool enable)
@@ -221,8 +229,8 @@ void hoja_init(hoja_config_t *config)
     memset(global_loaded_settings.switch_host_address, 0, 6);
   }
 
-  // Set rumble intensity
-  cb_hoja_set_rumble_intensity(global_loaded_settings.rumble_floor, global_loaded_settings.rumble_intensity);
+  // Initialize rumble
+  cb_hoja_rumble_init();
 
   // For switch Pro stuff
   switch_analog_calibration_init();

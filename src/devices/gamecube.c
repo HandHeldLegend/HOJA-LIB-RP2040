@@ -160,7 +160,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       if (_gc_rumble != _rumblestate)
       {
         _rumblestate = _gc_rumble;
-        cb_hoja_rumble_enable(_rumblestate ? 0.65f : 0);
+        cb_hoja_rumble_set(100, _rumblestate ? 0.65f : 0);
       }
 
       _gc_got_data = false;

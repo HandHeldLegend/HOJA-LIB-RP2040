@@ -150,11 +150,11 @@ void rumble_translate(const uint8_t *data)
 
     float i = (il > iu) ? il : iu;
     i = (i >= 1.0f) ? 1.0f : i;
-    cb_hoja_rumble_enable(i);
+    cb_hoja_rumble_set(100, i);
   }
   else
   {
-    cb_hoja_rumble_enable(0);
+    cb_hoja_rumble_set(0, 0);
   }
 }
 

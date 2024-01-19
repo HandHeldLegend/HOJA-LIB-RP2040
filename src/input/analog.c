@@ -72,9 +72,9 @@ void analog_calibrate_stop()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_enable(true);
+    cb_hoja_rumble_set(100, true);
     sleep_ms(200);
-    cb_hoja_rumble_enable(false);
+    cb_hoja_rumble_set(0, false);
 
     stick_scaling_set_settings();
 
@@ -88,9 +88,9 @@ void analog_calibrate_save()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_enable(true);
+    cb_hoja_rumble_set(100, true);
     sleep_ms(200);
-    cb_hoja_rumble_enable(false);
+    cb_hoja_rumble_set(0, false);
 
     stick_scaling_set_settings();
 
