@@ -326,11 +326,18 @@ void hoja_init(hoja_config_t *config)
       break;
 
     case INPUT_MODE_SNES:
+      _hoja_input_method = INPUT_METHOD_WIRED;
+      rgbbrightness = 15;
+      indicate_color = COLOR_RED.color;
     case INPUT_MODE_GAMECUBE:
-    case INPUT_MODE_N64:
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 15;
       indicate_color = COLOR_PURPLE.color;
+      break;
+    case INPUT_MODE_N64:
+      _hoja_input_method = INPUT_METHOD_WIRED;
+      rgbbrightness = 15;
+      indicate_color = COLOR_YELLOW.color;
       break;
   }
 
