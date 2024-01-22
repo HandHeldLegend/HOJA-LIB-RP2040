@@ -152,7 +152,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
     if (interval_resettable_run(timestamp, 40000, _gc_got_data))
     {
       _gamecube_reset_state();
-      sleep_ms(100);
+      sleep_ms(24);
     }
     else
     {

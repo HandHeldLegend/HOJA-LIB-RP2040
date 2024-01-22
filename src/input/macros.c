@@ -46,7 +46,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
     if(interval_resettable_run(timestamp, 3000000, !in->button_shipping))
     {
         input_method_t i = hoja_get_input_method();
-        if( (i == INPUT_METHOD_USB) || (i == INPUT_METHOD_WIRED) )
+        if( (i == INPUT_METHOD_USB))
         {
             #ifdef HOJA_CAPABILITY_BLUETOOTH
                 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
@@ -66,6 +66,15 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
                 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
                     hoja_shutdown();
                 #endif
+            #endif
+        }
+        else if (i == INPUT_METHOD_WIRED)
+        {
+            #if(HOJA_CAPABILITY_BATTERY)
+            if(!util_wire_connected())
+            {
+                hoja_shutdown();
+            }   
             #endif
         }
         
