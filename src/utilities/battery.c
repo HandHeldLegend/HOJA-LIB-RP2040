@@ -29,8 +29,8 @@ bool util_battery_comms_check()
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};
         util_battery_status_s _status_converted;
-        i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true);
-        int readcheck = i2c_read_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false);
+        i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true, 10000);
+        int readcheck = i2c_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false, 10000);
         if(readcheck < 1) return false;
         return true;
     #else
