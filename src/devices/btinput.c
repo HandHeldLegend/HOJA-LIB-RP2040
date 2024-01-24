@@ -63,11 +63,14 @@ uint16_t btinput_get_version()
 {
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
     
-    uint16_t v = 0xFFFF;
-    #ifdef HOJA_CAPABILITY_BLUETOOTH
+    uint16_t v = 0xFFF0;
     #if (HOJA_CAPABILITY_BLUETOOTH == 1)
     cb_hoja_set_bluetooth_enabled(true);
-    sleep_ms(500);
+    sleep_ms(650);
+
+    v = 0;
+
+    static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
     while(attempts--)
     {
@@ -77,10 +80,9 @@ uint16_t btinput_get_version()
 
         data_out[3] = I2CINPUT_ID_GETVERSION;
 
-        int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+        int stat = i2c_write_blocking(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false);
         sleep_ms(4);
-        uint8_t data_in[HOJA_I2C_MSG_SIZE_IN];
-        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 16000);
+        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 100000);
 
         if(read==HOJA_I2C_MSG_SIZE_IN)
         {
@@ -91,7 +93,6 @@ uint16_t btinput_get_version()
     }
 
     cb_hoja_set_bluetooth_enabled(false);
-    #endif
     #endif
     return v;
 }
