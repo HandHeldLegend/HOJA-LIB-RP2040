@@ -114,7 +114,7 @@ void util_battery_set_charge_rate(uint16_t rate_ma)
     uint8_t _write[2] = {0x04, code};
     
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    int readcheck = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 4000);
+    int readcheck = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 10000);
     #endif
 }
 
