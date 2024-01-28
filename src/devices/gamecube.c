@@ -130,6 +130,8 @@ static void _gamecube_isr_txdone(void)
 
 void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  static interval_s interval = {0};
+
   if (!_gc_running)
   {
     sleep_ms(150);
@@ -149,7 +151,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
   }
   else
   {
-    if (interval_resettable_run(timestamp, 40000, _gc_got_data))
+    if (interval_resettable_run(timestamp, 40000, _gc_got_data, &interval))
     {
       _gamecube_reset_state();
       sleep_ms(24);

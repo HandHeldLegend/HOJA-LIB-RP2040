@@ -4,6 +4,7 @@
 #include "hoja_includes.h"
 
 #define XID_REPORT_LEN 20
+#define REPORT_ID_XINPUT 0x00
 
 typedef struct
 {

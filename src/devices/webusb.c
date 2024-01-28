@@ -521,7 +521,9 @@ void webusb_command_processor(uint8_t *data)
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons)
 {
-    if (interval_run(timestamp, 16000))
+    static interval_s interval = {0};
+
+    if (interval_run(timestamp, 16000, &interval))
     {
         uint8_t webusb_input_report[64] = {0};
         webusb_input_report[0] = WEBUSB_CMD_INPUT_REPORT;

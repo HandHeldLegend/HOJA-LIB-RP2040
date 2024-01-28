@@ -173,6 +173,8 @@ void imu_set_enabled(bool enable)
 void imu_task(uint32_t timestamp)
 {
 
+  static interval_s interval = {0};
+
   if (_imu_calibrate)
   {
     _imu_calibrate_task();
@@ -182,7 +184,7 @@ void imu_task(uint32_t timestamp)
   if (!_imu_enabled)
     return;
 
-  if (interval_run(timestamp, IMU_READ_RATE))
+  if (interval_run(timestamp, IMU_READ_RATE, &interval))
   {
     cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
 

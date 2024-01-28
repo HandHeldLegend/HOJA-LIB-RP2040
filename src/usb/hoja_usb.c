@@ -10,23 +10,49 @@
 #include "interval.h"
 
 input_mode_t _usb_mode = INPUT_MODE_XINPUT;
-volatile bool _usb_clear = false;
 
-bool hoja_usb_get_usb_clear()
-{
-  bool tmp clear = _usb_clear;
-  return clear;
-}
+
+uint32_t _usb_clear_owner_0;
+uint32_t _usb_clear_owner_0;
+auto_init_mutex(_hoja_usb_clear_mutex);
+// Whether our last input was sent through or not
+volatile bool _usb_clear = false;
+// Whether USB is ready for another input
+volatile bool _usb_ready = false;
 
 void hoja_usb_set_usb_clear()
 {
+  mutex_enter_blocking(&_hoja_usb_clear_mutex);
   _usb_clear = true;
+  mutex_exit(&_hoja_usb_clear_mutex);
 }
 
 void hoja_usb_unset_usb_clear()
 {
+  mutex_enter_blocking(&_hoja_usb_clear_mutex);
   _usb_clear = false;
+  mutex_exit(&_hoja_usb_clear_mutex);
 }
+
+bool hoja_usb_get_usb_clear(uint32_t timestamp)
+{
+  static interval_s s = {0};
+  bool clear = false;
+
+  mutex_enter_blocking(&_hoja_usb_clear_mutex);
+  clear = _usb_clear;
+  mutex_exit(&_hoja_usb_clear_mutex);
+
+  if(interval_resettable_run(timestamp, 100000, clear, &s))
+  {
+      hoja_usb_set_usb_clear();
+      return true;
+  }
+
+  return clear;
+}
+
+
 
 // Default 8ms (8000us)
 uint32_t _usb_rate = 0;
@@ -99,26 +125,27 @@ static inline bool _hoja_usb_ready()
 
 void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *analog_data)
 {
+  static interval_s interval = {0};
+
   tud_task();
 
-  if (_usb_rate==USBRATE_1)
+  if(hoja_usb_get_usb_clear(timestamp))
   {
-    if (_usb_ready_cb())
+    if (interval_run(timestamp, _usb_rate, &interval))
     {
-      _usb_hid_cb(button_data, analog_data);
-    }
-  }
-  else if (interval_resettable_run(timestamp, _usb_rate, _usb_clear))
-  {
-    if (_usb_ready_cb())
-    {
-      _usb_hid_cb(button_data, analog_data);
+      hoja_usb_unset_usb_clear();
+      if (_usb_ready)
+      {
+        _usb_hid_cb(button_data, analog_data);
+      }
     }
   }
   else
   {
-    _usb_clear = false;
+    if(!_usb_ready)
+    _usb_ready = _hoja_usb_ready();
   }
+
 }
 
 /********* TinyUSB HID callbacks ***************/
@@ -191,24 +218,38 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 // Invoked when report complete
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
 {
-  _usb_clear = true;
   switch (_usb_mode)
   {
-  case INPUT_MODE_SWPRO:
-    if ((report[0] == 0x30))
-    {
+    case INPUT_MODE_SWPRO:
+      if ((report[0] == REPORT_ID_SWITCH_INPUT) || (report[0] == REPORT_ID_SWITCH_CMD) || (report[0] == REPORT_ID_SWITCH_INIT)  )
+      {
+        hoja_usb_set_usb_clear();
+      }
+      break;
+
+    default:
+
+    case INPUT_MODE_XINPUT:
+      if ((report[0] == REPORT_ID_XINPUT))
+      {
+        hoja_usb_set_usb_clear();
+      }
+      break;
+
+    case INPUT_MODE_GCUSB:
+      if((report[0] == REPORT_ID_GAMECUBE))
+      {
+        hoja_usb_set_usb_clear();
+      }
+      break;
+
+    case INPUT_MODE_DS4:
+      if((report[0] == REPORT_ID_DS4))
+      {
+        hoja_usb_set_usb_clear();
+      }
+      break;
     }
-    break;
-
-  default:
-
-  case INPUT_MODE_XINPUT:
-    if ((report[0] == 0x00) && (report[1] == XID_REPORT_LEN))
-    {
-    }
-
-    break;
-  }
 }
 
 // Invoked when received SET_REPORT control request or

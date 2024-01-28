@@ -825,7 +825,10 @@ void rgb_init(rgb_mode_t mode, int brightness)
 void rgb_task(uint32_t timestamp)
 {
 #if (HOJA_CAPABILITY_RGB == 1)
-    if (interval_run(timestamp, RGB_TASK_INTERVAL))
+
+    static interval_s interval = {0};
+
+    if (interval_run(timestamp, RGB_TASK_INTERVAL, &interval))
     {
         bool _done = _rgb_animate_step();
 

@@ -135,6 +135,8 @@ void _n64_reset_state()
 
 void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  static interval_s interval = {0};
+
   if (!_n64_running)
   {
     _n64_offset = pio_add_program(GAMEPAD_PIO, &joybus_program);
@@ -153,7 +155,7 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
   }
   else
   {
-    if(interval_resettable_run(timestamp, 100000, _n64_got_data))
+    if(interval_resettable_run(timestamp, 100000, _n64_got_data, &interval))
     {
       _n64_reset_state();
       sleep_ms(8);

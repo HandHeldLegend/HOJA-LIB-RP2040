@@ -7,6 +7,8 @@
 /********************************/
 #define GC_HID_LEN 37
 
+#define REPORT_ID_GAMECUBE 0x21
+
 // Input structure for Nintendo GameCube Adapter USB Data
 typedef struct
 {

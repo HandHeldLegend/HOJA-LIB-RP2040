@@ -63,8 +63,9 @@ uint16_t btinput_get_version()
 {
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
     
-    uint16_t v = 0xFFF0;
+    uint16_t v = 0xFFFF;
     #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+    v = 0xFFFE;
     cb_hoja_set_bluetooth_enabled(true);
     sleep_ms(650);
 

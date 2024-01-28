@@ -218,8 +218,9 @@ bool _snapback_add_value(int val)
 
 void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
 {
+    static interval_s interval = {0};
 
-    if (interval_run(timestamp, CAP_INTERVAL))
+    if (interval_run(timestamp, CAP_INTERVAL, &interval))
     {
         static bool _capturing = false;
         static int *selection = NULL;

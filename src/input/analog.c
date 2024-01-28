@@ -184,7 +184,9 @@ void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
 
 void analog_task(uint32_t timestamp)
 {
-    if (interval_run(timestamp, _analog_interval))
+    static interval_s interval = {0};
+
+    if (interval_run(timestamp, _analog_interval, &interval))
     {
         // Read analog sticks
         cb_hoja_read_analog(_data_in);

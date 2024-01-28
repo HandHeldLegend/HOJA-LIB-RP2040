@@ -15,9 +15,11 @@ macro_press_t _sync_mode = MACRO_IDLE;
 
 void macro_handler_task(uint32_t timestamp, button_data_s *in)
 {
+    static interval_s interval = {0};
+    static interval_s interval_2 = {0};
 
     // Tracker for Safe Mode
-    if (interval_run(timestamp, 16000))
+    if (interval_run(timestamp, 16000, &interval))
     {
 
         if (in->button_safemode && !_safe_mode)
@@ -43,7 +45,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
     // Will fire when Shipping button is held for 3 seconds
     // otherwise the state resets
-    if(interval_resettable_run(timestamp, 3000000, !in->button_shipping))
+    if(interval_resettable_run(timestamp, 3000000, !in->button_shipping, &interval_2))
     {
         input_method_t i = hoja_get_input_method();
         if( (i == INPUT_METHOD_USB))

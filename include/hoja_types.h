@@ -6,6 +6,12 @@
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
 
+typedef struct 
+{
+  uint32_t this_time;
+  uint32_t last_time;
+} interval_s;
+
 typedef enum
 {
     ADAPTER_REBOOT_REASON_NULL = 0,
@@ -232,9 +238,9 @@ typedef struct
 
 typedef enum
 {
-    USBRATE_8 = 7500,
+    USBRATE_8 = 7000,
     USBRATE_4 = 1500,
-    USBRATE_1 = 100,
+    USBRATE_1 = 1,
 } usb_rate_t;
 
 typedef enum
