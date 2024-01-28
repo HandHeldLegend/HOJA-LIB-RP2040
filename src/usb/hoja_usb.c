@@ -10,7 +10,23 @@
 #include "interval.h"
 
 input_mode_t _usb_mode = INPUT_MODE_XINPUT;
-bool _usb_clear = false;
+volatile bool _usb_clear = false;
+
+bool hoja_usb_get_usb_clear()
+{
+  bool tmp clear = _usb_clear;
+  return clear;
+}
+
+void hoja_usb_set_usb_clear()
+{
+  _usb_clear = true;
+}
+
+void hoja_usb_unset_usb_clear()
+{
+  _usb_clear = false;
+}
 
 // Default 8ms (8000us)
 uint32_t _usb_rate = 0;
