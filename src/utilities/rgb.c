@@ -346,12 +346,23 @@ void _rgb_load_preset(rgb_preset_t *preset)
 
 void _rgbanim_preset_do()
 {
+    static uint32_t counter = 0;
+
     if (!_rgb_mode_setup)
     {
         _rgb_load_preset((rgb_preset_t *)&global_loaded_settings.rgb_colors[0]);
         _rgb_set_dirty();
         _rgb_mode_setup = true;
     }
+    
+    if (counter > 5)
+    {
+        counter = 0;
+        _rgb_load_preset((rgb_preset_t *)&global_loaded_settings.rgb_colors[0]);
+        _rgb_set_dirty();
+    }
+
+    counter+=1;
 }
 
 void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
@@ -601,15 +612,19 @@ uint8_t _rgb_indicate_steps_storage = 0x00;
 bool _rgb_indicate_override_do()
 {
     static uint8_t _rgb_indicate_steps = 0;
+
     _rgb_set_all(_rgb_indicate_color);
     _rgb_set_dirty();
 
-    if (_rgb_indicate_steps++ >= _rgb_indicate_reps)
+    if (_rgb_indicate_steps >= _rgb_indicate_reps)
     {
+        _rgb_indicate_reps = 0;
         _rgb_indicate_steps = 0;
+        _rgb_anim_override = false;
         _rgb_anim_steps = _rgb_indicate_steps_storage;
         return true;
     }
+    _rgb_indicate_steps+=1;
     
     return false;
 }
@@ -725,6 +740,7 @@ void rgb_indicate(uint32_t color, uint8_t repetitions)
     _rgb_indicate_color = color;
     _rgb_anim_override_cb = _rgb_indicate_override_do;
     _rgb_anim_override = true;
+    _rgb_set_dirty();
 }
 
 bool _rgb_shutdown_restart = false;
@@ -839,6 +855,7 @@ void rgb_task(uint32_t timestamp)
                 if (_rgb_anim_override_cb())
                 {
                     _rgb_anim_override = false;
+                    _rgb_mode_setup = false;
                 }
             }
             else if (_rgb_anim_cb != NULL)

@@ -73,7 +73,7 @@ void analog_calibrate_stop()
     _analog_calibrate = false;
 
     cb_hoja_rumble_set(100, true);
-    sleep_ms(200);
+    sleep_ms(500);
     cb_hoja_rumble_set(0, false);
 
     stick_scaling_set_settings();
@@ -89,7 +89,7 @@ void analog_calibrate_save()
     _analog_calibrate = false;
 
     cb_hoja_rumble_set(100, true);
-    sleep_ms(200);
+    sleep_ms(500);
     cb_hoja_rumble_set(0, false);
 
     stick_scaling_set_settings();
@@ -98,6 +98,8 @@ void analog_calibrate_save()
     sleep_ms(200);
 
     stick_scaling_init();
+
+    rgb_init(global_loaded_settings.rgb_mode, -1);
 }
 
 void analog_calibrate_angle()

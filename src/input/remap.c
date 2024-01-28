@@ -310,6 +310,9 @@ void remap_buttons_task()
     _buttons_in->button_plus = 0;
     _buttons_in->button_minus = 0;
     _buttons_in->dpad_up = 0;
+    _buttons_in->dpad_down = 0;
+    _buttons_in->dpad_left = 0;
+    _buttons_in->dpad_right = 0;
   }
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
