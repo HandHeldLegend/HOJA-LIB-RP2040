@@ -5,9 +5,9 @@
 void util_battery_monitor_task_usb(uint32_t timestamp)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
-
+    static interval_s interval = {0};
     // Check status every 64ms
-    if(interval_run(timestamp, 64000))
+    if(interval_run(timestamp, 64000, &interval))
     {
         static bool _connected = true;
         _connected = util_wire_connected();
@@ -42,9 +42,10 @@ bool util_battery_comms_check()
 void util_battery_monitor_task_wireless(uint32_t timestamp)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+    static interval_s interval = {0};
 
     // Check status every 64ms
-    if(interval_run(timestamp, 64000))
+    if(interval_run(timestamp, 64000, &interval))
     {
         
     }

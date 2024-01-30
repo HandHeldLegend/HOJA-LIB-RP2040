@@ -198,12 +198,8 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       switch (global_loaded_settings.gc_sp_mode)
       {
       default:
-
-        _out_buffer.analog_trigger_l = buttons->zl_analog >> 4;
-        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : _out_buffer.analog_trigger_l;
-
-        _out_buffer.analog_trigger_r = buttons->zr_analog >> 4;
-        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : _out_buffer.analog_trigger_r;
+        _out_buffer.analog_trigger_l = buttons->trigger_zl ? 255 : (buttons->zl_analog >> 4);
+        _out_buffer.analog_trigger_r = buttons->trigger_zr ? 255 : (buttons->zr_analog >> 4);
 
         break;
 

@@ -19,8 +19,8 @@ button_remap_s  *_tmp_remap_struct;
 buttons_unset_s *_tmp_unset_struct;
 input_mode_t    _tmp_remap_mode;
 
-bool _l_analog_digital_only = false;
-bool _r_analog_digital_only = false;
+bool _l_analog_remapped = false;
+bool _r_analog_remapped = false;
 
 const button_remap_s default_remap = {
     .dpad_up = MAPCODE_DUP,
@@ -81,12 +81,6 @@ void _remap_load_remap(input_mode_t mode, button_remap_s **remap_out, buttons_un
       *unset_out = &(global_loaded_settings.remap_snes.disabled);
       break;
   }
-
-  _l_analog_digital_only = ( _remap_arr[MAPCODE_T_ZL]==MAPCODE_T_ZL && ((mode==INPUT_MODE_GAMECUBE) || (mode==INPUT_MODE_GCUSB) || (mode==INPUT_MODE_XINPUT))) || 
-                           !((mode==INPUT_MODE_GAMECUBE) || (mode==INPUT_MODE_GCUSB) || (mode==INPUT_MODE_XINPUT));
-
-  _r_analog_digital_only = ( _remap_arr[MAPCODE_T_ZR]==MAPCODE_T_ZR && ((mode==INPUT_MODE_GAMECUBE) || (mode==INPUT_MODE_GCUSB) || (mode==INPUT_MODE_XINPUT))) || 
-                           !((mode==INPUT_MODE_GAMECUBE) || (mode==INPUT_MODE_GCUSB) || (mode==INPUT_MODE_XINPUT));
   
 }
 
@@ -266,6 +260,9 @@ void remap_init(input_mode_t mode, button_data_s *in, button_data_s *out)
   _remap_mode = mode;
   _remap_load_remap(mode, &_remap_struct, &_unset_struct);
   _remap_unpack_remap(_remap_arr, _remap_struct);
+
+  _r_analog_remapped = !(_remap_arr[MAPCODE_T_ZR]==MAPCODE_T_ZR);
+  _l_analog_remapped = !(_remap_arr[MAPCODE_T_ZL]==MAPCODE_T_ZL);
 }
 
 void remap_set_gc_sp(gc_sp_mode_t sp_mode)
@@ -333,40 +330,45 @@ void remap_buttons_task()
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_l, _remap_arr[MAPCODE_T_L],    _unset_struct->trigger_l);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
-  
+
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_L)
-    if(!_l_analog_digital_only)
+    
+    if(_l_analog_remapped)
     {
-      _buttons_out->zl_analog = (_buttons_in->trigger_zl) ? 4080 : _buttons_in->zl_analog;
+      bool l_triggered = (_buttons_in->zl_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zl;
+      _buttons_out->buttons_all |= REMAP_SET(l_triggered, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
+      _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4095 : 0;
     }
     else
     {
-      _buttons_in->trigger_zl |= (_buttons_in->zl_analog >= HOJA_ANALOG_HAIRTRIGGER_L);
+      _buttons_out->zl_analog = _buttons_in->zl_analog;
+      _buttons_out->trigger_zl = _buttons_in->trigger_zl;
     }
   #else
     _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
-    _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4080 : 0;
+    _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4095 : 0;
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
   #endif
 
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_R)
-    if(!_r_analog_digital_only)
+    
+    if(_r_analog_remapped)
     {
-      _buttons_out->zr_analog = (_buttons_in->trigger_zr) ? 4080 : _buttons_in->zr_analog;
+      bool r_triggered = (_buttons_in->zr_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zr;
+      _buttons_out->buttons_all |= REMAP_SET(r_triggered, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
+      _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4095 : 0;
     }
     else
     {
-      _buttons_in->trigger_zr |= (_buttons_in->zr_analog >= HOJA_ANALOG_HAIRTRIGGER_R);
+      _buttons_out->zr_analog = _buttons_in->zr_analog;
+      _buttons_out->trigger_zr = _buttons_in->trigger_zr;
     }
   #else
     _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
-    _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4080 : 0;
+    _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4095 : 0;
+    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
   #endif
-
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
 
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
   _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
-
-
 }

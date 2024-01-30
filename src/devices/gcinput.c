@@ -53,8 +53,8 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
     {
         default:
 
-            data.trigger_l = button_data->zl_analog >> 4;
-            data.trigger_r = button_data->zr_analog >> 4;
+            data.trigger_l = button_data->trigger_zl ? 255 : (button_data->zl_analog >> 4);
+            data.trigger_r = button_data->trigger_zr ? 255 : (button_data->zr_analog >> 4);
 
             break;
 

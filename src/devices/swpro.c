@@ -186,8 +186,26 @@ void swpro_hid_report(button_data_s *button_data, a_data_s *analog_data)
 
     data.t_r = button_data->trigger_r;
     data.t_l = button_data->trigger_l;
-    data.t_zl = button_data->trigger_zl;
-    data.t_zr = button_data->trigger_zr;
+
+    static bool first = false;
+    static int re = 0;
+    if(!first)
+    {
+        re = button_data->zl_analog;
+        first = true;
+    }
+    
+    #if (HOJA_CAPABILITY_ANALOG_TRIGGER_L)
+        data.t_zl = ( (button_data->zl_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | button_data->trigger_zl;
+    #else
+        data.t_zl = button_data->trigger_zl;
+    #endif
+
+    #if (HOJA_CAPABILITY_ANALOG_TRIGGER_R)
+        data.t_zr = ( (button_data->zr_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | button_data->trigger_zr;
+    #else
+        data.t_zr = button_data->trigger_zr;
+    #endif
 
     data.ls_x = analog_data->lx;
     data.ls_y = analog_data->ly;

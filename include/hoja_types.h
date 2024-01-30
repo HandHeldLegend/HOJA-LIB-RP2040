@@ -5,6 +5,7 @@
 
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
+#define ANALOG_DIGITAL_THRESH 650
 
 typedef struct 
 {

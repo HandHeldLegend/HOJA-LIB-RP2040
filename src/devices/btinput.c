@@ -249,8 +249,9 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
     
     static i2cinput_input_s data = {0};
+    static interval_s interval = {0};
 
-    if(interval_run(timestamp, 1500))
+    if(interval_run(timestamp, 1500, &interval))
     {
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
