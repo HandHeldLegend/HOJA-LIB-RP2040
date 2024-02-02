@@ -72,9 +72,9 @@ void analog_calibrate_stop()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_set(100, true);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
     sleep_ms(500);
-    cb_hoja_rumble_set(0, false);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
 
     stick_scaling_set_settings();
 
@@ -88,9 +88,9 @@ void analog_calibrate_save()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_set(100, true);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
     sleep_ms(500);
-    cb_hoja_rumble_set(0, false);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
 
     stick_scaling_set_settings();
 
@@ -201,7 +201,17 @@ void analog_task(uint32_t timestamp)
         else
         {
             stick_scaling_process_data(_data_in, &scaled_analog_data);
-            snapback_process(timestamp, &scaled_analog_data, _data_buffered);
+            
+            //#define SNAPBACK_DEBUG 0
+
+            #ifdef SNAPBACK_DEBUG
+                _data_buffered->lx = scaled_analog_data.lx;
+                _data_buffered->ly = scaled_analog_data.ly;
+                _data_buffered->rx = scaled_analog_data.rx;
+                _data_buffered->ry = scaled_analog_data.ry;
+            #else
+                snapback_process(timestamp, &scaled_analog_data, _data_buffered);
+            #endif
             
             if(webusb_output_enabled())
             {
