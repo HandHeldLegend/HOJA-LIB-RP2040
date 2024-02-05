@@ -44,7 +44,7 @@ bool hoja_usb_get_usb_clear(uint32_t timestamp)
   static interval_s s = {0};
   bool clear = false;
 
-  if(mutex_enter_timeout_ms(&_hoja_usb_clear_mutex))
+  if(mutex_enter_timeout_ms(&_hoja_usb_clear_mutex, 16))
   {
     clear = _usb_clear;
     mutex_exit(&_hoja_usb_clear_mutex);
