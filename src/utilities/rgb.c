@@ -650,7 +650,7 @@ void _rgbanim_reactive_do()
     static button_data_s current = {0};
 
     button_data_s *data = hoja_get_raw_button_data();
-    a_data_s *analog = hoja_get_buffered_analog_data();
+    a_data_s *analog = hoja_get_desnapped_analog_data();
     bool _set = false;
 
     // Get distance of left and right sticks

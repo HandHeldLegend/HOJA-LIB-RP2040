@@ -5,9 +5,11 @@ button_data_s _button_data_processed = {0};
 
 // The raw input analog data
 a_data_s _analog_data_input = {0};
+
 // The buffered analog data
-// This is processed, but not the final output
-a_data_s _analog_data_buffered = {0};
+// This is the analog data minus snapback for checking in the app
+a_data_s _analog_data_desnapped = {0};
+
 // This is the outgoing analog data
 a_data_s _analog_data_output = {0};
 
@@ -85,9 +87,9 @@ input_method_t hoja_get_input_method()
   return _hoja_input_method;
 }
 
-a_data_s *hoja_get_buffered_analog_data()
+a_data_s *hoja_get_desnapped_analog_data()
 {
-  return &_analog_data_buffered;
+  return &_analog_data_desnapped;
 }
 
 button_data_s *hoja_get_raw_button_data()
@@ -117,6 +119,8 @@ void hoja_shutdown()
   #endif
 }
 
+
+#define CENTER 2048
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
@@ -135,13 +139,11 @@ void _hoja_task_0()
   // Webusb stuff
   if (webusb_output_enabled())
   {
-    snapback_webcapture_task(_hoja_timestamp, &_analog_data_buffered);
-    webusb_input_report_task(_hoja_timestamp, &_analog_data_buffered, NULL);
+    snapback_webcapture_task(_hoja_timestamp, &_analog_data_desnapped);
+    webusb_input_report_task(_hoja_timestamp, &_analog_data_output, NULL);
   }
-
-
   // Our communication core task
-  hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+  else hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
   
 
   if (_hoja_input_method == INPUT_METHOD_USB)
@@ -170,7 +172,10 @@ void _hoja_task_1()
     analog_task(_hoja_timestamp);
 
     // Do IMU stuff
-    imu_task(_hoja_timestamp);
+    if(!webusb_output_enabled())
+    {
+      imu_task(_hoja_timestamp);
+    }
 
     // Do callback for userland code insertion
     cb_hoja_task_1_hook(_hoja_timestamp);
@@ -214,13 +219,9 @@ void hoja_init(hoja_config_t *config)
     {
       settings_reset_to_default();
       sleep_ms(200);
+    }
     
-      analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
-    }
-    else
-    {
-      analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_buffered, &_button_data);
-    }
+    analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data);
   }
 
   // Reset pairing if needed.
