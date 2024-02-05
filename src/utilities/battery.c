@@ -64,7 +64,7 @@ void util_battery_enable_ship_mode(void)
     while(!s2)
     {
         const uint8_t _data[2] = {0x09, 0x41};
-        s2 = i2c_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+        s2 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
 
         if(s2 == PICO_ERROR_GENERIC)
         {

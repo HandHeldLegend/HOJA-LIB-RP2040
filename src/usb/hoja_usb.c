@@ -22,16 +22,21 @@ volatile bool _usb_ready = false;
 
 void hoja_usb_set_usb_clear()
 {
-  mutex_enter_blocking(&_hoja_usb_clear_mutex);
-  _usb_clear = true;
-  mutex_exit(&_hoja_usb_clear_mutex);
+  if (mutex_enter_timeout_ms(&_hoja_usb_clear_mutex, 16))
+  {
+    _usb_clear = true;
+    mutex_exit(&_hoja_usb_clear_mutex);
+  }
 }
 
 void hoja_usb_unset_usb_clear()
 {
-  mutex_enter_blocking(&_hoja_usb_clear_mutex);
-  _usb_clear = false;
-  mutex_exit(&_hoja_usb_clear_mutex);
+  if (mutex_enter_timeout_ms(&_hoja_usb_clear_mutex, 16))
+  {
+    _usb_clear = false;
+    mutex_exit(&_hoja_usb_clear_mutex);
+  }
+  
 }
 
 bool hoja_usb_get_usb_clear(uint32_t timestamp)
@@ -39,9 +44,11 @@ bool hoja_usb_get_usb_clear(uint32_t timestamp)
   static interval_s s = {0};
   bool clear = false;
 
-  mutex_enter_blocking(&_hoja_usb_clear_mutex);
-  clear = _usb_clear;
-  mutex_exit(&_hoja_usb_clear_mutex);
+  if(mutex_enter_timeout_ms(&_hoja_usb_clear_mutex))
+  {
+    clear = _usb_clear;
+    mutex_exit(&_hoja_usb_clear_mutex);
+  }
 
   if(interval_resettable_run(timestamp, 100000, clear, &s))
   {
