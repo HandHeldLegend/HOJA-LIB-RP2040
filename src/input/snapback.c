@@ -17,12 +17,13 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 }
 
 #define ARC_MAX_WIDTH 80
+#define TRIGGER_MAX_WIDTH (ARC_MAX_WIDTH/2)
 #define ARC_MIN_WIDTH 20
 
 #define CENTERVAL 2048
 #define MAXVAL 4095
 #define ARC_MAX_HEIGHT 250
-#define BUFFER_MAX 64
+#define BUFFER_MAX (TRIGGER_MAX_WIDTH+2)
 #define ARC_MIN_HEIGHT 1850
 
 // How many measurements we need to
@@ -108,7 +109,7 @@ int _add_axis(int pos, axis_s *a)
     if (a->rising)
     {       
         // Check if we're too wide
-        if(a->trigger_width >= 40)
+        if(a->trigger_width >= TRIGGER_MAX_WIDTH)
         {
             // Reset here
             a->rising = false;
@@ -226,11 +227,6 @@ void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output)
     output->rx = CENTERVAL;
     output->ry = CENTERVAL;
     #endif
-
-    output->la = input->la;
-    output->ra = input->ra;
-    output->ld = input->ld;
-    output->rd = input->rd;
 }
 
 uint8_t _snapback_report[64] = {0};

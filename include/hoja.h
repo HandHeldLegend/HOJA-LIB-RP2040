@@ -23,7 +23,7 @@ void cb_hoja_set_uart_enabled(bool enable);
 void hoja_get_rumble_intensity(uint8_t *lower, uint8_t *upper);
 void hoja_shutdown_instant();
 input_method_t hoja_get_input_method();
-a_data_s *hoja_get_buffered_analog_data();
+a_data_s *hoja_get_desnapped_analog_data();
 button_data_s *hoja_get_raw_button_data();
 void hoja_shutdown();
 void hoja_init(hoja_config_t *config);
