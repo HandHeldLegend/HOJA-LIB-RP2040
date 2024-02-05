@@ -1,4 +1,6 @@
 #include "analog.h"
+#define CENTER 2048
+#define DEADZONE 50
 
 const uint32_t _analog_interval = 200;
 
@@ -9,7 +11,10 @@ bool _analog_capture_angle = false;
 a_data_s *_data_in = NULL;
 a_data_s scaled_analog_data = {0};
 a_data_s *_data_out = NULL;
-a_data_s *_data_buffered = NULL;
+a_data_s *_analog_desnapped = NULL; // Data 
+a_data_s analog_data_deadzone = {0}; // Analog data with deadzone coordinates nullified
+a_data_s *_analog_output = NULL;
+
 
 button_data_s *_buttons = NULL;
 
@@ -31,11 +36,11 @@ void analog_send_reset()
     _ry_tracker_mem.tracked_direction = 0;
 }
 
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *buffered, button_data_s *buttons)
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons)
 {
     _data_in    = in;
     _data_out   = out;
-    _data_buffered = buffered;
+    _analog_desnapped = desnapped;
     _buttons    = buttons;
     stick_scaling_get_settings();
     stick_scaling_init();
@@ -72,9 +77,9 @@ void analog_calibrate_stop()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_set(100, true);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
     sleep_ms(500);
-    cb_hoja_rumble_set(0, false);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
 
     stick_scaling_set_settings();
 
@@ -88,9 +93,9 @@ void analog_calibrate_save()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_set(100, true);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
     sleep_ms(500);
-    cb_hoja_rumble_set(0, false);
+    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
 
     stick_scaling_set_settings();
 
@@ -182,6 +187,61 @@ void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
     stick_scaling_get_octant_axis(_data_in, axis, octant);
 }
 
+#define CLAMP_0_MAX(value) ((value) < 0 ? 0 : ((value) > 4095 ? 4095 : (value)))
+#define SCALE_DISTANCE (float)(CENTER-DEADZONE)
+#define SCALE_F (float)(CENTER/SCALE_DISTANCE)
+
+void _analog_process_deadzone(a_data_s *in, a_data_s *out)
+{
+    // Do left side
+    float ld = stick_get_distance(in->lx, in->ly, CENTER, CENTER);
+    float rd = stick_get_distance(in->rx, in->ry, CENTER, CENTER);
+
+    if(ld <= DEADZONE)
+    {
+        out->lx = CENTER;
+        out->ly = CENTER;
+    }
+    else
+    {
+        ld -= DEADZONE;
+
+        float la = stick_get_angle(in->lx, in->ly, CENTER, CENTER);
+
+        float lx = 0;
+        float ly = 0;
+
+        stick_normalized_vector(la, &lx, &ly);
+        lx *= ld*SCALE_F;
+        ly *= ld*SCALE_F;
+
+        out->lx = CLAMP_0_MAX((int) roundf(lx + CENTER));
+        out->ly = CLAMP_0_MAX((int) roundf(ly + CENTER));
+    }
+
+    if(rd <= DEADZONE)
+    {
+        out->rx = CENTER;
+        out->ry = CENTER;
+    }
+    else
+    {
+        rd -= DEADZONE;
+
+        float ra = stick_get_angle(in->rx, in->ry, CENTER, CENTER);
+
+        float rx = 0;
+        float ry = 0;
+
+        stick_normalized_vector(ra, &rx, &ry);
+        rx *= rd*SCALE_F;
+        ry *= rd*SCALE_F;
+
+        out->rx = CLAMP_0_MAX((int) roundf(rx + CENTER));
+        out->ry = CLAMP_0_MAX((int) roundf(ry + CENTER));
+    }
+}
+
 #define STICK_INTERNAL_CENTER 2048
 
 void analog_task(uint32_t timestamp)
@@ -201,23 +261,29 @@ void analog_task(uint32_t timestamp)
         else
         {
             stick_scaling_process_data(_data_in, &scaled_analog_data);
-            snapback_process(timestamp, &scaled_analog_data, _data_buffered);
             
-            if(webusb_output_enabled())
-            {
-                _data_out->lx = STICK_INTERNAL_CENTER;
-                _data_out->rx = STICK_INTERNAL_CENTER;
-                _data_out->ly = STICK_INTERNAL_CENTER;
-                _data_out->ry = STICK_INTERNAL_CENTER;
-            }
-            else
-            {
-                // Run distance checks
-                _analog_distance_check(_data_buffered->lx, &(_data_out->lx), &_lx_tracker_mem);
-                _analog_distance_check(_data_buffered->rx, &(_data_out->rx), &_rx_tracker_mem);
-                _analog_distance_check(_data_buffered->ly, &(_data_out->ly), &_ly_tracker_mem);
-                _analog_distance_check(_data_buffered->ry, &(_data_out->ry), &_ry_tracker_mem);
-            }
+            //#define SNAPBACK_DEBUG 0
+
+            #ifdef SNAPBACK_DEBUG
+                _analog_desnapped->lx = scaled_analog_data.lx;
+                _analog_desnapped->ly = scaled_analog_data.ly;
+                _analog_desnapped->rx = scaled_analog_data.rx;
+                _analog_desnapped->ry = scaled_analog_data.ry;
+            #else
+                snapback_process(timestamp, &scaled_analog_data, _analog_desnapped);
+            #endif
+            
+
+            // Process deadzones
+            _analog_process_deadzone(_analog_desnapped, &analog_data_deadzone);
+
+            // Run distance checks
+            _analog_distance_check(analog_data_deadzone.lx, &(_data_out->lx), &_lx_tracker_mem);
+            _analog_distance_check(analog_data_deadzone.rx, &(_data_out->rx), &_rx_tracker_mem);
+            _analog_distance_check(analog_data_deadzone.ly, &(_data_out->ly), &_ly_tracker_mem);
+            _analog_distance_check(analog_data_deadzone.ry, &(_data_out->ry), &_ry_tracker_mem);
+
         }
     }
 }
+

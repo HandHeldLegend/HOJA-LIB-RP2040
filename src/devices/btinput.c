@@ -102,6 +102,11 @@ bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
 
+        #ifdef HOJA_BT_LOGGING_DEBUG
+            #if (HOJA_BT_LOGGING_DEBUG == 1 )
+            cb_hoja_set_uart_enabled(true);
+            #endif
+        #endif
         switch(input_mode)
         {
             case INPUT_MODE_SWPRO:
@@ -181,26 +186,26 @@ void _btinput_message_parse(uint8_t *msg)
 
         case I2CINPUT_ID_STATUS:
         {
-            static uint8_t _i_rumble = 0;
+            static uint16_t _rumble_amps = 0;
+            static float _rumble_frequency = 0;
             static uint8_t _i_connected = 0;
-            i2cinput_status_s status = {.rumble_intensity = msg[1], .connected_status = msg[2]};
+            static i2cinput_status_s status = {0};
+            bool changed = false;
 
-            if(_i_connected)
+            memcpy(&_rumble_amps, &msg[2], sizeof(uint16_t));
+            memcpy(&_rumble_frequency, &msg[4], sizeof(float));
+            _i_connected = msg[1];
+
+            if(status.connected_status)
             {
-                if( (_i_rumble != status.rumble_intensity))
+                if(_rumble_amps>0)
                 {
-                    _i_rumble = status.rumble_intensity;
-                    _i_rumble = (_i_rumble > 100) ? 100 : _i_rumble;
-
-                    if(!_i_rumble)
-                    {
-                        cb_hoja_rumble_set(0, 0);
-                    }
-                    else
-                    {
-                        
-                        cb_hoja_rumble_set(100, (float) _i_rumble/100.0f);
-                    }   
+                    float _a = (float) _rumble_amps / 0xFFFF;
+                    cb_hoja_rumble_set(_rumble_frequency, _a);
+                }
+                else
+                {
+                    cb_hoja_rumble_set(_rumble_frequency, 0);
                 }
             }
             else
@@ -210,13 +215,14 @@ void _btinput_message_parse(uint8_t *msg)
 
             if (_i_connected != status.connected_status)
             {
-                _i_connected = status.connected_status;
-                if(!_i_connected)
+                status.connected_status = _i_connected;
+                if(!status.connected_status)
                 {
                     rgb_flash(_mode_color);
                 }
                 else
                 {
+                    rgb_init(global_loaded_settings.rgb_mode, -1);
                     rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
             }

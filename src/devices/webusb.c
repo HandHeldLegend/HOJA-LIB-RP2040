@@ -23,7 +23,7 @@ void webusb_save_confirm()
 {
     printf("Sending Save receipt...\n");
     memset(_webusb_out_buffer, 0, 64);
-    _webusb_out_buffer[0] = 0xF1;
+    _webusb_out_buffer[0] = WEBUSB_CMD_SAVEALL;
     if (webusb_ready_blocking(4000))
     {
         tud_vendor_n_write(0, _webusb_out_buffer, 64);
@@ -31,6 +31,22 @@ void webusb_save_confirm()
     }
 
     webusb_enable_output(true);
+}
+
+void webusb_send_debug_dump(uint8_t len, uint8_t *data)
+{
+    if(!len) return;
+    memset(_webusb_out_buffer, 0, 64);
+    _webusb_out_buffer[0] = WEBUSB_CMD_DEBUG_REPORT;
+    _webusb_out_buffer[1] = len;
+
+    memcpy(&(_webusb_out_buffer[2]), data, len);
+
+    if (webusb_ready_blocking(4000))
+    {
+        tud_vendor_n_write(0, _webusb_out_buffer, 64);
+        tud_vendor_n_flush(0);
+    }
 }
 
 /**

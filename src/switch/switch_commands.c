@@ -15,13 +15,13 @@ uint8_t _switch_ltk[16] = {0};
 
 void generate_ltk()
 {
-  printf("Generated LTK: ");
+  //printf("Generated LTK: ");
   for (uint8_t i = 0; i < 16; i++)
   {
     _switch_ltk[i] = get_rand_32() & 0xFF;
-    printf("%X : ", _switch_ltk[i]);
+    //printf("%X : ", _switch_ltk[i]);
   }
-  printf("\n");
+  //printf("\n");
 }
 
 void clear_report()
@@ -48,7 +48,7 @@ void set_timer()
 {
   static int16_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
-  // printf("Td=%d \n", _switch_timer);
+  // //printf("Td=%d \n", _switch_timer);
   _switch_timer += 2;
   if (_switch_timer > 0xFF)
   {
@@ -125,36 +125,279 @@ void set_shipmode(uint8_t ship_mode)
   // Unhandled.
 }
 
-bool shouldControllerRumble(const uint8_t *data)
+// 40-625hz low frequency
+// 585hz range
+float _get_low_frequency(uint16_t value)
 {
+  value = (value > 127) ? 127 : value;
+  const float scale = 4.60629f;
 
-  bool lbd = data[3] & 0x80;
-  bool hbd = data[1] & 0x8;
+  if(!value) return 40.0f;
+  else return ((float) value * scale) + 40.0f;
+}
 
-  // Get High band amplitude
-  uint8_t hba = (data[1] & 0xFE);
-  uint8_t lba = (data[3] & 0x7F);
+// 80-1250hz high frequency
+// 1170hz range
+float _get_high_frequency(uint16_t value)
+{
+  value = (value > 127) ? 127 : value;
+  const float scale = 9.21259f;
 
-  return ((hba > 1) && !hbd) || ((lba > 0x40) && !lbd);
+  if(!value) return 80.0f;
+  else return ((float) value * scale) + 80.0f;
+}
+
+float _get_amplitude(uint16_t value)
+{
+  value = (value > 127) ? 127 : value;
+  if(!value) return 0;
+
+  return (float) value/127.0f;
 }
 
 // Translate and handle rumble
+// Big thanks to hexkyz for some info on Discord
 void rumble_translate(const uint8_t *data)
 {
-  if (shouldControllerRumble(data))
-  {
-    uint8_t upper = (data[1] & 0xFE) / 2;
-    uint8_t lower = (((data[3] & 0x7F) - 0x40) * 2) + (data[2] == 0x80);
-    float il = powf((float)lower / 100.0f, 2.0f);
-    float iu = powf((float)upper / 100.0f, 0.5f);
+  // Extract modulation indicator in byte 3
+  // v9 / result
+  uint8_t upper2 = data[3] >> 6;
+  int result = (upper2)>0;
 
-    float i = (il > iu) ? il : iu;
-    i = (i >= 1.0f) ? 1.0f : i;
-    cb_hoja_rumble_set(100, i);
+  uint16_t hfcode = 0;
+  uint16_t lacode = 0;
+  uint16_t lfcode = 0;
+  uint16_t hacode = 0;
+
+  float fhi = 0;
+  float ahi = 0;
+
+  float flo = 0;
+  float alo = 0;
+
+  // Single wave w/ resonance
+  // v14
+  bool high_f_select = false;
+  
+  // v4
+  uint8_t patternType = 0x00;
+
+    // Handle different modulation types
+    if (upper2) // If upper 2 bits exist
+    {
+        if (upper2 != 1) 
+        {
+            if (upper2 == 2) // Value is 2
+            {
+                // Check if lower 10 bytes of first two bytes exists
+                uint16_t lower10 = (data[1]<<8) | data[0];
+                if (lower10 & 0x03FF)
+                {
+                    patternType = 5;
+                }
+                else patternType = 2;
+            } 
+            else if (upper2 == 3) // Value is 3
+            {
+                patternType = 3;
+            }
+            
+            goto LABEL_24;
+        }
+        
+        // Upper 2 bits are unset...
+        // The format of the rumble is treated differently.
+        uint16_t lower12 = (data[2]<<8 | data[1]);
+        
+        if (!(lower12 & 0x0FFF)) // if lower 12 bits are empty
+        {
+            patternType = 1;
+            goto LABEL_24;
+        }
+        
+        // Lower 12 bits are set
+        // Format is different again
+        
+        // Check lower 2 bits of byte 0
+        // v10
+        uint16_t lower2 = data[0] & 0x3;
+        
+        if (!lower2) // Lower 2 is blank (0x00)
+        {
+            patternType = 4;
+            goto LABEL_24;
+        }
+        if ((lower2 & 2) != 0) // Lower 2, bit 1 is set (0x02 or 0x03)
+        {
+            result = 3;
+            patternType = 7;
+            goto LABEL_24;
+        }
+        
+        // Lower 2, bit 0 is set only (0x01)
+        // Do nothing?
+        return;
+    }
+    
+    // Check if there is no int value present in the data
+    
+    //if (!(4 * *(int *)data)) {
+    //    return;
+    //}
+    //printf("Int found\n");
+
+    result = 3;
+    patternType = 6;
+
+  LABEL_24:
+
+  // Unpack codes based on modulation type
+  switch (patternType) {
+      case 0:
+      case 1:
+      case 2:
+      case 3:
+          //printf("Case 0-3\n");
+          /*
+          amFmCodes[0] = (v9 >> 1) & 0x1F;
+          amFmCodes[1] = (*((unsigned short *)data + 1) >> 4) & 0x1F;
+          amFmCodes[2] = (*(unsigned short *)(data + 1) >> 7) & 0x1F;
+          amFmCodes[3] = (data[1] >> 2) & 0x1F;
+          amFmCodes[4] = (*(unsigned short *)data >> 5) & 0x1F;
+          v12 = *data & 0x1F;
+          */
+          return;
+          break;
+
+      // Dual frequency mode
+      case 4:
+          //printf("Case 4\n");
+          
+          // Low channel
+          lfcode = (data[2]&0x7F); // Low Frequency
+
+          lacode = ((data[3]&0x3F)<<1) | ((data[2]&0x80)>>7); // Low Amplitude
+          
+          // 40-625hz
+          //printf("LF : %x\n", lfcode);
+          //printf("LA : %x\n", lacode);
+          
+          // High channel
+          hfcode = ((data[1] & 0x1)<<7) | (data[0] >> 2);
+          hacode = (data[1]>>1);
+          
+          // 80-1250hz
+          //printf("HF : %x\n", hfcode);
+          //printf("HA : %x\n", hacode);
+          break;
+
+      // Seems to be single wave mode
+      case 5:
+      case 6:
+          //printf("Case 5-6\n");
+          
+          // Byte 0 is frequency and high/low select bit
+          // check byte 0 bit 0
+          // 1 indicates high channel
+          high_f_select = data[0] & 1;
+
+          if (high_f_select)
+          {
+              //printf("HF Bit ON\n");
+              
+              hfcode = (data[0]>>1);
+              hacode = (data[1] & 0xF) << 3;
+              
+              //printf("LF is 160hz.");
+              lfcode = 0;
+              lacode = ( ((data[2] & 0x1)<<3) | ( (data[1]&0xE0)>>5 ) ) << 3;
+              flo = 160.0f;
+          }
+              
+          else
+          {
+              //printf("LF Bit ON\n");
+              
+              lfcode = (data[0]>>1);
+              hacode = (data[1] & 0xF) << 3;
+              
+              //printf("HF is 320hz.");
+              hfcode = 0;
+              lacode = ( ((data[2] & 0x1)<<3) | ( (data[1]&0xE0)>>5 ) ) << 3;
+              fhi = 320.0f;
+          }
+          
+          if(data[1] & 0x10)
+          {
+              // Hi freqency amplitude disable
+              hacode = 0;
+          }
+          
+          if(data[2] & 0x2)
+          {
+              // Lo frequency amplitude disable
+              lacode = 0;
+          }
+          
+          // 80-1250hz
+          //printf("HF : %x\n", hfcode);
+          //printf("HA : %x\n", hacode);
+          
+          //printf("LF : %x\n", lfcode);
+          //printf("LA : %x\n", lacode);
+          break;
+
+      // Some kind of operation codes? Also contains frequency
+      case 7:
+          //printf("Case 7\n");
+          /*
+          v18 = *data;
+          v19 = v18 & 1;
+          v20 = ((v18 >> 2) & 1) == 0;
+          v21 = (*((unsigned short *)data + 1) >> 7) & 0x7F;
+
+          if (v20)
+              v22 = v21 | 0x80;
+          else
+              v22 = (v21 << 8) | 0x8000;
+
+          if (v19)
+              v23 = 24;
+          else
+              v23 = v22;
+          amFmCodes[0] = v23;
+          if (!v19)
+              v22 = 24;
+          amFmCodes[1] = v22;
+          amFmCodes[2] = (data[2] >> 2) & 0x1F;
+          amFmCodes[3] = (*(unsigned short *)(data + 1) >> 5) & 0x1F;
+          amFmCodes[4] = data[1] & 0x1F;
+          v12 = *data >> 3;*/
+        return;
+        break;
+
+      default:
+          break;
+  }
+
+  if(!fhi)
+  fhi = _get_high_frequency(hfcode);
+
+  if(!flo)
+  flo = _get_low_frequency(lfcode);
+
+  ahi = _get_amplitude(hacode);
+  alo = _get_amplitude(lacode);
+
+  if(alo>=ahi)
+  {
+    alo = (alo>0) ? powf(alo, 0.65f) : 0;
+    cb_hoja_rumble_set(flo, alo);
   }
   else
   {
-    cb_hoja_rumble_set(0, 0);
+    ahi = (ahi>0) ? powf(ahi, 0.65f) : 0;
+    cb_hoja_rumble_set(fhi, ahi);
   }
 }
 
@@ -190,12 +433,12 @@ void info_handler(uint8_t info_code)
   switch (info_code)
   {
   case 0x01:
-    printf("MAC Address requested.");
+    //printf("MAC Address requested.");
     info_set_mac();
     break;
 
   default:
-    printf("Unknown setup requested: %X", info_code);
+    //printf("Unknown setup requested: %X", info_code);
     _switch_command_buffer[0] = info_code;
     break;
   }
@@ -273,45 +516,45 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
 
   // Set subcmd
   set_command(command);
-  printf("CMD: ");
+  //printf("CMD: ");
 
   switch (command)
   {
   case SW_CMD_SET_NFC:
-    printf("Set NFC MCU:\n");
+    //printf("Set NFC MCU:\n");
     set_ack(0x80);
     break;
 
   case SW_CMD_ENABLE_IMU:
-    printf("Enable IMU: %d\n", data[11]);
+    //printf("Enable IMU: %d\n", data[11]);
     imu_set_enabled(data[11] > 0);
     set_ack(0x80);
     break;
 
   case SW_CMD_SET_PAIRING:
-    printf("Set pairing.\n");
+    //printf("Set pairing.\n");
     pairing_set(data[11], &data[12]);
     break;
 
   case SW_CMD_SET_INPUTMODE:
-    printf("Input mode change: %X\n", data[11]);
+    //printf("Input mode change: %X\n", data[11]);
     set_ack(0x80);
     _switch_reporting_mode = data[11];
     break;
 
   case SW_CMD_GET_DEVICEINFO:
-    printf("Get device info.\n");
+    //printf("Get device info.\n");
     set_ack(0x82);
     set_devinfo();
     break;
 
   case SW_CMD_SET_SHIPMODE:
-    printf("Set ship mode: %X\n", data[11]);
+    //printf("Set ship mode: %X\n", data[11]);
     set_ack(0x80);
     break;
 
   case SW_CMD_GET_SPI:
-    printf("Read SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    //printf("Read SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
     set_ack(0x90);
     sw_spi_readfromaddress(data[12], data[11], data[15]);
     break;
@@ -322,7 +565,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     break;
 
   case SW_CMD_SET_SPI:
-    printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    //printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
     set_ack(0x80);
 
     // Write IMU calibration data
@@ -331,8 +574,8 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     //  for(uint16_t i = 0; i < 26; i++)
     //  {
     //    global_loaded_settings.imu_calibration[i] = data[16+i];
-    //    printf("0x%x, ", data[16+i]);
-    //    printf("\n");
+    //    //printf("0x%x, ", data[16+i]);
+    //    //printf("\n");
     //  }
     //  settings_save(false);
     //}
@@ -340,18 +583,18 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     break;
 
   case SW_CMD_GET_TRIGGERET:
-    printf("Get trigger ET.\n");
+    //printf("Get trigger ET.\n");
     set_ack(0x83);
     set_sub_triggertime(100);
     break;
 
   case SW_CMD_ENABLE_VIBRATE:
-    printf("Enable vibration.\n");
+    //printf("Enable vibration.\n");
     set_ack(0x80);
     break;
 
   case SW_CMD_SET_PLAYER:
-    printf("Set player: ");
+    //printf("Set player: ");
     set_ack(0x80);
 
     uint8_t player = data[11] & 0xF;
@@ -360,40 +603,40 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     {
     default:
     case 1:
-      printf("1\n");
+      //printf("1\n");
       break;
 
     case 3:
-      printf("2\n");
+      //printf("2\n");
       break;
 
     case 7:
-      printf("3\n");
+      //printf("3\n");
       break;
 
     case 15:
-      printf("4\n");
+      //printf("4\n");
       break;
     }
     break;
 
   default:
-    printf("Unhandled: %X\n", command);
+    //printf("Unhandled: %X\n", command);
     for (uint16_t i = 0; i < len; i++)
     {
-      printf("%X, ", data[i]);
+      //printf("%X, ", data[i]);
     }
-    printf("\n");
+    //printf("\n");
     set_ack(0x80);
     break;
   }
 
-  printf("Sent: ");
+  //printf("Sent: ");
   for (uint8_t i = 0; i < 32; i++)
   {
-    printf("%X, ", _switch_command_buffer[i]);
+    //printf("%X, ", _switch_command_buffer[i]);
   }
-  printf("\n");
+  //printf("\n");
 
   tud_hid_report(0x21, _switch_command_buffer, 64);
 }
@@ -418,7 +661,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
     break;
 
   default:
-    printf("Unknown report: %X\n", report_id);
+    //printf("Unknown report: %X\n", report_id);
     break;
   }
 }
@@ -526,7 +769,7 @@ void switch_commands_process(sw_input_s *input_data)
       _switch_command_buffer[10] = (input_data->rs_y & 0xFF0) >> 4;
       _switch_command_buffer[11] = _unknown_thing();
 
-      // printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
+      // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
 
       tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
       analog_send_reset();

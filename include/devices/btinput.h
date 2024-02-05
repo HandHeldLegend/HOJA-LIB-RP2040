@@ -25,8 +25,9 @@ typedef struct
 
 typedef struct
 {
-    uint8_t rumble_intensity; // 0-100 value representing rumble intensity
     uint8_t connected_status; // Value representing if the BT is connected
+    uint16_t rumble_amplitude;
+    float   rumble_frequency;
 } i2cinput_status_s;
 
 typedef struct
