@@ -127,7 +127,7 @@ void _hoja_task_0()
 {
   if(!_watchdog_enabled)
   {
-    watchdog_enable(100, false);
+    watchdog_enable(5000, false);
     _watchdog_enabled = true;
   }
 

@@ -1,6 +1,12 @@
 #include "battery.h"
 #include "interval.h"
 
+void util_battery_init()
+{
+    const uint8_t _data[2] = {0x09, 0x41};
+    int s = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+}
+
 // Battery monitor task we run when we are in a wired mode
 void util_battery_monitor_task_usb(uint32_t timestamp)
 {
@@ -61,8 +67,13 @@ void util_battery_enable_ship_mode(void)
 
     #if (HOJA_CAPABILITY_BATTERY == 1)
     int s2 = 0;
+    int s1 = 0;
     while(!s2)
     {
+
+        //const uint8_t _data1[2] = {0x0A, 0b01001100};
+        //s1 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data1, 2, false, 10000);
+
         const uint8_t _data[2] = {0x09, 0x41};
         s2 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
 
