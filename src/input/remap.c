@@ -220,9 +220,11 @@ void remap_send_data_webusb(input_mode_t mode)
   b[20] = global_loaded_settings.gc_sp_mode;
   b[21] = global_loaded_settings.gc_sp_light_trigger;
   
-  webusb_ready_blocking(0);
-  tud_vendor_n_flush(0);
-  tud_vendor_n_write(0, b, 64);
+  if(webusb_ready_blocking(4000))
+  {
+    tud_vendor_n_flush(0);
+    tud_vendor_n_write(0, b, 64);
+  }
 }
 
 void remap_reset_default(input_mode_t mode)
@@ -298,9 +300,9 @@ void remap_buttons_task()
     bool c = _buttons_in->button_home;
     if(c) _buttons_in->button_home = 0;
     _remap_listener(_buttons_in->buttons_all, c);
+    return;
   }
-
-  if (macro_safe_mode_check())
+  else if (macro_safe_mode_check())
   {
     _buttons_in->button_capture = 0;
     _buttons_in->button_home = 0;

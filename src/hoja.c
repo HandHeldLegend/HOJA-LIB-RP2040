@@ -132,8 +132,9 @@ void _hoja_task_0()
 
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
-  macro_handler_task(_hoja_timestamp, &_button_data);
   remap_buttons_task();
+  macro_handler_task(_hoja_timestamp, &_button_data);
+  
   rgb_task(_hoja_timestamp);
 
   // Webusb stuff

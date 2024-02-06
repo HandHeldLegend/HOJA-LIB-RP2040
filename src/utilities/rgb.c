@@ -346,6 +346,7 @@ void _rgb_load_preset(rgb_preset_t *preset)
 
 void _rgbanim_preset_do()
 {
+    #if (HOJA_CAPABILITY_RGB == 1)
     static uint32_t counter = 0;
 
     if (!_rgb_mode_setup)
@@ -363,6 +364,7 @@ void _rgbanim_preset_do()
     }
 
     counter+=1;
+    #endif
 }
 
 void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
@@ -449,6 +451,8 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
 
 void rgb_update_speed(uint8_t speed)
 {
+    #if (HOJA_CAPABILITY_RGB == 1)
+
     if (speed != global_loaded_settings.rgb_step_speed)
     {
         if (global_loaded_settings.rgb_step_speed == 0)
@@ -501,18 +505,25 @@ void rgb_update_speed(uint8_t speed)
         _rgb_anim_steps_new = 255 - (uint8_t)steps16;
         break;
     }
+    #endif
 }
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_rainbow_do()
 {
+    
     _rainbow_hsv.hue = (_rainbow_hsv.hue + _rgb_rainbow_step) % 256;
     _rgb_convert_hue_saturation(&_rainbow_hsv, &_rainbow_next);
     _rgb_set_all(_rainbow_next.color);
     _rgb_set_dirty();
+    
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_rainbowoffset_do()
 {
+    
     if (!_rgb_mode_setup)
     {
         for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
@@ -534,9 +545,12 @@ void _rgbanim_rainbowoffset_do()
     }
     _rgb_set_dirty();
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycle_do()
 {
+    
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
@@ -549,10 +563,14 @@ void _rgbanim_cycle_do()
     _rgb_set_all(global_loaded_settings.rainbow_colors[_cycle_idx]);
     _cycle_idx = (_cycle_idx + 1) % 6;
     _rgb_set_dirty();
+   
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycleoffset_do()
 {
+    
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
@@ -575,17 +593,23 @@ void _rgbanim_cycleoffset_do()
         _cycle_offset_idx[i] = get_rand_32() % 6;
     }
     _rgb_set_dirty();
+   
 }
+#endif
 
 // Flash the RGBs a color
 void rgb_flash(uint32_t color)
 {
+    #if (HOJA_CAPABILITY_RGB == 1)
     _rgb_flash_color = color;
     rgb_init(RGB_MODE_FLASH, 100);
+    #endif
 }
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_flash_do()
 {
+    
     static bool dir = false;
 
     if (dir)
@@ -604,13 +628,17 @@ void _rgbanim_flash_do()
         _rgb_set_dirty();
         dir = true;
     }
+    
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 uint32_t _rgb_indicate_color = 0x00;
 uint8_t _rgb_indicate_reps = 0;
 uint8_t _rgb_indicate_steps_storage = 0x00;
 bool _rgb_indicate_override_do()
 {
+    
     static uint8_t _rgb_indicate_steps = 0;
 
     _rgb_set_all(_rgb_indicate_color);
@@ -628,11 +656,14 @@ bool _rgb_indicate_override_do()
     
     return false;
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 #define INTENSITY_DEADZONE 50
 #define INTENSITY_CAP 2048
 float _rgb_stick_get_intensity(int x, int y)
 {
+    
     float dx = fabs((float) x - 2048);
     float dy = fabs((float) y - 2048);
     
@@ -643,10 +674,15 @@ float _rgb_stick_get_intensity(int x, int y)
     intensity = (intensity > 1.0f) ? 1.0f : intensity;
     intensity = (intensity < 0.0f) ? 0.0f : intensity;
     return intensity;
+    
+    return 0;
 }
+#endif
 
+#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_reactive_do()
 {
+    
     static button_data_s current = {0};
 
     button_data_s *data = hoja_get_raw_button_data();
@@ -730,10 +766,13 @@ void _rgbanim_reactive_do()
     rgb_s _rs_color = {.color = _rgb_blend(&_black, &_rs_setcolor, _rs_intensity)};
     rgb_set_group(RGB_GROUP_RS, _rs_color.color, true);
     _rgb_update_all();
+    
 }
+#endif
 
 void rgb_indicate(uint32_t color, uint8_t repetitions)
 {
+    #if (HOJA_CAPABILITY_RGB == 1)
     _rgb_indicate_reps = repetitions;
     _rgb_indicate_steps_storage = _rgb_anim_steps;
     _rgb_anim_steps = RGB_INDICATE_STEPS;
@@ -741,8 +780,10 @@ void rgb_indicate(uint32_t color, uint8_t repetitions)
     _rgb_anim_override_cb = _rgb_indicate_override_do;
     _rgb_anim_override = true;
     _rgb_set_dirty();
+    #endif
 }
 
+#if (HOJA_CAPABILITY_RGB == 1)
 bool _rgb_shutdown_restart = false;
 bool _rgb_shutdown_start_override_do()
 {
@@ -760,9 +801,11 @@ bool _rgb_shutdown_start_override_do()
     }
     return true;
 }
+#endif
 
 void rgb_shutdown_start(bool restart)
 {
+    #if (HOJA_CAPABILITY_RGB == 1)
     _rgb_shutdown_restart = restart;
     _rgb_anim_cb = NULL;
 
@@ -774,6 +817,7 @@ void rgb_shutdown_start(bool restart)
 
     _rgb_set_all(0);
     _rgb_set_dirty();
+    #endif
 }
 
 bool _rgb_pio_done = false;
