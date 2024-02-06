@@ -9,6 +9,7 @@
 #include "hoja_includes.h"
 #include "interval.h"
 
+void cb_hoja_baseband_update_loop(button_data_s *buttons);
 uint16_t cb_hoja_hardware_test();
 void cb_hoja_hardware_setup();
 void cb_hoja_read_buttons(button_data_s *data);
@@ -20,6 +21,7 @@ void cb_hoja_rumble_init();
 void cb_hoja_set_bluetooth_enabled(bool enable);
 void cb_hoja_set_uart_enabled(bool enable);
 
+void hoja_set_baseband_update(bool set);
 void hoja_get_rumble_intensity(uint8_t *lower, uint8_t *upper);
 void hoja_shutdown_instant();
 input_method_t hoja_get_input_method();

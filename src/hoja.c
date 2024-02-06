@@ -22,6 +22,8 @@ auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
 
+bool _baseband_loop = false;
+
 __attribute__((weak)) uint16_t cb_hoja_hardware_test()
 {
   return 0;
@@ -82,6 +84,11 @@ __attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
   (void)enable;
 }
 
+__attribute__((weak)) void cb_hoja_baseband_update_loop(button_data_s *buttons)
+{
+  (void)&buttons;
+}
+
 input_method_t hoja_get_input_method()
 {
   return _hoja_input_method;
@@ -95,6 +102,17 @@ a_data_s *hoja_get_desnapped_analog_data()
 button_data_s *hoja_get_raw_button_data()
 {
   return &_button_data;;
+}
+
+void hoja_set_baseband_update(bool set)
+{
+  if(set)
+  {
+    cb_hoja_set_uart_enabled(true);
+    cb_hoja_set_bluetooth_enabled(true);
+    _baseband_loop = true;
+  }
+  else _baseband_loop = false;
 }
 
 void hoja_shutdown_instant()
@@ -139,6 +157,12 @@ void _hoja_task_0()
 
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
+
+  if(_baseband_loop)
+  {
+    cb_hoja_baseband_update_loop(&_button_data);
+  }
+
   remap_buttons_task();
   macro_handler_task(_hoja_timestamp, &_button_data);
   

@@ -72,8 +72,7 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_BB_SET:
     {
 #if (HOJA_CAPABILITY_BLUETOOTH)
-        cb_hoja_set_uart_enabled(true);
-        cb_hoja_set_bluetooth_enabled(true);
+        hoja_set_baseband_update(true);
 #endif
     }
     break;
