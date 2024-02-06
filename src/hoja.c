@@ -119,11 +119,18 @@ void hoja_shutdown()
   #endif
 }
 
+bool _watchdog_enabled = false;
 
 #define CENTER 2048
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
+  if(!_watchdog_enabled)
+  {
+    watchdog_enable(100, false);
+    _watchdog_enabled = true;
+  }
+
   if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_0))
   {
     _hoja_timestamp = time_us_32();
@@ -151,6 +158,8 @@ void _hoja_task_0()
   {
     util_battery_monitor_task_usb(_hoja_timestamp);
   }
+
+  watchdog_update();
 
 }
 
