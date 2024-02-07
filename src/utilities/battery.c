@@ -3,8 +3,10 @@
 
 void util_battery_init()
 {
+    #if (HOJA_CAPABILITY_BATTERY == 1)
     const uint8_t _data[2] = {0x09, 0x41};
     int s = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+    #endif
 }
 
 // Battery monitor task we run when we are in a wired mode
