@@ -22,7 +22,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 
 #define CENTERVAL 2048
 #define MAXVAL 4095
-#define ARC_MAX_HEIGHT 250
+#define ARC_MAX_HEIGHT 200
 #define BUFFER_MAX (TRIGGER_MAX_WIDTH+2)
 #define ARC_MIN_HEIGHT 1850
 
@@ -69,6 +69,8 @@ int _get_distance(int A, int B)
 
 int8_t _get_direction(int A, int B)
 {
+    if(A==B) return 0;
+
     if(A > B) return 1;
     else return -1;
 }
@@ -96,9 +98,9 @@ int _add_axis(int pos, axis_s *a)
     {
         
         // Always reset once we cross over
-        a->crossover_idx = a->fifo_idx;
-        a->scaler = 1;
+        a->crossover_idx = last_idx;
         a->direction = _get_direction(pos, last_pos);
+
         a->trigger_width = 0;
         a->rising = true;
         a->decaying = false;
@@ -107,13 +109,17 @@ int _add_axis(int pos, axis_s *a)
     }
     
     if (a->rising)
-    {       
+    {   
+        // Get distance
+        int _distance = _get_distance(pos, CENTERVAL);
+
         // Check if we're too wide
-        if(a->trigger_width >= TRIGGER_MAX_WIDTH)
+        if( (a->trigger_width >= TRIGGER_MAX_WIDTH) || (_distance >= ARC_MIN_HEIGHT) )
         {
             // Reset here
             a->rising = false;
             a->decaying = false;
+            a->decay_timer = 0;
         }
         else
         {
@@ -121,7 +127,7 @@ int _add_axis(int pos, axis_s *a)
             // increase our trigger counter
             int8_t dir = _get_direction(pos, last_pos);
 
-            if(dir == a->direction)
+            if( (dir == a->direction) || (!dir))
             {
                 // Restart counter
                 a->trigger = 0;
@@ -247,7 +253,7 @@ bool _snapback_add_value(int val)
     return false;
 }
 
-#define CAP_OFFSET 200
+#define CAP_OFFSET 260
 #define UPPER_CAP 4095 - CAP_OFFSET
 #define LOWER_CAP 0 + CAP_OFFSET
 #define CAP_INTERVAL 1000
