@@ -16,7 +16,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
     return 0;
 }
 
-#define ARC_MAX_WIDTH 80
+#define ARC_MAX_WIDTH 42
 #define TRIGGER_MAX_WIDTH (ARC_MAX_WIDTH/2)
 #define ARC_MIN_WIDTH 20
 
