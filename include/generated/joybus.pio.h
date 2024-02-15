@@ -13,7 +13,7 @@
 // ------ //
 
 #define joybus_wrap_target 0
-#define joybus_wrap 20
+#define joybus_wrap 23
 
 #define joybus_offset_joybusin 0u
 #define joybus_offset_joybusout 9u
@@ -29,25 +29,28 @@ static const uint16_t joybus_program_instructions[] = {
     0x0042, //  6: jmp    x--, 2                     
     0xd800, //  7: irq    nowait 0        side 1     
     0x0001, //  8: jmp    1                          
-    0xf881, //  9: set    pindirs, 1      side 1     
-    0x7b21, // 10: out    x, 1            side 1 [3] 
-    0x132e, // 11: jmp    !x, 14          side 0 [3] 
-    0x1fea, // 12: jmp    !osre, 10       side 1 [7] 
-    0x0010, // 13: jmp    16                         
-    0x17ea, // 14: jmp    !osre, 10       side 0 [7] 
-    0xb842, // 15: nop                    side 1     
-    0xba42, // 16: nop                    side 1 [2] 
-    0xb342, // 17: nop                    side 0 [3] 
-    0xb842, // 18: nop                    side 1     
-    0xc001, // 19: irq    nowait 1                   
-    0x000a, // 20: jmp    10                         
+    0xf880, //  9: set    pindirs, 0      side 1     
+    0x7a21, // 10: out    x, 1            side 1 [2] 
+    0xf081, // 11: set    pindirs, 1      side 0     
+    0x1230, // 12: jmp    !x, 16          side 0 [2] 
+    0xf880, // 13: set    pindirs, 0      side 1     
+    0x1ee9, // 14: jmp    !osre, 9        side 1 [6] 
+    0x0013, // 15: jmp    19                         
+    0xf081, // 16: set    pindirs, 1      side 0     
+    0x16e9, // 17: jmp    !osre, 9        side 0 [6] 
+    0xf880, // 18: set    pindirs, 0      side 1     
+    0xfa80, // 19: set    pindirs, 0      side 1 [2] 
+    0xf381, // 20: set    pindirs, 1      side 0 [3] 
+    0xf880, // 21: set    pindirs, 0      side 1     
+    0xc001, // 22: irq    nowait 1                   
+    0x0009, // 23: jmp    9                          
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program joybus_program = {
     .instructions = joybus_program_instructions,
-    .length = 21,
+    .length = 24,
     .origin = -1,
 };
 
