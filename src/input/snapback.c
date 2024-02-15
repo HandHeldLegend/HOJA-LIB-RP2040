@@ -16,7 +16,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
     return 0;
 }
 
-#define ARC_MAX_WIDTH 50
+#define ARC_MAX_WIDTH 58
 #define TRIGGER_MAX_WIDTH (ARC_MAX_WIDTH/2)
 #define ARC_MIN_WIDTH 20
 
@@ -28,7 +28,7 @@ uint32_t _timestamp_delta(uint32_t new, uint32_t old)
 
 // How many measurements we need to
 // 'fall' before we activate
-#define TRIGGER_THRESHOLD 4
+#define TRIGGER_THRESHOLD 3
 
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
@@ -127,7 +127,7 @@ int _add_axis(int pos, axis_s *a)
             // increase our trigger counter
             int8_t dir = _get_direction(pos, last_pos);
 
-            if( (dir == a->direction) || (!dir))
+            if( (dir == a->direction) || !dir )
             {
                 // Restart counter
                 a->trigger = 0;
