@@ -7,7 +7,7 @@
 #define SNAPBACK_WIDTH_MAX 30
 #define SNAPBACK_HEIGHT_MAX 1850
 #define SNAPBACK_DEADZONE 650
-#define SNAPBACK_DISTANCE_THRESHOLD 400
+#define SNAPBACK_DISTANCE_THRESHOLD 550
 
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
@@ -95,7 +95,8 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
     int return_y = y;
 
     float distance = _get_2d_distance(x, y);
-    if(distance >= SNAPBACK_DISTANCE_THRESHOLD)
+
+    if(distance >= SNAPBACK_HEIGHT_MAX)
     {
         a->stored_x = x;
         a->stored_y = y;
@@ -146,6 +147,10 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
             a->rising = false;
             a->decaying = true;
             a->decay_timer = a->trigger_width+DECAY_TOLERANCE;
+
+            // Set new stored X and Y
+            a->stored_x = x;
+            a->stored_y = y;
         }
     }
     else if(a->decaying)
@@ -163,7 +168,6 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
     }
 
     a->last_distance = distance;
-    
     *out_x = return_x;
     *out_y = return_y;
 }
