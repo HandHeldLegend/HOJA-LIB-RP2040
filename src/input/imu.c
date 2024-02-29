@@ -1,6 +1,6 @@
 #include "imu.h"
 
-#define IMU_READ_RATE 2000 // 500KHz 
+#define IMU_READ_RATE 1000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 16000
 
 imu_data_s _imu_buffer_a = {0};
