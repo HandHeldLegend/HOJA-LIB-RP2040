@@ -14,8 +14,9 @@ hoja_capabilities_t _webusb_capabilities = {
     .gyroscope = HOJA_CAPABILITY_GYRO,
     .nintendo_serial = HOJA_CAPABILITY_NINTENDO_SERIAL,
     .nintendo_joybus = HOJA_CAPABILITY_NINTENDO_JOYBUS,
-    .rumble = HOJA_CAPABILITY_RUMBLE,
+    .rumble_erm = HOJA_CAPABILITY_RUMBLE_ERM,
     .battery_pmic = HOJA_CAPABILITY_BATTERY,
+    .rumble_lra = HOJA_CAPABILITY_RUMBLE_LRA,
     .padding = 0,
 };
 
@@ -64,6 +65,8 @@ void webusb_send_debug_dump(uint8_t len, uint8_t *data)
  */
 void webusb_command_processor(uint8_t *data)
 {
+    memset(_webusb_out_buffer, 0, 64);
+
     switch (data[0])
     {
     default:
@@ -466,9 +469,9 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_VIBRATE_GET:
     {
         printf("WebUSB: Got Vibrate GET command.");
-        memset(_webusb_out_buffer, 0, 64);
         _webusb_out_buffer[0] = WEBUSB_CMD_VIBRATE_GET;
         _webusb_out_buffer[1] = global_loaded_settings.rumble_intensity;
+        _webusb_out_buffer[2] = global_loaded_settings.rumble_mode;
 
         if (webusb_ready_blocking(4000))
         {
@@ -481,29 +484,8 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_VIBRATE_SET:
     {
         printf("WebUSB: Got Vibrate SET command.");
-        settings_set_rumble(data[1]);
-    }
-    break;
-
-    case WEBUSB_CMD_VIBRATEFLOOR_GET:
-    {
-        printf("WebUSB: Got Vibrate FLOOR GET command.");
-        memset(_webusb_out_buffer, 0, 64);
-        _webusb_out_buffer[0] = WEBUSB_CMD_VIBRATEFLOOR_GET;
-        _webusb_out_buffer[1] = global_loaded_settings.rumble_floor;
-
-        if (webusb_ready_blocking(4000))
-        {
-            tud_vendor_n_write(0, _webusb_out_buffer, 64);
-            tud_vendor_n_flush(0);
-        }
-    }
-    break;
-
-    case WEBUSB_CMD_VIBRATEFLOOR_SET:
-    {
-        printf("WebUSB: Got Vibrate FLOOR SET command.");
-        settings_set_rumble_floor(data[1]);
+        settings_set_rumble(data[1], data[2]);
+        // Use data[2] for rumble mode
     }
     break;
 
@@ -530,6 +512,55 @@ void webusb_command_processor(uint8_t *data)
         }
     }
     break;
+
+    case WEBUSB_CMD_DEADZONE_GET:
+    {
+        _webusb_out_buffer[0] = WEBUSB_CMD_DEADZONE_GET;
+        memcpy(&(_webusb_out_buffer[1]), &global_loaded_settings.deadzone_left_center, 2);
+        memcpy(&(_webusb_out_buffer[3]), &global_loaded_settings.deadzone_left_outer, 2);
+        memcpy(&(_webusb_out_buffer[5]), &global_loaded_settings.deadzone_right_center, 2);
+        memcpy(&(_webusb_out_buffer[7]), &global_loaded_settings.deadzone_right_outer, 2);
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
+    case WEBUSB_CMD_DEADZONE_SET:
+    {
+        uint16_t combined = (data[2]<<8) | data[3];
+        settings_set_deadzone(data[1], combined);
+    }
+    break;
+
+    case WEBUSB_CMD_RUMBLETEST_GET:
+    {
+        cb_hoja_rumble_test();
+    }
+    break;
+
+    case WEBUSB_CMD_BOOTMODE_SET:
+    {
+        settings_set_mode(data[1]);
+    }
+    break;
+
+    case WEBUSB_CMD_BOOTMODE_GET:
+    {
+        _webusb_out_buffer[0] = WEBUSB_CMD_BOOTMODE_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.input_mode;
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
     }
 }
 

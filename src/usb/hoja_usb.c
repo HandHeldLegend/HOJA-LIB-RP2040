@@ -144,6 +144,9 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
       if (_usb_ready)
       {
         _usb_hid_cb(button_data, analog_data);
+        tud_task();
+        tud_task();
+        tud_task();
       }
     }
   }
@@ -287,7 +290,8 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, (buffer[1] > 0) ? 0.65f : 0);
+        float amp = (buffer[1] > 0) ? 0.65f : 0;
+        hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, amp, HOJA_HAPTIC_BASE_LFREQ, amp);
       }
       else if (buffer[0] == 0x13)
       {
@@ -305,11 +309,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
         {
           uint8_t xrv = (buffer[3]>buffer[4]) ? buffer[3] : buffer[4];
           float xri = (float) xrv/255;
-          cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, xri);
+          hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, xri, HOJA_HAPTIC_BASE_LFREQ, xri);
         }
         else
         {
-          cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
+          float amp = 0;
+          hoja_rumble_set(0,0,0,0);
         }
       }
     }

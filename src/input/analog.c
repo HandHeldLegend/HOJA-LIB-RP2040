@@ -1,6 +1,9 @@
 #include "analog.h"
 #define CENTER 2048
-#define DEADZONE 50
+#define DEADZONE_DEFAULT 100
+
+uint16_t _analog_deadzone_l = DEADZONE_DEFAULT;
+uint16_t _analog_deadzone_r = DEADZONE_DEFAULT;
 
 const uint32_t _analog_interval = 200;
 
@@ -17,11 +20,22 @@ a_data_s *_analog_output = NULL;
 
 
 button_data_s *_buttons = NULL;
+button_data_s *_buttons_processed = NULL;
+button_data_s *_buttons_output = NULL;
 
 typedef struct {
     int8_t tracked_direction;
     int last_pos;
 } analog_distance_mem_s;
+
+typedef struct
+{
+    bool button_fifo_full;
+    button_data_s buttons_buffer[INPUT_BUFFER_MAX];
+    int button_fifo_idx;
+} button_fifo_s;
+
+button_fifo_s _button_fifo = {0};
 
 static analog_distance_mem_s _lx_tracker_mem;
 static analog_distance_mem_s _ly_tracker_mem;
@@ -36,12 +50,14 @@ void analog_send_reset()
     _ry_tracker_mem.tracked_direction = 0;
 }
 
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons)
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons, button_data_s *processed, button_data_s *output)
 {
     _data_in    = in;
     _data_out   = out;
     _analog_desnapped = desnapped;
     _buttons    = buttons;
+    _buttons_output = output;
+    _buttons_processed = processed;
     stick_scaling_get_settings();
     stick_scaling_init();
 
@@ -77,10 +93,6 @@ void analog_calibrate_stop()
 
     _analog_calibrate = false;
 
-    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
-    sleep_ms(500);
-    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
-
     stick_scaling_set_settings();
 
     stick_scaling_init();
@@ -92,10 +104,6 @@ void analog_calibrate_save()
 {
 
     _analog_calibrate = false;
-
-    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, true);
-    sleep_ms(500);
-    cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, false);
 
     stick_scaling_set_settings();
 
@@ -188,7 +196,7 @@ void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
 }
 
 #define CLAMP_0_MAX(value) ((value) < 0 ? 0 : ((value) > 4095 ? 4095 : (value)))
-#define SCALE_DISTANCE (float)(CENTER-DEADZONE)
+#define SCALE_DISTANCE (float)(CENTER-DEADZONE_DEFAULT)
 #define SCALE_F (float)(CENTER/SCALE_DISTANCE)
 
 void _analog_process_deadzone(a_data_s *in, a_data_s *out)
@@ -197,14 +205,19 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
     float ld = stick_get_distance(in->lx, in->ly, CENTER, CENTER);
     float rd = stick_get_distance(in->rx, in->ry, CENTER, CENTER);
 
-    if(ld <= DEADZONE)
+    float left_scale_distance   = CENTER - global_loaded_settings.deadzone_left_center;
+    float right_scale_distance  = CENTER - global_loaded_settings.deadzone_right_center;
+    float scale_f_left          = CENTER/left_scale_distance;
+    float scale_f_right         = CENTER/right_scale_distance;
+
+    if(ld <= global_loaded_settings.deadzone_left_center)
     {
         out->lx = CENTER;
         out->ly = CENTER;
     }
     else
     {
-        ld -= DEADZONE;
+        ld -= global_loaded_settings.deadzone_left_center;
 
         float la = stick_get_angle(in->lx, in->ly, CENTER, CENTER);
 
@@ -212,21 +225,21 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
         float ly = 0;
 
         stick_normalized_vector(la, &lx, &ly);
-        lx *= ld*SCALE_F;
-        ly *= ld*SCALE_F;
+        lx *= ld*scale_f_left;
+        ly *= ld*scale_f_left;
 
         out->lx = CLAMP_0_MAX((int) roundf(lx + CENTER));
         out->ly = CLAMP_0_MAX((int) roundf(ly + CENTER));
     }
 
-    if(rd <= DEADZONE)
+    if(rd <= global_loaded_settings.deadzone_right_center)
     {
         out->rx = CENTER;
         out->ry = CENTER;
     }
     else
     {
-        rd -= DEADZONE;
+        rd -= global_loaded_settings.deadzone_right_center;
 
         float ra = stick_get_angle(in->rx, in->ry, CENTER, CENTER);
 
@@ -234,8 +247,8 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
         float ry = 0;
 
         stick_normalized_vector(ra, &rx, &ry);
-        rx *= rd*SCALE_F;
-        ry *= rd*SCALE_F;
+        rx *= rd*scale_f_right;
+        ry *= rd*scale_f_right;
 
         out->rx = CLAMP_0_MAX((int) roundf(rx + CENTER));
         out->ry = CLAMP_0_MAX((int) roundf(ry + CENTER));
@@ -282,8 +295,29 @@ void analog_task(uint32_t timestamp)
             _analog_distance_check(analog_data_deadzone.rx, &(_data_out->rx), &_rx_tracker_mem);
             _analog_distance_check(analog_data_deadzone.ly, &(_data_out->ly), &_ly_tracker_mem);
             _analog_distance_check(analog_data_deadzone.ry, &(_data_out->ry), &_ry_tracker_mem);
-
         }
+
+        int _last_idx = (!_button_fifo.button_fifo_idx) ? (INPUT_BUFFER_MAX-1) : (_button_fifo.button_fifo_idx-1) % INPUT_BUFFER_MAX;
+        int _return_idx = (_button_fifo.button_fifo_idx+1) % INPUT_BUFFER_MAX;
+        int _current_idx = (_button_fifo.button_fifo_idx);
+
+        memcpy(&(_button_fifo.buttons_buffer[_current_idx]), _buttons_processed, sizeof(button_data_s));
+
+
+        // Button FIFO
+        if(!_button_fifo.button_fifo_full)
+        {
+            _button_fifo.button_fifo_idx+=1;
+            if(_button_fifo.button_fifo_idx == INPUT_BUFFER_MAX)
+            {
+                _button_fifo.button_fifo_full = true;
+                _button_fifo.button_fifo_idx = 0;
+            }
+            return;
+        }
+
+        memcpy(_buttons_output, &(_button_fifo.buttons_buffer[_return_idx]), sizeof(button_data_s));
+        _button_fifo.button_fifo_idx = (_button_fifo.button_fifo_idx + 1) % INPUT_BUFFER_MAX;
     }
 }
 
