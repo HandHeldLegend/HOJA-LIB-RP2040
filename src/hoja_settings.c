@@ -6,10 +6,11 @@ hoja_settings_s global_loaded_settings = {0};
 void _generate_mac()
 {
   printf("Generated MAC: ");
-  for(uint8_t i = 0; i < 6; i++)
+  for (uint8_t i = 0; i < 6; i++)
   {
     global_loaded_settings.switch_mac_address[i] = get_rand_32() & 0xFF;
-    if(!i) global_loaded_settings.switch_mac_address[i] &= 0xFE;
+    if (!i)
+      global_loaded_settings.switch_mac_address[i] &= 0xFE;
     printf("%X : ", global_loaded_settings.switch_mac_address[i]);
   }
 
@@ -23,11 +24,11 @@ void _generate_mac()
 bool settings_load()
 {
   static_assert(sizeof(hoja_settings_s) <= FLASH_SECTOR_SIZE);
-      const uint8_t *target_read = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET + (FLASH_SECTOR_SIZE));
+  const uint8_t *target_read = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET + (FLASH_SECTOR_SIZE));
   memcpy(&global_loaded_settings, target_read, sizeof(hoja_settings_s));
 
   // Check that the version matches, otherwise reset to default and save.
-  if(global_loaded_settings.settings_version != HOJA_SETTINGS_VERSION)
+  if (global_loaded_settings.settings_version != HOJA_SETTINGS_VERSION)
   {
     printf("Settings version does not match. Resetting... \n");
     settings_reset_to_default();
@@ -36,9 +37,7 @@ bool settings_load()
   }
 
   // Validate some settings
-  global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger<50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
-  settings_set_rumble_floor(global_loaded_settings.rumble_floor);
-  settings_set_rumble(global_loaded_settings.rumble_intensity);
+  global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger < 50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
   global_loaded_settings.switch_mac_address[0] &= 0xFE;
   global_loaded_settings.switch_mac_address[5] = 0x9B;
 
@@ -48,24 +47,42 @@ bool settings_load()
 void settings_reset_to_default()
 {
   const hoja_settings_s set = {
-    .settings_version = HOJA_SETTINGS_VERSION,
-    .input_mode = INPUT_MODE_SWPRO,
-    .lx_center = 2048,
-    .ly_center = 2048,
-    .rx_center = 2048,
-    .ry_center = 2048,
-    .l_angles = {0,45,90,135,180,225,270,315},
-    .r_angles = {0,45,90,135,180,225,270,315},
-    .l_angle_distances = {
-      600, 600, 600, 600, 600, 600, 600, 600,
-    },
-    .r_angle_distances = {
-      600, 600, 600, 600, 600, 600, 600, 600,
-    },
-    .rgb_colors = HOJA_RGB_DEFAULTS,
-    .rumble_intensity = 50,
-    .rumble_floor = 0,
-    .gc_sp_light_trigger = 50,
+      .settings_version = HOJA_SETTINGS_VERSION,
+      .input_mode = INPUT_MODE_SWPRO,
+      .lx_center = 2048,
+      .ly_center = 2048,
+      .rx_center = 2048,
+      .ry_center = 2048,
+      .l_angles = {0, 45, 90, 135, 180, 225, 270, 315},
+      .r_angles = {0, 45, 90, 135, 180, 225, 270, 315},
+      .l_angle_distances = {
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+      },
+      .r_angle_distances = {
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+          600,
+      },
+      .rgb_colors = HOJA_RGB_DEFAULTS,
+      .rumble_intensity = 50,
+      .rumble_mode = RUMBLE_TYPE_ERM,
+      .gc_sp_light_trigger    = 50,
+      .deadzone_left_outer    = 50,
+      .deadzone_left_center   = 100,
+      .deadzone_right_outer   = 50,
+      .deadzone_right_center  = 100,
   };
   memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
   remap_reset_default(INPUT_MODE_SWPRO);
@@ -73,8 +90,8 @@ void settings_reset_to_default()
   remap_reset_default(INPUT_MODE_GAMECUBE);
   remap_reset_default(INPUT_MODE_N64);
   remap_reset_default(INPUT_MODE_SNES);
-  memset(global_loaded_settings.imu_0_offsets, 0, sizeof(int8_t)*6);
-  memset(global_loaded_settings.imu_1_offsets, 0, sizeof(int8_t)*6);
+  memset(global_loaded_settings.imu_0_offsets, 0, sizeof(int8_t) * 6);
+  memset(global_loaded_settings.imu_1_offsets, 0, sizeof(int8_t) * 6);
   _generate_mac();
 
   global_loaded_settings.rainbow_colors[0] = COLOR_RED.color;
@@ -137,22 +154,41 @@ void settings_save()
   _save_flag = true;
 }
 
-static bool _rumble_taken = false;
-
-void settings_set_rumble_floor(uint8_t floor)
+void settings_set_rumble(uint8_t intensity, rumble_type_t type)
 {
-  floor = (floor>75) ? 75 : floor;
-  global_loaded_settings.rumble_floor = floor;
+  intensity = (intensity > 100) ? 100 : intensity;
+  global_loaded_settings.rumble_intensity = intensity;
 
   cb_hoja_rumble_init();
 }
 
-void settings_set_rumble(uint8_t intensity)
+void settings_set_deadzone(uint8_t selection, uint16_t value)
 {
-  intensity = (intensity>50) ? 50 : intensity;
-  global_loaded_settings.rumble_intensity = intensity;
+  switch (selection)
+  {
+  // Left inner
+  case 0:
+    global_loaded_settings.deadzone_left_center = value;
+    break;
 
-  cb_hoja_rumble_init();
+  // Left outer
+  case 1:
+    global_loaded_settings.deadzone_left_outer = value;
+    break;
+
+  // Right inner
+  case 2:
+    global_loaded_settings.deadzone_right_center = value;
+    break;
+
+  // Right outer
+  case 3:
+    global_loaded_settings.deadzone_right_outer = value;
+    break;
+  }
+
+  // Init sticks again
+  stick_scaling_init();
 }
 
 void settings_set_centers(int lx, int ly, int rx, int ry)
@@ -173,22 +209,19 @@ void settings_set_analog_inversion(bool lx, bool ly, bool rx, bool ry)
 
 void settings_set_distances(float *l_angle_distances, float *r_angle_distances)
 {
-  memcpy(global_loaded_settings.l_angle_distances, l_angle_distances, sizeof(float)*8);
-  memcpy(global_loaded_settings.r_angle_distances, r_angle_distances, sizeof(float)*8);
+  memcpy(global_loaded_settings.l_angle_distances, l_angle_distances, sizeof(float) * 8);
+  memcpy(global_loaded_settings.r_angle_distances, r_angle_distances, sizeof(float) * 8);
 }
 
 void settings_set_angles(float *l_angles, float *r_angles)
 {
-  memcpy(global_loaded_settings.l_angles, l_angles, sizeof(float)*8);
-  memcpy(global_loaded_settings.r_angles, r_angles, sizeof(float)*8);
+  memcpy(global_loaded_settings.l_angles, l_angles, sizeof(float) * 8);
+  memcpy(global_loaded_settings.r_angles, r_angles, sizeof(float) * 8);
 }
 
 void settings_set_mode(input_mode_t mode)
 {
-  global_loaded_settings.input_mode = mode;
-}
-
-void settings_set_snapback(uint8_t axis, uint8_t level)
-{
+  mode = (mode >= INPUT_MODE_MAX) ? 0 : mode;
   
+  global_loaded_settings.input_mode = mode;
 }

@@ -7,6 +7,13 @@
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
 #define ANALOG_DIGITAL_THRESH 650
 
+typedef enum
+{
+    RUMBLE_TYPE_ERM = 0,
+    RUMBLE_TYPE_LRA = 1,
+    RUMBLE_TYPE_MAX,
+} rumble_type_t;
+
 typedef struct 
 {
   uint32_t this_time;
@@ -71,11 +78,12 @@ typedef struct
     uint8_t gyroscope : 1;
     uint8_t bluetooth : 1;
     uint8_t rgb : 1;
-    uint8_t rumble : 1;
+    uint8_t rumble_erm : 1;
     uint8_t nintendo_serial : 1;
     uint8_t nintendo_joybus : 1;
     uint8_t battery_pmic    : 1;
-    uint8_t padding         : 5;
+    uint8_t rumble_lra      : 1;
+    uint8_t padding         : 4;
 } hoja_capabilities_t;
 
 #define MAPCODE_MAX 16
@@ -210,17 +218,25 @@ typedef struct {
     rgb_s b;
 } rgb_preset_t;
 
+typedef struct 
+{
+    float frequency_high;
+    float amplitude_high;
+    float frequency_low;
+    float amplitude_low;
+} rumble_data_s;
+
 typedef enum
 {
     INPUT_MODE_LOAD     = -1,
     INPUT_MODE_SWPRO    = 0,
     INPUT_MODE_XINPUT   = 1,
-    INPUT_MODE_GAMECUBE = 2,
-    INPUT_MODE_N64      = 3,
-    INPUT_MODE_SNES     = 4,
-    INPUT_MODE_GCUSB    = 5,
+    INPUT_MODE_GCUSB    = 2,
+    INPUT_MODE_GAMECUBE = 3,
+    INPUT_MODE_N64      = 4,
+    INPUT_MODE_SNES     = 5,
     INPUT_MODE_DS4      = 6,
-    INPUT_MODE_XHID     = 7,
+    INPUT_MODE_MAX,
 } input_mode_t;
 
 typedef enum
@@ -239,7 +255,7 @@ typedef struct
 
 typedef enum
 {
-    USBRATE_8 = 7000,
+    USBRATE_8 = 7700,
     USBRATE_4 = 1500,
     USBRATE_1 = 1,
 } usb_rate_t;
@@ -346,6 +362,8 @@ typedef struct
 
     int zl_analog;
     int zr_analog;
+
+    bool buttons_set;
 } __attribute__ ((packed)) button_data_s;
 
 // Analog input data structure

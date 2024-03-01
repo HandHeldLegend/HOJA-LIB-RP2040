@@ -832,6 +832,10 @@ void rgb_init(rgb_mode_t mode, int brightness)
     }
 
     _rgb_mode = mode;
+
+    // DEBUG
+    //_rgb_mode = RGB_MODE_REACTIVE;
+
     _rgb_mode_setup = false;
     _rgb_task_constant = false;
 

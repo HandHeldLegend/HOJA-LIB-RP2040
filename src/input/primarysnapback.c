@@ -1,45 +1,39 @@
 #include "snapback.h"
 #include <math.h>
 
+uint32_t _timestamp_delta(uint32_t new, uint32_t old)
+{
+    if (new >= old)
+    {
+        return new - old;
+    }
+    else if (new < old)
+    {
+        uint32_t d = 0xFFFFFFFF - old;
+        return d + new;
+    }
+
+    return 0;
+}
+
+
+
 // How many measurements we need to
 // 'fall' before we activate
 #define TRIGGER_THRESHOLD 3
-#define SNAPBACK_WIDTH_MAX 30
-#define SNAPBACK_HEIGHT_MAX 1850
-#define SNAPBACK_DEADZONE 650
-#define SNAPBACK_DISTANCE_THRESHOLD 550
 
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
 
 #define OUTBUFFER_SIZE 64
 
-int _is_opposite_direction(int x1, int y1, int x2, int y2)
-{
-    // Opposite directions if dot product is negative.
-    return (x1 - CENTERVAL) * (x2 - CENTERVAL) + (y1 - CENTERVAL) * (y2 - CENTERVAL) < 0;
-}
-
-float _get_2d_distance(int x, int y)
-{
-  float dx = (float)x - (float)CENTERVAL;
-  float dy = (float)y - (float)CENTERVAL;
-  return sqrtf(dx * dx + dy * dy);
-}
-
-bool _is_distance_falling(float last_distance, float current_distance)
-{
-    return (current_distance <= last_distance);
-}
-
-
-
 typedef struct
 {
-    float last_distance;
-    int stored_x;
-    int stored_y;
-    bool triggered;
+    int buffer[INPUT_BUFFER_MAX];
+    bool buffer_full;
+    uint8_t fifo_idx; // Our index of our current output buffer value.
+    uint8_t crossover_idx; // Index of positions where we started an arc. If snapback is detected we start scaling from here
+    int trigger_pos; // Position when we started our trigger
     uint8_t trigger; // Trigger counter. If we move the opposite direction more than TRIGGER_THRESHOLD, we apply our snapback
     uint8_t trigger_width; // If we trigger, the width of coordinates that we hit our first trigger
     int8_t  direction; // -1 or 1 to indicate direction of movement
@@ -48,19 +42,6 @@ typedef struct
     bool    rising; // If we are actively processing
     bool    decaying; // If we are actively decaying
 } axis_s;
-
-bool _center_trigger_detect(axis_s *axis, int x, int y)
-{
-    if(axis->stored_x < 0)
-    return false;
-
-    if(_is_opposite_direction(axis->stored_x, axis->stored_y, x, y))
-    {
-        axis->stored_x = -1;
-        axis->stored_y = -1;
-        return true;
-    }
-}
 
 bool _is_between(int centerValue, int lastPosition, int currentPosition) 
 {
@@ -73,123 +54,174 @@ bool _is_between(int centerValue, int lastPosition, int currentPosition)
     }
 }
 
+
 int _get_distance(int A, int B)
 {
     return abs(A-B);
 }
 
-int8_t _get_direction(int currentPosition, int lastPosition)
+int8_t _get_direction(int A, int B)
 {
-    if(currentPosition==lastPosition) return 0;
+    if(A==B) return 0;
 
-    if(currentPosition > lastPosition) return 1;
+    if(A > B) return 1;
     else return -1;
 }
 
 /**
  * Adds value to axis_s and returns the latest value
  */
-void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
+int _add_axis(int pos, axis_s *a)
 {   
-    int return_x = x;
-    int return_y = y;
+    // Get the index of the outbound position
+    uint8_t return_idx = (a->fifo_idx+1) % INPUT_BUFFER_MAX;
+    uint8_t last_idx = (!a->fifo_idx) ? (INPUT_BUFFER_MAX-1) : (a->fifo_idx-1) % INPUT_BUFFER_MAX;
+    int last_pos = a->buffer[last_idx];
 
-    float distance = _get_2d_distance(x, y);
-
-    if(distance >= SNAPBACK_HEIGHT_MAX)
+    if(!a->buffer_full)
     {
-        a->stored_x = x;
-        a->stored_y = y;
+        a->buffer[a->fifo_idx] = pos;
+        a->fifo_idx = (a->fifo_idx+1) % INPUT_BUFFER_MAX;
+        if(!a->fifo_idx) a->buffer_full = true;
+        return CENTERVAL;
     }
 
-    if(_center_trigger_detect(a, x, y))
+    // Check if we're crossing over
+    if(_is_between(CENTERVAL, last_pos, pos))
     {
-        // reset rising
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
+        
+        // Always reset once we cross over
+        a->crossover_idx = last_idx;
+        a->direction = _get_direction(pos, last_pos);
 
-        a->triggered = false;
+        a->trigger_width = 0;
         a->rising = true;
         a->decaying = false;
-        a->trigger_width = 0;
+        a->decay_timer = 0;
         a->trigger = 0;
     }
-    // Valid snapback wave potentially happening
-    else if(a->rising)
-    {
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
+    
+    if (a->rising)
+    {   
+        // Get distance
+        int _distance = _get_distance(pos, CENTERVAL);
 
-        a->trigger_width += 1;
-
-        if(_is_distance_falling(a->last_distance, distance))
+        // Check if we're too wide
+        if( (a->trigger_width >= TRIGGER_MAX_WIDTH) || (_distance >= ARC_MIN_HEIGHT) )
         {
-            a->triggered = true;
-            a->trigger += 1;
-        }
-        else a->trigger = 0;
-
-        // Check if we should release
-        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) || (distance >= SNAPBACK_HEIGHT_MAX) )
-        {
-            //release
+            // Reset here
             a->rising = false;
-
-            return_x = x;
-            return_y = y;
-
             a->decaying = false;
+            a->decay_timer = 0;
         }
-        else if(a->trigger >= TRIGGER_THRESHOLD)
+        else
         {
-            // We are snapping back
-            a->triggered = false;
-            a->rising = false;
-            a->decaying = true;
-            a->decay_timer = a->trigger_width+DECAY_TOLERANCE;
+            // If we are moving in the opposite direction
+            // increase our trigger counter
+            int8_t dir = _get_direction(pos, last_pos);
 
-            // Set new stored X and Y
-            a->stored_x = x;
-            a->stored_y = y;
+            if( (dir == a->direction) || !dir )
+            {
+                // Restart counter
+                a->trigger = 0;
+            }
+            else 
+            {
+                if(!a->trigger) a->trigger_pos = last_pos; // Set our trigger pos (to act as height later)
+
+                a->trigger += 1;
+
+                if(a->trigger >= TRIGGER_THRESHOLD)
+                {
+                    a->decay_timer = a->trigger_width + DECAY_TOLERANCE;
+                    a->rising = false;
+
+                    // Calculate the distance from our trigger point to center
+                    int trigger_distance = _get_distance(CENTERVAL, a->trigger_pos);
+
+                    // Only start scaling and decaying if we cross the threshold
+                    if(trigger_distance >= ARC_MAX_HEIGHT)
+                    {
+                        
+                        a->scaler = (float) ARC_MAX_HEIGHT / (float) trigger_distance;
+
+                        // Get the index of data we want to start modifying
+                        uint8_t start_mod_idx = a->crossover_idx;
+
+                        // Modify the width of our positions
+                        for(uint8_t i = 0; i < a->trigger_width; i++)
+                        {
+                            start_mod_idx = (start_mod_idx+1) % INPUT_BUFFER_MAX;
+                            if(start_mod_idx == a->fifo_idx) break;
+
+                            int _od = _get_distance(CENTERVAL, a->buffer[start_mod_idx]);
+                            float _nd = (float) _od * a->scaler * (float) a->direction;
+                            int _np = CENTERVAL + (int) _nd;
+                            a->buffer[start_mod_idx] = _np;
+
+                            
+                        }
+                        a->decaying = true;
+                    }
+                    else
+                    {
+                        // Not snapping back, reset
+                        a->rising = false;
+                        a->decaying = false;
+                    }
+                }
+            }
         }
-    }
-    else if(a->decaying)
-    {
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
 
+        // Increase our trigger width
+        a->trigger_width += 1;
+    }
+    
+    if(a->decaying)
+    {
         a->decay_timer -= 1;
+
+        int _od = _get_distance(CENTERVAL, pos);
+        float _nd = (float) _od * a->scaler;
+        int _np = CENTERVAL + ((int) _nd * a->direction);
+        
+        a->buffer[a->fifo_idx] = _np;
+
+        //a->buffer[a->fifo_idx] = pos;
+
         if(!a->decay_timer)
         {
-            a->triggered = false;
-            a->rising = false;
             a->decaying = false;
         }
     }
+    else
+    {
+        a->buffer[a->fifo_idx] = pos;
+    }
 
-    a->last_distance = distance;
-    *out_x = return_x;
-    *out_y = return_y;
+    // Increase fifo idx
+    a->fifo_idx = (a->fifo_idx+1) % INPUT_BUFFER_MAX;
+    return a->buffer[return_idx];
 }
 
 void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output)
 {
-    static axis_s l = {0};
-    static axis_s r = {0};
+    static axis_s lx = {0};
+    static axis_s ly = {0};
+    static axis_s rx = {0};
+    static axis_s ry = {0};
 
     #if(HOJA_CAPABILITY_ANALOG_STICK_L)
-
-    _add_axis(input->lx, input->ly, &(output->lx), &(output->ly), &l);
-
+    output->lx = _add_axis(input->lx, &lx);
+    output->ly = _add_axis(input->ly, &ly);
     #else
     output->lx = CENTERVAL;
     output->ly = CENTERVAL;
     #endif
 
     #if(HOJA_CAPABILITY_ANALOG_STICK_R)
-    
-    _add_axis(input->rx, input->ry, &(output->rx), &(output->ry), &r);
-
+    output->rx = _add_axis(input->rx, &rx);
+    output->ry = _add_axis(input->ry, &ry);
     #else
     output->rx = CENTERVAL;
     output->ry = CENTERVAL;
@@ -214,7 +246,7 @@ bool _snapback_add_value(int val)
     return false;
 }
 
-#define CAP_OFFSET 265
+#define CAP_OFFSET 1000
 #define UPPER_CAP 4095 - CAP_OFFSET
 #define LOWER_CAP 0 + CAP_OFFSET
 #define CAP_INTERVAL 1000

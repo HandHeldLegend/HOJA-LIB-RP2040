@@ -3,6 +3,7 @@
 #define REMAP_SET(button, shift, unset) ( (!unset) ? ((button) << shift) : 0)
 
 button_data_s *_buttons_in;
+button_data_s _remap_internal = {0};
 button_data_s *_buttons_out;
 
 input_mode_t    _remap_mode;
@@ -292,8 +293,8 @@ void remap_listen_enable(input_mode_t mode, mapcode_t mapcode)
 
 void remap_buttons_task()
 {
-  _buttons_out->buttons_all = 0x00;
-  _buttons_out->buttons_system = 0x00;
+  _remap_internal.buttons_all = 0x00;
+  _remap_internal.buttons_system = 0x00;
 
   if (_button_remap_listen)
   {
@@ -314,42 +315,42 @@ void remap_buttons_task()
     _buttons_in->dpad_right = 0;
   }
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_plus, _remap_arr[MAPCODE_B_PLUS], _unset_struct->button_plus);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_minus, _remap_arr[MAPCODE_B_MINUS], _unset_struct->button_minus);
 
-  _buttons_out->button_home     = _buttons_in->button_home;
-  _buttons_out->button_capture  = _buttons_in->button_capture;
+  _remap_internal.button_home     = _buttons_in->button_home;
+  _remap_internal.button_capture  = _buttons_in->button_capture;
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_up, _remap_arr[MAPCODE_DUP], _unset_struct->dpad_up);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_down, _remap_arr[MAPCODE_DDOWN], _unset_struct->dpad_down);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_left, _remap_arr[MAPCODE_DLEFT], _unset_struct->dpad_left);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->dpad_right, _remap_arr[MAPCODE_DRIGHT], _unset_struct->dpad_right);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->dpad_up, _remap_arr[MAPCODE_DUP], _unset_struct->dpad_up);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->dpad_down, _remap_arr[MAPCODE_DDOWN], _unset_struct->dpad_down);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->dpad_left, _remap_arr[MAPCODE_DLEFT], _unset_struct->dpad_left);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->dpad_right, _remap_arr[MAPCODE_DRIGHT], _unset_struct->dpad_right);
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_a, _remap_arr[MAPCODE_B_A], _unset_struct->button_a);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_b, _remap_arr[MAPCODE_B_B], _unset_struct->button_b);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_x, _remap_arr[MAPCODE_B_X], _unset_struct->button_x);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_y, _remap_arr[MAPCODE_B_Y], _unset_struct->button_y);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_a, _remap_arr[MAPCODE_B_A], _unset_struct->button_a);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_b, _remap_arr[MAPCODE_B_B], _unset_struct->button_b);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_x, _remap_arr[MAPCODE_B_X], _unset_struct->button_x);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_y, _remap_arr[MAPCODE_B_Y], _unset_struct->button_y);
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_l, _remap_arr[MAPCODE_T_L],    _unset_struct->trigger_l);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_l, _remap_arr[MAPCODE_T_L],    _unset_struct->trigger_l);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_r, _remap_arr[MAPCODE_T_R],    _unset_struct->trigger_r);
 
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_L)
     
     if(_l_analog_remapped)
     {
       bool l_triggered = (_buttons_in->zl_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zl;
-      _buttons_out->buttons_all |= REMAP_SET(l_triggered, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
-      _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4095 : 0;
+      _remap_internal.buttons_all |= REMAP_SET(l_triggered, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
+      _remap_internal.zl_analog = (_remap_internal.trigger_zl) ? 4095 : 0;
     }
     else
     {
-      _buttons_out->zl_analog = _buttons_in->zl_analog;
-      _buttons_out->trigger_zl = _buttons_in->trigger_zl;
+      _remap_internal.zl_analog = _buttons_in->zl_analog;
+      _remap_internal.trigger_zl = _buttons_in->trigger_zl;
     }
   #else
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
-    _buttons_out->zl_analog = (_buttons_out->trigger_zl) ? 4095 : 0;
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
+    _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
+    _remap_internal.zl_analog = (_remap_internal.trigger_zl) ? 4095 : 0;
+    _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_zl, _remap_arr[MAPCODE_T_ZL],  _unset_struct->trigger_zl);
   #endif
 
   #if(HOJA_CAPABILITY_ANALOG_TRIGGER_R)
@@ -357,20 +358,22 @@ void remap_buttons_task()
     if(_r_analog_remapped)
     {
       bool r_triggered = (_buttons_in->zr_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zr;
-      _buttons_out->buttons_all |= REMAP_SET(r_triggered, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
-      _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4095 : 0;
+      _remap_internal.buttons_all |= REMAP_SET(r_triggered, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
+      _remap_internal.zr_analog = (_remap_internal.trigger_zr) ? 4095 : 0;
     }
     else
     {
-      _buttons_out->zr_analog = _buttons_in->zr_analog;
-      _buttons_out->trigger_zr = _buttons_in->trigger_zr;
+      _remap_internal.zr_analog = _buttons_in->zr_analog;
+      _remap_internal.trigger_zr = _buttons_in->trigger_zr;
     }
   #else
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
-    _buttons_out->zr_analog = (_buttons_out->trigger_zr) ? 4095 : 0;
-    _buttons_out->buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
+    _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
+    _remap_internal.zr_analog = (_remap_internal.trigger_zr) ? 4095 : 0;
+    _remap_internal.buttons_all |= REMAP_SET(_buttons_in->trigger_zr, _remap_arr[MAPCODE_T_ZR],  _unset_struct->trigger_zr);
   #endif
 
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
-  _buttons_out->buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
+  _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
+
+  memcpy(_buttons_out, &(_remap_internal), sizeof(button_data_s));
 }

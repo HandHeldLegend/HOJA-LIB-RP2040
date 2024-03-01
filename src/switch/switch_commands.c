@@ -389,16 +389,7 @@ void rumble_translate(const uint8_t *data)
   ahi = _get_amplitude(hacode);
   alo = _get_amplitude(lacode);
 
-  if(alo>=ahi)
-  {
-    alo = (alo>0) ? powf(alo, 0.65f) : 0;
-    cb_hoja_rumble_set(flo, alo);
-  }
-  else
-  {
-    ahi = (ahi>0) ? powf(ahi, 0.65f) : 0;
-    cb_hoja_rumble_set(fhi, ahi);
-  }
+  hoja_rumble_set(fhi, ahi, flo, alo);
 }
 
 // Sends mac address with 0x81 command (unknown?)

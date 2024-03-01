@@ -162,7 +162,8 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       if (_gc_rumble != _rumblestate)
       {
         _rumblestate = _gc_rumble;
-        cb_hoja_rumble_set(HOJA_HAPTIC_BASE_FREQ, _rumblestate ? 0.65f : 0);
+        float amp = _rumblestate ? 0.65f : 0;
+        hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, amp, HOJA_HAPTIC_BASE_LFREQ, amp);
       }
 
       _gc_got_data = false;

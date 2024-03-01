@@ -2,6 +2,7 @@
 
 button_data_s _button_data = {0};
 button_data_s _button_data_processed = {0};
+button_data_s _button_data_output = {0};
 
 // The raw input analog data
 a_data_s _analog_data_input = {0};
@@ -56,11 +57,25 @@ __attribute__((weak)) void cb_hoja_rumble_init()
 
 }
 
-// Set the ERM intensity callback
-__attribute__((weak)) void cb_hoja_rumble_set(float frequency, float amplitude)
+void hoja_rumble_set(float frequency_high, float amplitude_high, float frequency_low, float amplitude_low)
 {
-  (void)frequency;
-  (void)amplitude;
+  static rumble_data_s rumble_data = {0};
+  rumble_data.frequency_high = frequency_high;
+  rumble_data.amplitude_high = amplitude_high;
+  rumble_data.frequency_low = frequency_low;
+  rumble_data.amplitude_low = amplitude_low;
+  cb_hoja_rumble_set(&rumble_data);
+}
+
+// Set the ERM intensity callback
+__attribute__((weak)) void cb_hoja_rumble_set(rumble_data_s *data)
+{
+  (void*) data;
+}
+
+__attribute__((weak)) void cb_hoja_rumble_test()
+{
+
 }
 
 __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
@@ -68,10 +83,10 @@ __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
   (void)timestamp;
 }
 
-void hoja_get_rumble_intensity(uint8_t *lower, uint8_t *upper)
+void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
 {
-  *lower = global_loaded_settings.rumble_floor;
-  *upper = global_loaded_settings.rumble_intensity;
+  *intensity = global_loaded_settings.rumble_intensity;
+  *type = global_loaded_settings.rumble_mode;
 }
 
 __attribute__((weak)) void cb_hoja_set_bluetooth_enabled(bool enable)
@@ -145,7 +160,7 @@ void _hoja_task_0()
 {
   if(!_watchdog_enabled)
   {
-    watchdog_enable(5000, false);
+    watchdog_enable(7500, false);
     _watchdog_enabled = true;
   }
 
@@ -252,7 +267,7 @@ void hoja_init(hoja_config_t *config)
       sleep_ms(200);
     }
     
-    analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data);
+    analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data, &_button_data_processed, &_button_data_output);
   }
 
   // Reset pairing if needed.
@@ -343,7 +358,6 @@ void hoja_init(hoja_config_t *config)
       //_hoja_input_method = INPUT_METHOD_USB;
       break;
     case INPUT_MODE_XINPUT:
-    case INPUT_MODE_XHID:
       indicate_color = COLOR_GREEN.color;
       break;
 

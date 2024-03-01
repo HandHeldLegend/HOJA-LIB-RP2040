@@ -61,7 +61,7 @@ typedef struct
     gc_sp_mode_t gc_sp_mode;
     uint8_t rumble_intensity;
     uint8_t gc_sp_light_trigger;
-    uint8_t rumble_floor;
+    uint8_t rumble_mode;
 
     uint8_t switch_host_address[6]; // Host device we are paired to
 
@@ -72,6 +72,17 @@ typedef struct
     uint8_t rgb_mode;
     uint32_t rainbow_colors[6];
     uint8_t rgb_step_speed;
+
+    uint16_t deadzone_left_center;
+    uint16_t deadzone_left_outer;
+    
+    uint16_t deadzone_right_center;
+    uint16_t deadzone_right_outer;
+    
+    uint16_t trigger_l_lower;
+    uint16_t trigger_l_upper;
+    uint16_t trigger_r_lower;
+    uint16_t trigger_r_upper;
 
 } hoja_settings_s;
 
@@ -88,7 +99,8 @@ void settings_set_angles(float *l_angles, float *r_angles);
 void settings_set_mode(input_mode_t mode);
 void settings_set_gc_sp(gc_sp_mode_t sp_mode);
 void settings_set_snapback(uint8_t axis, uint8_t level);
-void settings_set_rumble(uint8_t intensity);
+void settings_set_rumble(uint8_t intensity, rumble_type_t type);
 void settings_set_rumble_floor(uint8_t floor);
+void settings_set_deadzone(uint8_t selection, uint16_t value);
 
 #endif
