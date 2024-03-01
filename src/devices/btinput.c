@@ -65,11 +65,10 @@ uint16_t btinput_get_version()
     
     uint16_t v = 0xFFFF;
     #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+
     v = 0xFFFE;
     cb_hoja_set_bluetooth_enabled(true);
     sleep_ms(650);
-
-    v = 0;
 
     static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
@@ -201,16 +200,16 @@ void _btinput_message_parse(uint8_t *msg)
                 if(_rumble_amps>0)
                 {
                     float _a = (float) _rumble_amps / 0xFFFF;
-                    cb_hoja_rumble_set(_rumble_frequency, _a);
+                    hoja_rumble_set(_rumble_frequency, _rumble_frequency, _a, _a);
                 }
                 else
                 {
-                    cb_hoja_rumble_set(_rumble_frequency, 0);
+                    hoja_rumble_set(0, 0,0,0);
                 }
             }
             else
             {
-                cb_hoja_rumble_set(0,0);
+                hoja_rumble_set(0, 0,0,0);
             }
 
             if (_i_connected != status.connected_status)
