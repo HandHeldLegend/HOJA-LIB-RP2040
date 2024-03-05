@@ -23,11 +23,14 @@ typedef struct
     uint8_t mac[6];
 } i2cinput_init_s;
 
+// 11 bytes
 typedef struct
 {
     uint8_t connected_status; // Value representing if the BT is connected
-    uint16_t rumble_amplitude;
-    float   rumble_frequency;
+    uint8_t rumble_amplitude_hi;
+    float   rumble_frequency_hi;
+    uint8_t rumble_amplitude_lo;
+    float   rumble_frequency_lo;
 } i2cinput_status_s;
 
 typedef struct

@@ -2,11 +2,11 @@
 #include "interval.h"
 
 #define HOJA_I2C_MSG_SIZE_OUT   32
-#define HOJA_I2C_MSG_SIZE_IN    8
+#define HOJA_I2C_MSG_SIZE_IN    11+1
 
  uint32_t _mode_color = 0;
 
-void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
+/*void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
 {
     output[0] = (input->buttons_all & 0xFF);
     output[1] = (input->buttons_all >> 8);
@@ -52,7 +52,7 @@ void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
 
     output[25] = input->gz & 0xFF;
     output[26] = (input->gz >> 8);
-}
+*/
 
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 
@@ -100,7 +100,6 @@ uint16_t btinput_get_version()
 bool btinput_init(input_mode_t input_mode)
 {
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
-
         #ifdef HOJA_BT_LOGGING_DEBUG
             #if (HOJA_BT_LOGGING_DEBUG == 1 )
             cb_hoja_set_uart_enabled(true);
@@ -185,26 +184,22 @@ void _btinput_message_parse(uint8_t *msg)
 
         case I2CINPUT_ID_STATUS:
         {
-            static uint16_t _rumble_amps = 0;
-            static float _rumble_frequency = 0;
-            static uint8_t _i_connected = 0;
             static i2cinput_status_s status = {0};
-            bool changed = false;
+            static int8_t _i_connected = -1;
 
-            memcpy(&_rumble_amps, &msg[2], sizeof(uint16_t));
-            memcpy(&_rumble_frequency, &msg[4], sizeof(float));
-            _i_connected = msg[1];
+            memcpy(&status, &msg[1], sizeof(i2cinput_status_s));
 
-            if(status.connected_status)
+            if(_i_connected==1)
             {
-                if(_rumble_amps>0)
+                if( (status.rumble_amplitude_lo>0) || (status.rumble_amplitude_hi>0) )
                 {
-                    float _a = (float) _rumble_amps / 0xFFFF;
-                    hoja_rumble_set(_rumble_frequency, _rumble_frequency, _a, _a);
+                    float _ahi = (float) status.rumble_amplitude_hi / 100;
+                    float _alo = (float) status.rumble_amplitude_lo / 100;
+                    hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
                 }
                 else
                 {
-                    hoja_rumble_set(0, 0,0,0);
+                    hoja_rumble_set(0,0,0,0);
                 }
             }
             else
@@ -212,19 +207,24 @@ void _btinput_message_parse(uint8_t *msg)
                 hoja_rumble_set(0, 0,0,0);
             }
 
-            if (_i_connected != status.connected_status)
+            if(_i_connected<0)
             {
-                status.connected_status = _i_connected;
-                if(!status.connected_status)
+                //rgb_flash(_mode_color);
+                _i_connected = 0;
+            }
+            else if (_i_connected != (int8_t) status.connected_status )
+            {
+                if(status.connected_status == 1)
                 {
-                    rgb_flash(_mode_color);
+                    rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
                 else
                 {
-                    rgb_init(global_loaded_settings.rgb_mode, -1);
-                    rgb_init(global_loaded_settings.rgb_mode, -1);
+                    rgb_flash(_mode_color);
                 }
+                _i_connected = (int8_t) status.connected_status;
             }
+
         }
         break;
 
@@ -286,8 +286,8 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
             data.ay = imu_tmp->ay;
             data.az = imu_tmp->az;
         }
-
-        _pack_i2c_msg(&data, &(data_out[4]));
+        
+        memcpy(&(data_out[4]), &data, sizeof(i2cinput_input_s));
 
         int write = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
         if(write==HOJA_I2C_MSG_SIZE_OUT) analog_send_reset();
