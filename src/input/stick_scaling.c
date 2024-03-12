@@ -291,11 +291,11 @@ void _stick_process_input(float angle, float distance, float *c_angles, float *d
    * @param distances_in The input distances.
    * @param scalers_out The output scalers.
    */
-  void _precalculate_distance_scalers(float *distances_in, float *scalers_out, uint16_t outer_deadzone)
+  void _precalculate_distance_scalers(float *distances_in, float *scalers_out)
   {
     for (uint8_t i = 0; i < 8; i++)
     {
-      scalers_out[i] = (STICK_SCALE_DISTANCE+(float) outer_deadzone) / (distances_in[i]);
+      scalers_out[i] = (STICK_SCALE_DISTANCE) / (distances_in[i]);
     }
   }
 
@@ -373,8 +373,8 @@ void stick_scaling_init()
   _precalculate_angle_scalers(global_loaded_settings.l_angles, _stick_l_angle_scalers);
   _precalculate_angle_scalers(global_loaded_settings.r_angles, _stick_r_angle_scalers);
 
-  _precalculate_distance_scalers(global_loaded_settings.l_angle_distances, _stick_l_distance_scalers, global_loaded_settings.deadzone_left_outer);
-  _precalculate_distance_scalers(global_loaded_settings.r_angle_distances, _stick_r_distance_scalers, global_loaded_settings.deadzone_right_outer);
+  _precalculate_distance_scalers(global_loaded_settings.l_angle_distances, _stick_l_distance_scalers);
+  _precalculate_distance_scalers(global_loaded_settings.r_angle_distances, _stick_r_distance_scalers);
 
   _precalculate_angle_substate(global_loaded_settings.l_sub_angles, _l_sub_angle_states);
   _precalculate_angle_substate(global_loaded_settings.r_sub_angles, _r_sub_angle_states);
