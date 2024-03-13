@@ -6,8 +6,10 @@
 #define TRIGGER_THRESHOLD 3
 #define SNAPBACK_WIDTH_MAX 30
 #define SNAPBACK_HEIGHT_MAX 1850
+#define SNAPBACK_STORE_HEIGHT 1700
 #define SNAPBACK_DEADZONE 650
 #define SNAPBACK_DISTANCE_THRESHOLD 550
+#define CROSSOVER_EXPIRATION 35
 
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
@@ -32,13 +34,12 @@ bool _is_distance_falling(float last_distance, float current_distance)
     return (current_distance <= last_distance);
 }
 
-
-
 typedef struct
 {
     float last_distance;
     int stored_x;
     int stored_y;
+    int16_t crossover_expiration;
     bool triggered;
     uint8_t trigger; // Trigger counter. If we move the opposite direction more than TRIGGER_THRESHOLD, we apply our snapback
     uint8_t trigger_width; // If we trigger, the width of coordinates that we hit our first trigger
@@ -96,13 +97,18 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
 
     float distance = _get_2d_distance(x, y);
 
-    if(distance >= SNAPBACK_HEIGHT_MAX)
+    if(distance >= SNAPBACK_STORE_HEIGHT)
     {
         a->stored_x = x;
         a->stored_y = y;
+        a->crossover_expiration = CROSSOVER_EXPIRATION;
+    }
+    else
+    {
+        a->crossover_expiration = (!a->crossover_expiration) ? 0 : a->crossover_expiration-1;
     }
 
-    if(_center_trigger_detect(a, x, y))
+    if(_center_trigger_detect(a, x, y) && (a->crossover_expiration>0))
     {
         // reset rising
         return_x = CENTERVAL;
@@ -151,6 +157,8 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
             // Set new stored X and Y
             a->stored_x = x;
             a->stored_y = y;
+            // Reset expiration
+            a->crossover_expiration = CROSSOVER_EXPIRATION;
         }
     }
     else if(a->decaying)

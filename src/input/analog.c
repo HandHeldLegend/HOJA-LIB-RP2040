@@ -196,6 +196,7 @@ void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
 }
 
 #define CLAMP_0_MAX(value) ((value) < 0 ? 0 : ((value) > 4095 ? 4095 : (value)))
+#define CLAMP_0_DEADZONE(value) ((value) < 0 ? 0 : ((value) > CENTER ? CENTER : (value)))
 #define SCALE_DISTANCE (float)(CENTER-DEADZONE_DEFAULT)
 #define SCALE_F (float)(CENTER/SCALE_DISTANCE)
 
@@ -207,8 +208,8 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
 
     float left_scale_distance   = CENTER - global_loaded_settings.deadzone_left_center;
     float right_scale_distance  = CENTER - global_loaded_settings.deadzone_right_center;
-    float scale_f_left          = CENTER/left_scale_distance;
-    float scale_f_right         = CENTER/right_scale_distance;
+    float scale_f_left          = (CENTER+global_loaded_settings.deadzone_left_outer)/left_scale_distance;
+    float scale_f_right         = (CENTER+global_loaded_settings.deadzone_right_outer)/right_scale_distance;
 
     if(ld <= global_loaded_settings.deadzone_left_center)
     {
@@ -225,8 +226,9 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
         float ly = 0;
 
         stick_normalized_vector(la, &lx, &ly);
-        lx *= ld*scale_f_left;
-        ly *= ld*scale_f_left;
+        float clamped_scaler_left = CLAMP_0_DEADZONE(ld*scale_f_left);
+        lx *= clamped_scaler_left;
+        ly *= clamped_scaler_left;
 
         out->lx = CLAMP_0_MAX((int) roundf(lx + CENTER));
         out->ly = CLAMP_0_MAX((int) roundf(ly + CENTER));
@@ -247,8 +249,9 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
         float ry = 0;
 
         stick_normalized_vector(ra, &rx, &ry);
-        rx *= rd*scale_f_right;
-        ry *= rd*scale_f_right;
+        float clamped_scaler_right = CLAMP_0_DEADZONE(rd*scale_f_right);
+        rx *= clamped_scaler_right;
+        ry *= clamped_scaler_right;
 
         out->rx = CLAMP_0_MAX((int) roundf(rx + CENTER));
         out->ry = CLAMP_0_MAX((int) roundf(ry + CENTER));
