@@ -4,7 +4,13 @@
 #define MAX_INDEX     7
 #define WD_READOUT_IDX 5
 
-
+void _software_reset()
+{
+  // Configure the watchdog to reset the chip after a short delay
+  watchdog_reboot(0, 0, 0);
+  // Loop forever, waiting for the watchdog to reset the chip
+  for(;;){}
+}
 
 void _scratch_set(uint8_t index, uint32_t value) {
     if (index > MAX_INDEX) {
@@ -31,11 +37,7 @@ void reboot_with_memory(uint32_t value)
     reboot_memory.value = value;
     _scratch_set(WD_READOUT_IDX, reboot_memory.value);
 
-    #if(HOJA_CAPABILITY_RGB == 1)
-        rgb_shutdown_start(true);
-    #else
-        hoja_shutdown_instant();
-    #endif
+    _software_reset();
 }
 
 uint32_t reboot_get_memory()

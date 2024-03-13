@@ -4,55 +4,7 @@
 #define HOJA_I2C_MSG_SIZE_OUT   32
 #define HOJA_I2C_MSG_SIZE_IN    11+1
 
- uint32_t _mode_color = 0;
-
-/*void _pack_i2c_msg(i2cinput_input_s *input, uint8_t *output)
-{
-    output[0] = (input->buttons_all & 0xFF);
-    output[1] = (input->buttons_all >> 8);
-    output[2] = (input->buttons_system);
-
-    
-    
-    // LX, LY, RX, RY, LT, RT
-    output[3] = input->lx & 0xFF;
-    output[4] = (input->lx >> 8);
-
-    output[5] = input->ly & 0xFF;
-    output[6] = (input->ly >> 8);
-
-    output[7] = input->rx & 0xFF;
-    output[8] = (input->rx >> 8);
-
-    output[9] = input->ry & 0xFF;
-    output[10] = (input->ry >> 8);
-
-    output[11] = input->lt & 0xFF;
-    output[12] = (input->lt >> 8);
-
-    output[13] = input->rt & 0xFF;
-    output[14] = (input->rt >> 8);
-
-    // AX, AY, AZ, GX, GY, GZ
-    output[15] = input->ax & 0xFF;
-    output[16] = (input->ax >> 8);
-
-    output[17] = input->ay & 0xFF;
-    output[18] = (input->ay >> 8);
-
-    output[19] = input->az & 0xFF;
-    output[20] = (input->az >> 8);
-
-    
-    output[21] = input->gx & 0xFF;
-    output[22] = (input->gx >> 8);
-
-    output[23] = input->gy & 0xFF;
-    output[24] = (input->gy >> 8);
-
-    output[25] = input->gz & 0xFF;
-    output[26] = (input->gz >> 8);
-*/
+uint32_t _mode_color = 0;
 
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 
@@ -174,6 +126,18 @@ void _btinput_message_parse(uint8_t *msg)
     {
         default:
             memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
+        break;
+
+        case I2CINPUT_ID_REBOOT:
+        {
+            hoja_reboot_memory_u mem = {
+                .reboot_reason      = ADAPTER_REBOOT_REASON_MODECHANGE,
+                .gamepad_mode       = INPUT_MODE_SWPRO,
+                .gamepad_protocol   = INPUT_METHOD_BLUETOOTH
+                };
+
+            reboot_with_memory(mem.value);
+        }
         break;
 
         case I2CINPUT_ID_SHUTDOWN:

@@ -234,15 +234,10 @@ void hoja_init(hoja_config_t *config)
   if (!config)
     return;
 
+  input_mode_t _hoja_input_mode = 0;
+
   // Get our reboot reason
   hoja_reboot_memory_u reboot_mem = {.value = reboot_get_memory()};
-
-  if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
-  {
-    // We're rebooting from a BT start
-    // We need to set the input method to BT
-    config->input_method = INPUT_METHOD_BLUETOOTH;
-  }
 
   // Set up hardware first
   cb_hoja_hardware_setup();
@@ -282,19 +277,29 @@ void hoja_init(hoja_config_t *config)
   // For switch Pro stuff
   switch_analog_calibration_init();
 
-  input_mode_t _hoja_input_mode = 0;
-
-  if (config->input_mode == INPUT_MODE_LOAD)
+  
+  if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
   {
-    _hoja_input_mode = global_loaded_settings.input_mode;
+    // We're rebooting from a BT start
+    // We need to set the input method to BT
+    _hoja_input_method = INPUT_METHOD_BLUETOOTH;
+  }
+  else if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_MODECHANGE)
+  {
+    _hoja_input_method = reboot_mem.gamepad_protocol;
+    _hoja_input_mode = reboot_mem.gamepad_mode;
   }
   else
   {
-    _hoja_input_mode = config->input_mode;
-  }
+    if (config->input_mode == INPUT_MODE_LOAD)
+    {
+      _hoja_input_mode = global_loaded_settings.input_mode;
+    }
+    else
+    {
+      _hoja_input_mode = config->input_mode;
+    }
 
-  if(config->input_method != INPUT_METHOD_AUTO)
-  {
     _hoja_input_method = config->input_method;
   }
 
@@ -334,7 +339,7 @@ void hoja_init(hoja_config_t *config)
   uint8_t rgbbrightness = 100;
   uint32_t indicate_color = COLOR_WHITE.color;
 
-  if (config->input_method == INPUT_METHOD_AUTO)
+  if (_hoja_input_method == INPUT_METHOD_AUTO)
   {
     if (!util_wire_connected())
     {

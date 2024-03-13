@@ -32,7 +32,8 @@ typedef union
     struct
     {
         uint8_t reboot_reason : 8;
-        uint8_t gamepad_mode : 8;
+        uint8_t gamepad_mode : 4;
+        uint8_t gamepad_protocol: 4;
         uint8_t padding_1 : 8;
         uint8_t padding_2 : 8;
     };
