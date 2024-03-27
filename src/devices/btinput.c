@@ -220,7 +220,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     static i2cinput_input_s data = {0};
     static interval_s interval = {0};
 
-    if(interval_run(timestamp, 1900, &interval))
+    if(interval_run(timestamp, 1000, &interval))
     {
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
