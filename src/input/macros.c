@@ -17,6 +17,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 {
     static interval_s interval = {0};
     static interval_s interval_2 = {0};
+    static interval_s interval_3 = {0};
 
     // Tracker for Safe Mode
     if (interval_run(timestamp, 16000, &interval))
@@ -33,20 +34,28 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
 
             if (_safe_mode_state)
             {
-                rgb_indicate(COLOR_GREEN.color, 0);
+                rgb_indicate(COLOR_GREEN.color, 24);
             }
             else
             {
-                rgb_indicate(COLOR_RED.color, 0);
+                rgb_indicate(COLOR_RED.color, 16);
             }
         }
 
     }
 
+    // Prevent shipping button from resetting before you do anything!
+    static bool shipping_lockout = true;
+    if(shipping_lockout && interval_resettable_run(timestamp, 100000, in->button_shipping, &interval_3))
+    {
+        shipping_lockout = false;
+    }
     // Will fire when Shipping button is held for 3 seconds
     // otherwise the state resets
-    if(interval_resettable_run(timestamp, 3000000, !in->button_shipping, &interval_2))
+    else if(!shipping_lockout && interval_resettable_run(timestamp, 3000000, !in->button_shipping, &interval_2))
     {
+        
+
         input_method_t i = hoja_get_input_method();
         if( (i == INPUT_METHOD_USB))
         {
