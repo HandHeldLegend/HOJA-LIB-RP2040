@@ -71,7 +71,7 @@ void __time_critical_func(_gamecube_command_handler)()
     if (_byteCounter == 0)
     {
       _workingCmd = 0x00;
-      _gc_rumble = ((dat & 0x3) > 0) ? true : false;
+      _gc_rumble = ((dat & 0x1) > 0) ? true : false;
       while (c--)
         asm("nop");
       joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
