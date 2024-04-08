@@ -9,7 +9,7 @@
 #define SNAPBACK_STORE_HEIGHT 1700
 #define SNAPBACK_DEADZONE 650
 #define SNAPBACK_DISTANCE_THRESHOLD 550
-#define CROSSOVER_EXPIRATION 35
+#define CROSSOVER_EXPIRATION 45
 
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
