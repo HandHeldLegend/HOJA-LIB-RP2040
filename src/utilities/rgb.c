@@ -461,40 +461,23 @@ void rgb_update_speed(uint8_t speed)
     {
     default:
     case RGB_MODE_PRESET:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_RAINBOW:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_RAINBOWOFFSET:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_FLASH:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_CYCLE:
-        steps16 = (_rgb_rainbow_step * 5);
-        if (steps16 > 250)
-            steps16 = 250;
-        _rgb_anim_steps = 255 - (uint8_t)steps16;
-        break;
 
     case RGB_MODE_CYCLEOFFSET:
-        steps16 = (_rgb_rainbow_step * 5);
-        if (steps16 > 250)
-            steps16 = 250;
-        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
         break;
     }
 
     _rgb_active_anim_steps = _rgb_anim_steps;
 
 }
-
 
 void _rgbanim_rainbow_do()
 {
@@ -534,11 +517,22 @@ void _rgbanim_rainbowoffset_do()
 #if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycle_do()
 {
-    
+    static bool initial_setup = true;
+
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
         _rgb_mode_setup = true;
+        initial_setup = false;
+    }
+    else if(!initial_setup)
+    {
+        uint16_t steps16 = (_rgb_rainbow_step * 5);
+        if (steps16 > 250)
+            steps16 = 250;
+        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_active_anim_steps = _rgb_anim_steps;
+        initial_setup = true;
     }
 
     _rgb_set_all(global_loaded_settings.rainbow_colors[_cycle_idx]);
@@ -551,6 +545,8 @@ void _rgbanim_cycle_do()
 #if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycleoffset_do()
 {
+    static bool initial_setup = true;
+
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
@@ -561,6 +557,16 @@ void _rgbanim_cycleoffset_do()
         {
             _cycle_offset_idx[i] = get_rand_32() % 6;
         }
+        initial_setup = false;
+    }
+    else if(!initial_setup)
+    {
+        uint16_t steps16 = (_rgb_rainbow_step * 5);
+        if (steps16 > 250)
+            steps16 = 250;
+        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_active_anim_steps = _rgb_anim_steps;
+        initial_setup = true;
     }
 
     for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
@@ -678,8 +684,6 @@ void _rgbanim_reactive_do()
 
     if(data->buttons_system != current.buttons_system)
     {
-
-
         if(data->button_home != current.button_home)
         rgb_set_group(RGB_GROUP_HOME, global_loaded_settings.rgb_colors[RGB_GROUP_HOME], true);
 
@@ -730,8 +734,8 @@ bool _rgb_indicate_override_do()
     {
         memcpy(rgb_indicate_store, _rgb_current, sizeof(rgb_indicate_store));
         _rgb_set_all(_rgb_indicate_color);
-        _rgb_set_dirty();
         _rgb_active_anim_steps = _rgb_anim_override_steps;
+        _rgb_set_dirty();
         _rgb_anim_override_setup = true;
         reps = 0;
         return false;

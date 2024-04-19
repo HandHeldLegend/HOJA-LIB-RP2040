@@ -8,9 +8,9 @@
 
 #include "hoja_usb.h"
 #include "interval.h"
+#include "hardware/structs/usb.h"
 
 input_mode_t _usb_mode = INPUT_MODE_XINPUT;
-
 
 uint32_t _usb_clear_owner_0;
 uint32_t _usb_clear_owner_0;
@@ -44,7 +44,7 @@ bool hoja_usb_get_usb_clear(uint32_t timestamp)
   static interval_s s = {0};
   bool clear = false;
 
-  if(mutex_enter_timeout_ms(&_hoja_usb_clear_mutex, 16))
+  if(mutex_enter_timeout_us(&_hoja_usb_clear_mutex, 100))
   {
     clear = _usb_clear;
     mutex_exit(&_hoja_usb_clear_mutex);
@@ -62,7 +62,11 @@ bool hoja_usb_get_usb_clear(uint32_t timestamp)
 
 
 // Default 8ms (8000us)
+// The rate at which we want to send inputs
 uint32_t _usb_rate = 0;
+// The minimum number of frames that need to have passed
+// before we will initiate a USB data send
+uint32_t _usb_frames = 0;
 
 typedef void (*usb_cb_t)(button_data_s *, a_data_s *);
 typedef bool (*usb_ready_t)(void);
@@ -82,11 +86,22 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 void _hoja_usb_set_interval(usb_rate_t rate)
 {
   _usb_rate = rate;
+  switch(rate)
+  {
+    case USBRATE_1:
+    _usb_frames = 1;
+    break;
+    case USBRATE_4:
+    _usb_frames = 4;
+    break;
+    case USBRATE_8:
+    _usb_frames = 8;
+    break;
+  }
 }
 
 bool hoja_usb_start(input_mode_t mode)
 {
-
   imu_set_enabled(false);
 
   switch (mode)
@@ -132,30 +147,46 @@ static inline bool _hoja_usb_ready()
 
 void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *analog_data)
 {
-  static interval_s interval = {0};
+  static interval_s usb_interval = {0};
+
+  static uint32_t frame_storage = 0;
+
+  // This flag gets set when we check our frame data
+  static bool frame_requirement_met = false;
+  static bool usb_requirement_met = false;
 
   tud_task();
 
-  if(hoja_usb_get_usb_clear(timestamp))
+  // Get our SOF frames counter
+  uint32_t sof_rd = usb_hw->sof_rd;
+  // Handle looparound of the frame counter(11 bits, 2047 max)
+  uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047-frame_storage) + sof_rd);
+
+  if(dif >= _usb_frames)
   {
-    if (interval_run(timestamp, _usb_rate, &interval))
-    {
-      hoja_usb_unset_usb_clear();
-      if (_usb_ready)
-      {
-        _usb_hid_cb(button_data, analog_data);
-        tud_task();
-        tud_task();
-        tud_task();
-      }
-    }
-  }
-  else
-  {
-    if(!_usb_ready)
-    _usb_ready = _hoja_usb_ready();
+    frame_requirement_met = true;
   }
 
+  if (interval_run(timestamp, _usb_rate, &usb_interval))
+  {
+    usb_requirement_met = true;
+  }
+
+  if(!_usb_ready)
+  {
+    _usb_ready = _hoja_usb_ready();
+  }
+  else if(hoja_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
+  {
+    frame_storage = sof_rd;
+    frame_requirement_met = false;
+    usb_requirement_met = false;
+    _usb_ready = false;
+
+    hoja_usb_unset_usb_clear();
+
+    _usb_hid_cb(button_data, analog_data);
+  }
 }
 
 /********* TinyUSB HID callbacks ***************/

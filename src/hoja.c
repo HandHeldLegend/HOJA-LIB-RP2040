@@ -221,7 +221,7 @@ void _hoja_task_1()
     analog_task(_hoja_timestamp);
 
     // Do IMU stuff
-    imu_task(_hoja_timestamp);
+    //imu_task(_hoja_timestamp);
 
     // Do callback for userland code insertion
     cb_hoja_task_1_hook(_hoja_timestamp);

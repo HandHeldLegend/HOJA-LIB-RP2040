@@ -270,6 +270,24 @@ void _analog_process_deadzone(a_data_s *in, a_data_s *out)
 
 #define STICK_INTERNAL_CENTER 2048
 
+
+// DEBUG
+void incrementAndReverse(int *value) {
+    static bool direction = false;
+
+    if (direction == 1) {
+        (*value)+=5;
+        if (*value >= 4095) {
+            direction = false;
+        }
+    } else {
+        (*value)-=5;
+        if (*value <= 0) {
+            direction = true;
+        }
+    }
+}
+
 void analog_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
@@ -307,30 +325,8 @@ void analog_task(uint32_t timestamp)
             _analog_distance_check(analog_data_deadzone.lx, &(_data_out->lx), &_lx_tracker_mem);
             _analog_distance_check(analog_data_deadzone.rx, &(_data_out->rx), &_rx_tracker_mem);
             _analog_distance_check(analog_data_deadzone.ly, &(_data_out->ly), &_ly_tracker_mem);
-            _analog_distance_check(analog_data_deadzone.ry, &(_data_out->ry), &_ry_tracker_mem);
+            _analog_distance_check(analog_data_deadzone.ry, &(_data_out->ry), &_ry_tracker_mem);  
         }
-
-        int _last_idx = (!_button_fifo.button_fifo_idx) ? (INPUT_BUFFER_MAX-1) : (_button_fifo.button_fifo_idx-1) % INPUT_BUFFER_MAX;
-        int _return_idx = (_button_fifo.button_fifo_idx+1) % INPUT_BUFFER_MAX;
-        int _current_idx = (_button_fifo.button_fifo_idx);
-
-        memcpy(&(_button_fifo.buttons_buffer[_current_idx]), _buttons_processed, sizeof(button_data_s));
-
-
-        // Button FIFO
-        if(!_button_fifo.button_fifo_full)
-        {
-            _button_fifo.button_fifo_idx+=1;
-            if(_button_fifo.button_fifo_idx == INPUT_BUFFER_MAX)
-            {
-                _button_fifo.button_fifo_full = true;
-                _button_fifo.button_fifo_idx = 0;
-            }
-            return;
-        }
-
-        memcpy(_buttons_output, &(_button_fifo.buttons_buffer[_return_idx]), sizeof(button_data_s));
-        _button_fifo.button_fifo_idx = (_button_fifo.button_fifo_idx + 1) % INPUT_BUFFER_MAX;
     }
 }
 
