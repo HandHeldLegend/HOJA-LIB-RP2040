@@ -136,7 +136,7 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
         else a->trigger = 0;
 
         // Check if we should release
-        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) || (distance >= SNAPBACK_HEIGHT_MAX) )
+        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) /*|| (distance >= SNAPBACK_HEIGHT_MAX)*/ )
         {
             //release
             a->rising = false;

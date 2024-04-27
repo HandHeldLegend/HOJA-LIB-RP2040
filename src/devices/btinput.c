@@ -3,11 +3,13 @@
 
 #define HOJA_I2C_MSG_SIZE_OUT   32
 #define HOJA_I2C_MSG_SIZE_IN    11+1
+#define BT_CONNECTION_TIMEOUT_POWER_SECONDS (15)
 
+#if (HOJA_CAPABILITY_BLUETOOTH==1)
 uint32_t _mode_color = 0;
-
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
-
+int _has_connected = 0;
+#endif
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
@@ -173,17 +175,19 @@ void _btinput_message_parse(uint8_t *msg)
 
             if(_i_connected<0)
             {
-                //rgb_flash(_mode_color);
+                _has_connected = -1;
                 _i_connected = 0;
             }
             else if (_i_connected != (int8_t) status.connected_status )
             {
                 if(status.connected_status == 1)
                 {
+                    _has_connected = 1;
                     rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
                 else
                 {
+                    _has_connected = -1;
                     rgb_flash(_mode_color);
                 }
                 _i_connected = (int8_t) status.connected_status;
@@ -219,6 +223,19 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     
     static i2cinput_input_s data = {0};
     static interval_s interval = {0};
+    static interval_s bt_dc_interval = {0};
+
+    if(_has_connected<1)
+    {
+        bool reset = (_has_connected<0) ? true : false;
+        // If we aren't connected after 10 seconds, power off.
+        if(interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS*1000*1000), reset, &bt_dc_interval))
+        {
+            _has_connected = 1; // So we don't run this again
+            hoja_shutdown();
+        }
+        if(reset) _has_connected = 0;
+    }
 
     if(interval_run(timestamp, 1000, &interval))
     {
