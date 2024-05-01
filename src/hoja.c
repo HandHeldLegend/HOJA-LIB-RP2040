@@ -83,6 +83,11 @@ __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
   (void)timestamp;
 }
 
+__attribute__((weak)) void cb_hoja_task_0_hook(uint32_t timestamp)
+{
+  (void)timestamp;
+}
+
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
 {
   *intensity = global_loaded_settings.rumble_intensity;
