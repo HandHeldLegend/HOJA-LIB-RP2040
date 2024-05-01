@@ -69,6 +69,10 @@ void imu_pack_quat(mode_2_s *out)
   out->timestamp_start_h = (_imu_quat_state.timestamp  >> 1) & 0x3FF;
   out->timestamp_count = 3;
 
+  out->accel_0.x = _imu_quat_state.ax;
+  out->accel_0.y = _imu_quat_state.ay;
+  out->accel_0.z = _imu_quat_state.az;
+
   // Increment for the next cycle
   _imu_quat_state.timestamp += 8;
 }
@@ -96,7 +100,7 @@ void _imu_quat_normalize(quaternion_s *data)
   data->w *= norm_inverse;
 }
 
-void _imu_update_quaternion(int16_t gx, int16_t gy, int16_t gz, uint32_t timestamp) {
+void _imu_update_quaternion(imu_data_s *imu_data, uint32_t timestamp) {
     // Previous timestamp (in microseconds)
     static uint32_t prev_timestamp = 0;
 
@@ -107,9 +111,9 @@ void _imu_update_quaternion(int16_t gx, int16_t gy, int16_t gz, uint32_t timesta
     // GY is TILTING left/right
 
     // Convert gyro readings to radians/second
-    float angle_x = (float)gy * SCALE_FACTOR * dt; // GY
-    float angle_y = (float)gx * SCALE_FACTOR * dt; // GX
-    float angle_z = (float)gz * SCALE_FACTOR * dt; // GZ
+    float angle_x = (float)imu_data->gy * SCALE_FACTOR * dt; // GY
+    float angle_y = (float)imu_data->gx * SCALE_FACTOR * dt; // GX
+    float angle_z = (float)imu_data->gz * SCALE_FACTOR * dt; // GZ
 
     // Euler to quaternion (in a custom Nintendo way)
     double norm_squared = angle_x * angle_x + angle_y * angle_y + angle_z * angle_z;
@@ -126,6 +130,10 @@ void _imu_update_quaternion(int16_t gx, int16_t gy, int16_t gz, uint32_t timesta
     _imu_rotate_quaternion(&_imu_quat_state, &newstate);
 
     _imu_quat_normalize(&_imu_quat_state);
+
+    _imu_quat_state.ax = imu_data->ax;
+    _imu_quat_state.ay = imu_data->ay;
+    _imu_quat_state.az = imu_data->az;
 
     // Update the previous timestamp
     prev_timestamp = timestamp;
@@ -148,7 +156,7 @@ void imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp)
 
     _imu_fifo_idx = _i;
 
-    _imu_update_quaternion(imu_data->gx, imu_data->gy, imu_data->gz, timestamp);
+    _imu_update_quaternion(imu_data, timestamp);
 
     mutex_exit(&_imu_mutex);
 }
