@@ -267,7 +267,10 @@ void rumble_translate(const uint8_t *data)
           amFmCodes[4] = (*(unsigned short *)data >> 5) & 0x1F;
           v12 = *data & 0x1F;
           */
-          return;
+          lacode = 0;
+          lfcode = 0;
+          hacode = 0;
+          hfcode = 0;
           break;
 
       // Dual frequency mode
