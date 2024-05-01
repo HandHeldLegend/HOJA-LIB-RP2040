@@ -199,6 +199,7 @@ void _hoja_task_0()
   }
 
   watchdog_update();
+  cb_hoja_task_0_hook(_hoja_timestamp);
 
 }
 
