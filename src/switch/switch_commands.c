@@ -77,12 +77,12 @@ void set_battconn()
 
 void set_devinfo()
 {
-  /* New firmware causes issue with gyro needs more research
+  // New firmware causes issue with gyro needs more research
   _switch_command_buffer[14] = 0x04; // NS Firmware primary   (4.x)
-  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21) */
+  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21) 
 
-  _switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
-  _switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
+  //_switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
+  //_switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
 
   // Procon   - 0x03, 0x02
   // N64      - 0x0C, 0x11
@@ -688,8 +688,9 @@ void switch_commands_process(sw_input_s *input_data)
       set_report_id(0x30);
       set_timer();
       set_battconn();
-
+    
       // Retrieve and write IMU data
+      /*
       imu_data_s *_imu_tmp = imu_fifo_last();
 
       // Group 1
@@ -743,6 +744,31 @@ void switch_commands_process(sw_input_s *input_data)
       _switch_command_buffer[45] = _imu_tmp->gx_8h;
       _switch_command_buffer[46] = _imu_tmp->gz_8l;
       _switch_command_buffer[47] = _imu_tmp->gz_8h;
+      */
+
+      // New Gyro test code
+      static mode_2_s mode_2_data = {0};
+      imu_data_s *_imu_tmp = imu_fifo_last();
+
+      mode_2_data.accel_0.x = _imu_tmp->ax;
+      mode_2_data.accel_0.y = _imu_tmp->ay;
+      mode_2_data.accel_0.z = _imu_tmp->az;
+
+      //_imu_tmp = imu_fifo_last();
+
+      //mode_2_data.accel_1.x = _imu_tmp->ax;
+      //mode_2_data.accel_1.y = _imu_tmp->ay;
+      //mode_2_data.accel_1.z = _imu_tmp->az;
+
+      //_imu_tmp = imu_fifo_last();
+
+      //mode_2_data.accel_2.x = _imu_tmp->ax;
+      //mode_2_data.accel_2.y = _imu_tmp->ay;
+      //mode_2_data.accel_2.z = _imu_tmp->az;
+
+      imu_pack_quat(&mode_2_data);
+
+      memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
 
       // Set input data
       _switch_command_buffer[2] = input_data->right_buttons;
