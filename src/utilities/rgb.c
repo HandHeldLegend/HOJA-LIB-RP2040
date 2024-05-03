@@ -26,7 +26,6 @@ uint16_t                _rgb_anim_override_steps = 0;
 bool                    _rgb_anim_override_setup = false;
 void rgb_set_override(rgb_override_anim_cb animation, uint16_t duration)
 {
-    
     _rgb_anim_override_steps = duration;
     _rgb_anim_override_cb = animation;
     _rgb_anim_override_setup = false;
@@ -230,7 +229,6 @@ void _rgb_normalize_output_power(rgb_s *color)
 
 void _rgb_update_all()
 {
-
     for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         pio_sm_put_blocking(RGB_PIO, RGB_SM, _rgb_current[i].color);
@@ -316,7 +314,6 @@ void _rgb_set_brightness(uint8_t brightness)
 // Set all RGBs to one color
 void _rgb_set_all(uint32_t color)
 {
-    
     for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         rgb_s col = {.color = color};
@@ -471,6 +468,7 @@ void rgb_update_speed(uint8_t speed)
     }
 
     _rgb_active_anim_steps = _rgb_anim_steps;
+    _rgb_mode_setup = false;
 
 }
 
@@ -726,13 +724,12 @@ bool _rgb_indicate_override_do()
         reps = 0;
         return false;
     }
-
-    if(!reps)
+    else if(!reps)
     {
         memcpy(_rgb_next, rgb_indicate_store, sizeof(rgb_indicate_store));
         _rgb_set_dirty();
         reps+=1;
-        return false;
+        return true;
     }
     else return true;
 }
