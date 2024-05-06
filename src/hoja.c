@@ -264,8 +264,7 @@ void hoja_init(hoja_config_t *config)
 
     if (!settings_loaded)
     {
-      settings_reset_to_default();
-      sleep_ms(200);
+      rgb_indicate(COLOR_ORANGE.color, 50);
     }
     
     analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data, &_button_data_processed, &_button_data_output);

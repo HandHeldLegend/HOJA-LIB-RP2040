@@ -1,6 +1,83 @@
 #include "hoja_settings.h"
 
-hoja_settings_s global_loaded_settings = {0};
+#define FLASH_TARGET_OFFSET (1200 * 1024)
+#define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
+#define SETTINGS_BANK_A_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
+#define BANK_A_NUM 0
+#define BANK_B_NUM 1
+
+hoja_settings_vcurrent_s global_loaded_settings = {0};
+bool global_loaded_settings_bank = BANK_A_NUM;
+
+void _settings_validate()
+{
+  // Validate some settings
+  global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger < 50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
+  global_loaded_settings.switch_mac_address[0] &= 0xFE;
+  global_loaded_settings.switch_mac_address[5] = 0x9B;
+}
+
+void _settings_migrate(const uint8_t *old, int old_version, hoja_settings_vcurrent_s *new)
+{
+  new->settings_version = HOJA_SETTINGS_VERSION;
+
+  // Migrate v1 settings to new format
+  if(old_version == 1) {
+    hoja_settings_v1_s *m = (hoja_settings_v1_s *)old;
+    new->input_mode = m->input_mode;
+    memcpy(new->switch_mac_address, m->switch_mac_address, sizeof(m->switch_mac_address));
+    new->lx_center = m->lx_center;
+    new->ly_center = m->ly_center;
+    new->rx_center = m->rx_center;
+    new->ry_center = m->ry_center;
+    memcpy(new->l_angles, m->l_angles, sizeof(m->l_angles));
+    memcpy(new->r_angles, m->r_angles, sizeof(m->r_angles));
+    memcpy(new->l_angle_distances, m->l_angle_distances, sizeof(m->l_angle_distances));
+    memcpy(new->r_angle_distances, m->r_angle_distances, sizeof(m->r_angle_distances));
+    memcpy(new->imu_0_offsets, m->imu_0_offsets, sizeof(m->imu_0_offsets));
+    memcpy(new->imu_1_offsets, m->imu_1_offsets, sizeof(m->imu_1_offsets));
+    memcpy(new->rgb_colors, m->rgb_colors, sizeof(m->rgb_colors));
+    new->remap_switch = m->remap_switch;
+    new->remap_xinput = m->remap_xinput;
+    new->remap_gamecube = m->remap_gamecube;
+    new->remap_n64 = m->remap_n64;
+    new->remap_snes = m->remap_snes;
+    new->gc_sp_mode = m->gc_sp_mode;
+    new->rumble_intensity = m->rumble_intensity;
+    new->gc_sp_light_trigger = m->gc_sp_light_trigger;
+    new->rumble_mode = m->rumble_mode;
+    memcpy(new->switch_host_address, m->switch_host_address, sizeof(m->switch_host_address));
+    memcpy(new->l_sub_angles, m->l_sub_angles, sizeof(m->l_sub_angles));
+    memcpy(new->r_sub_angles, m->r_sub_angles, sizeof(m->r_sub_angles));
+    new->rgb_mode = m->rgb_mode;
+    memcpy(new->rainbow_colors, m->rainbow_colors, sizeof(m->rainbow_colors));
+    new->rgb_step_speed = m->rgb_step_speed;
+    new->deadzone_left_center = m->deadzone_left_center;
+    new->deadzone_left_outer = m->deadzone_left_outer;
+    new->deadzone_right_center = m->deadzone_right_center;
+    new->deadzone_right_outer = m->deadzone_right_outer;
+    new->trigger_l_lower = m->trigger_l_lower;
+    new->trigger_l_upper = m->trigger_l_upper;
+    new->trigger_r_lower = m->trigger_r_lower;
+    new->trigger_r_upper = m->trigger_r_upper;
+  }
+}
+
+int _settings_get_config_version(uint16_t version)
+{
+    switch(version)
+    {
+        default:
+            return -1;
+            break;
+        case 0xA001:
+            return 1;
+            break;
+        case 0xA002:
+            return 2;
+            break;
+    }
+}
 
 // Internal functions for command processing
 void _generate_mac()
@@ -17,36 +94,10 @@ void _generate_mac()
   global_loaded_settings.switch_mac_address[5] = 0x9B;
   printf("\n");
 }
-#define FLASH_TARGET_OFFSET (1200 * 1024)
 
-// Returns true if loaded ok
-// returns false if no settings and reset to default
-bool settings_load()
+void _settings_init_default()
 {
-  static_assert(sizeof(hoja_settings_s) <= FLASH_SECTOR_SIZE);
-  const uint8_t *target_read = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET + (FLASH_SECTOR_SIZE));
-  memcpy(&global_loaded_settings, target_read, sizeof(hoja_settings_s));
-
-  // Check that the version matches, otherwise reset to default and save.
-  if (global_loaded_settings.settings_version != HOJA_SETTINGS_VERSION)
-  {
-    printf("Settings version does not match. Resetting... \n");
-    settings_reset_to_default();
-    settings_save(false);
-    return false;
-  }
-
-  // Validate some settings
-  global_loaded_settings.gc_sp_light_trigger = (global_loaded_settings.gc_sp_light_trigger < 50) ? 50 : global_loaded_settings.gc_sp_light_trigger;
-  global_loaded_settings.switch_mac_address[0] &= 0xFE;
-  global_loaded_settings.switch_mac_address[5] = 0x9B;
-
-  return true;
-}
-
-void settings_reset_to_default()
-{
-  const hoja_settings_s set = {
+  const hoja_settings_vcurrent_s set = {
       .settings_version = HOJA_SETTINGS_VERSION,
       .input_mode = INPUT_MODE_SWPRO,
       .lx_center = 2048,
@@ -84,7 +135,8 @@ void settings_reset_to_default()
       .deadzone_right_outer   = 50,
       .deadzone_right_center  = 100,
   };
-  memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_s));
+  memcpy(&global_loaded_settings, &set, sizeof(hoja_settings_vcurrent_s));
+
   remap_reset_default(INPUT_MODE_SWPRO);
   remap_reset_default(INPUT_MODE_XINPUT);
   remap_reset_default(INPUT_MODE_GAMECUBE);
@@ -102,6 +154,91 @@ void settings_reset_to_default()
   global_loaded_settings.rainbow_colors[5] = COLOR_PURPLE.color;
 }
 
+bool settings_get_bank()
+{
+  return global_loaded_settings_bank;
+}
+
+// Returns true if loaded ok
+// returns false if no settings and reset to default
+bool settings_load()
+{
+  static_assert(sizeof(hoja_settings_vcurrent_s) <= FLASH_SECTOR_SIZE);
+  static_assert(sizeof(hoja_settings_v1_s) <= FLASH_SECTOR_SIZE);
+  const uint8_t *read_bank_a = (const uint8_t *)(XIP_BASE + SETTINGS_BANK_A_OFFSET);
+  const uint8_t *read_bank_b = (const uint8_t *)(XIP_BASE + SETTINGS_BANK_B_OFFSET);
+
+  // Determine which version each bank contains
+  hoja_settings_version_parse_s vpa  = {0};
+  hoja_settings_version_parse_s vpb  = {0};
+  memcpy(&vpa, read_bank_a, sizeof(hoja_settings_version_parse_s));
+  memcpy(&vpb, read_bank_b, sizeof(hoja_settings_version_parse_s));
+  int va = _settings_get_config_version(vpa.settings_version);
+  int vb = _settings_get_config_version(vpb.settings_version);
+
+  // Set up some flags we can use
+  bool up_to_date = false;
+  bool no_config = false;
+  bool must_migrate = false;
+  bool migrate_bank = BANK_A_NUM;
+
+  // Check if we have no configuration data
+  if((va==-1) && (vb==-1))
+  {
+    no_config = true;
+  }
+  // Check if we have an up to date config data
+  else if((va==2) || (vb==2))
+  {
+    up_to_date = true;
+    if(va==2)
+    {
+      memcpy(&global_loaded_settings, read_bank_a, sizeof(hoja_settings_vcurrent_s));
+      global_loaded_settings_bank = BANK_A_NUM;
+    }
+    else if(vb==2)
+    {
+      memcpy(&global_loaded_settings, read_bank_b, sizeof(hoja_settings_vcurrent_s));
+      global_loaded_settings_bank = BANK_B_NUM;
+    }
+  }
+  // Check if any config data is out of date
+  else if((va<2) || (vb<2))
+  {
+    must_migrate = true;
+    // Set the bank we are migrating FROM
+    migrate_bank = (va<2) ? BANK_A_NUM : BANK_B_NUM;
+  }
+
+  // Handle flags
+  if(no_config)
+  {
+    global_loaded_settings_bank = BANK_A_NUM;
+    _settings_init_default();
+    settings_save(false);
+    return false;
+  }
+  else if(must_migrate)
+  {
+    if(migrate_bank == BANK_A_NUM)
+    {
+      global_loaded_settings_bank = BANK_B_NUM;
+      _settings_migrate(read_bank_a, va, &global_loaded_settings);
+    }
+    else
+    {
+      global_loaded_settings_bank = BANK_A_NUM;
+      _settings_migrate(read_bank_b, vb, &global_loaded_settings);
+    }
+    settings_save(false);
+    return false;
+  }
+
+  _settings_validate();
+
+  return true;
+}
+
 volatile bool _save_flag = false;
 volatile bool _webusb_indicate = false;
 
@@ -110,19 +247,17 @@ void settings_core1_save_check()
   if (_save_flag)
   {
     multicore_lockout_start_blocking();
-    // Check that we are less than our flash sector size
-    static_assert(sizeof(hoja_settings_s) <= FLASH_SECTOR_SIZE);
 
     // Store interrupts status and disable
     uint32_t ints = save_and_disable_interrupts();
 
     // Calculate storage bank address via index
-    uint32_t memoryAddress = FLASH_TARGET_OFFSET + (FLASH_SECTOR_SIZE);
+    uint32_t memoryAddress = (global_loaded_settings_bank==BANK_A_NUM) ? SETTINGS_BANK_A_OFFSET : SETTINGS_BANK_B_OFFSET;
 
     // Create blank page data
     uint8_t page[FLASH_SECTOR_SIZE] = {0x00};
     // Copy settings into our page buffer
-    memcpy(page, &global_loaded_settings, sizeof(hoja_settings_s));
+    memcpy(page, &global_loaded_settings, sizeof(hoja_settings_vcurrent_s));
 
     // Erase the settings flash sector
     flash_range_erase(memoryAddress, FLASH_SECTOR_SIZE);

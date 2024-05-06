@@ -128,6 +128,10 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[7] = (bt_fw_version & 0xFF00) >> 8;
         _webusb_out_buffer[8] = (bt_fw_version & 0xFF);
 
+        _webusb_out_buffer[9] = (HOJA_SETTINGS_VERSION & 0xFF00) >> 8;
+        _webusb_out_buffer[10] = (HOJA_SETTINGS_VERSION & 0xFF);
+        _webusb_out_buffer[11] = settings_get_bank();
+
         webusb_enable_output(false);
 
         if (webusb_ready_blocking(4000))

@@ -84,6 +84,18 @@ const uint8_t _a_size = sizeof(_rgb_group_a) / sizeof(_rgb_group_a[0]);
 const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
 const uint8_t _b_size = sizeof(_rgb_group_b) / sizeof(_rgb_group_b[0]);
 
+const int8_t _rgb_group_l[] = HOJA_RGB_GROUP_L;
+const uint8_t _l_size = sizeof(_rgb_group_l) / sizeof(_rgb_group_l[0]);
+
+const int8_t _rgb_group_zl[] = HOJA_RGB_GROUP_ZL;
+const uint8_t _zl_size = sizeof(_rgb_group_zl) / sizeof(_rgb_group_zl[0]);
+
+const int8_t _rgb_group_r[] = HOJA_RGB_GROUP_R;
+const uint8_t _r_size = sizeof(_rgb_group_r) / sizeof(_rgb_group_r[0]);
+
+const int8_t _rgb_group_zr[] = HOJA_RGB_GROUP_ZR;
+const uint8_t _zr_size = sizeof(_rgb_group_zr) / sizeof(_rgb_group_zr[0]);
+
 rgb_mode_t _rgb_mode = 0;
 
 
@@ -416,6 +428,26 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
     case RGB_GROUP_B:
         _rgb_group = _rgb_group_b;
         size = _b_size;
+        break;
+
+    case RGB_GROUP_L:
+        _rgb_group = _rgb_group_l;
+        size = _l_size;
+        break;
+
+    case RGB_GROUP_ZL:
+        _rgb_group = _rgb_group_zl;
+        size = _zl_size;
+        break;
+
+    case RGB_GROUP_R:
+        _rgb_group = _rgb_group_r;
+        size = _r_size;
+        break;
+
+    case RGB_GROUP_ZR:
+        _rgb_group = _rgb_group_zr;
+        size = _zr_size;
         break;
     }
 

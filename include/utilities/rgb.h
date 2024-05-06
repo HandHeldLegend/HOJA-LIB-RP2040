@@ -47,6 +47,10 @@ typedef enum{
     RGB_GROUP_X = 8,
     RGB_GROUP_A = 9,
     RGB_GROUP_B = 10,
+    RGB_GROUP_L = 11,
+    RGB_GROUP_ZL = 12,
+    RGB_GROUP_R = 13,
+    RGB_GROUP_ZR = 14,
     RGB_GROUP_MAX,
 } rgb_group_t;
 
