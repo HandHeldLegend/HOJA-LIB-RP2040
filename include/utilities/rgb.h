@@ -51,6 +51,7 @@ typedef enum{
     RGB_GROUP_ZL = 12,
     RGB_GROUP_R = 13,
     RGB_GROUP_ZR = 14,
+    RGB_GROUP_PLAYER = 15,
     RGB_GROUP_MAX,
 } rgb_group_t;
 

@@ -217,6 +217,11 @@ typedef struct {
     rgb_s x;
     rgb_s a;
     rgb_s b;
+    rgb_s l;
+    rgb_s zl;
+    rgb_s r;
+    rgb_s zr;
+    rgb_s player;
 } rgb_preset_t;
 
 typedef struct 

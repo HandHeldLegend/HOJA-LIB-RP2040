@@ -96,6 +96,9 @@ const uint8_t _r_size = sizeof(_rgb_group_r) / sizeof(_rgb_group_r[0]);
 const int8_t _rgb_group_zr[] = HOJA_RGB_GROUP_ZR;
 const uint8_t _zr_size = sizeof(_rgb_group_zr) / sizeof(_rgb_group_zr[0]);
 
+const int8_t _rgb_group_player[] = HOJA_RGB_GROUP_PLAYER;
+const uint8_t _player_size = sizeof(_rgb_group_player) / sizeof(_rgb_group_player[0]);
+
 rgb_mode_t _rgb_mode = 0;
 
 
@@ -449,6 +452,11 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
         _rgb_group = _rgb_group_zr;
         size = _zr_size;
         break;
+
+    case RGB_GROUP_PLAYER:
+        _rgb_group = _rgb_group_player;
+        size = _player_size;
+        break;
     }
 
     if(instant)
@@ -463,7 +471,6 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
          _rgb_set_dirty();
     }
 }
-
 
 void rgb_update_speed(uint8_t speed)
 {
