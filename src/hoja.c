@@ -83,6 +83,11 @@ __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
   (void)timestamp;
 }
 
+__attribute__((weak)) void cb_hoja_task_0_hook(uint32_t timestamp)
+{
+  (void)timestamp;
+}
+
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
 {
   *intensity = global_loaded_settings.rumble_intensity;
@@ -176,6 +181,9 @@ void _hoja_task_0()
   if(_baseband_loop)
   {
     cb_hoja_baseband_update_loop(&_button_data);
+    watchdog_update();
+    rgb_task(_hoja_timestamp);
+    return;
   }
 
   remap_buttons_task();
@@ -199,6 +207,7 @@ void _hoja_task_0()
   }
 
   watchdog_update();
+  cb_hoja_task_0_hook(_hoja_timestamp);
 
 }
 
@@ -258,8 +267,7 @@ void hoja_init(hoja_config_t *config)
 
     if (!settings_loaded)
     {
-      settings_reset_to_default();
-      sleep_ms(200);
+      rgb_indicate(COLOR_ORANGE.color, 50);
     }
     
     analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data, &_button_data_processed, &_button_data_output);
@@ -397,7 +405,6 @@ void hoja_init(hoja_config_t *config)
   rgb_init(rgbmode, rgbbrightness);
   //rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
   
-
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
   if (_button_data.button_home)

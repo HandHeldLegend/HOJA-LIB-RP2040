@@ -7,6 +7,7 @@ uint16_t _switch_in_command_len = 64;
 bool _switch_in_command_got = false;
 
 uint8_t _switch_reporting_mode = 0x3F;
+uint8_t _switch_imu_mode = 0x00;
 
 uint8_t _switch_command_buffer[64] = {0};
 uint8_t _switch_command_report_id = 0x00;
@@ -77,12 +78,12 @@ void set_battconn()
 
 void set_devinfo()
 {
-  /* New firmware causes issue with gyro needs more research
+  // New firmware causes issue with gyro needs more research
   _switch_command_buffer[14] = 0x04; // NS Firmware primary   (4.x)
-  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21) */
+  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21) 
 
-  _switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
-  _switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
+  //_switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
+  //_switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
 
   // Procon   - 0x03, 0x02
   // N64      - 0x0C, 0x11
@@ -266,7 +267,10 @@ void rumble_translate(const uint8_t *data)
           amFmCodes[4] = (*(unsigned short *)data >> 5) & 0x1F;
           v12 = *data & 0x1F;
           */
-          return;
+          lacode = 0;
+          lfcode = 0;
+          hacode = 0;
+          hfcode = 0;
           break;
 
       // Dual frequency mode
@@ -519,6 +523,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
   case SW_CMD_ENABLE_IMU:
     //printf("Enable IMU: %d\n", data[11]);
     imu_set_enabled(data[11] > 0);
+    _switch_imu_mode = data[11];
     set_ack(0x80);
     break;
 
@@ -589,26 +594,44 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
     set_ack(0x80);
 
     uint8_t player = data[11] & 0xF;
+    uint8_t set_num = 0;
 
     switch (player)
     {
     default:
-    case 1:
-      //printf("1\n");
+      set_num = 1; // Always set *something*
+      break;
+    case 0b1:
+      set_num = 1;
       break;
 
-    case 3:
-      //printf("2\n");
+    case 0b11:
+      set_num = 2;
       break;
 
-    case 7:
-      //printf("3\n");
+    case 0b111:
+      set_num = 3;
       break;
 
-    case 15:
-      //printf("4\n");
+    case 0b1111:
+      set_num = 4;
+      break;
+
+    case 0b1001:
+      set_num = 5;
+      break;
+    case 0b1010:
+      set_num = 6;
+      break;
+
+    case 0b1011:
+      set_num = 7;
+      break;
+    case 0b0110:
+      set_num = 8;
       break;
     }
+    rgb_set_player(set_num);
     break;
 
   default:
@@ -689,60 +712,71 @@ void switch_commands_process(sw_input_s *input_data)
       set_timer();
       set_battconn();
 
-      // Retrieve and write IMU data
-      imu_data_s *_imu_tmp = imu_fifo_last();
+      if(_switch_imu_mode == 0x01)
+      {
+        imu_data_s *_imu_tmp = imu_fifo_last();
 
-      // Group 1
-      _switch_command_buffer[12] = _imu_tmp->ay_8l; // Y-axis
-      _switch_command_buffer[13] = _imu_tmp->ay_8h;
+        // Group 1
+        _switch_command_buffer[12] = _imu_tmp->ay_8l; // Y-axis
+        _switch_command_buffer[13] = _imu_tmp->ay_8h;
 
-      _switch_command_buffer[14] = _imu_tmp->ax_8l; // X-axis
-      _switch_command_buffer[15] = _imu_tmp->ax_8h;
+        _switch_command_buffer[14] = _imu_tmp->ax_8l; // X-axis
+        _switch_command_buffer[15] = _imu_tmp->ax_8h;
 
-      _switch_command_buffer[16] = _imu_tmp->az_8l; // Z-axis
-      _switch_command_buffer[17] = _imu_tmp->az_8h;
+        _switch_command_buffer[16] = _imu_tmp->az_8l; // Z-axis
+        _switch_command_buffer[17] = _imu_tmp->az_8h;
 
-      _switch_command_buffer[18] = _imu_tmp->gy_8l;
-      _switch_command_buffer[19] = _imu_tmp->gy_8h;
+        _switch_command_buffer[18] = _imu_tmp->gy_8l;
+        _switch_command_buffer[19] = _imu_tmp->gy_8h;
 
-      _switch_command_buffer[20] = _imu_tmp->gx_8l;
-      _switch_command_buffer[21] = _imu_tmp->gx_8h;
+        _switch_command_buffer[20] = _imu_tmp->gx_8l;
+        _switch_command_buffer[21] = _imu_tmp->gx_8h;
 
-      _switch_command_buffer[22] = _imu_tmp->gz_8l;
-      _switch_command_buffer[23] = _imu_tmp->gz_8h;
+        _switch_command_buffer[22] = _imu_tmp->gz_8l;
+        _switch_command_buffer[23] = _imu_tmp->gz_8h;
 
-      _imu_tmp = imu_fifo_last();
+        _imu_tmp = imu_fifo_last();
 
-      // Group 2
-      _switch_command_buffer[24] = _imu_tmp->ay_8l; // Y-axis
-      _switch_command_buffer[25] = _imu_tmp->ay_8h;
-      _switch_command_buffer[26] = _imu_tmp->ax_8l; // X-axis
-      _switch_command_buffer[27] = _imu_tmp->ax_8h;
-      _switch_command_buffer[28] = _imu_tmp->az_8l; // Z-axis
-      _switch_command_buffer[29] = _imu_tmp->az_8h;
+        // Group 2
+        _switch_command_buffer[24] = _imu_tmp->ay_8l; // Y-axis
+        _switch_command_buffer[25] = _imu_tmp->ay_8h;
+        _switch_command_buffer[26] = _imu_tmp->ax_8l; // X-axis
+        _switch_command_buffer[27] = _imu_tmp->ax_8h;
+        _switch_command_buffer[28] = _imu_tmp->az_8l; // Z-axis
+        _switch_command_buffer[29] = _imu_tmp->az_8h;
 
-      _switch_command_buffer[30] = _imu_tmp->gy_8l;
-      _switch_command_buffer[31] = _imu_tmp->gy_8h;
-      _switch_command_buffer[32] = _imu_tmp->gx_8l;
-      _switch_command_buffer[33] = _imu_tmp->gx_8h;
-      _switch_command_buffer[34] = _imu_tmp->gz_8l;
-      _switch_command_buffer[35] = _imu_tmp->gz_8h;
+        _switch_command_buffer[30] = _imu_tmp->gy_8l;
+        _switch_command_buffer[31] = _imu_tmp->gy_8h;
+        _switch_command_buffer[32] = _imu_tmp->gx_8l;
+        _switch_command_buffer[33] = _imu_tmp->gx_8h;
+        _switch_command_buffer[34] = _imu_tmp->gz_8l;
+        _switch_command_buffer[35] = _imu_tmp->gz_8h;
 
-      _imu_tmp = imu_fifo_last();
+        _imu_tmp = imu_fifo_last();
 
-      // Group 3
-      _switch_command_buffer[36] = _imu_tmp->ay_8l; // Y-axis
-      _switch_command_buffer[37] = _imu_tmp->ay_8h;
-      _switch_command_buffer[38] = _imu_tmp->ax_8l; // X-axis
-      _switch_command_buffer[39] = _imu_tmp->ax_8h;
-      _switch_command_buffer[40] = _imu_tmp->az_8l; // Z-axis
-      _switch_command_buffer[41] = _imu_tmp->az_8h;
-      _switch_command_buffer[42] = _imu_tmp->gy_8l;
-      _switch_command_buffer[43] = _imu_tmp->gy_8h;
-      _switch_command_buffer[44] = _imu_tmp->gx_8l;
-      _switch_command_buffer[45] = _imu_tmp->gx_8h;
-      _switch_command_buffer[46] = _imu_tmp->gz_8l;
-      _switch_command_buffer[47] = _imu_tmp->gz_8h;
+        // Group 3
+        _switch_command_buffer[36] = _imu_tmp->ay_8l; // Y-axis
+        _switch_command_buffer[37] = _imu_tmp->ay_8h;
+        _switch_command_buffer[38] = _imu_tmp->ax_8l; // X-axis
+        _switch_command_buffer[39] = _imu_tmp->ax_8h;
+        _switch_command_buffer[40] = _imu_tmp->az_8l; // Z-axis
+        _switch_command_buffer[41] = _imu_tmp->az_8h;
+        _switch_command_buffer[42] = _imu_tmp->gy_8l;
+        _switch_command_buffer[43] = _imu_tmp->gy_8h;
+        _switch_command_buffer[44] = _imu_tmp->gx_8l;
+        _switch_command_buffer[45] = _imu_tmp->gx_8h;
+        _switch_command_buffer[46] = _imu_tmp->gz_8l;
+        _switch_command_buffer[47] = _imu_tmp->gz_8h;
+      }
+      else if(_switch_imu_mode == 0x02)
+      {
+        // New Gyro test code
+        static mode_2_s mode_2_data = {0};
+
+        imu_pack_quat(&mode_2_data);
+
+        memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
+      }
 
       // Set input data
       _switch_command_buffer[2] = input_data->right_buttons;

@@ -33,7 +33,6 @@ void rgb_set_override(rgb_override_anim_cb animation, uint16_t duration)
 
 uint16_t _rgb_active_anim_steps = 0;
 
-
 uint32_t _rgb_flash_color = 0x00;
 rgb_s _rgb_next[HOJA_RGB_COUNT] = {0};
 rgb_s _rgb_current[HOJA_RGB_COUNT] = {0};
@@ -85,8 +84,23 @@ const uint8_t _a_size = sizeof(_rgb_group_a) / sizeof(_rgb_group_a[0]);
 const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
 const uint8_t _b_size = sizeof(_rgb_group_b) / sizeof(_rgb_group_b[0]);
 
-rgb_mode_t _rgb_mode = 0;
+const int8_t _rgb_group_l[] = HOJA_RGB_GROUP_L;
+const uint8_t _l_size = sizeof(_rgb_group_l) / sizeof(_rgb_group_l[0]);
 
+const int8_t _rgb_group_zl[] = HOJA_RGB_GROUP_ZL;
+const uint8_t _zl_size = sizeof(_rgb_group_zl) / sizeof(_rgb_group_zl[0]);
+
+const int8_t _rgb_group_r[] = HOJA_RGB_GROUP_R;
+const uint8_t _r_size = sizeof(_rgb_group_r) / sizeof(_rgb_group_r[0]);
+
+const int8_t _rgb_group_zr[] = HOJA_RGB_GROUP_ZR;
+const uint8_t _zr_size = sizeof(_rgb_group_zr) / sizeof(_rgb_group_zr[0]);
+
+const int8_t _rgb_group_player[] = HOJA_RGB_GROUP_PLAYER;
+const uint8_t _player_size = sizeof(_rgb_group_player) / sizeof(_rgb_group_player[0]);
+uint8_t _rgb_player_number = 0;
+
+rgb_mode_t _rgb_mode = 0;
 
 // Public CHSV color functions
 #define HSV_SECTION_6 (0x20)
@@ -230,7 +244,6 @@ void _rgb_normalize_output_power(rgb_s *color)
 
 void _rgb_update_all()
 {
-
     for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
     {
         pio_sm_put_blocking(RGB_PIO, RGB_SM, _rgb_current[i].color);
@@ -258,6 +271,53 @@ uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
     return col.color;
 }
 
+void rgb_set_player(uint8_t player_number)
+{
+    _rgb_player_number = player_number;
+}
+
+void _rgb_set_player(uint8_t player_number)
+{
+    if( (_player_size>=4) && (_rgb_group_player[0]>-1) )
+    {
+        uint8_t setup = 0b0000;
+        switch(player_number)
+        {
+            case 0:
+            break;
+            case 1: 
+                setup = 0b1;
+                break;
+            case 2:
+                setup = 0b11;
+                break;
+            case 3:
+                setup = 0b111;
+                break;
+            case 4:
+                setup = 0b1111;
+                break;
+            case 5:
+                setup = 0b1001;
+                break;
+            case 6:
+                setup = 0b1010;
+                break;
+            case 7:
+                setup = 0b1011;
+                break;
+            case 8:
+                setup = 0b0110;
+                break;
+        }
+        
+        if(!(setup & 0b1)) _rgb_next[_rgb_group_player[0]].color = 0x00;
+        if(!(setup & 0b10)) _rgb_next[_rgb_group_player[1]].color = 0x00;
+        if(!(setup & 0b100)) _rgb_next[_rgb_group_player[2]].color = 0x00;
+        if(!(setup & 0b1000)) _rgb_next[_rgb_group_player[3]].color = 0x00;
+    }
+}
+
 // Returns true once the animation process is completed
 bool _rgb_animate_step()
 {
@@ -267,6 +327,7 @@ bool _rgb_animate_step()
 
     if (_rgb_out_dirty)
     {
+        _rgb_set_player(_rgb_player_number);
         memcpy(_rgb_last, _rgb_current, sizeof(_rgb_last));
         steps = 0;
         _rgb_out_dirty = false;
@@ -307,14 +368,13 @@ void _rgb_set_sequential(const uint8_t *leds, uint8_t len, rgb_s *colors, uint32
         _rgb_normalize_output_power(&colors[leds[i]]);
     }
 }
-#endif
 
 void _rgb_set_brightness(uint8_t brightness)
 {
-#if (HOJA_CAPABILITY_RGB == 1)
     _rgb_brightness = (brightness > 100) ? 100 : brightness;
-#endif
 }
+
+
 
 // Set all RGBs to one color
 void _rgb_set_all(uint32_t color)
@@ -342,10 +402,8 @@ void _rgb_preset_reload()
 
 void _rgb_load_preset(rgb_preset_t *preset)
 {
-#if (HOJA_CAPABILITY_RGB == 1)
     _rgb_preset = preset;
     _rgb_preset_reload();
-#endif
 }
 
 void _rgbanim_preset_do()
@@ -361,7 +419,6 @@ void _rgbanim_preset_do()
 
 void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
 {
-#if (HOJA_CAPABILITY_RGB == 1)
 
     const uint8_t *_rgb_group = _rgb_group_rs;
     uint8_t size = 1;
@@ -425,6 +482,31 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
         _rgb_group = _rgb_group_b;
         size = _b_size;
         break;
+
+    case RGB_GROUP_L:
+        _rgb_group = _rgb_group_l;
+        size = _l_size;
+        break;
+
+    case RGB_GROUP_ZL:
+        _rgb_group = _rgb_group_zl;
+        size = _zl_size;
+        break;
+
+    case RGB_GROUP_R:
+        _rgb_group = _rgb_group_r;
+        size = _r_size;
+        break;
+
+    case RGB_GROUP_ZR:
+        _rgb_group = _rgb_group_zr;
+        size = _zr_size;
+        break;
+
+    case RGB_GROUP_PLAYER:
+        _rgb_group = _rgb_group_player;
+        size = _player_size;
+        break;
     }
 
     if(instant)
@@ -438,7 +520,6 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
          _rgb_set_sequential(_rgb_group, size, _rgb_next, color);
          _rgb_set_dirty();
     }
-#endif
 }
 
 void rgb_update_speed(uint8_t speed)
@@ -461,40 +542,24 @@ void rgb_update_speed(uint8_t speed)
     {
     default:
     case RGB_MODE_PRESET:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_RAINBOW:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_RAINBOWOFFSET:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_FLASH:
-        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
-        break;
 
     case RGB_MODE_CYCLE:
-        steps16 = (_rgb_rainbow_step * 5);
-        if (steps16 > 250)
-            steps16 = 250;
-        _rgb_anim_steps = 255 - (uint8_t)steps16;
-        break;
 
     case RGB_MODE_CYCLEOFFSET:
-        steps16 = (_rgb_rainbow_step * 5);
-        if (steps16 > 250)
-            steps16 = 250;
-        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
         break;
     }
 
     _rgb_active_anim_steps = _rgb_anim_steps;
+    _rgb_mode_setup = false;
 
 }
-
 
 void _rgbanim_rainbow_do()
 {
@@ -504,7 +569,6 @@ void _rgbanim_rainbow_do()
     _rgb_set_dirty();
 }
 
-#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_rainbowoffset_do()
 {
     
@@ -529,16 +593,25 @@ void _rgbanim_rainbowoffset_do()
     }
     _rgb_set_dirty();
 }
-#endif
 
-#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycle_do()
 {
-    
+    static bool initial_setup = true;
+
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
         _rgb_mode_setup = true;
+        initial_setup = false;
+    }
+    else if(!initial_setup)
+    {
+        uint16_t steps16 = (_rgb_rainbow_step * 5);
+        if (steps16 > 250)
+            steps16 = 250;
+        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_active_anim_steps = _rgb_anim_steps;
+        initial_setup = true;
     }
 
     _rgb_set_all(global_loaded_settings.rainbow_colors[_cycle_idx]);
@@ -546,11 +619,11 @@ void _rgbanim_cycle_do()
     _rgb_set_dirty();
    
 }
-#endif
 
-#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_cycleoffset_do()
 {
+    static bool initial_setup = true;
+
     if (!_rgb_mode_setup)
     {
         _cycle_idx = 0;
@@ -561,6 +634,16 @@ void _rgbanim_cycleoffset_do()
         {
             _cycle_offset_idx[i] = get_rand_32() % 6;
         }
+        initial_setup = false;
+    }
+    else if(!initial_setup)
+    {
+        uint16_t steps16 = (_rgb_rainbow_step * 5);
+        if (steps16 > 250)
+            steps16 = 250;
+        _rgb_anim_steps = 255 - (uint8_t)steps16;
+        _rgb_active_anim_steps = _rgb_anim_steps;
+        initial_setup = true;
     }
 
     for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
@@ -571,18 +654,16 @@ void _rgbanim_cycleoffset_do()
     _rgb_set_dirty();
    
 }
-#endif
 
 // Flash the RGBs a color
 void rgb_flash(uint32_t color)
 {
-    #if (HOJA_CAPABILITY_RGB == 1)
+
     _rgb_flash_color = color;
     rgb_init(RGB_MODE_FLASH, 100);
-    #endif
+
 }
 
-#if (HOJA_CAPABILITY_RGB == 1)
 void _rgbanim_flash_do()
 {
     
@@ -606,9 +687,6 @@ void _rgbanim_flash_do()
     }
     
 }
-#endif
-
-
 
 #define INTENSITY_DEADZONE 50
 #define INTENSITY_CAP 2048
@@ -678,8 +756,6 @@ void _rgbanim_reactive_do()
 
     if(data->buttons_system != current.buttons_system)
     {
-
-
         if(data->button_home != current.button_home)
         rgb_set_group(RGB_GROUP_HOME, global_loaded_settings.rgb_colors[RGB_GROUP_HOME], true);
 
@@ -719,6 +795,7 @@ void _rgbanim_reactive_do()
     
 }
 
+
 /* RGB Indicate Animation */
 uint32_t _rgb_indicate_color = 0x00;
 bool _rgb_indicate_override_do()
@@ -730,33 +807,33 @@ bool _rgb_indicate_override_do()
     {
         memcpy(rgb_indicate_store, _rgb_current, sizeof(rgb_indicate_store));
         _rgb_set_all(_rgb_indicate_color);
-        _rgb_set_dirty();
         _rgb_active_anim_steps = _rgb_anim_override_steps;
+        _rgb_set_dirty();
         _rgb_anim_override_setup = true;
         reps = 0;
         return false;
     }
-
-    if(!reps)
+    else if(!reps)
     {
         memcpy(_rgb_next, rgb_indicate_store, sizeof(rgb_indicate_store));
         _rgb_set_dirty();
         reps+=1;
-        return false;
+        return true;
     }
     else return true;
 }
 
 void rgb_indicate(uint32_t color, uint16_t duration)
 {
+
     _rgb_indicate_color = color;
 
     rgb_set_override(_rgb_indicate_override_do, duration/2);
 
     _rgb_anim_override_cb = _rgb_indicate_override_do;
+
 }
 /* RGB Indicate Animation END */
-
 
 bool _rgb_shutdown_restart = false;
 bool _rgb_shutdown_start_override_do()
@@ -781,21 +858,25 @@ bool _rgb_shutdown_start_override_do()
         #else
             hoja_shutdown_instant();
         #endif
+    
     }
     return true;
 }
 
 void rgb_shutdown_start(bool restart)
 {
+
     _rgb_shutdown_restart = restart;
     _rgb_anim_cb = NULL;
 
     rgb_set_override(_rgb_shutdown_start_override_do, 10);
+
 }
 
 
 void rgb_init(rgb_mode_t mode, int brightness)
 {
+
     static bool _rgb_pio_done = false;
 
     if (!_rgb_pio_done)
@@ -853,13 +934,13 @@ void rgb_init(rgb_mode_t mode, int brightness)
         brightness = (brightness > 255) ? 255 : brightness;
         _rgb_set_brightness(brightness);
     }
+
 }
 
 // One tick of RGB logic
 // only performs actions if necessary
 void rgb_task(uint32_t timestamp)
 {
-#if (HOJA_CAPABILITY_RGB == 1)
 
     static interval_s interval = {0};
 
@@ -885,5 +966,44 @@ void rgb_task(uint32_t timestamp)
         }
 
     }
-#endif
 }
+#else
+void rgb_update_speed(uint8_t speed)
+{
+    (void) speed;
+}
+
+void rgb_shutdown_start(bool restart)
+{
+    (void) restart;
+}
+
+void rgb_indicate(uint32_t color, uint16_t duration)
+{
+    (void) color;
+    (void) duration;
+}
+
+void rgb_flash(uint32_t color)
+{
+    (void) color;
+}
+
+void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
+{
+    (void) group;
+    (void) color;
+    (void) instant;
+}
+
+void rgb_init(rgb_mode_t mode, int brightness)
+{
+    (void) mode;
+    (void) brightness;
+}
+
+void rgb_task(uint32_t timestamp)
+{
+    (void) timestamp;
+}
+#endif

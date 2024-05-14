@@ -217,6 +217,11 @@ typedef struct {
     rgb_s x;
     rgb_s a;
     rgb_s b;
+    rgb_s l;
+    rgb_s zl;
+    rgb_s r;
+    rgb_s zr;
+    rgb_s player;
 } rgb_preset_t;
 
 typedef struct 
@@ -240,6 +245,8 @@ typedef enum
     INPUT_MODE_MAX,
 } input_mode_t;
 
+#define INPUT_MODE_BASEBANDUPDATE INPUT_MODE_MAX
+
 typedef enum
 {
     INPUT_METHOD_AUTO  = -1, // Automatically determine if we are plugged or wireless
@@ -256,9 +263,9 @@ typedef struct
 
 typedef enum
 {
-    USBRATE_8 = 7700,
-    USBRATE_4 = 1500,
-    USBRATE_1 = 1,
+    USBRATE_8 = 8333,
+    USBRATE_4 = 4166,
+    USBRATE_1 = 500,
 } usb_rate_t;
 
 typedef enum
@@ -441,6 +448,53 @@ typedef struct
     
     bool retrieved;
 } __attribute__ ((packed)) imu_data_s;
+
+typedef struct
+{
+    union
+    {
+        float raw[4];
+        struct {
+            float x;
+            float y;
+            float z;
+            float w;
+        };
+    };
+    uint32_t timestamp;
+    int16_t ax;
+    int16_t ay;
+    int16_t az;
+} quaternion_s;
+
+typedef struct{
+    int16_t y;
+    int16_t x;
+    int16_t z;
+} vector_s;
+
+typedef struct {
+    vector_s accel_0;
+    uint32_t mode : 2;
+    uint32_t max_index : 2;
+    uint32_t last_sample_0 : 21;
+    uint32_t last_sample_1l : 7;
+    uint16_t last_sample_1h : 14;
+    uint16_t last_sample_2l : 2;
+    vector_s accel_1;
+    uint32_t last_sample_2h : 19;
+    uint32_t delta_last_first_0 : 13;
+    uint16_t delta_last_first_1 : 13;
+    uint16_t delta_last_first_2l : 3;
+    vector_s accel_2;
+    uint32_t delta_last_first_2h : 10;
+    uint32_t delta_mid_avg_0 : 7;
+    uint32_t delta_mid_avg_1 : 7;
+    uint32_t delta_mid_avg_2 : 7;
+    uint32_t timestamp_start_l : 1;
+    uint16_t timestamp_start_h : 10;
+    uint16_t timestamp_count : 6;
+} __attribute__ ((packed)) mode_2_s;
 
 typedef struct
 {

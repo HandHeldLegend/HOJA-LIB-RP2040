@@ -3,11 +3,13 @@
 
 #define HOJA_I2C_MSG_SIZE_OUT   32
 #define HOJA_I2C_MSG_SIZE_IN    11+1
+#define BT_CONNECTION_TIMEOUT_POWER_SECONDS (15)
 
+#if (HOJA_CAPABILITY_BLUETOOTH==1)
 uint32_t _mode_color = 0;
-
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
-
+int _has_connected = 0;
+#endif
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
@@ -67,6 +69,10 @@ bool btinput_init(input_mode_t input_mode)
                 _mode_color = COLOR_GREEN.color;
             break;
 
+            case INPUT_MODE_MAX:
+                _mode_color = COLOR_ORANGE.color;
+                break;
+
             default:
                 input_mode = INPUT_MODE_SWPRO;
                 _mode_color = COLOR_WHITE.color;
@@ -74,6 +80,14 @@ bool btinput_init(input_mode_t input_mode)
         }
         rgb_flash(_mode_color);
         cb_hoja_set_bluetooth_enabled(true);
+
+        // BT Baseband update
+        if(input_mode==INPUT_MODE_MAX) 
+        {
+            cb_hoja_set_uart_enabled(true);
+            hoja_set_baseband_update(true);
+            return true;
+        }
 
         // Optional delay to ensure you have time to hook into the UART
         #ifdef HOJA_BT_LOGGING_DEBUG
@@ -153,7 +167,7 @@ void _btinput_message_parse(uint8_t *msg)
 
             memcpy(&status, &msg[1], sizeof(i2cinput_status_s));
 
-            if(_i_connected==1)
+            if(_i_connected>0)
             {
                 if( (status.rumble_amplitude_lo>0) || (status.rumble_amplitude_hi>0) )
                 {
@@ -173,17 +187,21 @@ void _btinput_message_parse(uint8_t *msg)
 
             if(_i_connected<0)
             {
-                //rgb_flash(_mode_color);
+                _has_connected = -1;
                 _i_connected = 0;
             }
             else if (_i_connected != (int8_t) status.connected_status )
             {
-                if(status.connected_status == 1)
+                if(status.connected_status > 0)
                 {
+                    _has_connected = 1;
+                    rgb_set_player(status.connected_status);
                     rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
                 else
                 {
+                    _has_connected = -1;
+                    rgb_set_player(0);
                     rgb_flash(_mode_color);
                 }
                 _i_connected = (int8_t) status.connected_status;
@@ -219,6 +237,19 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     
     static i2cinput_input_s data = {0};
     static interval_s interval = {0};
+    static interval_s bt_dc_interval = {0};
+
+    if(_has_connected<1)
+    {
+        bool reset = (_has_connected<0) ? true : false;
+        // If we aren't connected after 10 seconds, power off.
+        if(interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS*1000*1000), reset, &bt_dc_interval))
+        {
+            _has_connected = 1; // So we don't run this again
+            hoja_shutdown();
+        }
+        if(reset) _has_connected = 0;
+    }
 
     if(interval_run(timestamp, 1000, &interval))
     {

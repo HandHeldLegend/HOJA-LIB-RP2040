@@ -38,7 +38,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
             }
             else
             {
-                rgb_indicate(COLOR_RED.color, 16);
+                rgb_indicate(COLOR_RED.color, 24);
             }
         }
 

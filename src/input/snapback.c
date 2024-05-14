@@ -5,7 +5,7 @@
 // 'fall' before we activate
 #define TRIGGER_THRESHOLD 3
 #define SNAPBACK_WIDTH_MAX 30
-#define SNAPBACK_HEIGHT_MAX 1850
+#define SNAPBACK_HEIGHT_MAX 2075
 #define SNAPBACK_STORE_HEIGHT 650
 #define SNAPBACK_DEADZONE 650
 #define SNAPBACK_DISTANCE_THRESHOLD 550
@@ -136,7 +136,7 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
         else a->trigger = 0;
 
         // Check if we should release
-        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) || (distance >= SNAPBACK_HEIGHT_MAX) )
+        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) /*|| (distance >= SNAPBACK_HEIGHT_MAX)*/ )
         {
             //release
             a->rising = false;

@@ -47,6 +47,11 @@ typedef enum{
     RGB_GROUP_X = 8,
     RGB_GROUP_A = 9,
     RGB_GROUP_B = 10,
+    RGB_GROUP_L = 11,
+    RGB_GROUP_ZL = 12,
+    RGB_GROUP_R = 13,
+    RGB_GROUP_ZR = 14,
+    RGB_GROUP_PLAYER = 15,
     RGB_GROUP_MAX,
 } rgb_group_t;
 
@@ -66,6 +71,8 @@ typedef enum{
 typedef void (*rgb_anim_cb)(void);
 
 typedef bool (*rgb_override_anim_cb)(void);
+
+void rgb_set_player(uint8_t player_number);
 
 void rgb_update_speed(uint8_t speed);
 
