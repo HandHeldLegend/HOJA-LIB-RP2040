@@ -98,9 +98,9 @@ const uint8_t _zr_size = sizeof(_rgb_group_zr) / sizeof(_rgb_group_zr[0]);
 
 const int8_t _rgb_group_player[] = HOJA_RGB_GROUP_PLAYER;
 const uint8_t _player_size = sizeof(_rgb_group_player) / sizeof(_rgb_group_player[0]);
+uint8_t _rgb_player_number = 0;
 
 rgb_mode_t _rgb_mode = 0;
-
 
 // Public CHSV color functions
 #define HSV_SECTION_6 (0x20)
@@ -271,6 +271,53 @@ uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
     return col.color;
 }
 
+void rgb_set_player(uint8_t player_number)
+{
+    _rgb_player_number = player_number;
+}
+
+void _rgb_set_player(uint8_t player_number)
+{
+    if( (_player_size>=4) && (_rgb_group_player[0]>-1) )
+    {
+        uint8_t setup = 0b0000;
+        switch(player_number)
+        {
+            case 0:
+            break;
+            case 1: 
+                setup = 0b1;
+                break;
+            case 2:
+                setup = 0b11;
+                break;
+            case 3:
+                setup = 0b111;
+                break;
+            case 4:
+                setup = 0b1111;
+                break;
+            case 5:
+                setup = 0b1001;
+                break;
+            case 6:
+                setup = 0b1010;
+                break;
+            case 7:
+                setup = 0b1011;
+                break;
+            case 8:
+                setup = 0b0110;
+                break;
+        }
+        
+        if(!(setup & 0b1)) _rgb_next[_rgb_group_player[0]].color = 0x00;
+        if(!(setup & 0b10)) _rgb_next[_rgb_group_player[1]].color = 0x00;
+        if(!(setup & 0b100)) _rgb_next[_rgb_group_player[2]].color = 0x00;
+        if(!(setup & 0b1000)) _rgb_next[_rgb_group_player[3]].color = 0x00;
+    }
+}
+
 // Returns true once the animation process is completed
 bool _rgb_animate_step()
 {
@@ -280,6 +327,7 @@ bool _rgb_animate_step()
 
     if (_rgb_out_dirty)
     {
+        _rgb_set_player(_rgb_player_number);
         memcpy(_rgb_last, _rgb_current, sizeof(_rgb_last));
         steps = 0;
         _rgb_out_dirty = false;
@@ -325,6 +373,8 @@ void _rgb_set_brightness(uint8_t brightness)
 {
     _rgb_brightness = (brightness > 100) ? 100 : brightness;
 }
+
+
 
 // Set all RGBs to one color
 void _rgb_set_all(uint32_t color)

@@ -72,6 +72,8 @@ typedef void (*rgb_anim_cb)(void);
 
 typedef bool (*rgb_override_anim_cb)(void);
 
+void rgb_set_player(uint8_t player_number);
+
 void rgb_update_speed(uint8_t speed);
 
 void rgb_shutdown_start(bool restart);

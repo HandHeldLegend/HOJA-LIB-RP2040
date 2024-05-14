@@ -245,6 +245,8 @@ typedef enum
     INPUT_MODE_MAX,
 } input_mode_t;
 
+#define INPUT_MODE_BASEBANDUPDATE INPUT_MODE_MAX;
+
 typedef enum
 {
     INPUT_METHOD_AUTO  = -1, // Automatically determine if we are plugged or wireless

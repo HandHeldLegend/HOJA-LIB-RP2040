@@ -69,6 +69,10 @@ bool btinput_init(input_mode_t input_mode)
                 _mode_color = COLOR_GREEN.color;
             break;
 
+            case INPUT_MODE_MAX:
+                _mode_color = COLOR_ORANGE.color;
+                break;
+
             default:
                 input_mode = INPUT_MODE_SWPRO;
                 _mode_color = COLOR_WHITE.color;
@@ -76,6 +80,14 @@ bool btinput_init(input_mode_t input_mode)
         }
         rgb_flash(_mode_color);
         cb_hoja_set_bluetooth_enabled(true);
+
+        // BT Baseband update
+        if(input_mode==INPUT_MODE_MAX) 
+        {
+            cb_hoja_set_uart_enabled(true);
+            hoja_set_baseband_update(true);
+            return true;
+        }
 
         // Optional delay to ensure you have time to hook into the UART
         #ifdef HOJA_BT_LOGGING_DEBUG
@@ -155,7 +167,7 @@ void _btinput_message_parse(uint8_t *msg)
 
             memcpy(&status, &msg[1], sizeof(i2cinput_status_s));
 
-            if(_i_connected==1)
+            if(_i_connected>0)
             {
                 if( (status.rumble_amplitude_lo>0) || (status.rumble_amplitude_hi>0) )
                 {
@@ -180,14 +192,16 @@ void _btinput_message_parse(uint8_t *msg)
             }
             else if (_i_connected != (int8_t) status.connected_status )
             {
-                if(status.connected_status == 1)
+                if(status.connected_status > 0)
                 {
                     _has_connected = 1;
+                    rgb_set_player(status.connected_status);
                     rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
                 else
                 {
                     _has_connected = -1;
+                    rgb_set_player(0);
                     rgb_flash(_mode_color);
                 }
                 _i_connected = (int8_t) status.connected_status;

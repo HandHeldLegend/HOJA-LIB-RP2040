@@ -181,6 +181,9 @@ void _hoja_task_0()
   if(_baseband_loop)
   {
     cb_hoja_baseband_update_loop(&_button_data);
+    watchdog_update();
+    rgb_task(_hoja_timestamp);
+    return;
   }
 
   remap_buttons_task();
@@ -402,7 +405,6 @@ void hoja_init(hoja_config_t *config)
   rgb_init(rgbmode, rgbbrightness);
   //rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
   
-
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
   if (_button_data.button_home)
