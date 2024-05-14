@@ -245,7 +245,7 @@ typedef enum
     INPUT_MODE_MAX,
 } input_mode_t;
 
-#define INPUT_MODE_BASEBANDUPDATE INPUT_MODE_MAX;
+#define INPUT_MODE_BASEBANDUPDATE INPUT_MODE_MAX
 
 typedef enum
 {

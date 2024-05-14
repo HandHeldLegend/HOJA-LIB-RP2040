@@ -76,6 +76,7 @@ void webusb_command_processor(uint8_t *data)
     {
 #if (HOJA_CAPABILITY_BLUETOOTH)
         hoja_set_baseband_update(true);
+        btinput_init(INPUT_MODE_BASEBANDUPDATE);
 #endif
     }
     break;
