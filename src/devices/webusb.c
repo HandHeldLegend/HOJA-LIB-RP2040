@@ -504,8 +504,11 @@ void webusb_command_processor(uint8_t *data)
 
     case WEBUSB_CMD_HWTEST_GET:
     {
+
+        // Reset our bluetooth flag
         hoja_hw_test_u _test = {0};
         _test.val = cb_hoja_hardware_test();
+        btinput_capability_reset_flag();
 
         _webusb_out_buffer[0] = WEBUSB_CMD_HWTEST_GET;
         memcpy(&(_webusb_out_buffer[1]), &(_test.val), 2);

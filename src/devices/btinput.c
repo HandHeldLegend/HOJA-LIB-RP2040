@@ -9,18 +9,34 @@
 uint32_t _mode_color = 0;
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 int _has_connected = 0;
+
+// This flag can be reset to tell the web app
+// that the controller is bluetooth capable
+bool _bt_capability_reset_flag = false;
 #endif
 
-#define BTINPUT_GET_VERSION_ATTEMPTS 10
+void btinput_capability_reset_flag()
+{
+    _bt_capability_reset_flag = true;
+}
 
+#define BTINPUT_GET_VERSION_ATTEMPTS 10
 uint16_t btinput_get_version()
 {
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
     
+    // 0xFFFF indicates that the firmware is unused
     uint16_t v = 0xFFFF;
     #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
-    v = 0xFFFE;
+    // Only set this if our flag is reset
+    if(_bt_capability_reset_flag)
+    {
+        // 0xFFFE indicates that an ESP32 is present, but not initialized
+        v = 0xFFFE;
+        _bt_capability_reset_flag = false;
+    }
+
     cb_hoja_set_bluetooth_enabled(true);
     sleep_ms(650);
 
