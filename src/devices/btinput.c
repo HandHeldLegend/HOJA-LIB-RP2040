@@ -17,7 +17,9 @@ bool _bt_capability_reset_flag = false;
 
 void btinput_capability_reset_flag()
 {
+    #if (HOJA_CAPABILITY_BLUETOOTH==1)
     _bt_capability_reset_flag = true;
+    #endif
 }
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10

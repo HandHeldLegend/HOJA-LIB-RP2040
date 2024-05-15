@@ -93,13 +93,13 @@ void analog_calibrate_stop()
 
     stick_scaling_init();
 
-    if(webusb_output_enabled())
-    {
-        #define DUMP_SIZE  (1+(sizeof(float)*8))
-        uint8_t calibration_dump[DUMP_SIZE] = {0x69};
-        memcpy(&(calibration_dump[1]), global_loaded_settings.l_angle_distances, DUMP_SIZE-1);
-        webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
-    }
+    //if(webusb_output_enabled())
+    //{
+    //    #define DUMP_SIZE  (1+(sizeof(float)*8))
+    //    uint8_t calibration_dump[DUMP_SIZE] = {0x69};
+    //    memcpy(&(calibration_dump[1]), global_loaded_settings.l_angle_distances, DUMP_SIZE-1);
+    //    webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
+    //}
 
     rgb_init(global_loaded_settings.rgb_mode, -1);
 }
