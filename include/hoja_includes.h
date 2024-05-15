@@ -37,6 +37,7 @@
 
 #include "stick_scaling.h"
 #include "analog.h"
+#include "triggers.h"
 #include "snapback.h"
 #include "imu.h"
 #include "macros.h"

@@ -81,6 +81,23 @@ void webusb_command_processor(uint8_t *data)
     }
     break;
 
+#if (HOJA_CAPABILITY_ANALOG_TRIGGER_L | HOJA_CAPABILITY_ANALOG_TRIGGER_R)
+    case WEBUSB_CMD_TRIGGER_CALIBRATION_START:
+    {
+        printf("WebUSB: Got trigger calibrate START command.\n");
+        
+        triggers_start_calibration();
+    }
+    break;
+
+    case WEBUSB_CMD_TRIGGER_CALIBRATION_STOP:
+    {
+        printf("WebUSB: Got trigger calibrate STOP command.\n");
+        triggers_stop_calibration();
+    }
+    break;
+#endif
+
     case WEBUSB_CMD_CAPABILITIES_GET:
     {
         printf("WebUSB: Got Capabilities GET command.\n");
@@ -595,6 +612,8 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
             webusb_input_report[5] = buttons->buttons_all & 0xFF;
             webusb_input_report[6] = (buttons->buttons_all >> 8) & 0xFF;
             webusb_input_report[7] = buttons->buttons_system;
+            webusb_input_report[8] = CLAMP_0_255(buttons->zl_analog >> 4);
+            webusb_input_report[9] = CLAMP_0_255(buttons->zr_analog >> 4);
         }
 
         if (webusb_ready_blocking(4000))

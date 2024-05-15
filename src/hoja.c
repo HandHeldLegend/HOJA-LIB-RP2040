@@ -195,7 +195,7 @@ void _hoja_task_0()
   if (webusb_output_enabled())
   {
     snapback_webcapture_task(_hoja_timestamp, &_analog_data_desnapped);
-    webusb_input_report_task(_hoja_timestamp, &_analog_data_output, NULL);
+    webusb_input_report_task(_hoja_timestamp, &_analog_data_output, &_button_data_processed);
   }
   // Our communication core task
   else hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
@@ -270,7 +270,8 @@ void hoja_init(hoja_config_t *config)
       rgb_indicate(COLOR_ORANGE.color, 50);
     }
     
-    analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data, &_button_data_processed, &_button_data_output);
+    analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data);
+    triggers_scale_init();
   }
 
   // Reset pairing if needed.

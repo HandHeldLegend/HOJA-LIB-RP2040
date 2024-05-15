@@ -25,6 +25,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/triggers.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/dinput.c 
