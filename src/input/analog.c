@@ -20,7 +20,6 @@ a_data_s *_analog_output = NULL;
 
 
 button_data_s *_buttons = NULL;
-button_data_s *_buttons_processed = NULL;
 button_data_s *_buttons_output = NULL;
 
 typedef struct {
@@ -50,14 +49,12 @@ void analog_send_reset()
     _ry_tracker_mem.tracked_direction = 0;
 }
 
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons, button_data_s *processed, button_data_s *output)
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons)
 {
     _data_in    = in;
     _data_out   = out;
     _analog_desnapped = desnapped;
     _buttons    = buttons;
-    _buttons_output = output;
-    _buttons_processed = processed;
     stick_scaling_get_settings();
     stick_scaling_init();
 
@@ -96,13 +93,13 @@ void analog_calibrate_stop()
 
     stick_scaling_init();
 
-    if(webusb_output_enabled())
-    {
-        #define DUMP_SIZE  (1+(sizeof(float)*8))
-        uint8_t calibration_dump[DUMP_SIZE] = {0x69};
-        memcpy(&(calibration_dump[1]), global_loaded_settings.l_angle_distances, DUMP_SIZE-1);
-        webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
-    }
+    //if(webusb_output_enabled())
+    //{
+    //    #define DUMP_SIZE  (1+(sizeof(float)*8))
+    //    uint8_t calibration_dump[DUMP_SIZE] = {0x69};
+    //    memcpy(&(calibration_dump[1]), global_loaded_settings.l_angle_distances, DUMP_SIZE-1);
+    //    webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
+    //}
 
     rgb_init(global_loaded_settings.rgb_mode, -1);
 }

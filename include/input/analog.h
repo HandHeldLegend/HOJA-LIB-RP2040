@@ -7,7 +7,7 @@
 void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant);
 void analog_get_subangle_data(uint8_t *axis, uint8_t *octant);
 void analog_send_reset();
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons, button_data_s *processed, button_data_s *output);
+void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons);
 void analog_calibrate_start();
 void analog_calibrate_stop();
 void analog_calibrate_save();

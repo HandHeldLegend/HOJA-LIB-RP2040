@@ -270,11 +270,17 @@ uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
         .b = outb_int};
     return col.color;
 }
+#endif
+
 
 void rgb_set_player(uint8_t player_number)
 {
+    #if (HOJA_CAPABILITY_RGB)
     _rgb_player_number = player_number;
+    #endif
 }
+
+#if (HOJA_CAPABILITY_RGB)
 
 void _rgb_set_player(uint8_t player_number)
 {

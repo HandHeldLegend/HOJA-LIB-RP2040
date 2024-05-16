@@ -296,6 +296,14 @@ void remap_buttons_task()
   _remap_internal.buttons_all = 0x00;
   _remap_internal.buttons_system = 0x00;
 
+
+  #if(HOJA_CAPABILITY_ANALOG_TRIGGER_L | HOJA_CAPABILITY_ANALOG_TRIGGER_R)
+  int zla;
+  int zra;
+  // Process trigger scaling
+  triggers_scale(_buttons_in->zl_analog, &(zla), _buttons_in->zr_analog, &(zra));
+  #endif
+
   if (_button_remap_listen)
   {
     bool c = _buttons_in->button_home;
@@ -338,13 +346,13 @@ void remap_buttons_task()
     
     if(_l_analog_remapped)
     {
-      bool l_triggered = (_buttons_in->zl_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zl;
+      bool l_triggered = (zla >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zl;
       _remap_internal.buttons_all |= REMAP_SET(l_triggered, _remap_arr[MAPCODE_T_ZL], _unset_struct->trigger_zl);
       _remap_internal.zl_analog = (_remap_internal.trigger_zl) ? 4095 : 0;
     }
     else
     {
-      _remap_internal.zl_analog = _buttons_in->zl_analog;
+      _remap_internal.zl_analog = zla;
       _remap_internal.trigger_zl = _buttons_in->trigger_zl;
     }
   #else
@@ -357,13 +365,13 @@ void remap_buttons_task()
     
     if(_r_analog_remapped)
     {
-      bool r_triggered = (_buttons_in->zr_analog >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zr;
+      bool r_triggered = (zra >= ANALOG_DIGITAL_THRESH) | _buttons_in->trigger_zr;
       _remap_internal.buttons_all |= REMAP_SET(r_triggered, _remap_arr[MAPCODE_T_ZR], _unset_struct->trigger_zr);
       _remap_internal.zr_analog = (_remap_internal.trigger_zr) ? 4095 : 0;
     }
     else
     {
-      _remap_internal.zr_analog = _buttons_in->zr_analog;
+      _remap_internal.zr_analog = zra;
       _remap_internal.trigger_zr = _buttons_in->trigger_zr;
     }
   #else
@@ -374,6 +382,8 @@ void remap_buttons_task()
 
   _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_stick_left, _remap_arr[MAPCODE_B_STICKL],   _unset_struct->button_stick_left);
   _remap_internal.buttons_all |= REMAP_SET(_buttons_in->button_stick_right, _remap_arr[MAPCODE_B_STICKR],  _unset_struct->button_stick_right);
+
+  
 
   memcpy(_buttons_out, &(_remap_internal), sizeof(button_data_s));
 }
