@@ -183,6 +183,7 @@ void _hoja_task_0()
     cb_hoja_baseband_update_loop(&_button_data);
     watchdog_update();
     rgb_task(_hoja_timestamp);
+    util_battery_monitor_task_usb(_hoja_timestamp);
     return;
   }
 
