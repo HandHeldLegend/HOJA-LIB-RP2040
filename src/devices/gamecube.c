@@ -59,6 +59,7 @@ void _gamecube_reset_state()
 
 #define BYTECOUNT_DEFAULT 2
 #define BYTECOUNT_UNKNOWN -1
+#define BYTECOUNT_SWISS 10
 volatile int _byteCounter = BYTECOUNT_UNKNOWN;
 volatile uint8_t _workingCmd = 0x00;
 volatile uint8_t _workingMode = 0x03;
@@ -78,7 +79,7 @@ void __time_critical_func(_gamecube_command_handler)()
         _byteCounter = BYTECOUNT_DEFAULT;
         break;
       case GCUBE_CMD_SWISS:
-        _byteCounter = 10;
+        _byteCounter = BYTECOUNT_SWISS;
         break;
     }
   }
