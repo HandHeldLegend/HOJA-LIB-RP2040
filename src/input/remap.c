@@ -12,7 +12,6 @@ buttons_unset_s *_unset_struct;
 
 mapcode_t _remap_arr[MAPCODE_MAX];
 
-
 mapcode_t       _button_remap_code;
 bool            _button_remap_listen = false;
 mapcode_t       _tmp_remap_arr[MAPCODE_MAX];

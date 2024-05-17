@@ -5,11 +5,11 @@
 #include "interval.h"
 
 typedef enum{
-    GCUBE_CMD_PROBE = 0x00,
-    GCUBE_CMD_POLL = 0x40,
-    GCUBE_CMD_ORIGIN = 0x41,
+    GCUBE_CMD_PROBE     = 0x00,
+    GCUBE_CMD_POLL      = 0x40,
+    GCUBE_CMD_ORIGIN    = 0x41,
     GCUBE_CMD_ORIGINEXT = 0x42,
-    GCUBE_CMD_SWISS = 0x1D,
+    GCUBE_CMD_SWISS     = 0x1D,
 } gc_cmd_t;
 
 // Additional modes, ideas taken from
