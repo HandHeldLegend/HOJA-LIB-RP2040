@@ -54,32 +54,32 @@ typedef struct
             uint8_t stick_left_y;
             uint8_t stick_right_x;
             uint8_t stick_right_y;
-            uint8_t analog_trigger_l : 4;
             uint8_t analog_trigger_r : 4;
-            uint8_t analog_a : 4;
+            uint8_t analog_trigger_l : 4;
             uint8_t analog_b : 4;
+            uint8_t analog_a : 4;
         } mode0;
 
         struct
         {
             uint8_t stick_left_x;
             uint8_t stick_left_y;
-            uint8_t stick_right_x : 4;
             uint8_t stick_right_y : 4;
+            uint8_t stick_right_x : 4;
             uint8_t analog_trigger_l;
             uint8_t analog_trigger_r;
-            uint8_t analog_a : 4;
             uint8_t analog_b : 4;
+            uint8_t analog_a : 4;
         } mode1;
 
         struct
         {
             uint8_t stick_left_x;
             uint8_t stick_left_y;
-            uint8_t stick_right_x : 4;
             uint8_t stick_right_y : 4;
-            uint8_t analog_trigger_l : 4;
+            uint8_t stick_right_x : 4;
             uint8_t analog_trigger_r : 4;
+            uint8_t analog_trigger_l : 4;
             uint8_t analog_a;
             uint8_t analog_b;
         } mode2;
