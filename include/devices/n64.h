@@ -4,6 +4,15 @@
 #include "hoja_includes.h"
 #include "interval.h"
 
+typedef enum
+{
+    N64_CMD_PROBE   = 0x00,
+    N64_CMD_POLL    = 0x01,
+    N64_CMD_READMEM = 0x02,
+    N64_CMD_WRITEMEM = 0x03,
+    N64_CMD_RESET = 0xFF
+} n64_cmd_t;
+
 typedef struct
 {
     union

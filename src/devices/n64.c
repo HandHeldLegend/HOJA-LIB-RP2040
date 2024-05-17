@@ -10,6 +10,7 @@ uint _n64_irq;
 uint _n64_irq_tx;
 uint _n64_offset;
 pio_sm_config _n64_c;
+bool _n64_rumble = false;
 
 static n64_input_s _out_buffer = {.stick_x = 0, .stick_y = 0};
 static uint8_t _in_buffer[64] = {0};
@@ -21,16 +22,43 @@ volatile uint8_t _crc_reply = 0;
 volatile bool _n64_got_data = false;
 bool _n64_running = false;
 
-uint8_t _n64_get_crc(uint8_t val)
+uint8_t _n64_calculate_crc(const uint8_t *data, size_t len, uint8_t init_value, bool pak_inserted) {
+    uint8_t crc = init_value;
+
+    for (size_t i = 0; i < len; ++i) {
+        crc = n64_crc[(crc ^ data[i])];
+    }
+
+    return crc ^ ((pak_inserted) ? 0xFF : 0x00);
+}
+
+uint8_t _n64_iterate_crc(uint8_t crc, uint8_t input) {
+    uint8_t out = n64_crc[(crc ^ input)];
+    return out;
+}
+
+void _n64_send_rumble_identify()
 {
-    return crc_repeating_table[val] ^ 0xFF;
+  for(uint i = 0; i<32; i++)
+  {
+    pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0x80));
+  }
+  pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0xB8)); // Precomputed CRC (0x47 or also try 0xB8)
+}
+
+void _n64_send_null_identify()
+{
+  for(uint i = 0; i<33; i++)
+  {
+    pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, 0);
+  }
 }
 
 void _n64_send_probe()
 {
     pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0x05));
     pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, 0);
-    pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, 0);
+    pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0x01)); // Indicate PAK is installed
 }
 
 void _n64_send_pak_write()
@@ -47,31 +75,62 @@ void _n64_send_poll()
     analog_send_reset();
 }
 
-#define PAK_MSG_BYTES 36
+#define PAK_MSG_BYTES 33
 
 void __time_critical_func(_n64_command_handler)()
 {
-    uint16_t c = 40;
-    if (_workingCmd == 0x03)
+    uint16_t c = 20;
+    
+    // Resume working on commands that are longer than 1 byte
+    if (_workingCmd == N64_CMD_WRITEMEM)
     {
-        _in_buffer[_byteCount] = pio_sm_get(GAMEPAD_PIO, GAMEPAD_SM);
+      uint16_t writeaddr = 0;
+      _in_buffer[_byteCount] = pio_sm_get(GAMEPAD_PIO, GAMEPAD_SM);
 
-        if (_byteCount == 3)
+      if(_byteCount>1) // Only 32 bytes after the address
+      _crc_reply = _n64_iterate_crc(_crc_reply, _in_buffer[_byteCount]);
+      
+      if (_byteCount >= PAK_MSG_BYTES)
+      {
+        writeaddr = (_in_buffer[0] << 8) | (_in_buffer[1]&0xE0);
+        if (writeaddr==0xC000)
         {
-            // Calculate response CRC
-            _crc_reply = _n64_get_crc(_in_buffer[3]);
+          _n64_rumble = (_in_buffer[2] > 0) ? true : false;
         }
+        _workingCmd = 0;
+        _byteCount = 0;
+        //while (c--)
+        //    asm("nop");
+        joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
+        _n64_send_pak_write();
+      } 
+      else _byteCount++;
+      
+    }
+    else if (_workingCmd == N64_CMD_READMEM)
+    {
+      
+      _in_buffer[_byteCount] = pio_sm_get(GAMEPAD_PIO, GAMEPAD_SM);
 
-        _byteCount++;
-        if (_byteCount == PAK_MSG_BYTES)
+      if (_byteCount >= 1)
+      {
+        _workingCmd = 0;
+        _byteCount = 0;
+
+        joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
+        // End receive so we respond
+        while(c--)
+          asm("nop");
+
+        uint16_t readaddr = (_in_buffer[0]<<8) | (_in_buffer[1]&0xE0);
+        if(readaddr==0x8000)
         {
-            _workingCmd = 0;
-            _byteCount = 0;
-            while (c--)
-                asm("nop");
-            joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
-            _n64_send_pak_write();
+          _n64_send_rumble_identify();
         }
+        else _n64_send_null_identify();
+      }
+      else _byteCount++;
+
     }
     else
     {
@@ -82,13 +141,18 @@ void __time_critical_func(_n64_command_handler)()
         default:
             break;
 
-        // Write to mem pak
-        case 0x03:
-            _byteCount = 1;
+        case N64_CMD_READMEM:
+            _crc_reply = 0;
             break;
 
-        case 0xFF:
-        case 0x00:
+        // Write to mem pak
+        case N64_CMD_WRITEMEM:
+            _crc_reply = 0;
+            break;
+
+        case N64_CMD_RESET:
+        case N64_CMD_PROBE:
+            _workingCmd = 0;
             while (c--)
                 asm("nop");
             joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
@@ -96,7 +160,9 @@ void __time_critical_func(_n64_command_handler)()
             break;
 
         // Poll
-        case 0x01:
+        case N64_CMD_POLL:
+            _workingCmd = 0;
+            c=40;
             while (c--)
                 asm("nop");
             joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
@@ -162,6 +228,15 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
     }
     else
     {
+
+      static bool _rumblestate = false;
+      if(_n64_rumble != _rumblestate)
+      {
+        _rumblestate = _n64_rumble;
+        float amp = _rumblestate ? 0.85f : 0;
+        hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, amp, HOJA_HAPTIC_BASE_LFREQ, amp);
+      }
+
       _n64_got_data = false;
       _out_buffer.button_a = buttons->button_a;
       _out_buffer.button_b = buttons->button_b;
