@@ -363,7 +363,8 @@ typedef struct
             uint8_t button_safemode : 1;
             uint8_t button_shipping : 1;
             uint8_t button_sync     : 1;
-            uint8_t padding         : 3;
+            uint8_t button_unbind   : 1;
+            uint8_t padding         : 2;
         };
         uint8_t buttons_system;
     };
