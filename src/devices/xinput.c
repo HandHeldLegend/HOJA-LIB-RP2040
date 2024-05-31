@@ -2,21 +2,24 @@
 
 short sign_axis(int input_axis)
 {
-
-    int start = (int) (input_axis>>4) - 127;
-    if ((start * 256) > 32765)
-    {
-        start = 32765;
+    if (input_axis > 4095) {
+        input_axis = 4095;  // Clamp to max 12-bit value
     }
-    else if ((start * 256) < -32765)
-    {
-        start = -32765;
+    
+    // Convert from [0, 4095] to [-2048, 2047] range
+    int16_t centered = (int16_t)input_axis - 2048;
+    
+    // Scale from [-2048, 2047] to [-32768, 32767] range
+    int32_t scaled = (int32_t)centered * 32768 / 2048;
+    
+    // Clamp to int16_t range to handle rounding issues
+    if (scaled > 32767) {
+        scaled = 32767;
+    } else if (scaled < -32768) {
+        scaled = -32768;
     }
-    else
-    {
-        start *= 256;
-    }
-    return (short) start;
+    
+    return (short)scaled;
 }
 
 void xinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
