@@ -10,7 +10,7 @@ short sign_axis(int input_axis)
     int16_t centered = (int16_t)input_axis - 2048;
     
     // Scale from [-2048, 2047] to [-32768, 32767] range
-    int32_t scaled = (int32_t)centered * 32768 / 2048;
+    int32_t scaled = (int32_t)centered * 32768 / 2047;
     
     // Clamp to int16_t range to handle rounding issues
     if (scaled > 32767) {
