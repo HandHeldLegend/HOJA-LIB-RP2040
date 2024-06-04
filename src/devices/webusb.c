@@ -343,7 +343,7 @@ void webusb_command_processor(uint8_t *data)
     {
         printf("WebUSB: Got RGB SET command.\n");
 
-        uint8_t idx = data[1] % 12;
+        uint8_t idx = data[1] % 32;
 
         rgb_s col =
             {
@@ -362,7 +362,7 @@ void webusb_command_processor(uint8_t *data)
         memset(_webusb_out_buffer, 0, 64);
         _webusb_out_buffer[0] = WEBUSB_CMD_RGB_GET;
 
-        for (uint8_t i = 0; i < 12; i++)
+        for (uint8_t i = 0; i < 16; i++)
         {
             rgb_s c = {.color = global_loaded_settings.rgb_colors[i]};
             uint8_t t = (i * 3) + 1;
