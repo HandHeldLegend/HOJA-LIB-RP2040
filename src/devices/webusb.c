@@ -101,6 +101,10 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_CAPABILITIES_GET:
     {
         printf("WebUSB: Got Capabilities GET command.\n");
+
+        // Set Player LEDs all
+        rgb_set_player(4);
+
         _webusb_out_buffer[0] = WEBUSB_CMD_CAPABILITIES_GET;
         memcpy(&_webusb_out_buffer[1], &_webusb_capabilities, sizeof(uint8_t) * 2);
 
