@@ -17,6 +17,7 @@ static gamecube_input_s _out_buffer = {.stick_left_x = 127, .stick_left_y = 127,
 
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 
+#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 void _gamecube_send_probe()
 {
   pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0x09));
@@ -56,6 +57,7 @@ void _gamecube_reset_state()
 {
   joybus_set_in(true, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
 }
+#endif
 
 #define BYTECOUNT_DEFAULT 2
 #define BYTECOUNT_UNKNOWN -1
@@ -63,6 +65,8 @@ void _gamecube_reset_state()
 volatile int _byteCounter = BYTECOUNT_UNKNOWN;
 volatile uint8_t _workingCmd = 0x00;
 volatile uint8_t _workingMode = 0x03;
+
+#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 
 void __time_critical_func(_gamecube_command_handler)()
 {
@@ -187,10 +191,13 @@ static void _gamecube_isr_txdone(void)
     joybus_set_in(true, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
   }
 }
+#endif
 
 void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
   static interval_s interval = {0};
+  
 
   if (!_gc_running)
   {
@@ -388,6 +395,8 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       }
     }
   }
+
+  #endif
 }
 
 void gamecube_init()

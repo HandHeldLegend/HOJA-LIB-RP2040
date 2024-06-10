@@ -1,6 +1,8 @@
 #include "n64.h"
 #include "n64_crc.h"
 
+#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
+
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 #define N64_RANGE 90
@@ -199,8 +201,12 @@ void _n64_reset_state()
   joybus_set_in(true, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
 }
 
+#endif
+
 void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
+
   static interval_s interval = {0};
 
   if (!_n64_running)
@@ -275,5 +281,7 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
       _out_buffer.dpad_up       = buttons->dpad_up;
     }
   }
+
+  #endif
 }
 
