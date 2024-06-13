@@ -280,13 +280,6 @@ void hoja_init(hoja_config_t *config)
   {
     memset(global_loaded_settings.switch_host_address, 0, 6);
   }
-
-  // Initialize rumble
-  cb_hoja_rumble_init();
-
-  // For switch Pro stuff
-  switch_analog_calibration_init();
-
   
   if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
   {
@@ -345,6 +338,12 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
+  // Initialize rumble
+  cb_hoja_rumble_init();
+
+  // For switch Pro stuff
+  switch_analog_calibration_init();
+
   rgb_mode_t rgbmode = global_loaded_settings.rgb_mode;
   uint8_t rgbbrightness = 100;
   uint32_t indicate_color = COLOR_WHITE.color;
@@ -359,7 +358,6 @@ void hoja_init(hoja_config_t *config)
     }
     else
     {
-      util_battery_set_charge_rate(100);
       _hoja_input_method = INPUT_METHOD_USB;
     }
   }
@@ -387,16 +385,19 @@ void hoja_init(hoja_config_t *config)
       break;
 
     case INPUT_MODE_SNES:
+      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 25;
       indicate_color = COLOR_RED.color;
       break;
     case INPUT_MODE_GAMECUBE:
+      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 15;
       indicate_color = COLOR_PURPLE.color;
       break;
     case INPUT_MODE_N64:
+      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 25;
       indicate_color = COLOR_YELLOW.color;
