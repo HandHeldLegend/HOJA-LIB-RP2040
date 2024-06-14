@@ -3,6 +3,10 @@
 
 #include <inttypes.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
 #define ANALOG_DIGITAL_THRESH 650
@@ -564,5 +568,9 @@ typedef struct
     uint16_t rs_y;
 
 } __attribute__ ((packed)) sw_input_s;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
