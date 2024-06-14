@@ -125,6 +125,11 @@ void util_battery_set_charge_rate(uint16_t rate_ma)
     // Mask off the code to ensure charging isn't disabled
     code &= 0x7F;
 
+    if(!rate_ma)
+    {
+        code = 0b10000101;
+    }
+
     uint8_t _write[2] = {0x04, code};
     
     #if (HOJA_CAPABILITY_BATTERY == 1)
