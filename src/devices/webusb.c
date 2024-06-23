@@ -72,6 +72,19 @@ void webusb_command_processor(uint8_t *data)
     default:
         break;
 
+    case WEBUSB_CMD_BATTERY_STATUS_GET:
+    {
+        _webusb_out_buffer[0] = WEBUSB_CMD_BATTERY_STATUS_GET;
+        _webusb_out_buffer[1] = util_battery_get_level();
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
     case WEBUSB_CMD_BB_SET:
     {
 #if (HOJA_CAPABILITY_BLUETOOTH)

@@ -109,6 +109,12 @@ __attribute__((weak)) void cb_hoja_baseband_update_loop(button_data_s *buttons)
   (void)&buttons;
 }
 
+__attribute__((weak)) uint8_t cb_hoja_get_battery_level()
+{
+  // value between 0 and 100
+  return 100;
+}
+
 input_method_t hoja_get_input_method()
 {
   return _hoja_input_method;
@@ -362,6 +368,20 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
+  #define TEST_OPTION 0
+
+  #if (TEST_OPTION == 0)
+  util_battery_set_source(PMIC_SOURCE_AUTO);
+  #elif(TEST_OPTION == 1)
+  util_battery_set_source(PMIC_SOURCE_AUTO);
+  util_battery_set_charge_rate(0);
+  #elif (TEST_OPTION == 2)
+  util_battery_set_source(PMIC_SOURCE_BAT);
+  #elif (TEST_OPTION == 3)
+  util_battery_set_source(PMIC_SOURCE_BAT);
+  util_battery_set_charge_rate(0);
+  #endif
+
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
@@ -385,13 +405,12 @@ void hoja_init(hoja_config_t *config)
       break;
 
     case INPUT_MODE_SNES:
-      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 25;
       indicate_color = COLOR_RED.color;
       break;
     case INPUT_MODE_GAMECUBE:
-      util_battery_set_charge_rate(0);
+      
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 15;
       indicate_color = COLOR_PURPLE.color;
