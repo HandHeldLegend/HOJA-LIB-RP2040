@@ -12,7 +12,6 @@ buttons_unset_s *_unset_struct;
 
 mapcode_t _remap_arr[MAPCODE_MAX];
 
-
 mapcode_t       _button_remap_code;
 bool            _button_remap_listen = false;
 mapcode_t       _tmp_remap_arr[MAPCODE_MAX];
@@ -306,8 +305,12 @@ void remap_buttons_task()
 
   if (_button_remap_listen)
   {
-    bool c = _buttons_in->button_home;
-    if(c) _buttons_in->button_home = 0;
+    bool c = _buttons_in->button_unbind;
+    if(c) 
+    {
+      _buttons_in->buttons_all = 0;
+      _buttons_in->buttons_system = 0;
+    }
     _remap_listener(_buttons_in->buttons_all, c);
     return;
   }

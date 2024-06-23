@@ -272,14 +272,6 @@ uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
 }
 #endif
 
-
-void rgb_set_player(uint8_t player_number)
-{
-    #if (HOJA_CAPABILITY_RGB)
-    _rgb_player_number = player_number;
-    #endif
-}
-
 #if (HOJA_CAPABILITY_RGB)
 
 void _rgb_set_player(uint8_t player_number)
@@ -322,6 +314,16 @@ void _rgb_set_player(uint8_t player_number)
         if(!(setup & 0b100)) _rgb_next[_rgb_group_player[2]].color = 0x00;
         if(!(setup & 0b1000)) _rgb_next[_rgb_group_player[3]].color = 0x00;
     }
+}
+
+void rgb_set_player(uint8_t player_number)
+{
+    #if (HOJA_CAPABILITY_RGB)
+    _rgb_player_number = player_number;
+    _rgb_set_player(_rgb_player_number);
+    _rgb_mode_setup = false;
+    _rgb_set_dirty();
+    #endif
 }
 
 // Returns true once the animation process is completed

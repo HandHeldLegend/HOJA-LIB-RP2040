@@ -3,6 +3,10 @@
 
 #include <inttypes.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
 #define ANALOG_DIGITAL_THRESH 650
@@ -363,7 +367,8 @@ typedef struct
             uint8_t button_safemode : 1;
             uint8_t button_shipping : 1;
             uint8_t button_sync     : 1;
-            uint8_t padding         : 3;
+            uint8_t button_unbind   : 1;
+            uint8_t padding         : 2;
         };
         uint8_t buttons_system;
     };
@@ -563,5 +568,9 @@ typedef struct
     uint16_t rs_y;
 
 } __attribute__ ((packed)) sw_input_s;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

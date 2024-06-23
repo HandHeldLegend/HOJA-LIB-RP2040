@@ -1,6 +1,8 @@
 #include "n64.h"
 #include "n64_crc.h"
 
+#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
+
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 #define N64_RANGE 90
@@ -199,8 +201,12 @@ void _n64_reset_state()
   joybus_set_in(true, GAMEPAD_PIO, GAMEPAD_SM, _n64_offset, &_n64_c, HOJA_SERIAL_PIN);
 }
 
+#endif
+
 void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
+  #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
+
   static interval_s interval = {0};
 
   if (!_n64_running)
@@ -251,8 +257,17 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
 
       _out_buffer.button_l = buttons->button_minus;
 
-      _out_buffer.button_r = buttons->trigger_zr;
-      _out_buffer.button_z = buttons->trigger_zl;
+      #if (HOJA_CAPABILITY_ANALOG_TRIGGER_L)
+        _out_buffer.button_z = ( (buttons->zl_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | buttons->trigger_zl;
+      #else
+          _out_buffer.button_z = buttons->trigger_zl;
+      #endif
+
+      #if (HOJA_CAPABILITY_ANALOG_TRIGGER_R)
+          _out_buffer.button_r = ( (buttons->zr_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | buttons->trigger_zr;
+      #else
+          _out_buffer.button_r = buttons->trigger_zr;
+      #endif
 
       float lx = (analog->lx*N64_RANGE_MULTIPLIER) - N64_RANGE;
       float ly = (analog->ly*N64_RANGE_MULTIPLIER) - N64_RANGE;
@@ -266,5 +281,7 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
       _out_buffer.dpad_up       = buttons->dpad_up;
     }
   }
+
+  #endif
 }
 

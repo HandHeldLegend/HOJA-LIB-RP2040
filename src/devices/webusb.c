@@ -72,6 +72,19 @@ void webusb_command_processor(uint8_t *data)
     default:
         break;
 
+    case WEBUSB_CMD_BATTERY_STATUS_GET:
+    {
+        _webusb_out_buffer[0] = WEBUSB_CMD_BATTERY_STATUS_GET;
+        _webusb_out_buffer[1] = util_battery_get_level();
+
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+    }
+    break;
+
     case WEBUSB_CMD_BB_SET:
     {
 #if (HOJA_CAPABILITY_BLUETOOTH)
@@ -101,6 +114,10 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_CAPABILITIES_GET:
     {
         printf("WebUSB: Got Capabilities GET command.\n");
+
+        // Set Player LEDs all
+        rgb_set_player(4);
+
         _webusb_out_buffer[0] = WEBUSB_CMD_CAPABILITIES_GET;
         memcpy(&_webusb_out_buffer[1], &_webusb_capabilities, sizeof(uint8_t) * 2);
 
@@ -343,7 +360,7 @@ void webusb_command_processor(uint8_t *data)
     {
         printf("WebUSB: Got RGB SET command.\n");
 
-        uint8_t idx = data[1] % 12;
+        uint8_t idx = data[1] % 32;
 
         rgb_s col =
             {
@@ -362,7 +379,7 @@ void webusb_command_processor(uint8_t *data)
         memset(_webusb_out_buffer, 0, 64);
         _webusb_out_buffer[0] = WEBUSB_CMD_RGB_GET;
 
-        for (uint8_t i = 0; i < 12; i++)
+        for (uint8_t i = 0; i < 16; i++)
         {
             rgb_s c = {.color = global_loaded_settings.rgb_colors[i]};
             uint8_t t = (i * 3) + 1;
