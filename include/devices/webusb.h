@@ -83,6 +83,9 @@ typedef enum
   WEBUSB_CMD_HWTEST_GET = 0xF2,
   WEBUSB_CMD_RUMBLETEST_GET = 0xF3,
 
+  // Get battery status
+  WEBUSB_CMD_BATTERY_STATUS_GET = 0xF4,
+
   WEBUSB_CMD_SAVEALL = 0xF1,
 } webusb_cmd_t;
 

@@ -102,8 +102,11 @@ void util_battery_enable_ship_mode(void)
 
 }
 
+uint16_t _util_charge_rate = 0;
+
 void util_battery_set_charge_rate(uint16_t rate_ma)
 {
+    _util_charge_rate = rate_ma;
     // Default is 0x5
     uint8_t code = 0x5;
     uint16_t rate = rate_ma;
@@ -135,6 +138,51 @@ void util_battery_set_charge_rate(uint16_t rate_ma)
     #if (HOJA_CAPABILITY_BATTERY == 1)
     int readcheck = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 10000);
     #endif
+}
+
+uint8_t util_battery_get_level()
+{
+    #if (HOJA_CAPABILITY_BATTERY == 1)
+    uint16_t store_rate = _util_charge_rate;
+    util_battery_set_charge_rate(0);
+
+    uint8_t rate = cb_hoja_get_battery_level();
+
+    util_battery_set_charge_rate(store_rate);
+    return rate;
+    #else
+    return 100;
+    #endif
+}
+
+// This disables the PMIC regulation by default. We already have a regulator
+void util_battery_set_source(util_battery_source_t source)
+{
+    #if (HOJA_CAPABILITY_BATTERY == 1)
+
+    uint8_t source_packet = 0b11100000;
+    switch(source)
+    {
+        default:
+        case PMIC_SOURCE_AUTO:
+        case PMIC_SOURCE_EXT:
+        break;
+        case PMIC_SOURCE_BAT:
+            source_packet |= 0b00000100;
+        break;
+    }
+    const uint8_t _data[2] = {0x0A, source_packet};
+    int success = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+
+    if(success == PICO_ERROR_GENERIC)
+    {
+        
+    }
+    else if (success == PICO_ERROR_TIMEOUT)
+    {
+        
+    }
+    #endif 
 }
 
 bool util_wire_connected()
