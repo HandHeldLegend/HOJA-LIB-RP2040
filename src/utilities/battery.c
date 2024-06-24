@@ -1,6 +1,8 @@
 #include "battery.h"
 #include "interval.h"
 
+util_battery_status_s _util_battery_status = {0};
+
 void util_battery_init()
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
@@ -13,6 +15,7 @@ void util_battery_init()
 void util_battery_monitor_task_usb(uint32_t timestamp)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+    static uint8_t charging = 0;
     static interval_s interval = {0};
     // Check status every 64ms
     if(interval_run(timestamp, 64000, &interval))
@@ -22,6 +25,43 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
         if(!_connected)
         {
             hoja_shutdown();
+        }
+
+        static bool idle = false;
+
+        if(!idle && hoja_get_idle_state())
+        {
+            charging = 0;
+            idle = true;
+        }
+        else if(idle && !hoja_get_idle_state())
+        {
+            idle = false;
+            rgb_init(global_loaded_settings.rgb_mode, -1);
+        }
+
+        if(idle)
+        {
+            if(charging != _util_battery_status.charge_status)
+            {
+                rgb_s color = COLOR_YELLOW;
+                switch(_util_battery_status.charge_status)
+                {
+                    default:
+                    case 0b00:
+                        color = COLOR_RED;
+                        break;
+                    case 0b01:
+                    case 0b10:
+                        color = COLOR_YELLOW;
+                        break; 
+                    case 0b11:
+                        color = COLOR_BLUE;
+                        break;
+                }
+                charging = _util_battery_status.charge_status;
+                rgb_flash(color.color, 100);
+            }
         }
     }
 
@@ -191,7 +231,6 @@ bool util_wire_connected()
         // We can poll the PMIC to get our plug status
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};
-        util_battery_status_s _status_converted;
         i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true, 10000);
         int readcheck = i2c_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false, 10000);
 
@@ -201,8 +240,8 @@ bool util_wire_connected()
             return true;
         }
 
-        _status_converted.status = _readstatus[0];
-        return _status_converted.plug_status;
+        _util_battery_status.status = _readstatus[0];
+        return _util_battery_status.plug_status;
     #else
         printf("Battery capability is disabled. Returning connected.\n");
         return true;

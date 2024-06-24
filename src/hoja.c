@@ -1,5 +1,7 @@
 #include "hoja.h"
 
+#define CENTER 2048
+
 button_data_s _button_data = {0};
 button_data_s _button_data_processed = {0};
 button_data_s _button_data_output = {0};
@@ -130,6 +132,53 @@ button_data_s *hoja_get_raw_button_data()
   return &_button_data;;
 }
 
+bool _hoja_idle_state = false;
+#define IDLE_TME_SECONDS 25
+void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
+{
+  static interval_s interval = {0};
+  static interval_s check_interval = {0};
+  const uint32_t idle_time = IDLE_TME_SECONDS * 1000 * 1000;
+  static uint16_t btns = 0;
+  static a_data_s last_analogs = {0};
+
+  bool reset = false;
+
+  const uint32_t check_time = 1*1000*1000;
+  if(interval_run(timestamp, check_time, &check_interval))
+  {
+    
+    int lxd = abs(last_analogs.lx - CENTER);
+    int lyd = abs(last_analogs.ly - CENTER);
+    if(lxd>100) reset = true;
+    if(lyd>100) reset = true;
+
+    if(btns > 0) 
+    {
+      reset = true;
+      btns = 0;
+    }
+  }
+  
+  btns |= buttons->buttons_all;
+  last_analogs.lx = analogs->lx;
+  last_analogs.ly = analogs->ly;
+  
+  if (interval_resettable_run(timestamp, idle_time, reset, &interval) && (!_hoja_idle_state))
+  {
+    _hoja_idle_state = true;
+  }
+  else if (reset && _hoja_idle_state)
+  {
+    _hoja_idle_state = false;
+  }
+}
+
+bool hoja_get_idle_state()
+{
+  return _hoja_idle_state;
+}
+
 void hoja_set_baseband_update(bool set)
 {
   if(set)
@@ -165,7 +214,7 @@ void hoja_shutdown()
 
 bool _watchdog_enabled = false;
 
-#define CENTER 2048
+
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
@@ -203,10 +252,17 @@ void _hoja_task_0()
   {
     snapback_webcapture_task(_hoja_timestamp, &_analog_data_desnapped);
     webusb_input_report_task(_hoja_timestamp, &_analog_data_output, &_button_data_processed);
+    _hoja_idle_state = false;
   }
   // Our communication core task
-  else hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+  else 
+  {
+    hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+  }
   
+  #if (HOJA_CAPABILITY_BATTERY)
+  _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, _hoja_timestamp);
+  #endif
 
   if (_hoja_input_method == INPUT_METHOD_USB)
   {
@@ -372,6 +428,7 @@ void hoja_init(hoja_config_t *config)
 
   #if (TEST_OPTION == 0)
   util_battery_set_source(PMIC_SOURCE_AUTO);
+  util_battery_set_charge_rate(250);
   #elif(TEST_OPTION == 1)
   util_battery_set_source(PMIC_SOURCE_AUTO);
   util_battery_set_charge_rate(0);
@@ -405,12 +462,13 @@ void hoja_init(hoja_config_t *config)
       break;
 
     case INPUT_MODE_SNES:
+      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 25;
       indicate_color = COLOR_RED.color;
       break;
     case INPUT_MODE_GAMECUBE:
-      
+      util_battery_set_charge_rate(0);
       _hoja_input_method = INPUT_METHOD_WIRED;
       rgbbrightness = 15;
       indicate_color = COLOR_PURPLE.color;

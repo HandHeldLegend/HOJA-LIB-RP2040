@@ -80,7 +80,7 @@ void rgb_shutdown_start(bool restart);
 
 void rgb_indicate(uint32_t color, uint16_t duration);
 
-void rgb_flash(uint32_t color);
+void rgb_flash(uint32_t color, int speed);
 
 void rgb_set_group(rgb_group_t group, uint32_t color, bool instant);
 

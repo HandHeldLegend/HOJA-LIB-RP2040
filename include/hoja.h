@@ -25,6 +25,7 @@ void cb_hoja_set_uart_enabled(bool enable);
 void cb_hoja_rumble_test();
 uint8_t cb_hoja_get_battery_level();
 
+bool hoja_get_idle_state();
 void hoja_rumble_set(float frequency_high, float amplitude_high, float frequency_low, float amplitude_low);
 void hoja_set_baseband_update(bool set);
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type);

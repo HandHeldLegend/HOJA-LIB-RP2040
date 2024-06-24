@@ -72,7 +72,7 @@ void analog_calibrate_start()
         .b = 0,
     };
 
-    rgb_flash(c.color);
+    rgb_flash(c.color, -1);
 
     // Reset scaling distances
     stick_scaling_reset_distances();
@@ -143,7 +143,7 @@ void _analog_calibrate_loop()
             .g = 128,
             .b = 128,
         };
-        rgb_flash(c.color);
+        rgb_flash(c.color, -1);
     }
 
     if(_buttons->button_home)

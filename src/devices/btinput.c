@@ -96,7 +96,7 @@ bool btinput_init(input_mode_t input_mode)
                 _mode_color = COLOR_WHITE.color;
             break;
         }
-        rgb_flash(_mode_color);
+        rgb_flash(_mode_color, -1);
         cb_hoja_set_bluetooth_enabled(true);
 
         // BT Baseband update
@@ -220,7 +220,7 @@ void _btinput_message_parse(uint8_t *msg)
                 {
                     _has_connected = -1;
                     rgb_set_player(0);
-                    rgb_flash(_mode_color);
+                    rgb_flash(_mode_color, -1);
                 }
                 _i_connected = (int8_t) status.connected_status;
             }

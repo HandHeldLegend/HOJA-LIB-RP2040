@@ -7,7 +7,7 @@ bool _trigger_calibration = false;
 
 void triggers_start_calibration()
 {
-    rgb_flash(COLOR_ORANGE.color);
+    rgb_flash(COLOR_ORANGE.color, -1);
     global_loaded_settings.trigger_l_lower = 0xFFF;
     global_loaded_settings.trigger_r_lower = 0xFFF;
     global_loaded_settings.trigger_l_upper = 0;

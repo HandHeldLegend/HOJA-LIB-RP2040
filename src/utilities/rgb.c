@@ -17,6 +17,7 @@ void _rgb_set_dirty()
 }
 
 rgb_anim_cb _rgb_anim_cb = NULL;
+uint16_t    _rgb_flash_steps = 0;
 uint16_t    _rgb_anim_steps = 0;
 bool        _rgb_mode_setup = false;
 bool        _rgb_task_constant = false;
@@ -555,12 +556,14 @@ void rgb_update_speed(uint8_t speed)
 
     case RGB_MODE_RAINBOWOFFSET:
 
-    case RGB_MODE_FLASH:
-
     case RGB_MODE_CYCLE:
 
     case RGB_MODE_CYCLEOFFSET:
         _rgb_anim_steps = RGB_DEFAULT_FADE_STEPS;
+        break;
+
+     case RGB_MODE_FLASH:
+        _rgb_anim_steps = _rgb_flash_steps;
         break;
     }
 
@@ -664,8 +667,12 @@ void _rgbanim_cycleoffset_do()
 }
 
 // Flash the RGBs a color
-void rgb_flash(uint32_t color)
+void rgb_flash(uint32_t color, int speed)
 {
+    if(speed>255) speed=255;
+    if(speed<0) speed = RGB_DEFAULT_FADE_STEPS;
+
+    _rgb_flash_steps = (uint16_t) speed;
 
     _rgb_flash_color = color;
     rgb_init(RGB_MODE_FLASH, 100);

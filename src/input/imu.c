@@ -194,7 +194,7 @@ void imu_calibrate_start()
       .b = 0,
   };
 
-  rgb_flash(c.color);
+  rgb_flash(c.color, -1);
 
   // Reset offsets to 0
   memset(global_loaded_settings.imu_0_offsets, 0x00, sizeof(int8_t) * 6);
