@@ -31,8 +31,12 @@ uint16_t btinput_get_version()
     uint16_t v = 0xFFFF;
     #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
+    #ifdef HOJA_CAPABILITY_BLUETOOTH_OPTIONAL
+    #if (HOJA_CAPABILITY_BLUETOOTH_OPTIONAL==1)
     // Only set this if our flag is reset
     if(_bt_capability_reset_flag)
+    #endif
+    #endif
     {
         // 0xFFFE indicates that an ESP32 is present, but not initialized
         v = 0xFFFE;
