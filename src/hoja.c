@@ -21,6 +21,7 @@ input_method_t _hoja_input_method = INPUT_METHOD_AUTO;
 
 uint32_t _timer_owner_0;
 uint32_t _timer_owner_1;
+uint32_t _timer_owner_2;
 auto_init_mutex(_hoja_timer_mutex);
 
 volatile uint32_t _hoja_timestamp = 0;
@@ -195,6 +196,17 @@ void hoja_shutdown_instant()
     cb_hoja_set_bluetooth_enabled(false);
     cb_hoja_set_uart_enabled(false);
     watchdog_reboot(0, 0, 0);
+}
+
+uint32_t hoja_get_timestamp()
+{
+  static uint32_t t = 0;
+  if(mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_2))
+  {
+    t = _hoja_timestamp;
+    mutex_exit(&_hoja_timer_mutex);
+  }
+  return t;
 }
 
 void hoja_shutdown()

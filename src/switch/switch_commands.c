@@ -47,10 +47,19 @@ void set_command(uint8_t command)
 
 void set_timer()
 {
+  static uint32_t last_time = 0;
+  uint32_t this_time = hoja_get_timestamp();
+
+  double diff = (double) abs((int) this_time - (int) last_time);
+  last_time = this_time;
+  // Calculate time from us to ms
+  diff /= 1000;
+  uint32_t u32diff = (uint32_t) diff;
+
   static int16_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
   // //printf("Td=%d \n", _switch_timer);
-  _switch_timer += 2;
+  _switch_timer += u32diff;
   if (_switch_timer > 0xFF)
   {
     _switch_timer -= 0xFF;
