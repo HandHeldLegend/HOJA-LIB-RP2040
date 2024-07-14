@@ -128,6 +128,7 @@ void __time_critical_func(_gamecube_command_handler)()
       }
       else if(!_byteCounter)
       {
+        _gc_rumble = (dat>0) ? true : false;
         _byteCounter = BYTECOUNT_UNKNOWN;
         joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
         while(c--)
