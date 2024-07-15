@@ -56,10 +56,10 @@ void _settings_migrate(const uint8_t *old, int old_version, hoja_settings_vcurre
     new->deadzone_left_outer = m->deadzone_left_outer;
     new->deadzone_right_center = m->deadzone_right_center;
     new->deadzone_right_outer = m->deadzone_right_outer;
-    new->trigger_l_lower = m->trigger_l_lower;
-    new->trigger_l_upper = m->trigger_l_upper;
-    new->trigger_r_lower = m->trigger_r_lower;
-    new->trigger_r_upper = m->trigger_r_upper;
+    new->trigger_l.lower = m->trigger_l_lower;
+    new->trigger_l.upper = m->trigger_l_upper;
+    new->trigger_r.lower = m->trigger_r_lower;
+    new->trigger_r.upper = m->trigger_r_upper;
   }
 }
 

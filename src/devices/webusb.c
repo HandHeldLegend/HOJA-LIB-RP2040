@@ -111,6 +111,36 @@ void webusb_command_processor(uint8_t *data)
     break;
 #endif
 
+    case WEBUSB_CMD_TRIGGER_CALIBRATION_GET:
+    {
+        printf("WebUSB: Got Trigger Calibration GET command.\n");
+
+        _webusb_out_buffer[0] = WEBUSB_CMD_TRIGGER_CALIBRATION_GET;
+        _webusb_out_buffer[1] = global_loaded_settings.trigger_l.disabled;
+        _webusb_out_buffer[2] = global_loaded_settings.trigger_r.disabled;
+
+        webusb_enable_output(false);
+        if (webusb_ready_blocking(4000))
+        {
+            tud_vendor_n_write(0, _webusb_out_buffer, 64);
+            tud_vendor_n_flush(0);
+        }
+        sleep_ms(30);
+        webusb_enable_output(true);
+    }
+    break;
+
+    case WEBUSB_CMD_TRIGGER_CALIBRATION_SET:
+    {
+        printf("WebUSB: Got Trigger Calibration SET command.\n");
+
+        // Sanitize data
+        uint8_t axis = data[1] & 0x1;
+        uint8_t disable = data[2] & 0x1;
+        triggers_set_disabled(axis, disable);
+    }
+    break;
+
     case WEBUSB_CMD_CAPABILITIES_GET:
     {
         printf("WebUSB: Got Capabilities GET command.\n");

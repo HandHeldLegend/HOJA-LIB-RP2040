@@ -20,6 +20,17 @@ typedef union
     
 } analog_center_u;
 
+typedef union 
+{
+    struct
+    {
+        bool     disabled : 1;
+        uint16_t lower : 15;
+        uint16_t upper : 16;
+    };
+    uint32_t value;
+} trigger_calibration_u;
+
 typedef struct
 {
     // We use a settings version to
@@ -152,10 +163,8 @@ typedef struct
     uint16_t deadzone_right_center;
     uint16_t deadzone_right_outer;
     
-    uint16_t trigger_l_lower;
-    uint16_t trigger_l_upper;
-    uint16_t trigger_r_lower;
-    uint16_t trigger_r_upper;
+    trigger_calibration_u trigger_l;
+    trigger_calibration_u trigger_r;
 
 } hoja_settings_vcurrent_s;
 
