@@ -315,6 +315,47 @@ void _rgb_set_player(uint8_t player_number)
         if(!(setup & 0b100)) _rgb_next[_rgb_group_player[2]].color = 0x00;
         if(!(setup & 0b1000)) _rgb_next[_rgb_group_player[3]].color = 0x00;
     }
+    else
+    {
+        rgb_s player_color = {0};
+
+        switch(player_number)
+        {
+            case 0:
+            break;
+            case 1: 
+                player_color.color = COLOR_RED.color;
+                break;
+            case 2:
+                player_color.color = COLOR_BLUE.color;
+                break;
+            case 3:
+                player_color.color = COLOR_YELLOW.color;
+                break;
+            case 4:
+                player_color.color = COLOR_GREEN.color;
+                break;
+            case 5:
+                player_color.color = COLOR_ORANGE.color;
+                break;
+            case 6:
+                player_color.color = COLOR_CYAN.color;
+                break;
+            case 7:
+                player_color.color = COLOR_PINK.color;
+                break;
+            case 8:
+                player_color.color = COLOR_PURPLE.color;
+                break;
+        }
+        rgb_s blend = {.color=0x00};
+        rgb_s new = {.color = _rgb_blend(&player_color, &blend, 0.9f)};
+
+        for(uint i = 0; i < _player_size; i++)
+        {
+            _rgb_next[_rgb_group_player[i]].color = new.color;
+        }
+    }
 }
 
 void rgb_set_player(uint8_t player_number)
