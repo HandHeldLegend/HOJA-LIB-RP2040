@@ -1040,9 +1040,10 @@ void rgb_indicate(uint32_t color, uint16_t duration)
     (void) duration;
 }
 
-void rgb_flash(uint32_t color)
+void rgb_flash(uint32_t color, int speed)
 {
     (void) color;
+    (void) speed;
 }
 
 void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
@@ -1050,6 +1051,11 @@ void rgb_set_group(rgb_group_t group, uint32_t color, bool instant)
     (void) group;
     (void) color;
     (void) instant;
+}
+
+void rgb_set_player(uint8_t player_number)
+{
+    (void) player_number;
 }
 
 void rgb_init(rgb_mode_t mode, int brightness)

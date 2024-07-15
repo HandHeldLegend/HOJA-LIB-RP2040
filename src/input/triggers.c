@@ -3,7 +3,7 @@
 float _lt_scaler = 1;
 float _rt_scaler = 1;
 bool _trigger_calibration = false;
-#define TRIGGER_DEADZONE 100
+#define TRIGGER_DEADZONE 200
 
 void triggers_set_disabled(bool left_right, bool disabled)
 {
@@ -50,7 +50,7 @@ void triggers_scale(int left_trigger_in, int *left_trigger_out, int right_trigge
     else
     {
         // Zero out our trigger lower value
-        lt -= ((float) global_loaded_settings.trigger_l.lower);
+        lt -= ((float) global_loaded_settings.trigger_l.lower+TRIGGER_DEADZONE);
         lt *= _lt_scaler;
 
         // Cap our value
@@ -67,7 +67,7 @@ void triggers_scale(int left_trigger_in, int *left_trigger_out, int right_trigge
     {
         // Repeat for right trigger
         // Zero out our trigger lower value
-        rt -= ((float) global_loaded_settings.trigger_r.lower);
+        rt -= ((float) global_loaded_settings.trigger_r.lower+TRIGGER_DEADZONE);
         rt *= _rt_scaler;
 
         // Cap our value
