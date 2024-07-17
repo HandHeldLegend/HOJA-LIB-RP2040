@@ -19,6 +19,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_spi.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/remap.c 

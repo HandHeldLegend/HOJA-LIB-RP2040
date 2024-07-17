@@ -307,7 +307,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == SW_OUT_ID_RUMBLE)
       {
-        rumble_translate(&buffer[2]);
+        haptics_rumble_translate(&buffer[2]);
       }
       else
       {

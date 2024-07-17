@@ -77,6 +77,7 @@
 #include "switch_analog.h"
 #include "switch_spi.h"
 #include "switch_commands.h"
+#include "switch_haptics.h"
 
 
 
