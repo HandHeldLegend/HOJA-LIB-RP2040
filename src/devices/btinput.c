@@ -157,6 +157,10 @@ bool btinput_init(input_mode_t input_mode)
 
 void _btinput_message_parse(uint8_t *msg)
 {
+
+    float _ahi = 0;
+    float _alo = 0;
+
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
     switch(msg[0])
     {
@@ -191,16 +195,22 @@ void _btinput_message_parse(uint8_t *msg)
 
             if(_i_connected>0)
             {
-                if( (status.rumble_amplitude_lo>0) || (status.rumble_amplitude_hi>0) )
+                
+                
+                if(status.rumble_amplitude_hi>0)
                 {
-                    float _ahi = (float) status.rumble_amplitude_hi / 100;
-                    float _alo = (float) status.rumble_amplitude_lo / 100;
-                    hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
+                    _ahi = (float) status.rumble_amplitude_hi  * 0.01;
                 }
-                else
+                else _ahi = 0;
+
+                if(status.rumble_amplitude_lo>0)
                 {
-                    hoja_rumble_set(0,0,0,0);
+                    _alo = (float) status.rumble_amplitude_lo * 0.01;
                 }
+                else _alo = 0;
+
+                //float _alo = (float) status.rumble_amplitude_lo * 0.01;
+                hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
             }
             else
             {

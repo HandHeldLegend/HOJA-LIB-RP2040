@@ -63,6 +63,10 @@ __attribute__((weak)) void cb_hoja_rumble_init()
 void hoja_rumble_set(float frequency_high, float amplitude_high, float frequency_low, float amplitude_low)
 {
   static rumble_data_s rumble_data = {0};
+
+  amplitude_high = (amplitude_high>1) ? 1 : amplitude_high;
+  amplitude_low = (amplitude_low>1) ? 1 : amplitude_low;
+
   rumble_data.frequency_high = frequency_high;
   rumble_data.amplitude_high = amplitude_high;
   rumble_data.frequency_low = frequency_low;
