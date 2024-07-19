@@ -36,7 +36,6 @@ void hoja_usb_unset_usb_clear()
     _usb_clear = false;
     mutex_exit(&_hoja_usb_clear_mutex);
   }
-  
 }
 
 bool hoja_usb_get_usb_clear(uint32_t timestamp)
@@ -44,22 +43,20 @@ bool hoja_usb_get_usb_clear(uint32_t timestamp)
   static interval_s s = {0};
   bool clear = false;
 
-  if(mutex_enter_timeout_us(&_hoja_usb_clear_mutex, 100))
+  if (mutex_enter_timeout_us(&_hoja_usb_clear_mutex, 100))
   {
     clear = _usb_clear;
     mutex_exit(&_hoja_usb_clear_mutex);
   }
 
-  if(interval_resettable_run(timestamp, 100000, clear, &s))
+  if (interval_resettable_run(timestamp, 100000, clear, &s))
   {
-      hoja_usb_set_usb_clear();
-      return true;
+    hoja_usb_set_usb_clear();
+    return true;
   }
 
   return clear;
 }
-
-
 
 // Default 8ms (8000us)
 // The rate at which we want to send inputs
@@ -79,22 +76,23 @@ usb_ready_t _usb_ready_cb = NULL;
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
   *driver_count += 1;
-  if(_usb_mode == INPUT_MODE_GCUSB) return &tud_ginput_driver;
+  if (_usb_mode == INPUT_MODE_GCUSB)
+    return &tud_ginput_driver;
   return &tud_xinput_driver;
 }
 
 void _hoja_usb_set_interval(usb_rate_t rate)
 {
   _usb_rate = rate;
-  switch(rate)
+  switch (rate)
   {
-    case USBRATE_1:
+  case USBRATE_1:
     _usb_frames = 1;
     break;
-    case USBRATE_4:
+  case USBRATE_4:
     _usb_frames = 4;
     break;
-    case USBRATE_8:
+  case USBRATE_8:
     _usb_frames = 8;
     break;
   }
@@ -160,9 +158,9 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
   // Get our SOF frames counter
   uint32_t sof_rd = usb_hw->sof_rd;
   // Handle looparound of the frame counter(11 bits, 2047 max)
-  uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047-frame_storage) + sof_rd);
+  uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047 - frame_storage) + sof_rd);
 
-  if(dif >= _usb_frames)
+  if (dif >= _usb_frames)
   {
     frame_requirement_met = true;
   }
@@ -172,11 +170,11 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
     usb_requirement_met = true;
   }
 
-  if(!_usb_ready)
+  if (!_usb_ready)
   {
     _usb_ready = _hoja_usb_ready();
   }
-  else if(hoja_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
+  else if (hoja_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
   {
     frame_storage = sof_rd;
     frame_requirement_met = false;
@@ -261,36 +259,36 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
 {
   switch (_usb_mode)
   {
-    case INPUT_MODE_SWPRO:
-      if ((report[0] == REPORT_ID_SWITCH_INPUT) || (report[0] == REPORT_ID_SWITCH_CMD) || (report[0] == REPORT_ID_SWITCH_INIT)  )
-      {
-        hoja_usb_set_usb_clear();
-      }
-      break;
-
-    default:
-
-    case INPUT_MODE_XINPUT:
-      if ((report[0] == REPORT_ID_XINPUT))
-      {
-        hoja_usb_set_usb_clear();
-      }
-      break;
-
-    case INPUT_MODE_GCUSB:
-      if((report[0] == REPORT_ID_GAMECUBE))
-      {
-        hoja_usb_set_usb_clear();
-      }
-      break;
-
-    case INPUT_MODE_DS4:
-      if((report[0] == REPORT_ID_DS4))
-      {
-        hoja_usb_set_usb_clear();
-      }
-      break;
+  case INPUT_MODE_SWPRO:
+    if ((report[0] == REPORT_ID_SWITCH_INPUT) || (report[0] == REPORT_ID_SWITCH_CMD) || (report[0] == REPORT_ID_SWITCH_INIT))
+    {
+      hoja_usb_set_usb_clear();
     }
+    break;
+
+  default:
+
+  case INPUT_MODE_XINPUT:
+    if ((report[0] == REPORT_ID_XINPUT))
+    {
+      hoja_usb_set_usb_clear();
+    }
+    break;
+
+  case INPUT_MODE_GCUSB:
+    if ((report[0] == REPORT_ID_GAMECUBE))
+    {
+      hoja_usb_set_usb_clear();
+    }
+    break;
+
+  case INPUT_MODE_DS4:
+    if ((report[0] == REPORT_ID_DS4))
+    {
+      hoja_usb_set_usb_clear();
+    }
+    break;
+  }
 }
 
 // Invoked when received SET_REPORT control request or
@@ -298,6 +296,10 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
+
+  static hoja_rumble_msg_s rumble_msg_left = {0};
+  static hoja_rumble_msg_s rumble_msg_right = {0};
+
   switch (_usb_mode)
   {
   default:
@@ -322,11 +324,19 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
       if (buffer[0] == 0x11)
       {
         float amp = (buffer[1] > 0) ? 0.65f : 0;
-        hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, amp, HOJA_HAPTIC_BASE_LFREQ, amp);
+        rumble_msg_left.count = 1;
+        rumble_msg_left.frames[0].low_amplitude = amp;
+        rumble_msg_left.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        rumble_msg_right.count = 1;
+        rumble_msg_right.frames[0].low_amplitude = amp;
+        rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
       else if (buffer[0] == 0x13)
       {
-          printf("GC INIT CMD RECEIVED");
+        printf("GC INIT CMD RECEIVED");
       }
     }
     break;
@@ -336,17 +346,23 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if ((buffer[0] == 0x00) && (buffer[1] == 0x08))
       {
-        if ((buffer[3] > 0) || (buffer[4] > 0))
-        {
-          uint8_t xrv = (buffer[3]>buffer[4]) ? buffer[3] : buffer[4];
-          float xri = (float) xrv/255;
-          hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, xri, HOJA_HAPTIC_BASE_LFREQ, xri);
-        }
-        else
-        {
-          float amp = 0;
-          hoja_rumble_set(0,0,0,0);
-        }
+        float xrl = 0;
+        if (buffer[3] > 0)
+          xrl = (float)buffer[3] / 255;
+
+        float xrr = 0;
+        if (buffer[4] > 0)
+          xrr = (float)buffer[4] / 255;
+
+        rumble_msg_left.count = 1;
+        rumble_msg_left.frames[0].low_amplitude = xrl;
+        rumble_msg_left.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        rumble_msg_right.count = 1;
+        rumble_msg_right.frames[0].low_amplitude = xrr;
+        rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
     }
     break;
@@ -372,7 +388,6 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
   case INPUT_MODE_DS4:
     return ds4_hid_report_descriptor;
     break;
-
   }
   return NULL;
 }
@@ -506,7 +521,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   if (stage != CONTROL_STAGE_SETUP)
     return true;
 
-  uint8_t const desc_type  = tu_u16_high(request->wValue);
+  uint8_t const desc_type = tu_u16_high(request->wValue);
   uint8_t const itf = 0;
 
   switch (request->bmRequestType_bit.type)
@@ -519,66 +534,65 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     switch (request->bRequest)
     {
 
-      // MS OS 1.0 Descriptor
-      case VENDOR_REQUEST_GET_MS_OS_DESCRIPTOR:
+    // MS OS 1.0 Descriptor
+    case VENDOR_REQUEST_GET_MS_OS_DESCRIPTOR:
+    {
+      if (request->wIndex == 4)
       {
-        if (request->wIndex == 4)
+        if (tud_control_xfer(rhport, request, MS_OS_10_CompatibleID_Descriptor, sizeof(MS_OS_10_CompatibleID_Descriptor)))
         {
-          if (tud_control_xfer(rhport, request, MS_OS_10_CompatibleID_Descriptor, sizeof(MS_OS_10_CompatibleID_Descriptor)))
-          {
-            return true;
-          }
-
-          return false;
+          return true;
         }
-        else if (request->wIndex == 5)
-        {
-          // MS descriptor 1.0 stuff
 
-          if (tud_control_xfer(rhport, request, MS_Extended_Feature_Descriptor, sizeof(MS_Extended_Feature_Descriptor)))
-          {
-            return true;
-          }
+        return false;
+      }
+      else if (request->wIndex == 5)
+      {
+        // MS descriptor 1.0 stuff
+
+        if (tud_control_xfer(rhport, request, MS_Extended_Feature_Descriptor, sizeof(MS_Extended_Feature_Descriptor)))
+        {
+          return true;
         }
       }
-      break;
+    }
+    break;
 
-      // Web USB Descriptor
-      case VENDOR_REQUEST_WEBUSB:
-      {
-        // match vendor request in BOS descriptor
-        // Get landing page url
-        return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
-      }
+    // Web USB Descriptor
+    case VENDOR_REQUEST_WEBUSB:
+    {
+      // match vendor request in BOS descriptor
+      // Get landing page url
+      return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+    }
 
-      // MS OS 2.0 Descriptor
-      case VENDOR_REQUEST_MICROSOFT:
+    // MS OS 2.0 Descriptor
+    case VENDOR_REQUEST_MICROSOFT:
+    {
+      if (request->wIndex == 7)
       {
-        if (request->wIndex == 7)
+        // Get Microsoft OS 2.0 compatible descriptor
+        uint16_t total_len;
+
+        if (_usb_mode == INPUT_MODE_GCUSB)
         {
-          // Get Microsoft OS 2.0 compatible descriptor
-          uint16_t total_len;
-
-          if(_usb_mode==INPUT_MODE_GCUSB)
-          {
-            memcpy(&total_len, gc_desc_ms_os_20 + 8, 2);
-            return tud_control_xfer(rhport, request, (void *)(uintptr_t)gc_desc_ms_os_20, total_len);
-          }
-          else
-          {
-            memcpy(&total_len, desc_ms_os_20 + 8, 2);
-            return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, total_len);
-          }
-          
+          memcpy(&total_len, gc_desc_ms_os_20 + 8, 2);
+          return tud_control_xfer(rhport, request, (void *)(uintptr_t)gc_desc_ms_os_20, total_len);
         }
         else
         {
-          return false;
+          memcpy(&total_len, desc_ms_os_20 + 8, 2);
+          return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, total_len);
         }
       }
+      else
+      {
+        return false;
+      }
+    }
 
-      default:
-        break;
+    default:
+      break;
     }
     break;
 

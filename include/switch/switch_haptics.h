@@ -94,46 +94,7 @@ typedef struct
             uint32_t packet_type : 2;    // 1
         } three7bit;
     };
-} __attribute__((packed)) SwitchEncodedVibrationSamples_s;
-
-// This can contain the left and right vibration data for the controller
-typedef struct
-{
-    SwitchEncodedVibrationSamples_s left_samples;
-    SwitchEncodedVibrationSamples_s right_samples;
-} __attribute__((packed)) SwitchEncodedLeftRight_s;
-
-typedef struct
-{
-    float high_band_freq;
-    float high_band_amp;
-    float low_band_freq;
-    float low_band_amp;
-    bool unread; // Use a bool to mark a sample as 'unread', meaning we haven't processed it yet.
-} SwitchDecodedVibrationValues_s;
-
-typedef struct
-{
-    float hi_freq_linear;
-    float hi_amp_linear;
-    float lo_freq_linear;
-    float lo_amp_linear;
-} __attribute__((packed)) SwitchLinearVibrationState_s;
-
-typedef struct
-{
-    uint8_t count;
-    SwitchLinearVibrationState_s linear;
-    SwitchDecodedVibrationValues_s samples[3];
-} SwitchDecodedVibrationSamples_s;
-
-typedef struct
-{
-    SwitchDecodedVibrationSamples_s left_samples;
-    SwitchDecodedVibrationSamples_s right_samples;
-} SwitchDecodedLeftRight_s;
-
-
+} __attribute__((packed)) SwitchHapticPacket_s;
 
 void haptics_rumble_translate(const uint8_t *data);
 

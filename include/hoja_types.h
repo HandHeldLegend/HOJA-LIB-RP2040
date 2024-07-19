@@ -569,6 +569,30 @@ typedef struct
 
 } __attribute__ ((packed)) sw_input_s;
 
+typedef struct
+{
+    float hi_freq_linear;
+    float hi_amp_linear;
+    float lo_freq_linear;
+    float lo_amp_linear;
+} __attribute__((packed)) hoja_haptic_frame_linear_s;
+
+typedef struct
+{
+    float   high_frequency;
+    float   high_amplitude;
+    float   low_frequency;
+    float   low_amplitude;
+} __attribute__ ((packed)) hoja_haptic_frame_s;
+
+typedef struct
+{
+    uint8_t count;
+    bool unread;
+    hoja_haptic_frame_linear_s linear;
+    hoja_haptic_frame_s frames[3];
+} __attribute__ ((packed)) hoja_rumble_msg_s;
+
 #ifdef __cplusplus
 }
 #endif

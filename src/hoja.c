@@ -28,6 +28,9 @@ volatile uint32_t _hoja_timestamp = 0;
 
 bool _baseband_loop = false;
 
+hoja_rumble_msg_s _hoja_rumble_msg_left   = {0};
+hoja_rumble_msg_s _hoja_rumble_msg_right  = {0};
+
 __attribute__((weak)) uint16_t cb_hoja_hardware_test()
 {
   return 0;
@@ -57,32 +60,80 @@ __attribute__((weak)) void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data
 
 __attribute__((weak)) void cb_hoja_rumble_init()
 {
-
 }
 
-void hoja_rumble_set(float frequency_high, float amplitude_high, float frequency_low, float amplitude_low)
+
+// This will automatically cycle through the appropriate
+// rumble frames that are set
+void hoja_rumble_task(uint32_t timestamp)
 {
-  static rumble_data_s rumble_data = {0};
+  return;
+  static uint32_t t = 0;
+  static interval_s rumble_interval = {0};
+  static uint8_t frame_idx = 0;
 
-  amplitude_high = (amplitude_high>1) ? 1 : amplitude_high;
-  amplitude_low = (amplitude_low>1) ? 1 : amplitude_low;
+  #define R_INTERVAL_1 8000
+  #define R_INTERVAL_2 (R_INTERVAL_1 / 2)
+  #define R_INTERVAL_3 (R_INTERVAL_1 / 3)
+  #define R_INTERVAL_0 1000
 
-  rumble_data.frequency_high = frequency_high;
-  rumble_data.amplitude_high = amplitude_high;
-  rumble_data.frequency_low = frequency_low;
-  rumble_data.amplitude_low = amplitude_low;
-  cb_hoja_rumble_set(&rumble_data);
+  static uint32_t period  = R_INTERVAL_1;
+
+  switch (_hoja_rumble_msg_left.count)
+  {
+  default:
+  case 0:
+    period = R_INTERVAL_0;
+    break;
+
+  case 1:
+    period = R_INTERVAL_1;
+    break;
+
+  case 2:
+    period = R_INTERVAL_2;
+    break;
+
+  case 3:
+    period = R_INTERVAL_3;
+    break;
+  }
+
+  if(interval_run(timestamp, period, &rumble_interval))
+  {
+    if(_hoja_rumble_msg_left.unread)
+    {
+      frame_idx = 0;
+      _hoja_rumble_msg_left.unread = false;
+    }
+
+    if(frame_idx < _hoja_rumble_msg_left.count)
+    {
+      // This is sent to app-space to adjust the frequency/amplitude
+      cb_hoja_rumble_set(&(_hoja_rumble_msg_left.frames[frame_idx]), &(_hoja_rumble_msg_right.frames[frame_idx]));
+    }
+    frame_idx++;
+  }
 }
 
-// Set the ERM intensity callback
-__attribute__((weak)) void cb_hoja_rumble_set(rumble_data_s *data)
+// Called by other components in the HOJA api
+void hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right)
 {
-  (void*) data;
+  memcpy(&_hoja_rumble_msg_left, left, sizeof(hoja_rumble_msg_s));
+  _hoja_rumble_msg_left.unread  = true;
+  memcpy(&_hoja_rumble_msg_right, right, sizeof(hoja_rumble_msg_s));
+  _hoja_rumble_msg_right.unread = true;
+}
+
+
+__attribute__((weak)) void cb_hoja_rumble_set(hoja_haptic_frame_s *left, hoja_haptic_frame_s *right)
+{
+  (void *)left;
+  (void *)right;
 }
 
 __attribute__((weak)) void cb_hoja_rumble_test()
 {
-
 }
 
 __attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
@@ -134,7 +185,8 @@ a_data_s *hoja_get_desnapped_analog_data()
 
 button_data_s *hoja_get_raw_button_data()
 {
-  return &_button_data;;
+  return &_button_data;
+  ;
 }
 
 bool _hoja_idle_state = false;
@@ -149,26 +201,28 @@ void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t ti
 
   bool reset = false;
 
-  const uint32_t check_time = 1*1000*1000;
-  if(interval_run(timestamp, check_time, &check_interval))
+  const uint32_t check_time = 1 * 1000 * 1000;
+  if (interval_run(timestamp, check_time, &check_interval))
   {
-    
+
     int lxd = abs(last_analogs.lx - CENTER);
     int lyd = abs(last_analogs.ly - CENTER);
-    if(lxd>100) reset = true;
-    if(lyd>100) reset = true;
+    if (lxd > 100)
+      reset = true;
+    if (lyd > 100)
+      reset = true;
 
-    if(btns > 0) 
+    if (btns > 0)
     {
       reset = true;
       btns = 0;
     }
   }
-  
+
   btns |= buttons->buttons_all;
   last_analogs.lx = analogs->lx;
   last_analogs.ly = analogs->ly;
-  
+
   if (interval_resettable_run(timestamp, idle_time, reset, &interval) && (!_hoja_idle_state))
   {
     _hoja_idle_state = true;
@@ -186,26 +240,27 @@ bool hoja_get_idle_state()
 
 void hoja_set_baseband_update(bool set)
 {
-  if(set)
+  if (set)
   {
     cb_hoja_set_uart_enabled(true);
     cb_hoja_set_bluetooth_enabled(true);
     _baseband_loop = true;
   }
-  else _baseband_loop = false;
+  else
+    _baseband_loop = false;
 }
 
 void hoja_shutdown_instant()
 {
-    cb_hoja_set_bluetooth_enabled(false);
-    cb_hoja_set_uart_enabled(false);
-    watchdog_reboot(0, 0, 0);
+  cb_hoja_set_bluetooth_enabled(false);
+  cb_hoja_set_uart_enabled(false);
+  watchdog_reboot(0, 0, 0);
 }
 
 uint32_t hoja_get_timestamp()
 {
   static uint32_t t = 0;
-  if(mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_2))
+  if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_2))
   {
     t = _hoja_timestamp;
     mutex_exit(&_hoja_timer_mutex);
@@ -216,25 +271,25 @@ uint32_t hoja_get_timestamp()
 void hoja_shutdown()
 {
   static bool _shutdown_started = false;
-  if(_shutdown_started) return;
-  
+  if (_shutdown_started)
+    return;
+
   _shutdown_started = true;
-  #if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
-    rgb_shutdown_start(false);
-  #elif (HOJA_CAPABILITY_BATTERY == 1)
-    util_battery_enable_ship_mode();
-  #else 
-    hoja_shutdown_instant();
-  #endif
+#if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
+  rgb_shutdown_start(false);
+#elif (HOJA_CAPABILITY_BATTERY == 1)
+  util_battery_enable_ship_mode();
+#else
+  hoja_shutdown_instant();
+#endif
 }
 
 bool _watchdog_enabled = false;
 
-
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
-  if(!_watchdog_enabled)
+  if (!_watchdog_enabled)
   {
     watchdog_enable(7500, false);
     _watchdog_enabled = true;
@@ -249,7 +304,7 @@ void _hoja_task_0()
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
 
-  if(_baseband_loop)
+  if (_baseband_loop)
   {
     cb_hoja_baseband_update_loop(&_button_data);
     watchdog_update();
@@ -260,8 +315,10 @@ void _hoja_task_0()
 
   remap_buttons_task();
   macro_handler_task(_hoja_timestamp, &_button_data);
-  
+
   rgb_task(_hoja_timestamp);
+
+  hoja_rumble_task(_hoja_timestamp);
 
   // Webusb stuff
   if (webusb_output_enabled())
@@ -271,14 +328,14 @@ void _hoja_task_0()
     _hoja_idle_state = false;
   }
   // Our communication core task
-  else 
+  else
   {
     hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
   }
-  
-  #if (HOJA_CAPABILITY_BATTERY)
+
+#if (HOJA_CAPABILITY_BATTERY)
   _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, _hoja_timestamp);
-  #endif
+#endif
 
   if (_hoja_input_method == INPUT_METHOD_USB)
   {
@@ -287,7 +344,6 @@ void _hoja_task_0()
 
   watchdog_update();
   cb_hoja_task_0_hook(_hoja_timestamp);
-
 }
 
 // Core 1 task loop entrypoint
@@ -330,7 +386,7 @@ void hoja_init(hoja_config_t *config)
   // Set up hardware first
   cb_hoja_hardware_setup();
 
-#if ( (HOJA_CAPABILITY_BLUETOOTH) == 1 || (HOJA_CAPABILITY_BATTERY == 1) )
+#if ((HOJA_CAPABILITY_BLUETOOTH) == 1 || (HOJA_CAPABILITY_BATTERY == 1))
   // I2C Setup
   i2c_init(HOJA_I2C_BUS, 200 * 1000);
   gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
@@ -348,24 +404,24 @@ void hoja_init(hoja_config_t *config)
     {
       rgb_indicate(COLOR_ORANGE.color, 50);
     }
-    
+
     analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data);
     triggers_scale_init();
   }
 
   // Reset pairing if needed.
-  if(_button_data.button_sync)
+  if (_button_data.button_sync)
   {
     memset(global_loaded_settings.switch_host_address, 0, 6);
   }
-  
-  if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
+
+  if (reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
   {
     // We're rebooting from a BT start
     // We need to set the input method to BT
     _hoja_input_method = INPUT_METHOD_BLUETOOTH;
   }
-  else if(reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_MODECHANGE)
+  else if (reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_MODECHANGE)
   {
     _hoja_input_method = reboot_mem.gamepad_protocol;
     _hoja_input_mode = reboot_mem.gamepad_mode;
@@ -386,7 +442,7 @@ void hoja_init(hoja_config_t *config)
 
   // Macros for mode switching
   {
-    if(_button_data.button_b)
+    if (_button_data.button_b)
     {
       _hoja_input_mode = INPUT_MODE_DS4;
     }
@@ -430,7 +486,7 @@ void hoja_init(hoja_config_t *config)
   {
     if (!util_wire_connected())
     {
-      
+
       rgbbrightness = 70;
       _hoja_input_method = INPUT_METHOD_BLUETOOTH;
     }
@@ -440,67 +496,67 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
-  #define TEST_OPTION 0
+#define TEST_OPTION 0
 
-  #if (TEST_OPTION == 0)
+#if (TEST_OPTION == 0)
   util_battery_set_source(PMIC_SOURCE_AUTO);
   util_battery_set_charge_rate(250);
-  #elif(TEST_OPTION == 1)
+#elif (TEST_OPTION == 1)
   util_battery_set_source(PMIC_SOURCE_AUTO);
   util_battery_set_charge_rate(0);
-  #elif (TEST_OPTION == 2)
+#elif (TEST_OPTION == 2)
   util_battery_set_source(PMIC_SOURCE_BAT);
-  #elif (TEST_OPTION == 3)
+#elif (TEST_OPTION == 3)
   util_battery_set_source(PMIC_SOURCE_BAT);
   util_battery_set_charge_rate(0);
-  #endif
+#endif
 
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
   {
-    case INPUT_MODE_GCUSB:
-      indicate_color = COLOR_CYAN.color;
-      //_hoja_input_method = INPUT_METHOD_USB;
-      break;
-    case INPUT_MODE_XINPUT:
-      indicate_color = COLOR_GREEN.color;
-      break;
+  case INPUT_MODE_GCUSB:
+    indicate_color = COLOR_CYAN.color;
+    //_hoja_input_method = INPUT_METHOD_USB;
+    break;
+  case INPUT_MODE_XINPUT:
+    indicate_color = COLOR_GREEN.color;
+    break;
 
-    default:
-    case INPUT_MODE_SWPRO:
-      indicate_color = COLOR_WHITE.color;
-      break;
+  default:
+  case INPUT_MODE_SWPRO:
+    indicate_color = COLOR_WHITE.color;
+    break;
 
-    case INPUT_MODE_DS4:
-      //hoja_input_method = INPUT_METHOD_USB;
-      indicate_color = COLOR_BLUE.color;
-      break;
+  case INPUT_MODE_DS4:
+    // hoja_input_method = INPUT_METHOD_USB;
+    indicate_color = COLOR_BLUE.color;
+    break;
 
-    case INPUT_MODE_SNES:
-      util_battery_set_charge_rate(0);
-      _hoja_input_method = INPUT_METHOD_WIRED;
-      rgbbrightness = 25;
-      indicate_color = COLOR_RED.color;
-      break;
-    case INPUT_MODE_GAMECUBE:
-      util_battery_set_charge_rate(0);
-      _hoja_input_method = INPUT_METHOD_WIRED;
-      rgbbrightness = 15;
-      indicate_color = COLOR_PURPLE.color;
-      break;
-    case INPUT_MODE_N64:
-      util_battery_set_charge_rate(0);
-      _hoja_input_method = INPUT_METHOD_WIRED;
-      rgbbrightness = 25;
-      indicate_color = COLOR_YELLOW.color;
-      break;
+  case INPUT_MODE_SNES:
+    util_battery_set_charge_rate(0);
+    _hoja_input_method = INPUT_METHOD_WIRED;
+    rgbbrightness = 25;
+    indicate_color = COLOR_RED.color;
+    break;
+  case INPUT_MODE_GAMECUBE:
+    util_battery_set_charge_rate(0);
+    _hoja_input_method = INPUT_METHOD_WIRED;
+    rgbbrightness = 15;
+    indicate_color = COLOR_PURPLE.color;
+    break;
+  case INPUT_MODE_N64:
+    util_battery_set_charge_rate(0);
+    _hoja_input_method = INPUT_METHOD_WIRED;
+    rgbbrightness = 25;
+    indicate_color = COLOR_YELLOW.color;
+    break;
   }
 
   rgb_indicate(indicate_color, 50);
   rgb_init(rgbmode, rgbbrightness);
-  //rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
-  
+  // rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
+
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 
   if (_button_data.button_home)

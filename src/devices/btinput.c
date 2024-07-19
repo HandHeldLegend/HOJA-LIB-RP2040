@@ -210,11 +210,11 @@ void _btinput_message_parse(uint8_t *msg)
                 else _alo = 0;
 
                 //float _alo = (float) status.rumble_amplitude_lo * 0.01;
-                hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
+                //hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
             }
             else
             {
-                hoja_rumble_set(0, 0,0,0);
+                //hoja_rumble_set(0, 0,0,0);
             }
 
             if(_i_connected<0)
