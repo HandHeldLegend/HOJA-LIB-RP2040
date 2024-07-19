@@ -11,6 +11,10 @@ const float StartingAmplitude = -7.9375f;
 const float CenterFreqHigh = 320.0f;
 const float CenterFreqLow = 160.0f;
 
+static inline float clampf(float val, float min, float max) {
+    return (val < min) ? min : ((val > max) ? max : val);
+}
+
 const Switch5BitCommand_s CommandTable[] = {
     {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0},
     {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0},
@@ -59,7 +63,7 @@ void initialize_exp_base2_lookup(void)
     for (size_t i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i)
     {
         float f = EXP_BASE2_RANGE_START + i * EXP_BASE2_LOOKUP_RESOLUTION;
-        if (f >= EXP_BASE2_RANGE_START)
+        if (f >= StartingAmplitude)
         {
             ExpBase2Lookup[i] = exp2f(f);
         }
@@ -115,9 +119,9 @@ float haptics_apply_command(Switch5BitAction_t action, float offset, float curre
     case Switch5BitAction_Substitute:
         return offset;
     case Switch5BitAction_Sum:
-        return CLAMP(current + offset, min, max);
+        return clampf(current + offset, min, max);
     default:
-        return default_val;
+        return current; //default_val;
     }
 }
 
@@ -244,8 +248,8 @@ void DecodeTwo7Bit(const SwitchHapticPacket_s *encoded, hoja_rumble_msg_s *decod
     {
         if (encoded->two7bit.high_select)
         {
-            decoded->linear.hi_freq_linear = RumbleFreqLookup[encoded->two7bit.fm_7bit_xx];
-            decoded->linear.hi_amp_linear = RumbleAmpLookup[encoded->two7bit.am_7bit_xx];
+            decoded->linear.hi_freq_linear  = RumbleFreqLookup[encoded->two7bit.fm_7bit_xx];
+            decoded->linear.hi_amp_linear   = RumbleAmpLookup[encoded->two7bit.am_7bit_xx];
 
             low_cmd = CommandTable[encoded->two7bit.am_7bit_xx];
             decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
@@ -447,6 +451,7 @@ void haptics_decode_samples(const SwitchHapticPacket_s *encoded,
         }
         break;
     case 3:
+        break;
         DecodeThree5Bit(encoded, decoded);
         break;
     };
@@ -473,7 +478,7 @@ void haptics_rumble_translate(const uint8_t *data)
     if(internal_left.count>0)
     {
         uint8_t idx = internal_left.count-1;
-        cb_hoja_rumble_set(&(internal_left.frames[idx]), &(internal_left.frames[idx]));
+        cb_hoja_rumble_set(&(internal_left.frames[0]), &(internal_left.frames[0]));
     }
     
     // Forward the data to the HOJA core
