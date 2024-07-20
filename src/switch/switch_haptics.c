@@ -121,7 +121,7 @@ float haptics_apply_command(Switch5BitAction_t action, float offset, float curre
     case Switch5BitAction_Sum:
         return clampf(current + offset, min, max);
     default:
-        return current; //default_val;
+        return default_val;
     }
 }
 
@@ -475,12 +475,10 @@ void haptics_rumble_translate(const uint8_t *data)
     // Decode right
     haptics_decode_samples((const SwitchHapticPacket_s *) &(data[4]), &internal_right);
 
+
+        // Forward the data to the HOJA core
+        //hoja_rumble_set(&internal_left, &internal_right);
     if(internal_left.count>0)
-    {
-        uint8_t idx = internal_left.count-1;
-        cb_hoja_rumble_set(&(internal_left.frames[0]), &(internal_left.frames[0]));
-    }
-    
-    // Forward the data to the HOJA core
-    //hoja_rumble_set(&internal_left, &internal_right);
+        cb_hoja_rumble_set(&internal_left, &internal_right);
+
 }

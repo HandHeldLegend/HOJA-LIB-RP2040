@@ -16,7 +16,7 @@ void cb_hoja_hardware_setup();
 void cb_hoja_read_buttons(button_data_s *data);
 void cb_hoja_read_analog(a_data_s *data);
 void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b);
-void cb_hoja_rumble_set(hoja_haptic_frame_s *left, hoja_haptic_frame_s *right);
+void cb_hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right);
 void cb_hoja_task_0_hook(uint32_t timestamp);
 void cb_hoja_task_1_hook(uint32_t timestamp);
 void cb_hoja_rumble_init();
@@ -26,7 +26,6 @@ void cb_hoja_rumble_test();
 uint8_t cb_hoja_get_battery_level();
 
 bool hoja_get_idle_state();
-void hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right);
 void hoja_set_baseband_update(bool set);
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type);
 void hoja_shutdown_instant();

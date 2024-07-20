@@ -251,7 +251,7 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
         rumble_msg_right.frames[0].low_amplitude = amp;
         rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
-        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
 
       _n64_got_data = false;

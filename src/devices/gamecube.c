@@ -246,7 +246,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
         rumble_msg_right.frames[0].low_amplitude = amp;
         rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
-        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
 
       // Our buttons are always the same formatting

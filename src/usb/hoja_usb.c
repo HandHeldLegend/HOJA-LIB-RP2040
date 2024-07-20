@@ -332,7 +332,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
         rumble_msg_right.frames[0].low_amplitude = amp;
         rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
-        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
       else if (buffer[0] == 0x13)
       {
@@ -362,7 +362,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
         rumble_msg_right.frames[0].low_amplitude = xrr;
         rumble_msg_right.frames[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
-        hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
     }
     break;

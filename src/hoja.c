@@ -28,9 +28,6 @@ volatile uint32_t _hoja_timestamp = 0;
 
 bool _baseband_loop = false;
 
-hoja_rumble_msg_s _hoja_rumble_msg_left   = {0};
-hoja_rumble_msg_s _hoja_rumble_msg_right  = {0};
-
 __attribute__((weak)) uint16_t cb_hoja_hardware_test()
 {
   return 0;
@@ -62,71 +59,7 @@ __attribute__((weak)) void cb_hoja_rumble_init()
 {
 }
 
-
-// This will automatically cycle through the appropriate
-// rumble frames that are set
-void hoja_rumble_task(uint32_t timestamp)
-{
-  return;
-  static uint32_t t = 0;
-  static interval_s rumble_interval = {0};
-  static uint8_t frame_idx = 0;
-
-  #define R_INTERVAL_1 8000
-  #define R_INTERVAL_2 (R_INTERVAL_1 / 2)
-  #define R_INTERVAL_3 (R_INTERVAL_1 / 3)
-  #define R_INTERVAL_0 1000
-
-  static uint32_t period  = R_INTERVAL_1;
-
-  switch (_hoja_rumble_msg_left.count)
-  {
-  default:
-  case 0:
-    period = R_INTERVAL_0;
-    break;
-
-  case 1:
-    period = R_INTERVAL_1;
-    break;
-
-  case 2:
-    period = R_INTERVAL_2;
-    break;
-
-  case 3:
-    period = R_INTERVAL_3;
-    break;
-  }
-
-  if(interval_run(timestamp, period, &rumble_interval))
-  {
-    if(_hoja_rumble_msg_left.unread)
-    {
-      frame_idx = 0;
-      _hoja_rumble_msg_left.unread = false;
-    }
-
-    if(frame_idx < _hoja_rumble_msg_left.count)
-    {
-      // This is sent to app-space to adjust the frequency/amplitude
-      cb_hoja_rumble_set(&(_hoja_rumble_msg_left.frames[frame_idx]), &(_hoja_rumble_msg_right.frames[frame_idx]));
-    }
-    frame_idx++;
-  }
-}
-
-// Called by other components in the HOJA api
-void hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right)
-{
-  memcpy(&_hoja_rumble_msg_left, left, sizeof(hoja_rumble_msg_s));
-  _hoja_rumble_msg_left.unread  = true;
-  memcpy(&_hoja_rumble_msg_right, right, sizeof(hoja_rumble_msg_s));
-  _hoja_rumble_msg_right.unread = true;
-}
-
-
-__attribute__((weak)) void cb_hoja_rumble_set(hoja_haptic_frame_s *left, hoja_haptic_frame_s *right)
+__attribute__((weak)) void cb_hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right)
 {
   (void *)left;
   (void *)right;
@@ -317,8 +250,6 @@ void _hoja_task_0()
   macro_handler_task(_hoja_timestamp, &_button_data);
 
   rgb_task(_hoja_timestamp);
-
-  hoja_rumble_task(_hoja_timestamp);
 
   // Webusb stuff
   if (webusb_output_enabled())
