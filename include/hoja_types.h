@@ -587,10 +587,10 @@ typedef struct
 
 typedef struct
 {
-    uint8_t count;
+    uint8_t sample_count;
     bool unread;
-    hoja_haptic_frame_linear_s linear;
-    hoja_haptic_frame_s frames[3];
+    hoja_haptic_frame_linear_s linear; // Last known state 
+    hoja_haptic_frame_s samples[3];
 } __attribute__ ((packed)) hoja_rumble_msg_s;
 
 #ifdef __cplusplus
