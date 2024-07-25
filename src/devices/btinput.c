@@ -8,7 +8,6 @@
 #if (HOJA_CAPABILITY_BLUETOOTH==1)
 uint32_t _mode_color = 0;
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
-int _has_connected = 0;
 
 // This flag can be reset to tell the web app
 // that the controller is bluetooth capable
@@ -155,11 +154,11 @@ bool btinput_init(input_mode_t input_mode)
     #endif
 }
 
+// This allows us to prevent power off
+static int _is_connected_reset = 0;
 void _btinput_message_parse(uint8_t *msg)
 {
-
-    float _ahi = 0;
-    float _alo = 0;
+    
 
     #if (HOJA_CAPABILITY_BLUETOOTH==1)
     switch(msg[0])
@@ -170,7 +169,8 @@ void _btinput_message_parse(uint8_t *msg)
 
         case I2CINPUT_ID_SWITCHHAPTIC:
         {
-            haptics_rumble_translate(&(msg[1]));
+            _is_connected_reset = 1;
+            haptics_rumble_translate(&(msg[2]));
         }
         break;
 
@@ -199,50 +199,24 @@ void _btinput_message_parse(uint8_t *msg)
 
             memcpy(&status, &msg[1], sizeof(i2cinput_status_s));
 
-            if(_i_connected>0)
+            if(status.connected_status > 0)
+                _is_connected_reset = 1;
+            
+            if (_i_connected != (int8_t) status.connected_status )
             {
-                
-                
-                if(status.rumble_amplitude_hi>0)
-                {
-                    _ahi = (float) status.rumble_amplitude_hi  * 0.01;
-                }
-                else _ahi = 0;
+                _i_connected = (int8_t) status.connected_status;
 
-                if(status.rumble_amplitude_lo>0)
+                if(_i_connected > 0)
                 {
-                    _alo = (float) status.rumble_amplitude_lo * 0.01;
-                }
-                else _alo = 0;
-
-                //float _alo = (float) status.rumble_amplitude_lo * 0.01;
-                //hoja_rumble_set(status.rumble_frequency_hi, _ahi, status.rumble_frequency_lo, _alo);
-            }
-            else
-            {
-                //hoja_rumble_set(0, 0,0,0);
-            }
-
-            if(_i_connected<0)
-            {
-                _has_connected = -1;
-                _i_connected = 0;
-            }
-            else if (_i_connected != (int8_t) status.connected_status )
-            {
-                if(status.connected_status > 0)
-                {
-                    _has_connected = 1;
+                    _is_connected_reset = 1;
                     rgb_set_player(status.connected_status);
                     rgb_init(global_loaded_settings.rgb_mode, -1);
                 }
                 else
                 {
-                    _has_connected = -1;
                     rgb_set_player(0);
                     rgb_flash(_mode_color, -1);
                 }
-                _i_connected = (int8_t) status.connected_status;
             }
 
         }
@@ -276,22 +250,19 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     static i2cinput_input_s data = {0};
     static interval_s interval = {0};
     static interval_s bt_dc_interval = {0};
-    static mode_2_s mode_2_imu_data = {0};
     static imu_data_s* imu_tmp;
 
-    if(_has_connected<1)
-    {
-        bool reset = (_has_connected<0) ? true : false;
-        // If we aren't connected after 10 seconds, power off.
-        if(interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS*1000*1000), reset, &bt_dc_interval))
-        {
-            _has_connected = 1; // So we don't run this again
-            hoja_shutdown();
-        }
-        if(reset) _has_connected = 0;
-    }
 
-    if(interval_run(timestamp, 1500, &interval))
+    bool reset = (_is_connected_reset>0) ? true : false;
+    // If we aren't connected after 10 seconds, power off.
+    if(interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS*1000*1000), reset, &bt_dc_interval))
+    {
+        hoja_shutdown();
+    }
+    if(reset) _is_connected_reset = 0;
+
+
+    if(interval_run(timestamp, 2000, &interval))
     {
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
