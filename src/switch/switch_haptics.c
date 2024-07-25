@@ -17,38 +17,39 @@ static inline float clampf(float val, float min, float max)
 }
 
 const Switch5BitCommand_s CommandTable[] = {
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.5f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.5f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.5f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.5f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.5f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -5.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.375},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.1875},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.1875},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.375},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = 0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.125f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = -0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = 0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.03125f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = -0.03125},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = 0.03125},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = -0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = 0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.03125f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = -0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = 0.03125},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.125f, .fm_offset = 0.0},
-    {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = -0.03125}};
+            {.am_action = Switch5BitAction_Default, .fm_action = Switch5BitAction_Default, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -5.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.375f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.1875f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.1875f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.375f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = -0.03125f}
+        };
 
 #define EXP_BASE2_RANGE_START (-8.0f)
 #define EXP_BASE2_RANGE_END (2.0f)
@@ -108,6 +109,9 @@ void initialize_rumble_freq_lookup(void)
 
 uint32_t haptics_get_lookup_index(float input)
 {
+    int base = (int) input - EXP_BASE2_RANGE_START;
+    if(!base) return 0;
+    
     return (uint32_t)((input - EXP_BASE2_RANGE_START) / EXP_BASE2_LOOKUP_RESOLUTION);
 }
 
@@ -115,14 +119,14 @@ float haptics_apply_command(Switch5BitAction_t action, float offset, float curre
 {
     switch (action)
     {
-    case Switch5BitAction_Ignore: // Cmd 0
-        return current;
-    case Switch5BitAction_Substitute: // Cmd 2
-        return offset;
-    case Switch5BitAction_Sum: // Cmd 3
-        return clampf(current + offset, min, max);
-    default:
-        return default_val;
+        case Switch5BitAction_Ignore: // Cmd 0
+            return current;
+        case Switch5BitAction_Substitute: // Cmd 2
+            return offset;
+        case Switch5BitAction_Sum: // Cmd 3
+            return clampf(current + offset, min, max);
+        default: // Cmd 1
+            return default_val;
     }
 }
 
@@ -378,6 +382,8 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded,
     switch (encoded->frame_count)
     {
         case 0:
+            decoded->linear.hi_amp_linear = 0;
+            decoded->sample_count = 0;
             break;
         case 1:
             if ((encoded->data & 0xFFFFF) == 0)
@@ -413,14 +419,18 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded,
 // Big thanks to hexkyz for some info on Discord
 void haptics_rumble_translate(const uint8_t *data)
 {
+    static hoja_rumble_msg_s internal_left = {0};
+    static hoja_rumble_msg_s internal_right = {0};
+
     if (!_haptics_init)
     {
+        internal_left.linear.hi_amp_linear = DefaultAmplitude;
+        internal_left.linear.lo_amp_linear = DefaultAmplitude;
+        internal_left.linear.hi_freq_linear = DefaultFrequency;
+        internal_left.linear.lo_freq_linear = DefaultFrequency;
         hatptics_initialize_lookup_tables();
         _haptics_init = true;
     }
-
-    static hoja_rumble_msg_s internal_left = {0};
-    static hoja_rumble_msg_s internal_right = {0};
 
     // Decode left
     _haptics_decode_samples((const SwitchHapticPacket_s *)data, &internal_left);

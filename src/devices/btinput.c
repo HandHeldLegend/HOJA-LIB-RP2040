@@ -168,6 +168,12 @@ void _btinput_message_parse(uint8_t *msg)
             memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
         break;
 
+        case I2CINPUT_ID_SWITCHHAPTIC:
+        {
+            haptics_rumble_translate(&(msg[1]));
+        }
+        break;
+
         case I2CINPUT_ID_REBOOT:
         {
             hoja_reboot_memory_u mem = {
@@ -270,6 +276,8 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     static i2cinput_input_s data = {0};
     static interval_s interval = {0};
     static interval_s bt_dc_interval = {0};
+    static mode_2_s mode_2_imu_data = {0};
+    static imu_data_s* imu_tmp;
 
     if(_has_connected<1)
     {
@@ -283,7 +291,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         if(reset) _has_connected = 0;
     }
 
-    if(interval_run(timestamp, 1000, &interval))
+    if(interval_run(timestamp, 1500, &interval))
     {
         data_out[0] = 0xDD;
         data_out[1] = 0xEE;
@@ -301,7 +309,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         data.lt = (uint16_t) buttons->zl_analog;
         data.rt = (uint16_t) buttons->zr_analog;
 
-        imu_data_s* imu_tmp = imu_fifo_last();
+        imu_tmp = imu_fifo_last();
 
         if(imu_tmp != NULL)
         {

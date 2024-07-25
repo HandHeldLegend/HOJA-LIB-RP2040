@@ -7,6 +7,7 @@
 typedef enum
 {
     Switch5BitAction_Ignore = 0x0,
+    Switch5BitAction_Default = 0x1,
     Switch5BitAction_Substitute = 0x2,
     Switch5BitAction_Sum = 0x3,
 } Switch5BitAction_t;

@@ -348,18 +348,20 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
       {
         float xrl = 0;
         if (buffer[3] > 0)
-          xrl = (float)buffer[3] / 255;
+          xrl = (float)buffer[2] / 255;
 
         float xrr = 0;
         if (buffer[4] > 0)
-          xrr = (float)buffer[4] / 255;
+          xrr = (float)buffer[3] / 255;
+
+        float out = (xrl > xrr) ? xrl : xrr;
 
         rumble_msg_left.sample_count = 1;
-        rumble_msg_left.samples[0].low_amplitude = xrl;
+        rumble_msg_left.samples[0].low_amplitude = out;
         rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
         rumble_msg_right.sample_count = 1;
-        rumble_msg_right.samples[0].low_amplitude = xrr;
+        rumble_msg_right.samples[0].low_amplitude = out;
         rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
 
         cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
