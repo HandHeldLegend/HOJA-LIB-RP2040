@@ -419,6 +419,9 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded,
 // Big thanks to hexkyz for some info on Discord
 void haptics_rumble_translate(const uint8_t *data)
 {
+    static uint8_t storage[8] = {0};
+    memcpy(storage, data, 8);
+
     static hoja_rumble_msg_s internal_left = {0};
     static hoja_rumble_msg_s internal_right = {0};
 

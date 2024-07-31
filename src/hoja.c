@@ -123,7 +123,7 @@ button_data_s *hoja_get_raw_button_data()
 }
 
 bool _hoja_idle_state = false;
-#define IDLE_TME_SECONDS 25
+#define IDLE_TME_SECONDS 60*5
 void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
 {
   static interval_s interval = {0};
@@ -224,7 +224,7 @@ void _hoja_task_0()
 {
   if (!_watchdog_enabled)
   {
-    watchdog_enable(7500, false);
+    watchdog_enable(16000, false);
     _watchdog_enabled = true;
   }
 
@@ -280,6 +280,7 @@ void _hoja_task_0()
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
+
   for (;;)
   {
 
@@ -319,7 +320,7 @@ void hoja_init(hoja_config_t *config)
 
 #if ((HOJA_CAPABILITY_BLUETOOTH) == 1 || (HOJA_CAPABILITY_BATTERY == 1))
   // I2C Setup
-  i2c_init(HOJA_I2C_BUS, 200 * 1000);
+  i2c_init(HOJA_I2C_BUS, 400 * 1000);
   gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
@@ -403,9 +404,6 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
-  // Initialize rumble
-  cb_hoja_rumble_init();
-
   // For switch Pro stuff
   switch_analog_calibration_init();
 
@@ -487,6 +485,9 @@ void hoja_init(hoja_config_t *config)
   rgb_indicate(indicate_color, 50);
   rgb_init(rgbmode, rgbbrightness);
   // rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
+
+  // Initialize rumble on core 0
+  cb_hoja_rumble_init();
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 

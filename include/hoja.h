@@ -4,8 +4,8 @@
 #define HOJA_BACKEND_VERSION 0x0001
 #define HOJA_SETTINGS_VERSION 0xA002
 
-#define HOJA_HAPTIC_BASE_HFREQ 120
-#define HOJA_HAPTIC_BASE_LFREQ 40
+#define HOJA_HAPTIC_BASE_HFREQ 320
+#define HOJA_HAPTIC_BASE_LFREQ 160
 
 #include "hoja_includes.h"
 #include "interval.h"

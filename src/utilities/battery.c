@@ -7,7 +7,7 @@ void util_battery_init()
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
     const uint8_t _data[2] = {0x09, 0x41};
-    int s = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+    int s = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
     #endif
 }
 
@@ -24,6 +24,7 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
         _connected = util_wire_connected();
         if(!_connected)
         {
+            // Not the cause
             hoja_shutdown();
         }
 
@@ -77,8 +78,7 @@ bool util_battery_comms_check()
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};
         util_battery_status_s _status_converted;
-        i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true, 10000);
-        int readcheck = i2c_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false, 10000);
+        int readcheck = i2c_safe_write_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, _readstatus, 1, 10000);
         if(readcheck < 1) return false;
         return true;
     #else
@@ -117,7 +117,7 @@ void util_battery_enable_ship_mode(void)
         //s1 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data1, 2, false, 10000);
 
         const uint8_t _data[2] = {0x09, 0x41};
-        s2 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+        s2 = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
 
         if(s2 == PICO_ERROR_GENERIC)
         {
@@ -176,7 +176,7 @@ void util_battery_set_charge_rate(uint16_t rate_ma)
     uint8_t _write[2] = {0x04, code};
     
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    int readcheck = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 10000);
+    int readcheck = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _write, 2, false, 10000);
     #endif
 }
 
@@ -212,7 +212,7 @@ void util_battery_set_source(util_battery_source_t source)
         break;
     }
     const uint8_t _data[2] = {0x0A, source_packet};
-    int success = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+    int success = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
 
     if(success == PICO_ERROR_GENERIC)
     {
@@ -231,8 +231,8 @@ bool util_wire_connected()
         // We can poll the PMIC to get our plug status
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};
-        i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, true, 10000);
-        int readcheck = i2c_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _readstatus, 1, false, 10000);
+        
+        int readcheck = i2c_safe_write_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, _readstatus, 1, 10000);
 
         if ((readcheck == PICO_ERROR_GENERIC) || (readcheck == PICO_ERROR_TIMEOUT))
         {

@@ -10,6 +10,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/reboot.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/i2c_safe.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 

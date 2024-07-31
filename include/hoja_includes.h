@@ -28,6 +28,7 @@
 #include "hardware/adc.h"
 
 #include "board_config.h"
+#include "i2c_safe.h"
 
 #include "hoja_types.h"
 #include "hoja_settings.h"

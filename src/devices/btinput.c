@@ -1,41 +1,90 @@
 #include "btinput.h"
 #include "interval.h"
 
-#define HOJA_I2C_MSG_SIZE_OUT   32
-#define HOJA_I2C_MSG_SIZE_IN    11+1
+// Size of messages we send OUT
+#define HOJA_I2C_MSG_SIZE_OUT 24
+
+// The size of messages coming from the ESP32
+#define HOJA_I2C_MSG_SIZE_IN 24
 #define BT_CONNECTION_TIMEOUT_POWER_SECONDS (30)
 
-#if (HOJA_CAPABILITY_BLUETOOTH==1)
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
 uint32_t _mode_color = 0;
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
+uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
 // This flag can be reset to tell the web app
 // that the controller is bluetooth capable
 bool _bt_capability_reset_flag = false;
 #endif
 
+// Polynomial for CRC-8 (x^8 + x^2 + x + 1)
+#define CRC8_POLYNOMIAL 0x07
+
+uint8_t crc8_compute(uint8_t *data, size_t length)
+{
+    uint8_t crc = 0x00; // Initial value of CRC
+    for (size_t i = 0; i < length; i++)
+    {
+        crc ^= data[i]; // XOR the next byte into the CRC
+
+        for (uint8_t j = 0; j < 8; j++)
+        {
+            if (crc & 0x80)
+            { // If the MSB is set
+                crc = (crc << 1) ^ CRC8_POLYNOMIAL;
+            }
+            else
+            {
+                crc <<= 1;
+            }
+        }
+    }
+
+    if (!crc)
+        crc++; // Must be non-zero
+
+    return crc;
+}
+
+bool crc8_verify(uint8_t *data, size_t length, uint8_t received_crc)
+{
+    uint8_t calculated_crc = crc8_compute(data, length);
+    return calculated_crc == received_crc;
+}
+
+void _bt_clear_out()
+{
+    memset(data_out, 0, HOJA_I2C_MSG_SIZE_OUT);
+}
+
+void _bt_clear_in()
+{
+    memset(data_in, 0, HOJA_I2C_MSG_SIZE_IN);
+}
+
 void btinput_capability_reset_flag()
 {
-    #if (HOJA_CAPABILITY_BLUETOOTH==1)
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
     _bt_capability_reset_flag = true;
-    #endif
+#endif
 }
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 uint16_t btinput_get_version()
 {
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
-    
+
     // 0xFFFF indicates that the firmware is unused
     uint16_t v = 0xFFFF;
-    #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
-    #ifdef HOJA_CAPABILITY_BLUETOOTH_OPTIONAL
-    #if (HOJA_CAPABILITY_BLUETOOTH_OPTIONAL==1)
+#ifdef HOJA_CAPABILITY_BLUETOOTH_OPTIONAL
+#if (HOJA_CAPABILITY_BLUETOOTH_OPTIONAL == 1)
     // Only set this if our flag is reset
-    if(_bt_capability_reset_flag)
-    #endif
-    #endif
+    if (_bt_capability_reset_flag)
+#endif
+#endif
     {
         // 0xFFFE indicates that an ESP32 is present, but not initialized
         v = 0xFFFE;
@@ -47,260 +96,344 @@ uint16_t btinput_get_version()
 
     static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
-    while(attempts--)
+    while (attempts--)
     {
-        data_out[0] = 0xDD;
-        data_out[1] = 0xEE;
-        data_out[2] = 0xAA;
+        _bt_clear_out();
+        data_out[0] = I2C_CMD_FIRMWARE_VERSION;
 
-        data_out[3] = I2CINPUT_ID_GETVERSION;
-
-        int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 10000);
+        int stat = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 10000);
         sleep_ms(4);
-        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
+        int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
 
-        if(read==HOJA_I2C_MSG_SIZE_IN)
-        {
-            attempts=0;
-            printf("BT Version received and response got.");
-            v = (data_in[1] << 8) | data_in[2];
-        }
+        // if (read == HOJA_I2C_MSG_SIZE_IN)
+        //{
+        //     i2cinput_status_s status_got = {0};
+        //     memcpy(&status_got, data_in, HOJA_I2C_MSG_SIZE_IN);
+        //
+        //    if (status_got[] == I2C_STATUS_FIRMWARE_VERSION)
+        //    {
+        //        uint32_t version = (status_got.data[0] << 8) | (status_got.data[1]);
+        //        return version;
+        //    }
+        //}
     }
 
     cb_hoja_set_bluetooth_enabled(false);
-    #endif
+#endif
     return v;
 }
 
 bool btinput_init(input_mode_t input_mode)
 {
-    #if (HOJA_CAPABILITY_BLUETOOTH==1)
-        #ifdef HOJA_BT_LOGGING_DEBUG
-            #if (HOJA_BT_LOGGING_DEBUG == 1 )
-            cb_hoja_set_uart_enabled(true);
-            #endif
-        #endif
-        switch(input_mode)
-        {
-            case INPUT_MODE_SWPRO:
-                _mode_color = COLOR_WHITE.color;
-            break;
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
+#ifdef HOJA_BT_LOGGING_DEBUG
+#if (HOJA_BT_LOGGING_DEBUG == 1)
+    cb_hoja_set_uart_enabled(true);
+#endif
+#endif
+    switch (input_mode)
+    {
+    case INPUT_MODE_SWPRO:
+        _mode_color = COLOR_WHITE.color;
+        break;
 
-            case INPUT_MODE_XINPUT:
-                _mode_color = COLOR_GREEN.color;
-            break;
+    case INPUT_MODE_XINPUT:
+        _mode_color = COLOR_GREEN.color;
+        break;
 
-            case INPUT_MODE_MAX:
-                _mode_color = COLOR_ORANGE.color;
-                break;
+    case INPUT_MODE_MAX:
+        _mode_color = COLOR_ORANGE.color;
+        break;
 
-            default:
-                input_mode = INPUT_MODE_SWPRO;
-                _mode_color = COLOR_WHITE.color;
-            break;
-        }
-        rgb_flash(_mode_color, -1);
-        cb_hoja_set_bluetooth_enabled(true);
+    default:
+        input_mode = INPUT_MODE_SWPRO;
+        _mode_color = COLOR_WHITE.color;
+        break;
+    }
+    rgb_flash(_mode_color, -1);
+    cb_hoja_set_bluetooth_enabled(true);
 
-        // BT Baseband update
-        if(input_mode==INPUT_MODE_MAX) 
-        {
-            cb_hoja_set_uart_enabled(true);
-            hoja_set_baseband_update(true);
-            return true;
-        }
-
-        // Optional delay to ensure you have time to hook into the UART
-        #ifdef HOJA_BT_LOGGING_DEBUG
-            #if (HOJA_BT_LOGGING_DEBUG == 1 )
-            sleep_ms(5000);
-            #endif
-        #endif
-
-        sleep_ms(1000);
-
-        data_out[0] = 0xDD;
-        data_out[1] = 0xEE;
-        data_out[2] = 0xAA;
-
-        data_out[3] = I2CINPUT_ID_INIT;
-        data_out[4] = (uint8_t) input_mode; 
-
-        data_out[5] = global_loaded_settings.switch_mac_address[0];
-        data_out[6] = global_loaded_settings.switch_mac_address[1];
-        data_out[7] = global_loaded_settings.switch_mac_address[2];
-        data_out[8] = global_loaded_settings.switch_mac_address[3];
-        data_out[9] = global_loaded_settings.switch_mac_address[4];
-        data_out[10] = global_loaded_settings.switch_mac_address[5];
-
-        data_out[11] = global_loaded_settings.switch_host_address[0];
-        data_out[12] = global_loaded_settings.switch_host_address[1];
-        data_out[13] = global_loaded_settings.switch_host_address[2];
-        data_out[14] = global_loaded_settings.switch_host_address[3];
-        data_out[15] = global_loaded_settings.switch_host_address[4];
-        data_out[16] = global_loaded_settings.switch_host_address[5];
-
-        int stat = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
-
-        if(stat<0)
-        {
-            return false;
-        }
-
-        imu_set_enabled(true);
+    // BT Baseband update
+    if (input_mode == INPUT_MODE_MAX)
+    {
+        cb_hoja_set_uart_enabled(true);
+        hoja_set_baseband_update(true);
         return true;
-    #else
+    }
+
+// Optional delay to ensure you have time to hook into the UART
+#ifdef HOJA_BT_LOGGING_DEBUG
+#if (HOJA_BT_LOGGING_DEBUG == 1)
+    sleep_ms(5000);
+#endif
+#endif
+
+    sleep_ms(1000);
+
+    _bt_clear_out();
+
+    data_out[0] = I2C_CMD_START;
+
+    data_out[2] = (uint8_t)input_mode;
+
+    data_out[3] = global_loaded_settings.switch_mac_address[0];
+    data_out[4] = global_loaded_settings.switch_mac_address[1];
+    data_out[5] = global_loaded_settings.switch_mac_address[2];
+    data_out[6] = global_loaded_settings.switch_mac_address[3];
+    data_out[7] = global_loaded_settings.switch_mac_address[4];
+    data_out[8] = global_loaded_settings.switch_mac_address[5];
+
+    data_out[9] = global_loaded_settings.switch_host_address[0];
+    data_out[10] = global_loaded_settings.switch_host_address[1];
+    data_out[11] = global_loaded_settings.switch_host_address[2];
+    data_out[12] = global_loaded_settings.switch_host_address[3];
+    data_out[13] = global_loaded_settings.switch_host_address[4];
+    data_out[14] = global_loaded_settings.switch_host_address[5];
+
+    // Calculate CRC
+    uint8_t crc = crc8_compute(&(data_out[2]), 13);
+    data_out[1] = crc;
+
+    int stat = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+
+    if (stat < 0)
+    {
+        rgb_flash(COLOR_RED.color, -1);
+        return false;
+    }
+
+    imu_set_enabled(true);
+    return true;
+#else
     return false;
-    #endif
+#endif
 }
+
+#define I2C_MSG_STATUS_IDX 4
+#define I2C_MSG_DATA_START 5
+#define I2C_MSG_CMD_IDX 3
 
 // This allows us to prevent power off
 static int _is_connected_reset = 0;
-void _btinput_message_parse(uint8_t *msg)
+static int8_t _i_connected = -1;
+
+static uint8_t _current_connected = 0;
+static uint8_t _current_crc_known = 0;
+
+void _btinput_message_parse(uint8_t *data)
 {
-    
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
-    #if (HOJA_CAPABILITY_BLUETOOTH==1)
-    switch(msg[0])
+    uint8_t crc = data[0];
+    bool crc_updated = false;
+    i2cinput_status_s status = {0};
+
+    // Verify CRC before proceeding (only if it's present)
+    if (crc > 0)
     {
-        default:
-            memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
+        bool verified = false;
+        verified = crc8_verify((uint8_t *)&(data[1]), sizeof(i2cinput_status_s), crc);
+
+        if (!verified)
+            return;
+
+        _current_crc_known = crc;
+        crc_updated = true;
+        memcpy(&status, &(data[1]), sizeof(i2cinput_status_s));
+    }
+    else
+        return;
+
+    switch (status.cmd)
+    {
+    default:
         break;
 
-        case I2CINPUT_ID_SWITCHHAPTIC:
+    // No data to report
+    case I2C_STATUS_NULL:
+    {
+    }
+    break;
+
+    case I2C_STATUS_CONNECTED_STATUS:
+    {
+        // Handle connected status
+        if (_current_connected != status.data[0])
         {
-            _is_connected_reset = 1;
-            haptics_rumble_translate(&(msg[2]));
+            _current_connected = status.data[0];
+            if (_current_connected > 0)
+            {
+                rgb_init(global_loaded_settings.rgb_mode, -1);
+                rgb_set_player(_current_connected);
+            }
+            else
+            {
+                rgb_set_player(0);
+                rgb_flash(_mode_color, -1);
+            }
         }
-        break;
+    }
+    break;
 
-        case I2CINPUT_ID_REBOOT:
+    case I2C_STATUS_POWER_CODE:
+    {
+        uint8_t power_code = status.data[0];
+
+        if (power_code == 0)
         {
-            hoja_reboot_memory_u mem = {
-                .reboot_reason      = ADAPTER_REBOOT_REASON_MODECHANGE,
-                .gamepad_mode       = INPUT_MODE_SWPRO,
-                .gamepad_protocol   = INPUT_METHOD_BLUETOOTH
-                };
-
-            reboot_with_memory(mem.value);
-        }
-        break;
-
-        case I2CINPUT_ID_SHUTDOWN:
-        {
+            // Confirmed OK
+            rgb_indicate(COLOR_WHITE.color, 100);
             hoja_shutdown();
         }
-        break;
-
-        case I2CINPUT_ID_STATUS:
+        else if (power_code == 1)
         {
-            static i2cinput_status_s status = {0};
-            static int8_t _i_connected = -1;
 
-            memcpy(&status, &msg[1], sizeof(i2cinput_status_s));
-
-            if(status.connected_status > 0)
-                _is_connected_reset = 1;
-            
-            if (_i_connected != (int8_t) status.connected_status )
-            {
-                _i_connected = (int8_t) status.connected_status;
-
-                if(_i_connected > 0)
-                {
-                    _is_connected_reset = 1;
-                    rgb_set_player(status.connected_status);
-                    rgb_init(global_loaded_settings.rgb_mode, -1);
-                }
-                else
-                {
-                    rgb_set_player(0);
-                    rgb_flash(_mode_color, -1);
-                }
-            }
-
+            hoja_reboot_memory_u mem = {
+                .reboot_reason = ADAPTER_REBOOT_REASON_MODECHANGE,
+                .gamepad_mode = INPUT_MODE_SWPRO,
+                .gamepad_protocol = INPUT_METHOD_BLUETOOTH};
+            reboot_with_memory(mem.value);
         }
-        break;
-
-        case I2CINPUT_ID_SAVEMAC:
-        {
-            // Paired to Nintendo Switch
-            printf("New BT Switch Pairing Completed.");
-            global_loaded_settings.switch_host_address[0] = msg[1];
-            global_loaded_settings.switch_host_address[1] = msg[2];
-            global_loaded_settings.switch_host_address[2] = msg[3];
-            global_loaded_settings.switch_host_address[3] = msg[4];
-            global_loaded_settings.switch_host_address[4] = msg[5];
-            global_loaded_settings.switch_host_address[5] = msg[6];
-            settings_save();
-        }
-        break;
     }
-    memset(msg, 0, HOJA_I2C_MSG_SIZE_IN);
-    #endif
-}
+    break;
 
-uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT];
-uint8_t data_in[HOJA_I2C_MSG_SIZE_IN];
+    case I2C_STATUS_HAPTIC_SWITCH:
+    {
+        haptics_rumble_translate(&(status.data[0]));
+    }
+    break;
+
+    case I2C_STATUS_HAPTIC_STANDARD:
+    {
+        hoja_rumble_msg_s rumble_msg_left = {0};
+        hoja_rumble_msg_s rumble_msg_right = {0};
+
+        uint8_t l = status.data[0];
+        uint8_t r = status.data[1];
+
+        float la = (float) l / 255.0f;
+        float ra = (float) r / 255.0f;
+
+        rumble_msg_left.sample_count = 1;
+        rumble_msg_left.samples[0].low_amplitude = la;
+        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        rumble_msg_right.sample_count = 1;
+        rumble_msg_right.samples[0].low_amplitude = ra;
+        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+    }
+    break;
+
+    case I2C_STATUS_MAC_UPDATE:
+    {
+        // Paired to Nintendo Switch
+        printf("New BT Switch Pairing Completed.");
+        global_loaded_settings.switch_host_address[0] = status.data[0];
+        global_loaded_settings.switch_host_address[1] = status.data[1];
+        global_loaded_settings.switch_host_address[2] = status.data[2];
+        global_loaded_settings.switch_host_address[3] = status.data[3];
+        global_loaded_settings.switch_host_address[4] = status.data[4];
+        global_loaded_settings.switch_host_address[5] = status.data[5];
+        settings_save();
+    }
+    break;
+    }
+
+#endif
+}
 
 void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
 {
-    #if (HOJA_CAPABILITY_BLUETOOTH==1)
-    
-    static i2cinput_input_s data = {0};
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
+
+    static i2cinput_input_s input_data = {0};
+    static i2cinput_motion_s motion_data = {0};
     static interval_s interval = {0};
     static interval_s bt_dc_interval = {0};
-    static imu_data_s* imu_tmp;
+    static imu_data_s *imu_tmp;
 
+    // bool reset = (_is_connected_reset > 0) ? true : false;
+    //  If we aren't connected after 10 seconds, power off.
+    // if (interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS * 1000 * 1000), reset, &bt_dc_interval))
+    //{
+    //     rgb_indicate(COLOR_PINK.color, 20);
+    //     hoja_shutdown();
+    // }
+    // if (reset)
+    //     _is_connected_reset = 0;
 
-    bool reset = (_is_connected_reset>0) ? true : false;
-    // If we aren't connected after 10 seconds, power off.
-    if(interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS*1000*1000), reset, &bt_dc_interval))
+    static bool flip = false;
+
+    if (interval_run(timestamp, 1000, &interval))
     {
-        hoja_shutdown();
-    }
-    if(reset) _is_connected_reset = 0;
+        memset(data_out, 0x80, 24); // Reset buffer to 0x80 for blank
 
-
-    if(interval_run(timestamp, 2000, &interval))
-    {
-        data_out[0] = 0xDD;
-        data_out[1] = 0xEE;
-        data_out[2] = 0xAA;
-        data_out[3] = I2CINPUT_ID_INPUT;
-
-        data.buttons_all    = buttons->buttons_all;
-        data.buttons_system = buttons->buttons_system;
-
-        data.lx = (uint16_t) analog->lx;
-        data.ly = (uint16_t) analog->ly;
-        data.rx = (uint16_t) analog->rx;
-        data.ry = (uint16_t) analog->ry;
-
-        data.lt = (uint16_t) buttons->zl_analog;
-        data.rt = (uint16_t) buttons->zr_analog;
-
-        imu_tmp = imu_fifo_last();
-
-        if(imu_tmp != NULL)
+        if (flip)
         {
-            data.gx = imu_tmp->gx;
-            data.gy = imu_tmp->gy;
-            data.gz = imu_tmp->gz;
+            data_out[0] = I2C_CMD_STANDARD;
+            data_out[1] = 0;                  // Input CRC location
+            data_out[2] = _current_crc_known; // Response CRC location
 
-            data.ax = imu_tmp->ax;
-            data.ay = imu_tmp->ay;
-            data.az = imu_tmp->az;
+            input_data.buttons_all = buttons->buttons_all;
+            input_data.buttons_system = buttons->buttons_system;
+
+            input_data.lx = (uint16_t)analog->lx;
+            input_data.ly = (uint16_t)analog->ly;
+            input_data.rx = (uint16_t)analog->rx;
+            input_data.ry = (uint16_t)analog->ry;
+
+            input_data.lt = (uint16_t)buttons->zl_analog;
+            input_data.rt = (uint16_t)buttons->zr_analog;
+
+            uint8_t crc = crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
+            data_out[1] = crc;
+
+            memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
         }
-        
-        memcpy(&(data_out[4]), &data, sizeof(i2cinput_input_s));
+        else
+        {
+            data_out[0] = I2C_CMD_MOTION;
+            data_out[1] = 0;                  // Input CRC location
+            data_out[2] = _current_crc_known; // Response CRC location
 
-        int write = i2c_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
-        if(write==HOJA_I2C_MSG_SIZE_OUT) analog_send_reset();
+            imu_tmp = imu_fifo_last();
 
-        int read = i2c_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 16000);
-        if(read==HOJA_I2C_MSG_SIZE_IN) _btinput_message_parse(data_in);
-        
+            if (imu_tmp != NULL)
+            {
+                motion_data.gx = imu_tmp->gx;
+                motion_data.gy = imu_tmp->gy;
+                motion_data.gz = imu_tmp->gz;
+                motion_data.ax = imu_tmp->ax;
+                motion_data.ay = imu_tmp->ay;
+                motion_data.az = imu_tmp->az;
+            }
+
+            uint8_t crc = crc8_compute((uint8_t *)&motion_data, sizeof(i2cinput_motion_s));
+            data_out[1] = crc;
+            memcpy(&(data_out[3]), &motion_data, sizeof(i2cinput_motion_s));
+        }
+
+        flip = !flip;
+
+        int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 2000);
+        if (write == HOJA_I2C_MSG_SIZE_OUT)
+        {
+            
+        }
+
+        analog_send_reset();
+        _bt_clear_out();
+
+        sleep_ms(1);
+
+        int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 2000);
+        if (read == HOJA_I2C_MSG_SIZE_IN)
+        {
+            _btinput_message_parse(data_in);
+            _bt_clear_in();
+        }
     }
-    #endif
+#endif
 }
