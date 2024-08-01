@@ -54,8 +54,6 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
     // otherwise the state resets
     else if(!shipping_lockout && interval_resettable_run(timestamp, 3000000, !in->button_shipping, &interval_2))
     {
-        
-
         input_method_t i = hoja_get_input_method();
         if( (i == INPUT_METHOD_USB))
         {

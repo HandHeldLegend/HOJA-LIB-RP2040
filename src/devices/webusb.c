@@ -562,7 +562,7 @@ void webusb_command_processor(uint8_t *data)
     {
         printf("WebUSB: Got SAVE command.\n");
         settings_save_webindicate();
-        settings_save();
+        settings_save_from_core0();
     }
     break;
 

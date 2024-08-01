@@ -215,7 +215,7 @@ bool settings_load()
   {
     global_loaded_settings_bank = BANK_A_NUM;
     _settings_init_default();
-    settings_save(false);
+    settings_save_from_core0(false);
     return false;
   }
   else if(must_migrate)
@@ -230,7 +230,7 @@ bool settings_load()
       global_loaded_settings_bank = BANK_A_NUM;
       _settings_migrate(read_bank_b, vb, &global_loaded_settings);
     }
-    settings_save(false);
+    settings_save_from_core0(false);
     return false;
   }
 
@@ -284,7 +284,7 @@ void settings_save_webindicate()
   _webusb_indicate = true;
 }
 
-void settings_save()
+void settings_save_from_core0()
 {
   _save_flag = true;
 }

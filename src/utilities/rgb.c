@@ -716,7 +716,7 @@ void rgb_flash(uint32_t color, int speed)
     _rgb_flash_steps = (uint16_t) speed;
 
     _rgb_flash_color = color;
-    rgb_init(RGB_MODE_FLASH, 100);
+    rgb_init(RGB_MODE_FLASH, 30);
 
 }
 
@@ -919,6 +919,9 @@ bool _rgb_shutdown_start_override_do()
     return true;
 }
 
+// This function will start a shutdown
+// that includes an LED fade-out animation
+// This ensures the LEDs properly turn off before power off.
 void rgb_shutdown_start(bool restart)
 {
 

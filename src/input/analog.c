@@ -111,9 +111,7 @@ void analog_calibrate_save()
 
     stick_scaling_set_settings();
 
-    settings_save();
-
-    
+    settings_save_from_core0();
 
     sleep_ms(200);
 

@@ -1,60 +1,145 @@
 #include "switch_haptics.h"
-// Thanks to rei-github https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/issues/11#issuecomment-360379786
 
-typedef enum
+const float MinFrequency = -2.0f;
+const float MaxFrequency = 2.0f;
+const float DefaultFrequency = 0.0f;
+const float MinAmplitude = -8.0f;
+const float MaxAmplitude = 0.0f;
+const float DefaultAmplitude = -8.0f;
+const float StartingAmplitude = -7.9375f;
+
+const float CenterFreqHigh = 320.0f;
+const float CenterFreqLow = 160.0f;
+
+static inline float clampf(float val, float min, float max)
 {
-    HAPTIC_PULSE_1,
-    HAPTIC_PULSE_2,
-    HAPTIC_PULSE_3,
-    HAPTIC_PULSE_4,
-} haptic_effect_pulse_t;
+    return (val < min) ? min : ((val > max) ? max : val);
+}
 
-// LUTS from https://github.com/ndeadly/MissionControl/blob/master/mc_mitm/source/controllers/emulated_switch_controller.cpp#L25
-// Frequency in Hz rounded to nearest int
-// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/rumble_data_table.md#frequency-table
-const uint16_t RumbleFreqLookup[] = {
-    0x0029, 0x002a, 0x002b, 0x002c, 0x002d, 0x002e, 0x002f, 0x0030, 0x0031,
-    0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037, 0x0039, 0x003a, 0x003b,
-    0x003c, 0x003e, 0x003f, 0x0040, 0x0042, 0x0043, 0x0045, 0x0046, 0x0048,
-    0x0049, 0x004b, 0x004d, 0x004e, 0x0050, 0x0052, 0x0054, 0x0055, 0x0057,
-    0x0059, 0x005b, 0x005d, 0x005f, 0x0061, 0x0063, 0x0066, 0x0068, 0x006a,
-    0x006c, 0x006f, 0x0071, 0x0074, 0x0076, 0x0079, 0x007b, 0x007e, 0x0081,
-    0x0084, 0x0087, 0x0089, 0x008d, 0x0090, 0x0093, 0x0096, 0x0099, 0x009d,
-    0x00a0, 0x00a4, 0x00a7, 0x00ab, 0x00ae, 0x00b2, 0x00b6, 0x00ba, 0x00be,
-    0x00c2, 0x00c7, 0x00cb, 0x00cf, 0x00d4, 0x00d9, 0x00dd, 0x00e2, 0x00e7,
-    0x00ec, 0x00f1, 0x00f7, 0x00fc, 0x0102, 0x0107, 0x010d, 0x0113, 0x0119,
-    0x011f, 0x0125, 0x012c, 0x0132, 0x0139, 0x0140, 0x0147, 0x014e, 0x0155,
-    0x015d, 0x0165, 0x016c, 0x0174, 0x017d, 0x0185, 0x018d, 0x0196, 0x019f,
-    0x01a8, 0x01b1, 0x01bb, 0x01c5, 0x01ce, 0x01d9, 0x01e3, 0x01ee, 0x01f8,
-    0x0203, 0x020f, 0x021a, 0x0226, 0x0232, 0x023e, 0x024b, 0x0258, 0x0265,
-    0x0272, 0x0280, 0x028e, 0x029c, 0x02ab, 0x02ba, 0x02c9, 0x02d9, 0x02e9,
-    0x02f9, 0x030a, 0x031b, 0x032c, 0x033e, 0x0350, 0x0363, 0x0376, 0x0389,
-    0x039d, 0x03b1, 0x03c6, 0x03db, 0x03f1, 0x0407, 0x041d, 0x0434, 0x044c,
-    0x0464, 0x047d, 0x0496, 0x04af, 0x04ca, 0x04e5};
-const size_t RumbleFreqLookupSize = 159;
+const Switch5BitCommand_s CommandTable[] = {
+            {.am_action = Switch5BitAction_Default, .fm_action = Switch5BitAction_Default, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -1.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -2.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -3.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -4.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute, .fm_action = Switch5BitAction_Ignore, .am_offset = -5.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.375f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.1875f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.1875f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.375f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore, .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Ignore, .am_offset = -0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum, .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = -0.03125f}
+        };
 
-// Floats from dekunukem repo normalised and scaled by function used by yuzu
-// https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/rumble_data_table.md#amplitude-table
-// https://github.com/yuzu-emu/yuzu/blob/d3a4a192fe26e251f521f0311b2d712f5db9918e/src/input_common/sdl/sdl_impl.cpp#L429
-const float RumbleAmpLookup[] = {
-    0.000000, 0.120576, 0.137846, 0.146006, 0.154745, 0.164139, 0.174246,
-    0.185147, 0.196927, 0.209703, 0.223587, 0.238723, 0.255268, 0.273420,
-    0.293398, 0.315462, 0.321338, 0.327367, 0.333557, 0.339913, 0.346441,
-    0.353145, 0.360034, 0.367112, 0.374389, 0.381870, 0.389564, 0.397476,
-    0.405618, 0.413996, 0.422620, 0.431501, 0.436038, 0.440644, 0.445318,
-    0.450062, 0.454875, 0.459764, 0.464726, 0.469763, 0.474876, 0.480068,
-    0.485342, 0.490694, 0.496130, 0.501649, 0.507256, 0.512950, 0.518734,
-    0.524609, 0.530577, 0.536639, 0.542797, 0.549055, 0.555413, 0.561872,
-    0.568436, 0.575106, 0.581886, 0.588775, 0.595776, 0.602892, 0.610127,
-    0.617482, 0.624957, 0.632556, 0.640283, 0.648139, 0.656126, 0.664248,
-    0.672507, 0.680906, 0.689447, 0.698135, 0.706971, 0.715957, 0.725098,
-    0.734398, 0.743857, 0.753481, 0.763273, 0.773235, 0.783370, 0.793684,
-    0.804178, 0.814858, 0.825726, 0.836787, 0.848044, 0.859502, 0.871165,
-    0.883035, 0.895119, 0.907420, 0.919943, 0.932693, 0.945673, 0.958889,
-    0.972345, 0.986048, 1.000000};
-const size_t RumbleAmpLookupSize = 101;
+#define EXP_BASE2_RANGE_START (-8.0f)
+#define EXP_BASE2_RANGE_END (2.0f)
+#define EXP_BASE2_LOOKUP_RESOLUTION (1 / 32.0f)
+#define EXP_BASE2_LOOKUP_LENGTH 320 //((size_t)(((EXP_BASE2_RANGE_END - EXP_BASE2_RANGE_START) + EXP_BASE2_LOOKUP_RESOLUTION) / EXP_BASE2_LOOKUP_RESOLUTION))
 
-bool haptic_disabled_check(uint8_t *data)
+static float ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
+static float RumbleAmpLookup[128];
+static float RumbleFreqLookup[128];
+
+void initialize_exp_base2_lookup(void)
+{
+    for (size_t i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i)
+    {
+        float f = EXP_BASE2_RANGE_START + i * EXP_BASE2_LOOKUP_RESOLUTION;
+        if (f >= StartingAmplitude)
+        {
+            ExpBase2Lookup[i] = exp2f(f);
+        }
+        else
+        {
+            ExpBase2Lookup[i] = 0.0f;
+        }
+    }
+}
+
+void initialize_rumble_amp_lookup(void)
+{
+    for (size_t i = 0; i < 128; ++i)
+    {
+        if (i == 0)
+        {
+            RumbleAmpLookup[i] = -8.0f;
+        }
+        else if (i < 16)
+        {
+            RumbleAmpLookup[i] = 0.25f * i - 7.75f;
+        }
+        else if (i < 32)
+        {
+            RumbleAmpLookup[i] = 0.0625f * i - 4.9375f;
+        }
+        else
+        {
+            RumbleAmpLookup[i] = 0.03125f * i - 3.96875f;
+        }
+    }
+}
+
+void initialize_rumble_freq_lookup(void)
+{
+    for (size_t i = 0; i < 128; ++i)
+    {
+        RumbleFreqLookup[i] = 0.03125f * i - 2.0f;
+    }
+}
+
+uint32_t haptics_get_lookup_index(float input)
+{
+    int base = (int) input - EXP_BASE2_RANGE_START;
+    if(!base) return 0;
+    
+    return (uint32_t)((input - EXP_BASE2_RANGE_START) / EXP_BASE2_LOOKUP_RESOLUTION);
+}
+
+float haptics_apply_command(Switch5BitAction_t action, float offset, float current, float default_val, float min, float max)
+{
+    switch (action)
+    {
+        case Switch5BitAction_Ignore: // Cmd 0
+            return current;
+        case Switch5BitAction_Substitute: // Cmd 2
+            return offset;
+        case Switch5BitAction_Sum: // Cmd 3
+            return clampf(current + offset, min, max);
+        default: // Cmd 1
+            return default_val;
+    }
+}
+
+static bool _haptics_init = false;
+// Call this function to initialize all lookup tables
+void hatptics_initialize_lookup_tables(void)
+{
+    initialize_exp_base2_lookup();
+    initialize_rumble_amp_lookup();
+    initialize_rumble_freq_lookup();
+}
+
+bool haptics_disabled_check(uint8_t *data)
 {
     if (data[0] & 0b00000001)
     {
@@ -66,299 +151,297 @@ bool haptic_disabled_check(uint8_t *data)
     return false;
 }
 
-float haptics_7bit_process_frequency(uint8_t value, bool low_frequency)
+void haptics_linear_set_default(hoja_haptic_frame_linear_s *state)
 {
-    if (low_frequency)
+    state->hi_amp_linear = DefaultAmplitude;
+    state->lo_amp_linear = DefaultAmplitude;
+    state->hi_freq_linear = DefaultFrequency;
+    state->lo_freq_linear = DefaultFrequency;
+}
+
+// Functionally does what GetOutputValue does in the original documentation
+void haptics_linear_to_normal(hoja_haptic_frame_linear_s *linear, hoja_haptic_frame_s *decoded)
+{
+    decoded->high_frequency = ExpBase2Lookup[haptics_get_lookup_index(linear->hi_freq_linear)] * CenterFreqHigh;
+    decoded->low_frequency = ExpBase2Lookup[haptics_get_lookup_index(linear->lo_freq_linear)] * CenterFreqLow;
+    decoded->high_amplitude = ExpBase2Lookup[haptics_get_lookup_index(linear->hi_amp_linear)];
+    decoded->low_amplitude = ExpBase2Lookup[haptics_get_lookup_index(linear->lo_amp_linear)];
+}
+
+void _haptics_decode_type_1(const SwitchHapticPacket_s *encoded, hoja_rumble_msg_s *decoded)
+{
+    uint8_t samples = encoded->frame_count;
+    decoded->sample_count = samples;
+
+    // decoded->count = 3;
+    Switch5BitCommand_s hi_cmd = {0};
+    Switch5BitCommand_s low_cmd = {0};
+
+    // Decode sample 0
+    if (samples > 0)
     {
-        value &= 0b1111111;
-        return (float)RumbleFreqLookup[value];
+        hi_cmd = CommandTable[encoded->type1.cmd_hi_0];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        low_cmd = CommandTable[encoded->type1.cmd_lo_0];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[0]));
     }
-    else
+
+    // Decode sample 1
+    if (samples > 1)
     {
-        value += 31;
-        return (float)RumbleFreqLookup[value];
+        hi_cmd = CommandTable[encoded->type1.cmd_hi_1];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        low_cmd = CommandTable[encoded->type1.cmd_lo_1];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[1]));
+    }
+
+    // Decode sample 2
+    if (samples > 2)
+    {
+        hi_cmd = CommandTable[encoded->type1.cmd_hi_2];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        low_cmd = CommandTable[encoded->type1.cmd_lo_2];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[2]));
     }
 }
 
-float haptics_7bit_process_amplitude(uint8_t value)
+void _haptics_decode_type_2(const SwitchHapticPacket_s *encoded, hoja_rumble_msg_s *decoded)
 {
-    if (value > 100)
-        value = 100;
-    return RumbleAmpLookup[value];
+    uint8_t samples = encoded->frame_count;
+    decoded->sample_count = samples;
+
+    decoded->linear.hi_freq_linear = RumbleFreqLookup[encoded->type2.freq_hi];
+    decoded->linear.lo_freq_linear = RumbleFreqLookup[encoded->type2.freq_lo];
+    decoded->linear.hi_amp_linear = RumbleAmpLookup[encoded->type2.amp_hi];
+    decoded->linear.lo_amp_linear = RumbleAmpLookup[encoded->type2.amp_lo];
+
+    haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[0]));
 }
 
-float haptics_4bit_process_amplitude(uint8_t value)
+void _haptics_decode_type_3(const SwitchHapticPacket_s *encoded, hoja_rumble_msg_s *decoded)
 {
-    const float lut_4bit[16] = {
-        0.0f, 1.0f,
-        0.713429339f,
-        0.510491764f,
-        0.364076932f,
-        0.263212876f,
-        0.187285343f,
-        0.128740086f,
-        0.096642284f,
-        0.065562582f,
-        0.047502641f,
-        0.035863824f,
-        0, 0, 0, 0};
+    // decoded->count = 2;
+    Switch5BitCommand_s hi_cmd = {0};
+    Switch5BitCommand_s low_cmd = {0};
 
-    value &= 0b1111;
+    uint8_t samples = encoded->frame_count;
+    decoded->sample_count = samples;
 
-    return lut_4bit[value];
-}
-
-void haptics_process_pattern_4(const uint8_t *data, rumble_data_s *rumble)
-{
-    /*
-    TYPE 01-00: "dual wave"
-    BIT PATTERN:
-    aaaaaa00 bbbbbbba dccccccc 01dddddd
-
-    aaaaaaa	High channel Frequency
-    bbbbbbb	High channel Amplitude
-    ccccccc	Low channel Frequency
-    ddddddd	Low channel Amplitude
-    */
-
-    uint16_t high_frequency = ((data[1] & 0x1) << 7) | (data[0] >> 2);
-    uint8_t high_amplitude = (data[1] >> 1);
-
-    uint16_t low_frequency = (data[2] & 0x7F);
-    uint8_t low_amplitude = ((data[3] & 0x3F) << 1) | ((data[2] & 0x80) >> 7);
-
-    float hf = haptics_7bit_process_frequency(high_frequency, false);
-    float ha = haptics_7bit_process_amplitude(high_amplitude);
-    float lf = haptics_7bit_process_frequency(low_frequency, true);
-    float la = haptics_7bit_process_amplitude(low_amplitude);
-
-    rumble->amplitude_high = ha;
-    rumble->amplitude_low = la;
-    rumble->frequency_high = hf;
-    rumble->frequency_low = lf;
-}
-
-void haptics_process_pattern_5(const uint8_t *data, rumble_data_s *rumble)
-{
-    bool high_f_select = data[0] & 1;
-    uint16_t    high_f_code = 0;
-    uint8_t     high_amp_code = 0;
-    uint16_t    low_f_code = 0;
-    uint8_t     low_amp_code = 0;
-
-    float high_f;
-    float high_a;
-    float low_f;
-    float low_a;
-
-    bool low_f_disable  = data[2] & 0b00000010;
-    bool hi_f_disable   = data[1] & 0b00010000;
-
-    if (high_f_select)
+    // Decode sample 0
+    if (samples > 0)
     {
-        // printf("HF Bit ON\n");
-        high_f_code     = (data[0] >> 1);
-        high_amp_code   = (data[1] & 0xF) << 3;
+        if (encoded->type3.high_select)
+        {
+            decoded->linear.hi_freq_linear = RumbleFreqLookup[encoded->type3.freq_xx_0];
+            decoded->linear.hi_amp_linear = RumbleAmpLookup[encoded->type3.amp_xx_0];
 
-        high_f = (!hi_f_disable) ? haptics_7bit_process_frequency(high_f_code, false) : 0;
-        high_a = (!hi_f_disable) ? haptics_4bit_process_amplitude(high_amp_code) : 0;
+            low_cmd = CommandTable[encoded->type3.cmd_xx_0];
+            decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                                   decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+            decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                                  decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+        }
+        else
+        {
+            decoded->linear.lo_freq_linear = RumbleFreqLookup[encoded->type3.freq_xx_0];
+            decoded->linear.lo_amp_linear = RumbleAmpLookup[encoded->type3.amp_xx_0];
 
-        // printf("LF is 160hz.");
-        low_f           = (!low_f_disable) ? 160.0f : 0;
-        low_amp_code    = (((data[2] & 0x1) << 3) | ((data[1] & 0xE0) >> 5)) << 3;
-        low_a           = (!low_f_disable) ? haptics_4bit_process_amplitude(low_amp_code) : 0;
+            hi_cmd = CommandTable[encoded->type3.cmd_xx_0];
+            decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                                   decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+            decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                                  decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+        }
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[0]));
     }
 
-    else
+    // Decode sample 1
+    if (samples > 1)
     {
-        // printf("LF Bit ON\n");
-        low_f_code = (data[0] >> 1);
-        high_amp_code   = (data[1] & 0xF) << 3;
+        hi_cmd = CommandTable[encoded->type3.cmd_hi_1];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
 
-        low_f = (!low_f_disable) ? haptics_7bit_process_frequency(low_f_code, true) : 0;
-        high_a = (!hi_f_disable) ? haptics_4bit_process_amplitude(high_amp_code) : 0;
+        low_cmd = CommandTable[encoded->type3.cmd_lo_1];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
 
-        high_f = (!hi_f_disable) ? 320.0f : 0;
-        low_amp_code = (((data[2] & 0x1) << 3) | ((data[1] & 0xE0) >> 5)) << 3;
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[1]));
+    }
+}
 
-        low_a = (!low_f_disable) ? haptics_4bit_process_amplitude(low_amp_code) : 0;
+void _haptics_decode_type_4(const SwitchHapticPacket_s *encoded, hoja_rumble_msg_s *decoded)
+{
+    Switch5BitCommand_s hi_cmd = {0};
+    Switch5BitCommand_s low_cmd = {0};
+
+    uint8_t samples = encoded->frame_count;
+    decoded->sample_count = samples;
+
+    // Decode sample 0
+    if (samples > 0)
+    {
+        if (encoded->type4.high_select)
+        {
+            if (encoded->type4.freq_select)
+            {
+                decoded->linear.hi_freq_linear = RumbleFreqLookup[encoded->type4.xx_xx_0];
+            }
+            else
+            {
+                decoded->linear.hi_amp_linear = RumbleAmpLookup[encoded->type4.xx_xx_0];
+            }
+        }
+        else
+        {
+            if (encoded->type4.freq_select)
+            {
+                decoded->linear.lo_freq_linear = RumbleFreqLookup[encoded->type4.xx_xx_0];
+            }
+            else
+            {
+                decoded->linear.lo_amp_linear = RumbleAmpLookup[encoded->type4.xx_xx_0];
+            }
+        }
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[0]));
     }
 
-    rumble->amplitude_high  = high_a;
-    rumble->amplitude_low   = low_a;
-    rumble->frequency_high  = high_f;
-    rumble->frequency_low   = low_f;
+    // Decode sample 1
+    if (samples > 1)
+    {
+        hi_cmd = CommandTable[encoded->type4.cmd_hi_1];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        low_cmd = CommandTable[encoded->type4.cmd_lo_1];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[1]));
+    }
+
+    // Decode sample 2
+    if (samples > 2)
+    {
+        hi_cmd = CommandTable[encoded->type4.cmd_hi_2];
+        decoded->linear.hi_freq_linear = haptics_apply_command(hi_cmd.fm_action, hi_cmd.fm_offset,
+                                                               decoded->linear.hi_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.hi_amp_linear = haptics_apply_command(hi_cmd.am_action, hi_cmd.am_offset,
+                                                              decoded->linear.hi_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        low_cmd = CommandTable[encoded->type4.cmd_lo_2];
+        decoded->linear.lo_freq_linear = haptics_apply_command(low_cmd.fm_action, low_cmd.fm_offset,
+                                                               decoded->linear.lo_freq_linear, DefaultFrequency, MinFrequency, MaxFrequency);
+        decoded->linear.lo_amp_linear = haptics_apply_command(low_cmd.am_action, low_cmd.am_offset,
+                                                              decoded->linear.lo_amp_linear, DefaultAmplitude, MinAmplitude, MaxAmplitude);
+
+        haptics_linear_to_normal(&(decoded->linear), &(decoded->samples[2]));
+    }
+}
+
+// This will detect and call the appropriate decoding schema
+void _haptics_decode_samples(const SwitchHapticPacket_s *encoded,
+                            hoja_rumble_msg_s *decoded)
+{
+    switch (encoded->frame_count)
+    {
+        case 0:
+            decoded->linear.hi_amp_linear = 0;
+            decoded->sample_count = 0;
+            break;
+        case 1:
+            if ((encoded->data & 0xFFFFF) == 0)
+            {
+                _haptics_decode_type_1(encoded, decoded);
+            }
+            else if ((encoded->data & 0x3) == 0)
+            {
+                _haptics_decode_type_2(encoded, decoded);
+            }
+            else if ((encoded->data & 0x2) == 2)
+            {
+                _haptics_decode_type_4(encoded, decoded);
+            }
+            break;
+        case 2:
+            if ((encoded->data & 0x3FF) == 0)
+            {
+                _haptics_decode_type_1(encoded, decoded);
+            }
+            else
+            {
+                _haptics_decode_type_3(encoded, decoded);
+            }
+            break;
+        case 3:
+            _haptics_decode_type_1(encoded, decoded);
+            break;
+    };
 }
 
 // Translate and handle rumble
 // Big thanks to hexkyz for some info on Discord
 void haptics_rumble_translate(const uint8_t *data)
 {
+    static uint8_t storage[8] = {0};
+    memcpy(storage, data, 8);
 
-    static rumble_data_s output_data = {0};
+    static hoja_rumble_msg_s internal_left = {0};
+    static hoja_rumble_msg_s internal_right = {0};
 
-    // Extract modulation indicator in byte 3
-    // v9 / result
-    uint8_t upper2 = data[3] >> 6;
-    int result = (upper2) > 0;
-
-    uint16_t hfcode = 0;
-    uint16_t lacode = 0;
-    uint16_t lfcode = 0;
-    uint16_t hacode = 0;
-
-    float fhi = 0;
-    float ahi = 0;
-
-    float flo = 0;
-    float alo = 0;
-
-    // Single wave w/ resonance
-    // v14
-    bool high_f_select = false;
-
-    // v4
-    uint8_t patternType = 0x00;
-
-    // Handle different modulation types
-    if (upper2) // If upper 2 bits exist
+    if (!_haptics_init)
     {
-        if (upper2 != 1)
-        {
-            if (upper2 == 2) // Value is 2
-            {
-                // Check if lower 10 bytes of first two bytes exists
-                uint16_t lower10 = (data[1] << 8) | data[0];
-                if (lower10 & 0x03FF)
-                {
-                    patternType = 5;
-                }
-                else
-                    patternType = 2;
-            }
-            else if (upper2 == 3) // Value is 3
-            {
-                patternType = 3;
-            }
-
-            goto LABEL_24;
-        }
-
-        // Upper 2 bits are unset...
-        // The format of the rumble is treated differently.
-        uint16_t lower12 = (data[2] << 8 | data[1]);
-
-        if (!(lower12 & 0x0FFF)) // if lower 12 bits are empty
-        {
-            patternType = 1;
-            goto LABEL_24;
-        }
-
-        // Lower 12 bits are set
-        // Format is different again
-
-        // Check lower 2 bits of byte 0
-        // v10
-        uint16_t lower2 = data[0] & 0x3;
-
-        if (!lower2) // Lower 2 is blank (0x00)
-        {
-            patternType = 4;
-            goto LABEL_24;
-        }
-        if ((lower2 & 2) != 0) // Lower 2, bit 1 is set (0x02 or 0x03)
-        {
-            result = 3;
-            patternType = 7;
-            goto LABEL_24;
-        }
-
-        // Lower 2, bit 0 is set only (0x01)
-        // Do nothing?
-        return;
+        internal_left.linear.hi_amp_linear = DefaultAmplitude;
+        internal_left.linear.lo_amp_linear = DefaultAmplitude;
+        internal_left.linear.hi_freq_linear = DefaultFrequency;
+        internal_left.linear.lo_freq_linear = DefaultFrequency;
+        hatptics_initialize_lookup_tables();
+        _haptics_init = true;
     }
 
-    // Check if there is no int value present in the data
+    // Decode left
+    _haptics_decode_samples((const SwitchHapticPacket_s *)data, &internal_left);
+    // Decode right
+    _haptics_decode_samples((const SwitchHapticPacket_s *)&(data[4]), &internal_right);
 
-    // if (!(4 * *(int *)data)) {
-    //     return;
-    // }
-    // printf("Int found\n");
-
-    result = 3;
-    patternType = 6;
-
-LABEL_24:
-
-    // Unpack codes based on modulation type
-    switch (patternType)
-    {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        // printf("Case 0-3\n");
-        /*
-        amFmCodes[0] = (v9 >> 1) & 0x1F;
-        amFmCodes[1] = (*((unsigned short *)data + 1) >> 4) & 0x1F;
-        amFmCodes[2] = (*(unsigned short *)(data + 1) >> 7) & 0x1F;
-        amFmCodes[3] = (data[1] >> 2) & 0x1F;
-        amFmCodes[4] = (*(unsigned short *)data >> 5) & 0x1F;
-        v12 = *data & 0x1F;
-        */
-        output_data.amplitude_high = 0;
-        output_data.amplitude_low = 0;
-        break;
-
-    // Dual frequency mode
-    case 4:
-        // printf("Case 4\n");
-
-        haptics_process_pattern_4(data, &output_data);
-
-        break;
-
-    // Seems to be single wave mode
-    case 5:
-    case 6:
-        // printf("Case 5-6\n");
-        
-        haptics_process_pattern_5(data, &output_data);
-
-        break;
-
-    // Some kind of operation codes? Also contains frequency
-    case 7:
-        // printf("Case 7\n");
-        /*
-        v18 = *data;
-        v19 = v18 & 1;
-        v20 = ((v18 >> 2) & 1) == 0;
-        v21 = (*((unsigned short *)data + 1) >> 7) & 0x7F;
-
-        if (v20)
-            v22 = v21 | 0x80;
-        else
-            v22 = (v21 << 8) | 0x8000;
-
-        if (v19)
-            v23 = 24;
-        else
-            v23 = v22;
-        amFmCodes[0] = v23;
-        if (!v19)
-            v22 = 24;
-        amFmCodes[1] = v22;
-        amFmCodes[2] = (data[2] >> 2) & 0x1F;
-        amFmCodes[3] = (*(unsigned short *)(data + 1) >> 5) & 0x1F;
-        amFmCodes[4] = data[1] & 0x1F;
-        v12 = *data >> 3;*/
-        return;
-        break;
-
-    default:
-        break;
-    }
-
-    hoja_rumble_set(output_data.frequency_high, output_data.amplitude_high, output_data.frequency_low, output_data.amplitude_low);
+    // Forward the data to the HOJA core
+    // hoja_rumble_set(&internal_left, &internal_right);
+    if (internal_left.sample_count > 0)
+        cb_hoja_rumble_set(&internal_left, &internal_right);
 }

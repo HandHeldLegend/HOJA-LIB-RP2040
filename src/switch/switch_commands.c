@@ -208,7 +208,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
 
     // Save if we have an updated host address.
     if (diff_host)
-      settings_save();
+      settings_save_from_core0();
 
     set_ack(0x81);
     _switch_command_buffer[14] = 1;

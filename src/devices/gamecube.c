@@ -233,8 +233,20 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       if (_gc_rumble != _rumblestate)
       {
         _rumblestate = _gc_rumble;
-        float amp = _rumblestate ? 0.85f : 0;
-        hoja_rumble_set(HOJA_HAPTIC_BASE_HFREQ, amp, HOJA_HAPTIC_BASE_LFREQ, amp);
+        float amp = _rumblestate ? HOJA_HAPTIC_BASE_AMP : 0;
+
+        static hoja_rumble_msg_s rumble_msg_left = {0};
+        static hoja_rumble_msg_s rumble_msg_right = {0};
+
+        rumble_msg_left.sample_count = 1;
+        rumble_msg_left.samples[0].low_amplitude = amp;
+        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        rumble_msg_right.sample_count = 1;
+        rumble_msg_right.samples[0].low_amplitude = amp;
+        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
+
+        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
       }
 
       // Our buttons are always the same formatting

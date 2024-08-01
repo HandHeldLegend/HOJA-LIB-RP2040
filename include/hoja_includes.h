@@ -12,6 +12,7 @@
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
 #include "pico/rand.h"
+#include "pico/float.h"
 
 #include "hardware/pio.h"
 #include "hardware/irq.h"
@@ -28,6 +29,7 @@
 #include "hardware/adc.h"
 
 #include "board_config.h"
+#include "i2c_safe.h"
 
 #include "hoja_types.h"
 #include "hoja_settings.h"

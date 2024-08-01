@@ -3,36 +3,39 @@
 
 #include "hoja_includes.h"
 
-typedef enum
-{
-    I2CINPUT_ID_INIT    = 0xF2,
-    I2CINPUT_ID_INPUT   = 0x01,
-    I2CINPUT_ID_GETVERSION = 0xFF,
-    I2CINPUT_ID_STATUS  = 0xF4,
-    I2CINPUT_ID_SAVEMAC = 0xF3,
-    I2CINPUT_ID_STOP    = 0x02,
-    I2CINPUT_ID_SHUTDOWN = 0xA0,
-    I2CINPUT_ID_REBOOT = 0xA1,
-} i2cinput_id_t;
-
-#define I2CINPUT_INIT_SIZE 7
-#define I2CINPUT_INPUT_SIZE 27
-
 typedef struct
 {
     uint8_t mode;
     uint8_t mac[6];
 } i2cinput_init_s;
 
-// 11 bytes
+// Status return data types
+typedef enum
+{
+    I2C_STATUS_NULL, // Nothing to report
+    I2C_STATUS_HAPTIC_STANDARD, // Standard haptic data
+    I2C_STATUS_HAPTIC_SWITCH, // Nintendo Switch haptic data
+    I2C_STATUS_FIRMWARE_VERSION, // Report fw version
+    I2C_STATUS_CONNECTED_STATUS, // Connected status change
+    I2C_STATUS_POWER_CODE, // Change power setting
+    I2C_STATUS_MAC_UPDATE, // Update HOST save MAC address
+} i2cinput_status_t;
+
+typedef enum
+{
+    I2C_CMD_STANDARD = 0xFF, // Regular input data
+    I2C_CMD_MOTION = 0xFC, // Motion data
+    I2C_CMD_START = 0xFE, // Launch BT Mode with parameter
+    I2C_CMD_FIRMWARE_VERSION = 0xFD, // Retrieve the firmware version
+} i2cinput_cmd_t;
+
 typedef struct
 {
-    uint8_t connected_status; // Value representing if the BT is connected
-    uint8_t rumble_amplitude_hi;
-    float   rumble_frequency_hi;
-    uint8_t rumble_amplitude_lo;
-    float   rumble_frequency_lo;
-} i2cinput_status_s;
+    uint8_t cmd;
+    uint32_t rand_seed; // Random data to help our CRC
+    uint8_t data[10]; // Buffer for related data
+    
+} __attribute__ ((packed)) i2cinput_status_s;
 
 typedef struct
 {
@@ -94,8 +97,7 @@ typedef struct
     int16_t gx;
     int16_t gy;
     int16_t gz;
-    
-} i2cinput_input_s;
+} __attribute__ ((packed)) i2cinput_input_s;
 
 void btinput_capability_reset_flag();
 uint16_t btinput_get_version();

@@ -466,7 +466,7 @@ typedef struct
             float w;
         };
     };
-    uint32_t timestamp;
+    //uint32_t timestamp;
     int16_t ax;
     int16_t ay;
     int16_t az;
@@ -568,6 +568,30 @@ typedef struct
     uint16_t rs_y;
 
 } __attribute__ ((packed)) sw_input_s;
+
+typedef struct
+{
+    float hi_freq_linear;
+    float hi_amp_linear;
+    float lo_freq_linear;
+    float lo_amp_linear;
+} __attribute__((packed)) hoja_haptic_frame_linear_s;
+
+typedef struct
+{
+    float   high_frequency;
+    float   high_amplitude;
+    float   low_frequency;
+    float   low_amplitude;
+} __attribute__ ((packed)) hoja_haptic_frame_s;
+
+typedef struct
+{
+    uint8_t sample_count;
+    bool unread;
+    hoja_haptic_frame_linear_s linear; // Last known state 
+    hoja_haptic_frame_s samples[3];
+} __attribute__ ((packed)) hoja_rumble_msg_s;
 
 #ifdef __cplusplus
 }
