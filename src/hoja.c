@@ -20,11 +20,7 @@ button_remap_s *_hoja_remap = NULL;
 input_method_t _hoja_input_method = INPUT_METHOD_AUTO;
 
 uint32_t _timer_owner_0;
-uint32_t _timer_owner_1;
-uint32_t _timer_owner_2;
 auto_init_mutex(_hoja_timer_mutex);
-
-volatile uint32_t _hoja_timestamp = 0;
 
 bool _baseband_loop = false;
 
@@ -119,11 +115,46 @@ a_data_s *hoja_get_desnapped_analog_data()
 button_data_s *hoja_get_raw_button_data()
 {
   return &_button_data;
-  ;
+}
+
+// Sleep core0 and run any idle tasks
+void hoja_core0_sleep_us(uint32_t duration)
+{
+  uint32_t t = hoja_get_timestamp();
+  interval_s sleep_interval = {.last_time = t, .this_time = t};
+  bool done = false;
+  while (!done)
+  {
+    // Run any idle task
+    t = hoja_get_timestamp();
+    cb_hoja_task_0_hook(t);
+    if (interval_run(t, duration, &sleep_interval))
+    {
+      done = true;
+    }
+  }
+}
+
+// Sleep core1 and run any idle tasks
+void hoja_core1_sleep_us(uint32_t duration)
+{
+  uint32_t t = hoja_get_timestamp();
+  interval_s sleep_interval = {.last_time = t, .this_time = t};
+  bool done = false;
+  while (!done)
+  {
+    // Run any idle task
+    t = hoja_get_timestamp();
+    cb_hoja_task_1_hook(t);
+    if (interval_run(t, duration, &sleep_interval))
+    {
+      done = true;
+    }
+  }
 }
 
 bool _hoja_idle_state = false;
-#define IDLE_TME_SECONDS 60*5
+#define IDLE_TME_SECONDS 5 * 60 // 5 minutes
 void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
 {
   static interval_s interval = {0};
@@ -193,9 +224,9 @@ void hoja_shutdown_instant()
 uint32_t hoja_get_timestamp()
 {
   static uint32_t t = 0;
-  if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_2))
+  if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_0))
   {
-    t = _hoja_timestamp;
+    t = time_us_32();
     mutex_exit(&_hoja_timer_mutex);
   }
   return t;
@@ -222,17 +253,15 @@ bool _watchdog_enabled = false;
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
+  static uint32_t c0_timestamp = 0;
+
   if (!_watchdog_enabled)
   {
     watchdog_enable(16000, false);
     _watchdog_enabled = true;
   }
 
-  if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_0))
-  {
-    _hoja_timestamp = time_us_32();
-    mutex_exit(&_hoja_timer_mutex);
-  }
+  c0_timestamp = hoja_get_timestamp();
 
   // Read buttons
   cb_hoja_read_buttons(&_button_data);
@@ -241,66 +270,64 @@ void _hoja_task_0()
   {
     cb_hoja_baseband_update_loop(&_button_data);
     watchdog_update();
-    rgb_task(_hoja_timestamp);
-    util_battery_monitor_task_usb(_hoja_timestamp);
+    rgb_task(c0_timestamp);
+    util_battery_monitor_task_usb(c0_timestamp);
     return;
   }
 
   remap_buttons_task();
-  macro_handler_task(_hoja_timestamp, &_button_data);
+  macro_handler_task(c0_timestamp, &_button_data);
 
-  rgb_task(_hoja_timestamp);
+  rgb_task(c0_timestamp);
 
   // Webusb stuff
   if (webusb_output_enabled())
   {
-    snapback_webcapture_task(_hoja_timestamp, &_analog_data_desnapped);
-    webusb_input_report_task(_hoja_timestamp, &_analog_data_output, &_button_data_processed);
+    snapback_webcapture_task(c0_timestamp, &_analog_data_desnapped);
+    webusb_input_report_task(c0_timestamp, &_analog_data_output, &_button_data_processed);
     _hoja_idle_state = false;
   }
   // Our communication core task
   else
   {
-    hoja_comms_task(_hoja_timestamp, &_button_data_processed, &_analog_data_output);
+    hoja_comms_task(c0_timestamp, &_button_data_processed, &_analog_data_output);
   }
 
 #if (HOJA_CAPABILITY_BATTERY)
-  _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, _hoja_timestamp);
+  _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, c0_timestamp);
 #endif
 
   if (_hoja_input_method == INPUT_METHOD_USB)
   {
-    util_battery_monitor_task_usb(_hoja_timestamp);
+    util_battery_monitor_task_usb(c0_timestamp);
   }
 
+  // Spend 500us on core 0 callback ops
+  // hoja_core0_sleep_us(100);
+
+  cb_hoja_task_0_hook(c0_timestamp);
   watchdog_update();
-  cb_hoja_task_0_hook(_hoja_timestamp);
 }
 
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
-
+  static uint32_t c1_timestamp = 0;
   for (;;)
   {
-
-    if (mutex_try_enter(&_hoja_timer_mutex, &_timer_owner_1))
-    {
-      _hoja_timestamp = time_us_32();
-      mutex_exit(&_hoja_timer_mutex);
-    }
+    c1_timestamp = hoja_get_timestamp();
 
     // Check if we need to save
     settings_core1_save_check();
 
     // Do analog stuff :)
-    analog_task(_hoja_timestamp);
+    analog_task(c1_timestamp);
 
     // Do IMU stuff
-    imu_task(_hoja_timestamp);
+    imu_task(c1_timestamp);
 
-    // Do callback for userland code insertion
-    cb_hoja_task_1_hook(_hoja_timestamp);
+    // Spend 500us on core 1 callback ops
+    hoja_core1_sleep_us(100);
   }
 }
 
@@ -325,6 +352,9 @@ void hoja_init(hoja_config_t *config)
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
 
+// Test overclock
+  set_sys_clock_khz(HOJA_SYS_CLK_HZ / 1000, true);
+
   // Read buttons to get a current state
   cb_hoja_read_buttons(&_button_data);
 
@@ -341,10 +371,30 @@ void hoja_init(hoja_config_t *config)
     triggers_scale_init();
   }
 
+#define TEST_OPTION 0
+
+#if (TEST_OPTION == 0)
+  util_battery_set_source(PMIC_SOURCE_AUTO);
+  util_battery_set_charge_rate(250);
+#elif (TEST_OPTION == 1)
+  util_battery_set_source(PMIC_SOURCE_AUTO);
+  util_battery_set_charge_rate(0);
+#elif (TEST_OPTION == 2)
+  util_battery_set_source(PMIC_SOURCE_BAT);
+#elif (TEST_OPTION == 3)
+  util_battery_set_source(PMIC_SOURCE_BAT);
+  util_battery_set_charge_rate(0);
+#endif
+
   // Reset pairing if needed.
   if (_button_data.button_sync)
   {
-    memset(global_loaded_settings.switch_host_address, 0, 6);
+    global_loaded_settings.switch_host_address[0] = 0;
+    global_loaded_settings.switch_host_address[1] = 0;
+    global_loaded_settings.switch_host_address[2] = 0;
+    global_loaded_settings.switch_host_address[3] = 0;
+    global_loaded_settings.switch_host_address[4] = 0;
+    global_loaded_settings.switch_host_address[5] = 0;
   }
 
   if (reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
@@ -425,21 +475,6 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
-#define TEST_OPTION 0
-
-#if (TEST_OPTION == 0)
-  util_battery_set_source(PMIC_SOURCE_AUTO);
-  util_battery_set_charge_rate(250);
-#elif (TEST_OPTION == 1)
-  util_battery_set_source(PMIC_SOURCE_AUTO);
-  util_battery_set_charge_rate(0);
-#elif (TEST_OPTION == 2)
-  util_battery_set_source(PMIC_SOURCE_BAT);
-#elif (TEST_OPTION == 3)
-  util_battery_set_source(PMIC_SOURCE_BAT);
-  util_battery_set_charge_rate(0);
-#endif
-
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
@@ -494,7 +529,7 @@ void hoja_init(hoja_config_t *config)
   if (_button_data.button_home)
   {
     global_loaded_settings.input_mode = _hoja_input_mode;
-    settings_save();
+    settings_save_from_core0();
   }
 
   // Initialize button remapping

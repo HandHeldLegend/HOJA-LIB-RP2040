@@ -2,7 +2,7 @@
 #include "interval.h"
 
 // Size of messages we send OUT
-#define HOJA_I2C_MSG_SIZE_OUT 24
+#define HOJA_I2C_MSG_SIZE_OUT 32
 
 // The size of messages coming from the ESP32
 #define HOJA_I2C_MSG_SIZE_IN 24
@@ -105,17 +105,11 @@ uint16_t btinput_get_version()
         sleep_ms(4);
         int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
 
-        // if (read == HOJA_I2C_MSG_SIZE_IN)
-        //{
-        //     i2cinput_status_s status_got = {0};
-        //     memcpy(&status_got, data_in, HOJA_I2C_MSG_SIZE_IN);
-        //
-        //    if (status_got[] == I2C_STATUS_FIRMWARE_VERSION)
-        //    {
-        //        uint32_t version = (status_got.data[0] << 8) | (status_got.data[1]);
-        //        return version;
-        //    }
-        //}
+        if (read == HOJA_I2C_MSG_SIZE_IN)
+        {
+            uint32_t version = (data_in[1] << 8) | (data_in[2]);
+            return version;
+        }
     }
 
     cb_hoja_set_bluetooth_enabled(false);
@@ -281,8 +275,6 @@ void _btinput_message_parse(uint8_t *data)
 
         if (power_code == 0)
         {
-            // Confirmed OK
-            rgb_indicate(COLOR_WHITE.color, 100);
             hoja_shutdown();
         }
         else if (power_code == 1)
@@ -311,8 +303,8 @@ void _btinput_message_parse(uint8_t *data)
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
 
-        float la = (float) l / 255.0f;
-        float ra = (float) r / 255.0f;
+        float la = (float)l / 255.0f;
+        float ra = (float)r / 255.0f;
 
         rumble_msg_left.sample_count = 1;
         rumble_msg_left.samples[0].low_amplitude = la;
@@ -336,7 +328,7 @@ void _btinput_message_parse(uint8_t *data)
         global_loaded_settings.switch_host_address[3] = status.data[3];
         global_loaded_settings.switch_host_address[4] = status.data[4];
         global_loaded_settings.switch_host_address[5] = status.data[5];
-        settings_save();
+        settings_save_from_core0();
     }
     break;
     }
@@ -349,7 +341,6 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
     static i2cinput_input_s input_data = {0};
-    static i2cinput_motion_s motion_data = {0};
     static interval_s interval = {0};
     static interval_s bt_dc_interval = {0};
     static imu_data_s *imu_tmp;
@@ -364,14 +355,16 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     // if (reset)
     //     _is_connected_reset = 0;
 
-    static bool flip = false;
+    static bool flip = true;
+    static bool read_write = true;
 
     if (interval_run(timestamp, 1000, &interval))
     {
         memset(data_out, 0x80, 24); // Reset buffer to 0x80 for blank
 
-        if (flip)
+        if (read_write)
         {
+
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_crc_known; // Response CRC location
@@ -387,53 +380,41 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
             input_data.lt = (uint16_t)buttons->zl_analog;
             input_data.rt = (uint16_t)buttons->zr_analog;
 
-            uint8_t crc = crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
-            data_out[1] = crc;
-
-            memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
-        }
-        else
-        {
-            data_out[0] = I2C_CMD_MOTION;
-            data_out[1] = 0;                  // Input CRC location
-            data_out[2] = _current_crc_known; // Response CRC location
-
             imu_tmp = imu_fifo_last();
 
             if (imu_tmp != NULL)
             {
-                motion_data.gx = imu_tmp->gx;
-                motion_data.gy = imu_tmp->gy;
-                motion_data.gz = imu_tmp->gz;
-                motion_data.ax = imu_tmp->ax;
-                motion_data.ay = imu_tmp->ay;
-                motion_data.az = imu_tmp->az;
+                input_data.gx = imu_tmp->gx;
+                input_data.gy = imu_tmp->gy;
+                input_data.gz = imu_tmp->gz;
+                input_data.ax = imu_tmp->ax;
+                input_data.ay = imu_tmp->ay;
+                input_data.az = imu_tmp->az;
             }
 
-            uint8_t crc = crc8_compute((uint8_t *)&motion_data, sizeof(i2cinput_motion_s));
+            uint8_t crc = crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
             data_out[1] = crc;
-            memcpy(&(data_out[3]), &motion_data, sizeof(i2cinput_motion_s));
-        }
 
-        flip = !flip;
+            memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
 
-        int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 2000);
-        if (write == HOJA_I2C_MSG_SIZE_OUT)
-        {
+            int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 1000);
+            if (write == HOJA_I2C_MSG_SIZE_OUT)
+            {
+                analog_send_reset();
+                _bt_clear_out();
+            }
             
         }
-
-        analog_send_reset();
-        _bt_clear_out();
-
-        sleep_ms(1);
-
-        int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 2000);
-        if (read == HOJA_I2C_MSG_SIZE_IN)
+        else
         {
-            _btinput_message_parse(data_in);
-            _bt_clear_in();
+            int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 1000);
+            if (read == HOJA_I2C_MSG_SIZE_IN)
+            {
+                _btinput_message_parse(data_in);
+                _bt_clear_in();
+            }
         }
+        read_write = !read_write;
     }
 #endif
 }

@@ -1,7 +1,5 @@
 #include "i2c_safe.h"
 
-uint32_t _i2c_owner_1;
-uint32_t _i2c_owner_2;
 auto_init_mutex(_i2c_safe_mutex);
 
 void i2c_safe_enter_blocking()

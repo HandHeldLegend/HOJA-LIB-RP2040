@@ -233,7 +233,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
       if (_gc_rumble != _rumblestate)
       {
         _rumblestate = _gc_rumble;
-        float amp = _rumblestate ? 0.85f : 0;
+        float amp = _rumblestate ? HOJA_HAPTIC_BASE_AMP : 0;
 
         static hoja_rumble_msg_s rumble_msg_left = {0};
         static hoja_rumble_msg_s rumble_msg_right = {0};

@@ -17,8 +17,8 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
     #if (HOJA_CAPABILITY_BATTERY == 1)
     static uint8_t charging = 0;
     static interval_s interval = {0};
-    // Check status every 64ms
-    if(interval_run(timestamp, 64000, &interval))
+    // Check status every 128ms
+    if(interval_run(timestamp, 128000, &interval))
     {
         static bool _connected = true;
         _connected = util_wire_connected();
@@ -61,6 +61,7 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
                         break;
                 }
                 charging = _util_battery_status.charge_status;
+
                 rgb_flash(color.color, 100);
             }
         }
@@ -212,16 +213,17 @@ void util_battery_set_source(util_battery_source_t source)
         break;
     }
     const uint8_t _data[2] = {0x0A, source_packet};
-    int success = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+    bool wrote_ok = false;
 
-    if(success == PICO_ERROR_GENERIC)
+    while(!wrote_ok)
     {
-        
+        int success = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+        if(success==2)
+        {
+            wrote_ok = true;
+        }
     }
-    else if (success == PICO_ERROR_TIMEOUT)
-    {
-        
-    }
+
     #endif 
 }
 

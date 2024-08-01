@@ -84,25 +84,20 @@ typedef struct
         uint8_t buttons_system;
     };
 
-    uint8_t reserved;
-
     uint16_t lx;
     uint16_t ly;
     uint16_t rx;
     uint16_t ry;
     uint16_t lt;
     uint16_t rt;
-} __attribute__ ((packed)) i2cinput_input_s;
 
-typedef struct
-{
     int16_t ax;
     int16_t ay;
     int16_t az;
     int16_t gx;
     int16_t gy;
     int16_t gz;
-} __attribute__ ((packed)) i2cinput_motion_s;
+} __attribute__ ((packed)) i2cinput_input_s;
 
 void btinput_capability_reset_flag();
 uint16_t btinput_get_version();

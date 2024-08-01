@@ -5,7 +5,10 @@
 #define HOJA_SETTINGS_VERSION 0xA002
 
 #define HOJA_HAPTIC_BASE_HFREQ 320
-#define HOJA_HAPTIC_BASE_LFREQ 160
+#define HOJA_HAPTIC_BASE_LFREQ 130
+#define HOJA_HAPTIC_BASE_AMP 0.55f
+
+#define HOJA_SYS_CLK_HZ 200000000
 
 #include "hoja_includes.h"
 #include "interval.h"

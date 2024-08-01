@@ -12,6 +12,7 @@
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
 #include "pico/rand.h"
+#include "pico/float.h"
 
 #include "hardware/pio.h"
 #include "hardware/irq.h"

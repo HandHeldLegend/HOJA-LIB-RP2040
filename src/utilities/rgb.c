@@ -716,7 +716,7 @@ void rgb_flash(uint32_t color, int speed)
     _rgb_flash_steps = (uint16_t) speed;
 
     _rgb_flash_color = color;
-    rgb_init(RGB_MODE_FLASH, 100);
+    rgb_init(RGB_MODE_FLASH, 30);
 
 }
 
