@@ -232,6 +232,26 @@ uint32_t hoja_get_timestamp()
   return t;
 }
 
+// This prepares the system for shutdown, then calls a callback function
+
+void hoja_deinit(callback_t cb)
+{
+  static bool deinit = false;
+  if(deinit) return;
+  deinit = true;
+
+  cb_hoja_set_uart_enabled(false);
+  cb_hoja_set_bluetooth_enabled(false);
+
+  sleep_ms(100);
+
+  #if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
+  rgb_shutdown_start(false, cb);
+  #else
+  cb();
+  #endif
+}
+
 void hoja_shutdown()
 {
   static bool _shutdown_started = false;
@@ -239,9 +259,8 @@ void hoja_shutdown()
     return;
 
   _shutdown_started = true;
-#if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
-  rgb_shutdown_start(false);
-#elif (HOJA_CAPABILITY_BATTERY == 1)
+
+#if (HOJA_CAPABILITY_BATTERY == 1)
   util_battery_enable_ship_mode();
 #else
   hoja_shutdown_instant();

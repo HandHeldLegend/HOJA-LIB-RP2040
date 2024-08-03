@@ -76,7 +76,7 @@ void rgb_set_player(uint8_t player_number);
 
 void rgb_update_speed(uint8_t speed);
 
-void rgb_shutdown_start(bool restart);
+void rgb_shutdown_start(bool restart, callback_t cb);
 
 void rgb_indicate(uint32_t color, uint16_t duration);
 

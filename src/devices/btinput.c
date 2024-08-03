@@ -275,7 +275,7 @@ void _btinput_message_parse(uint8_t *data)
 
         if (power_code == 0)
         {
-            hoja_shutdown();
+            hoja_deinit(hoja_shutdown);
         }
         else if (power_code == 1)
         {

@@ -593,6 +593,8 @@ typedef struct
     hoja_haptic_frame_s samples[3];
 } __attribute__ ((packed)) hoja_rumble_msg_s;
 
+typedef void (*callback_t)(void);
+
 #ifdef __cplusplus
 }
 #endif

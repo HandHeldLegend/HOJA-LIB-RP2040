@@ -892,29 +892,22 @@ void rgb_indicate(uint32_t color, uint16_t duration)
 /* RGB Indicate Animation END */
 
 bool _rgb_shutdown_restart = false;
+callback_t _rgb_shutdown_cb = NULL;
 bool _rgb_shutdown_start_override_do()
 {
     if(!_rgb_anim_override_setup)
     {
         _rgb_set_all(0);
+        _rgb_set_player(0);
         _rgb_set_dirty();
         _rgb_active_anim_steps = _rgb_anim_override_steps;
         _rgb_anim_override_setup = true;
         return false;
     }
 
-    if(_rgb_shutdown_restart)
+    if(_rgb_shutdown_cb)
     {
-        hoja_shutdown_instant();
-    }
-    else
-    {
-        #if (HOJA_CAPABILITY_BATTERY == 1)
-            util_battery_enable_ship_mode();
-        #else
-            hoja_shutdown_instant();
-        #endif
-    
+        _rgb_shutdown_cb();
     }
     return true;
 }
@@ -922,13 +915,15 @@ bool _rgb_shutdown_start_override_do()
 // This function will start a shutdown
 // that includes an LED fade-out animation
 // This ensures the LEDs properly turn off before power off.
-void rgb_shutdown_start(bool restart)
+// Pass in a callback function which will be called when it's done.
+void rgb_shutdown_start(bool restart, callback_t cb)
 {
 
     _rgb_shutdown_restart = restart;
     _rgb_anim_cb = NULL;
+    _rgb_shutdown_cb = cb;
 
-    rgb_set_override(_rgb_shutdown_start_override_do, 10);
+    rgb_set_override(_rgb_shutdown_start_override_do, 25);
 
 }
 

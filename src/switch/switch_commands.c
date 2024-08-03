@@ -298,7 +298,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
 
   case SW_CMD_SET_HCI:
     // For now all options should shut down
-    util_battery_enable_ship_mode();
+    hoja_deinit(hoja_shutdown);
     break;
 
   case SW_CMD_SET_SPI:

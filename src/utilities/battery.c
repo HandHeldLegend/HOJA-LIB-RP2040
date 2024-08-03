@@ -5,8 +5,9 @@ util_battery_status_s _util_battery_status = {0};
 
 void util_battery_init()
 {
+    return;
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    const uint8_t _data[2] = {0x09, 0x41};
+    const uint8_t _data[2] = {0x09, 0b00000000};
     int s = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
     #endif
 }
@@ -25,7 +26,7 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
         if(!_connected)
         {
             // Not the cause
-            hoja_shutdown();
+            hoja_deinit(hoja_shutdown);
         }
 
         static bool idle = false;
@@ -106,36 +107,35 @@ void util_battery_monitor_task_wireless(uint32_t timestamp)
 
 void util_battery_enable_ship_mode(void)
 {
-    cb_hoja_set_bluetooth_enabled(false);
-
     #if (HOJA_CAPABILITY_BATTERY == 1)
     int s2 = 0;
     int s1 = 0;
-    while(!s2)
+    uint32_t attempts = 30;
+    while(!s2 && attempts > 0)
     {
 
         //const uint8_t _data1[2] = {0x0A, 0b01001100};
         //s1 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data1, 2, false, 10000);
 
-        const uint8_t _data[2] = {0x09, 0x41};
-        s2 = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+        const uint8_t _data[2] = {0x09, 0b11000001};
+        s2 = i2c_safe_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
 
         if(s2 == PICO_ERROR_GENERIC)
         {
-            hoja_shutdown_instant();
+            //hoja_shutdown_instant();
         }
         else if (s2== PICO_ERROR_TIMEOUT)
         {
-            hoja_shutdown_instant();
+            //hoja_shutdown_instant();
         }
         else if (s2==2)
         {
-            //rgb_indicate(COLOR_YELLOW.color);
         }
 
-        sleep_ms(1000);
+        sleep_ms(50);
+        watchdog_update();
 
-        hoja_shutdown_instant();
+        attempts--;
     }
     #endif
 

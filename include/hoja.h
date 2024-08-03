@@ -36,6 +36,7 @@ input_method_t hoja_get_input_method();
 a_data_s *hoja_get_desnapped_analog_data();
 button_data_s *hoja_get_raw_button_data();
 uint32_t hoja_get_timestamp();
+void hoja_deinit(callback_t cb);
 void hoja_shutdown();
 void hoja_init(hoja_config_t *config);
 
