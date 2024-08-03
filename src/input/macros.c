@@ -108,7 +108,7 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
         
     }
 
-    if(macro_deinit_done)
+    if(macro_deinit_done && !in->button_shipping)
     {
         hoja_shutdown();
     }
