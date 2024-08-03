@@ -2,13 +2,16 @@
 #include "interval.h"
 
 util_battery_status_s _util_battery_status = {0};
+bool _util_battery_disabled = false;
 
 void util_battery_init()
 {
-    return;
     #if (HOJA_CAPABILITY_BATTERY == 1)
-    const uint8_t _data[2] = {0x09, 0b00000000};
-    int s = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 10000);
+    if(!util_battery_comms_check())
+    {
+        // Battery disabled for this session
+        _util_battery_disabled = true;
+    }
     #endif
 }
 
@@ -16,6 +19,9 @@ void util_battery_init()
 void util_battery_monitor_task_usb(uint32_t timestamp)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+
+    if(_util_battery_disabled) return;
+
     static uint8_t charging = 0;
     static interval_s interval = {0};
     // Check status every 128ms
@@ -76,6 +82,8 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
 bool util_battery_comms_check()
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+        if(_util_battery_disabled) return false;
+
         // We can poll the PMIC to get our plug status
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};
@@ -108,6 +116,9 @@ void util_battery_monitor_task_wireless(uint32_t timestamp)
 void util_battery_enable_ship_mode(void)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+
+    if(_util_battery_disabled) return;
+
     int s2 = 0;
     int s1 = 0;
     uint32_t attempts = 30;
@@ -118,7 +129,7 @@ void util_battery_enable_ship_mode(void)
         //s1 = i2c_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data1, 2, false, 10000);
 
         const uint8_t _data[2] = {0x09, 0b11000001};
-        s2 = i2c_safe_write_blocking(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false);
+        s2 = i2c_safe_write_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _data, 2, false, 100000);
 
         if(s2 == PICO_ERROR_GENERIC)
         {
@@ -147,6 +158,8 @@ uint16_t _util_charge_rate = 0;
 
 void util_battery_set_charge_rate(uint16_t rate_ma)
 {
+    if(_util_battery_disabled) return;
+
     _util_charge_rate = rate_ma;
     // Default is 0x5
     uint8_t code = 0x5;
@@ -184,6 +197,8 @@ void util_battery_set_charge_rate(uint16_t rate_ma)
 uint8_t util_battery_get_level()
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+    if(_util_battery_disabled) return 100;
+
     uint16_t store_rate = _util_charge_rate;
     util_battery_set_charge_rate(0);
 
@@ -200,6 +215,7 @@ uint8_t util_battery_get_level()
 void util_battery_set_source(util_battery_source_t source)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+    if(_util_battery_disabled) return;
 
     uint8_t source_packet = 0b11100000;
     switch(source)
@@ -230,6 +246,8 @@ void util_battery_set_source(util_battery_source_t source)
 bool util_wire_connected()
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
+        if(_util_battery_disabled) return true;
+
         // We can poll the PMIC to get our plug status
         uint8_t _getstatus[1] = {0x00};
         uint8_t _readstatus[1] = {0x00};

@@ -34,6 +34,7 @@ typedef struct
     };
 } __attribute__ ((packed)) util_battery_status_s;
 
+void util_battery_init();
 uint8_t util_battery_get_level();
 void util_battery_set_source(util_battery_source_t source);
 bool util_battery_comms_check();

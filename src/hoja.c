@@ -371,6 +371,8 @@ void hoja_init(hoja_config_t *config)
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
 
+  util_battery_init();
+
 // Test overclock
   set_sys_clock_khz(HOJA_SYS_CLK_HZ / 1000, true);
 
