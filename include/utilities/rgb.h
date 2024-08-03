@@ -4,6 +4,11 @@
 #include "hoja_includes.h"
 #include "interval.h"
 
+typedef enum{
+    BRIGHTNESS_NOCHANGE = -1,
+    BRIGHTNESS_RELOAD = -2,
+} rgb_brightness_t;
+
 //#define RGB_S_COLOR(r, g, b) ((rgb_s) { .color = ((r << 16) | (g << 8) | (b))})
 
 #define COLOR_RED    (rgb_s) {.r = 0xFF, .g = 0x00, .b = 0x00}

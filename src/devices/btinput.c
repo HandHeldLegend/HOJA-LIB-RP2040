@@ -7,6 +7,7 @@
 // The size of messages coming from the ESP32
 #define HOJA_I2C_MSG_SIZE_IN 24
 #define BT_CONNECTION_TIMEOUT_POWER_SECONDS (30)
+#define BT_FLASH_BRIGHTNESS 20
 
 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 uint32_t _mode_color = 0;
@@ -257,7 +258,7 @@ void _btinput_message_parse(uint8_t *data)
             _current_connected = status.data[0];
             if (_current_connected > 0)
             {
-                rgb_init(global_loaded_settings.rgb_mode, -1);
+                rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
                 rgb_set_player(_current_connected);
             }
             else

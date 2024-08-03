@@ -717,7 +717,6 @@ void rgb_flash(uint32_t color, int speed)
 
     _rgb_flash_color = color;
     rgb_init(RGB_MODE_FLASH, 30);
-
 }
 
 void _rgbanim_flash_do()
@@ -983,10 +982,21 @@ void rgb_init(rgb_mode_t mode, int brightness)
 
     rgb_update_speed(global_loaded_settings.rgb_step_speed);
 
-    if (brightness > -1)
+    switch(brightness)
     {
-        brightness = (brightness > 255) ? 255 : brightness;
-        _rgb_set_brightness(brightness);
+        default:
+            brightness = (brightness > 100) ? 100 : brightness;
+            _rgb_set_brightness(brightness);
+        break;
+
+        BRIGHTNESS_NOCHANGE:
+            // Do nothing
+        break;
+
+        BRIGHTNESS_RELOAD:
+            brightness = 100;
+            _rgb_set_brightness(brightness);
+        break;
     }
 
 }

@@ -258,7 +258,7 @@ void imu_calibrate_start()
 void imu_calibrate_stop()
 {
 
-  rgb_init(global_loaded_settings.rgb_mode, -1);
+  rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
 
   settings_save_webindicate();
   settings_save_from_core0();

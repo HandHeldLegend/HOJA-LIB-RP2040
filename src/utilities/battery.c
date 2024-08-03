@@ -45,7 +45,7 @@ void util_battery_monitor_task_usb(uint32_t timestamp)
         else if(idle && !hoja_get_idle_state())
         {
             idle = false;
-            rgb_init(global_loaded_settings.rgb_mode, -1);
+            rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
         }
 
         if(idle)

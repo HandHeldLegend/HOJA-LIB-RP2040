@@ -479,7 +479,7 @@ void webusb_command_processor(uint8_t *data)
         printf("WebUSB: Got RGBMODE SET command.\n");
         rgb_mode_t mode = data[1] % RGB_MODE_MAX;
         global_loaded_settings.rgb_mode = mode;
-        rgb_init(mode, -1);
+        rgb_init(mode, BRIGHTNESS_RELOAD);
     }
     break;
 

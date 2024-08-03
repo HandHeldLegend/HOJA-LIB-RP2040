@@ -26,7 +26,7 @@ void triggers_start_calibration()
 
 void triggers_stop_calibration()
 {
-    rgb_init(global_loaded_settings.rgb_mode, -1);
+    rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
     _trigger_calibration = false;
 }
 

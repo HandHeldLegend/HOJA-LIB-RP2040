@@ -101,7 +101,7 @@ void analog_calibrate_stop()
     //    webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
     //}
 
-    rgb_init(global_loaded_settings.rgb_mode, -1);
+    rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
 }
 
 void analog_calibrate_save()
@@ -117,7 +117,7 @@ void analog_calibrate_save()
 
     stick_scaling_init();
 
-    rgb_init(global_loaded_settings.rgb_mode, -1);
+    rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
 }
 
 void analog_calibrate_angle()
