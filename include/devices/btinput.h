@@ -34,7 +34,6 @@ typedef struct
     uint8_t cmd;
     uint32_t rand_seed; // Random data to help our CRC
     uint8_t data[10]; // Buffer for related data
-    
 } __attribute__ ((packed)) i2cinput_status_s;
 
 typedef struct

@@ -213,37 +213,45 @@ static int _is_connected_reset = 0;
 static int8_t _i_connected = -1;
 
 static uint8_t _current_connected = 0;
-static uint8_t _current_crc_known = 0;
+static uint8_t _current_i2c_packet_number = 0;
 
 void _btinput_message_parse(uint8_t *data)
 {
 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
     uint8_t crc = data[0];
-    bool crc_updated = false;
+    uint8_t counter = data[1];
+    bool packet_updated = false;
     i2cinput_status_s status = {0};
+
+    const uint8_t attempts_reset = 25;
+    static uint8_t attempts_remaining = attempts_reset;
 
     // Verify CRC before proceeding (only if it's present)
     if (crc > 0)
     {
         bool verified = false;
-        verified = crc8_verify((uint8_t *)&(data[1]), sizeof(i2cinput_status_s), crc);
+        verified = crc8_verify((uint8_t *)&(data[2]), sizeof(i2cinput_status_s), crc);
 
         if (!verified)
-            return;
-
-        if(_current_crc_known != crc)
         {
-            crc_updated = true;
-            _current_crc_known = crc;
-        }      
-    }
-    else
-        return;
+            return;
+        }
+
+        memcpy(&status, &(data[2]), sizeof(i2cinput_status_s));
+            
+        if(_current_i2c_packet_number != counter)
+        {
+            packet_updated = true;
+            _current_i2c_packet_number = counter;
+        }
+    }   
 
     // Only process fresh data
-    if(!crc_updated) return;
-    memcpy(&status, &(data[1]), sizeof(i2cinput_status_s));
+    if(!packet_updated)
+    {
+        return;
+    }
 
     switch (status.cmd)
     {
@@ -374,7 +382,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
-            data_out[2] = _current_crc_known; // Response CRC location
+            data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
             input_data.buttons_all = buttons->buttons_all;
             input_data.buttons_system = buttons->buttons_system;
@@ -414,7 +422,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         }
         else
         {
-            int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 500);
+            int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 8000);
             if (read == HOJA_I2C_MSG_SIZE_IN)
             {
                 _btinput_message_parse(data_in);
