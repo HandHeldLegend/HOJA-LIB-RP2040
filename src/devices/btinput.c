@@ -232,12 +232,18 @@ void _btinput_message_parse(uint8_t *data)
         if (!verified)
             return;
 
-        _current_crc_known = crc;
-        crc_updated = true;
-        memcpy(&status, &(data[1]), sizeof(i2cinput_status_s));
+        if(_current_crc_known != crc)
+        {
+            crc_updated = true;
+            _current_crc_known = crc;
+        }      
     }
     else
         return;
+
+    // Only process fresh data
+    if(!crc_updated) return;
+    memcpy(&status, &(data[1]), sizeof(i2cinput_status_s));
 
     switch (status.cmd)
     {
@@ -398,7 +404,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
 
-            int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 1000);
+            int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
             if (write == HOJA_I2C_MSG_SIZE_OUT)
             {
                 analog_send_reset();
@@ -408,7 +414,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         }
         else
         {
-            int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 1000);
+            int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 500);
             if (read == HOJA_I2C_MSG_SIZE_IN)
             {
                 _btinput_message_parse(data_in);
