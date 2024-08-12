@@ -54,6 +54,7 @@ bool crc8_verify(uint8_t *data, size_t length, uint8_t received_crc)
     return calculated_crc == received_crc;
 }
 
+#if (HOJA_CAPABILITY_BLUETOOTH == 1)
 void _bt_clear_out()
 {
     memset(data_out, 0, HOJA_I2C_MSG_SIZE_OUT);
@@ -63,6 +64,7 @@ void _bt_clear_in()
 {
     memset(data_in, 0, HOJA_I2C_MSG_SIZE_IN);
 }
+#endif
 
 void btinput_capability_reset_flag()
 {
