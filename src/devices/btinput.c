@@ -79,7 +79,7 @@ uint16_t btinput_get_version()
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
 
     // 0xFFFF indicates that the firmware is unused
-    uint16_t v = 0xFFFF;
+    uint16_t v = 0x0001;
 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
 
 #ifdef HOJA_CAPABILITY_BLUETOOTH_OPTIONAL
