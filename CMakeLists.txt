@@ -12,6 +12,8 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/i2c_safe.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/spi_safe.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/haptics.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 

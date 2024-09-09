@@ -55,12 +55,6 @@ __attribute__((weak)) void cb_hoja_rumble_init()
 {
 }
 
-__attribute__((weak)) void cb_hoja_rumble_set(hoja_rumble_msg_s *left, hoja_rumble_msg_s *right)
-{
-  (void *)left;
-  (void *)right;
-}
-
 __attribute__((weak)) void cb_hoja_rumble_test()
 {
 }

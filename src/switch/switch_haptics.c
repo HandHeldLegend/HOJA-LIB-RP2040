@@ -132,7 +132,7 @@ float haptics_apply_command(Switch5BitAction_t action, float offset, float curre
 
 static bool _haptics_init = false;
 // Call this function to initialize all lookup tables
-void hatptics_initialize_lookup_tables(void)
+void haptics_initialize_lookup_tables(void)
 {
     initialize_exp_base2_lookup();
     initialize_rumble_amp_lookup();
@@ -415,6 +415,10 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded,
     };
 }
 
+const uint32_t base_duration     = 90;
+const uint32_t two_duration      = 45;
+const uint32_t three_duration    = 30;
+
 // Translate and handle rumble
 // Big thanks to hexkyz for some info on Discord
 void haptics_rumble_translate(const uint8_t *data)
@@ -431,17 +435,26 @@ void haptics_rumble_translate(const uint8_t *data)
         internal_left.linear.lo_amp_linear = DefaultAmplitude;
         internal_left.linear.hi_freq_linear = DefaultFrequency;
         internal_left.linear.lo_freq_linear = DefaultFrequency;
-        hatptics_initialize_lookup_tables();
+        haptics_initialize_lookup_tables();
         _haptics_init = true;
     }
 
     // Decode left
     _haptics_decode_samples((const SwitchHapticPacket_s *)data, &internal_left);
     // Decode right
-    _haptics_decode_samples((const SwitchHapticPacket_s *)&(data[4]), &internal_right);
+    //_haptics_decode_samples((const SwitchHapticPacket_s *)&(data[4]), &internal_right);
 
-    // Forward the data to the HOJA core
-    // hoja_rumble_set(&internal_left, &internal_right);
-    if (internal_left.sample_count > 0)
-        cb_hoja_rumble_set(&internal_left, &internal_right);
+    if(!internal_left.sample_count) return;
+
+    amfm_s l_set[3] = {0};
+
+    for(uint8_t i = 0; i < internal_left.sample_count; i++)
+    {
+        l_set[i].a_hi = internal_left.samples[i].high_amplitude;
+        l_set[i].a_lo = internal_left.samples[i].low_amplitude;
+        l_set[i].f_hi = internal_left.samples[i].high_frequency;
+        l_set[i].f_lo = internal_left.samples[i].low_frequency;
+    }
+    
+    haptics_set(l_set, internal_left.sample_count, NULL, 0);
 }

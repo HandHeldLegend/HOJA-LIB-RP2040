@@ -320,18 +320,10 @@ void _btinput_message_parse(uint8_t *data)
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
 
-        float la = (float)l / 255.0f;
-        float ra = (float)r / 255.0f;
+        float la = (float) l / 255.0f;
+        float ra = (float) r / 255.0f;
 
-        rumble_msg_left.sample_count = 1;
-        rumble_msg_left.samples[0].low_amplitude = la;
-        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        rumble_msg_right.sample_count = 1;
-        rumble_msg_right.samples[0].low_amplitude = ra;
-        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, la);
     }
     break;
 
