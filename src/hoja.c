@@ -255,7 +255,7 @@ void hoja_shutdown()
   _shutdown_started = true;
 
 #if (HOJA_CAPABILITY_BATTERY == 1)
-  util_battery_enable_ship_mode();
+  battery_enable_ship_mode();
 #else
   hoja_shutdown_instant();
 #endif
@@ -284,7 +284,7 @@ void _hoja_task_0()
     cb_hoja_baseband_update_loop(&_button_data);
     watchdog_update();
     rgb_task(c0_timestamp);
-    util_battery_monitor_task_usb(c0_timestamp);
+    battery_monitor_task(c0_timestamp);
     return;
   }
 
@@ -310,10 +310,8 @@ void _hoja_task_0()
   _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, c0_timestamp);
 #endif
 
-  if (_hoja_input_method == INPUT_METHOD_USB)
-  {
-    util_battery_monitor_task_usb(c0_timestamp);
-  }
+  // Always run monitor?
+  battery_monitor_task(c0_timestamp);
 
   // Spend 500us on core 0 callback ops
   // hoja_core0_sleep_us(100);
@@ -365,9 +363,9 @@ void hoja_init(hoja_config_t *config)
   gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
 
-  util_battery_init();
+  // Battery status should self-update
 
-// Test overclock
+  // Test overclock
   set_sys_clock_khz(HOJA_SYS_CLK_HZ / 1000, true);
 
   // Read buttons to get a current state
@@ -385,21 +383,6 @@ void hoja_init(hoja_config_t *config)
     analog_init(&_analog_data_input, &_analog_data_output, &_analog_data_desnapped, &_button_data);
     triggers_scale_init();
   }
-
-#define TEST_OPTION 0
-
-#if (TEST_OPTION == 0)
-  util_battery_set_source(PMIC_SOURCE_AUTO);
-  util_battery_set_charge_rate(250);
-#elif (TEST_OPTION == 1)
-  util_battery_set_source(PMIC_SOURCE_AUTO);
-  util_battery_set_charge_rate(0);
-#elif (TEST_OPTION == 2)
-  util_battery_set_source(PMIC_SOURCE_BAT);
-#elif (TEST_OPTION == 3)
-  util_battery_set_source(PMIC_SOURCE_BAT);
-  util_battery_set_charge_rate(0);
-#endif
 
   // Reset pairing if needed.
   if (_button_data.button_sync)
@@ -478,9 +461,10 @@ void hoja_init(hoja_config_t *config)
 
   if (_hoja_input_method == INPUT_METHOD_AUTO)
   {
-    if (!util_wire_connected())
-    {
+    int8_t plug_status = battery_get_plugged_status();
 
+    if (plug_status == 0)
+    {
       rgbbrightness = 70;
       _hoja_input_method = INPUT_METHOD_BLUETOOTH;
     }
@@ -513,19 +497,19 @@ void hoja_init(hoja_config_t *config)
     break;
 
   case INPUT_MODE_SNES:
-    util_battery_set_charge_rate(0);
+    battery_set_charge_rate(0);
     _hoja_input_method = INPUT_METHOD_WIRED;
     rgbbrightness = 25;
     indicate_color = COLOR_RED.color;
     break;
   case INPUT_MODE_GAMECUBE:
-    util_battery_set_charge_rate(0);
+    battery_set_charge_rate(0);
     _hoja_input_method = INPUT_METHOD_WIRED;
     rgbbrightness = 15;
     indicate_color = COLOR_PURPLE.color;
     break;
   case INPUT_MODE_N64:
-    util_battery_set_charge_rate(0);
+    battery_set_charge_rate(0);
     _hoja_input_method = INPUT_METHOD_WIRED;
     rgbbrightness = 25;
     indicate_color = COLOR_YELLOW.color;

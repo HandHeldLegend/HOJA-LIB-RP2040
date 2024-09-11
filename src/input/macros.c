@@ -94,7 +94,9 @@ void macro_handler_task(uint32_t timestamp, button_data_s *in)
                 else if (i == INPUT_METHOD_WIRED)
                 {
                     #if(HOJA_CAPABILITY_BATTERY)
-                    if(!util_wire_connected())
+                    int8_t plugged_status = battery_get_plugged_status();
+
+                    if(plugged_status!=1)
                     {
                         shutdown_lockout = false;
                         macro_deinit_cb = macro_deinit_complete;

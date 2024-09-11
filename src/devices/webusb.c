@@ -75,7 +75,8 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_BATTERY_STATUS_GET:
     {
         _webusb_out_buffer[0] = WEBUSB_CMD_BATTERY_STATUS_GET;
-        _webusb_out_buffer[1] = util_battery_get_level();
+        uint16_t battery_level = battery_get_level()/10;
+        _webusb_out_buffer[1] = (uint8_t) battery_level;
 
         if (webusb_ready_blocking(4000))
         {

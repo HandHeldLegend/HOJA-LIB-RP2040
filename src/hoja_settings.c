@@ -3,10 +3,13 @@
 #define FLASH_TARGET_OFFSET (1200 * 1024)
 #define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
 #define SETTINGS_BANK_A_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
+#define SETTINGS_BANK_C_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE + FLASH_SECTOR_SIZE)
 #define BANK_A_NUM 0
 #define BANK_B_NUM 1
+#define BANK_C_NUM 2 // Bank for power or battery configuration
 
 hoja_settings_vcurrent_s global_loaded_settings = {0};
+hoja_settings_battery_storage_s global_loaded_battery_storage = {.charge_level=1000};
 bool global_loaded_settings_bank = BANK_A_NUM;
 
 void _settings_validate()
@@ -154,6 +157,7 @@ void _settings_init_default()
   global_loaded_settings.rainbow_colors[5] = COLOR_PURPLE.color;
 }
 
+
 bool settings_get_bank()
 {
   return global_loaded_settings_bank;
@@ -175,6 +179,19 @@ bool settings_load()
   memcpy(&vpb, read_bank_b, sizeof(hoja_settings_version_parse_s));
   int va = _settings_get_config_version(vpa.settings_version);
   int vb = _settings_get_config_version(vpb.settings_version);
+
+  // Battery bank data
+  static_assert(sizeof(hoja_settings_battery_storage_s) <= FLASH_SECTOR_SIZE);
+  const uint8_t *read_bank_c = (const uint8_t *)(XIP_BASE + SETTINGS_BANK_C_OFFSET); // Battery storage
+  memcpy(&global_loaded_battery_storage, read_bank_c, sizeof(hoja_settings_battery_storage_s));
+  // Set defaults if not set
+  if(global_loaded_battery_storage.magic != HOJA_DEVICE_ID)
+  {
+    global_loaded_battery_storage.magic         = HOJA_DEVICE_ID;
+    global_loaded_battery_storage.charge_level  = 1000;
+    global_loaded_battery_storage.max_depletion_time = 0;
+  }
+  // End battery bank default data setting
 
   // Set up some flags we can use
   bool up_to_date = false;
@@ -240,7 +257,35 @@ bool settings_load()
 }
 
 volatile bool _save_flag = false;
+volatile bool _save_battery_flag = false;
 volatile bool _webusb_indicate = false;
+
+void settings_set_charge_level(uint16_t charge_level)
+{
+  global_loaded_battery_storage.charge_level = charge_level;
+}
+
+void settings_set_max_depletion_time(uint16_t max_depletion_time)
+{
+  global_loaded_battery_storage.max_depletion_time = max_depletion_time;
+}
+
+void settings_save_battery_from_core0()
+{
+  _save_battery_flag = true;
+
+  // Block until it's done
+  while(!_save_battery_flag)
+  {
+    sleep_us(1);
+  }
+}
+
+void settings_save_battery_from_core1()
+{
+  _save_battery_flag = true;
+  settings_core1_save_check();
+}
 
 void settings_core1_save_check()
 {
@@ -276,6 +321,34 @@ void settings_core1_save_check()
       _webusb_indicate = false;
     }
     _save_flag = false;
+  }
+
+  if(_save_battery_flag)
+  {
+    multicore_lockout_start_blocking();
+
+    // Store interrupts status and disable
+    uint32_t ints = save_and_disable_interrupts();
+
+    // Calculate storage bank address via index
+    uint32_t memoryAddress = SETTINGS_BANK_C_OFFSET;
+
+    // Create blank page data
+    uint8_t page[FLASH_SECTOR_SIZE] = {0x00};
+    // Copy settings into our page buffer
+    memcpy(page, &global_loaded_battery_storage, sizeof(hoja_settings_battery_storage_s));
+
+    // Erase the settings flash sector
+    flash_range_erase(memoryAddress, FLASH_SECTOR_SIZE);
+
+    // Program the flash sector with our page
+    flash_range_program(memoryAddress, page, FLASH_SECTOR_SIZE);
+
+    // Restore interrups
+    restore_interrupts(ints);
+    multicore_lockout_end_blocking();
+
+    _save_battery_flag = false;
   }
 }
 
