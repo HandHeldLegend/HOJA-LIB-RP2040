@@ -129,6 +129,7 @@ void battery_monitor_task(uint32_t timestamp)
             {
                 case PLUG_STATUS_UNPLUGGED:
                     // Unplug during use, shut down
+                    if(hoja_get_input_method() == INPUT_METHOD_WIRED) return;
                     hoja_deinit(hoja_shutdown);
                     return;
                 break;

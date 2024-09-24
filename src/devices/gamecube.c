@@ -128,7 +128,7 @@ void __time_critical_func(_gamecube_command_handler)()
       }
       else if(!_byteCounter)
       {
-        _gc_rumble = (dat>0) ? true : false;
+        _gc_rumble = (dat&1) ? true : false;
         _byteCounter = BYTECOUNT_UNKNOWN;
         joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
         while(c--)
@@ -198,7 +198,7 @@ void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *a
 {
   #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
   static interval_s interval = {0};
-  
+  static interval_s rumble_interval = {0};
 
   if (!_gc_running)
   {

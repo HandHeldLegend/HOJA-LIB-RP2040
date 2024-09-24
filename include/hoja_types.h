@@ -9,7 +9,7 @@ extern "C" {
 
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
-#define ANALOG_DIGITAL_THRESH 650
+#define ANALOG_DIGITAL_THRESH 700
 
 typedef enum
 {

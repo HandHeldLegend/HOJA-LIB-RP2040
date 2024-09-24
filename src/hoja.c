@@ -323,6 +323,9 @@ void _hoja_task_0()
 void _hoja_task_1()
 {
   static uint32_t c1_timestamp = 0;
+
+  cb_hoja_rumble_init();
+
   for (;;)
   {
     c1_timestamp = hoja_get_timestamp();
@@ -336,8 +339,7 @@ void _hoja_task_1()
     // Do IMU stuff
     imu_task(c1_timestamp);
 
-    // Spend 500us on core 1 callback ops
-    hoja_core1_sleep_us(100);
+    cb_hoja_task_1_hook(c1_timestamp);
   }
 }
 
@@ -520,7 +522,7 @@ void hoja_init(hoja_config_t *config)
   // rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
 
   // Initialize rumble on core 0
-  cb_hoja_rumble_init();
+  //cb_hoja_rumble_init();
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 

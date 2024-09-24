@@ -200,6 +200,11 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[10] = (HOJA_SETTINGS_VERSION & 0xFF);
         _webusb_out_buffer[11] = settings_get_bank();
 
+        // Enable IMU
+        #if (HOJA_CAPABILITY_GYRO == 1)
+        imu_set_enabled(true);
+        #endif
+
         webusb_enable_output(false);
 
         if (webusb_ready_blocking(4000))
@@ -643,6 +648,7 @@ void webusb_command_processor(uint8_t *data)
 void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons)
 {
     static interval_s interval = {0};
+    
 
     if (interval_run(timestamp, 4000, &interval))
     {
