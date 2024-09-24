@@ -666,6 +666,18 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
             webusb_input_report[9] = CLAMP_0_255(buttons->zr_analog >> 4);
         }
 
+        imu_data_s *web_imu = imu_fifo_last();
+        if(web_imu != NULL)
+        {
+            
+            webusb_input_report[10] = CLAMP_0_255((uint8_t) ( ( (web_imu->ax*4)+32767)>>8));
+            webusb_input_report[11] = CLAMP_0_255((uint8_t) ( ( (web_imu->ay*4)+32767)>>8));
+            webusb_input_report[12] = CLAMP_0_255((uint8_t) ( ( (web_imu->az*4)+32767)>>8));
+            webusb_input_report[13] = CLAMP_0_255((uint8_t) ( ( (web_imu->gx*4)+32767)>>8));
+            webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (web_imu->gy*4)+32767)>>8));
+            webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (web_imu->gz*4)+32767)>>8));
+        }
+
         if (webusb_ready_blocking(4000))
         {
             tud_vendor_n_write(0, webusb_input_report, 64);
