@@ -43,6 +43,7 @@
 #include "snapback.h"
 #include "imu.h"
 #include "macros.h"
+#include "haptics.h"
 
 #include "ws2812.pio.h"
 #include "nserial.pio.h"

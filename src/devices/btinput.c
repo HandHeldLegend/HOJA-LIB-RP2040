@@ -14,6 +14,8 @@ uint32_t _mode_color = 0;
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
+
+
 // This flag can be reset to tell the web app
 // that the controller is bluetooth capable
 bool _bt_capability_reset_flag = false;
@@ -210,16 +212,32 @@ bool btinput_init(input_mode_t input_mode)
 #define I2C_MSG_DATA_START 5
 #define I2C_MSG_CMD_IDX 3
 
-// This allows us to prevent power off
-static int _is_connected_reset = 0;
-static int8_t _i_connected = -1;
+const uint32_t connection_attempt_ms = 25 * 1000;
+uint32_t connection_attempts = 0;
 
-static uint8_t _current_connected = 0;
+typedef enum
+{
+    BT_CONNSTAT_NULL = -1,
+    BT_CONNSTAT_DISCONNECTED = 0
+} bt_connstat_t;
+
+static bt_connstat_t _current_connected = -1;
 static uint8_t _current_i2c_packet_number = 0;
 
 void _btinput_message_parse(uint8_t *data)
 {
 #if (HOJA_CAPABILITY_BLUETOOTH == 1)
+
+    // Handle auto-shut-off timer
+    if(_current_connected < 1)
+    {
+        connection_attempts++;
+        if(connection_attempts >= connection_attempt_ms)
+        {
+            connection_attempts = 0;
+            hoja_deinit(hoja_shutdown);
+        }
+    }
 
     uint8_t crc = data[0];
     uint8_t counter = data[1];
@@ -271,9 +289,10 @@ void _btinput_message_parse(uint8_t *data)
         // Handle connected status
         if (_current_connected != status.data[0])
         {
-            _current_connected = status.data[0];
+            _current_connected = (int8_t) status.data[0];
             if (_current_connected > 0)
             {
+                connection_attempts = 0;
                 rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
                 rgb_set_player(_current_connected);
             }
@@ -320,18 +339,10 @@ void _btinput_message_parse(uint8_t *data)
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
 
-        float la = (float)l / 255.0f;
-        float ra = (float)r / 255.0f;
+        float la = (float) l / 255.0f;
+        float ra = (float) r / 255.0f;
 
-        rumble_msg_left.sample_count = 1;
-        rumble_msg_left.samples[0].low_amplitude = la;
-        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        rumble_msg_right.sample_count = 1;
-        rumble_msg_right.samples[0].low_amplitude = ra;
-        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, la);
     }
     break;
 
@@ -362,15 +373,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
     static interval_s bt_dc_interval = {0};
     static imu_data_s *imu_tmp;
 
-    // bool reset = (_is_connected_reset > 0) ? true : false;
-    //  If we aren't connected after 10 seconds, power off.
-    // if (interval_resettable_run(timestamp, (BT_CONNECTION_TIMEOUT_POWER_SECONDS * 1000 * 1000), reset, &bt_dc_interval))
-    //{
-    //     rgb_indicate(COLOR_PINK.color, 20);
-    //     hoja_shutdown();
-    // }
-    // if (reset)
-    //     _is_connected_reset = 0;
+    
 
     static bool flip = true;
     static bool read_write = true;
@@ -425,6 +428,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
         else
         {
             int read = i2c_safe_read_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 8000);
+            
             if (read == HOJA_I2C_MSG_SIZE_IN)
             {
                 _btinput_message_parse(data_in);

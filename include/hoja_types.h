@@ -9,7 +9,7 @@ extern "C" {
 
 #define HOJA_RUMBLE_TYPE_ERM 0
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
-#define ANALOG_DIGITAL_THRESH 650
+#define ANALOG_DIGITAL_THRESH 700
 
 typedef enum
 {
@@ -592,6 +592,14 @@ typedef struct
     hoja_haptic_frame_linear_s linear; // Last known state 
     hoja_haptic_frame_s samples[3];
 } __attribute__ ((packed)) hoja_rumble_msg_s;
+
+typedef struct
+{
+    float a_hi;
+    float a_lo;
+    float f_hi;
+    float f_lo;
+} amfm_s;
 
 typedef void (*callback_t)(void);
 

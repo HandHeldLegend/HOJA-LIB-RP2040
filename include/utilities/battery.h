@@ -11,14 +11,6 @@ typedef enum
     BATTYPE_BQ25180 = 0x6A,
 } util_battery_type_t;
 
-typedef enum 
-{
-    PMIC_SOURCE_AUTO,
-    PMIC_SOURCE_EXT,
-    PMIC_SOURCE_BAT,
-    PMIC_SOURCE_MAX,
-} util_battery_source_t;
-
 typedef struct
 {
     union
@@ -32,18 +24,24 @@ typedef struct
         };
         uint8_t status;
     };
-} __attribute__ ((packed)) util_battery_status_s;
+} __attribute__ ((packed)) BQ25180_status_s;
 
-void util_battery_init();
-uint8_t util_battery_get_level();
-void util_battery_set_source(util_battery_source_t source);
-bool util_battery_comms_check();
-void util_battery_monitor_task_usb(uint32_t timestamp);
-void util_battery_monitor_task_wireless(uint32_t timestamp);
+typedef enum 
+{
+    PMIC_SOURCE_AUTO,
+    PMIC_SOURCE_EXT,
+    PMIC_SOURCE_BAT,
+    PMIC_SOURCE_MAX,
+} BQ25180_battery_source_t;
 
-void util_battery_enable_ship_mode(void);
-void util_battery_set_charge_rate(uint16_t rate_ma);
-bool util_wire_connected();
-
+uint16_t battery_get_level();
+void battery_update_status();
+void battery_monitor_task(uint32_t timestamp);
+bool battery_comms_check();
+void battery_enable_ship_mode();
+void battery_set_charge_rate(uint16_t rate_ma);
+void battery_set_source(BQ25180_battery_source_t source);
+int8_t battery_get_plugged_status();
+int8_t battery_get_charging_status();
 
 #endif

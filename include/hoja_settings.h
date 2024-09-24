@@ -168,10 +168,22 @@ typedef struct
 
 } hoja_settings_vcurrent_s;
 
+typedef struct
+{
+    uint16_t magic; // Magic key (Match controller board ID)
+    uint16_t charge_level; // Battery level (0-1000)
+    uint16_t max_depletion_time; // Maximum time (minutes) to battery fully depleted
+} hoja_settings_battery_storage_s;
+
 extern hoja_settings_vcurrent_s global_loaded_settings;
+extern hoja_settings_battery_storage_s global_loaded_battery_storage;
 
 bool settings_get_bank();
 bool settings_load();
+void settings_set_charge_level(uint16_t charge_level);
+void settings_set_max_depletion_time(uint16_t max_depletion_time);
+void settings_save_battery_from_core0();
+void settings_save_battery_from_core1();
 void settings_core1_save_check();
 void settings_save_webindicate();
 void settings_save_from_core0();

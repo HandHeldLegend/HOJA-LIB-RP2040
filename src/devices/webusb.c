@@ -75,7 +75,10 @@ void webusb_command_processor(uint8_t *data)
     case WEBUSB_CMD_BATTERY_STATUS_GET:
     {
         _webusb_out_buffer[0] = WEBUSB_CMD_BATTERY_STATUS_GET;
-        _webusb_out_buffer[1] = util_battery_get_level();
+        uint16_t battery_level = battery_get_level()/10;
+        _webusb_out_buffer[1] = (uint8_t) battery_level;
+        _webusb_out_buffer[2] = battery_get_plugged_status();
+        _webusb_out_buffer[3] = battery_get_charging_status();
 
         if (webusb_ready_blocking(4000))
         {
@@ -196,6 +199,11 @@ void webusb_command_processor(uint8_t *data)
         _webusb_out_buffer[9] = (HOJA_SETTINGS_VERSION & 0xFF00) >> 8;
         _webusb_out_buffer[10] = (HOJA_SETTINGS_VERSION & 0xFF);
         _webusb_out_buffer[11] = settings_get_bank();
+
+        // Enable IMU
+        #if (HOJA_CAPABILITY_GYRO == 1)
+        imu_set_enabled(true);
+        #endif
 
         webusb_enable_output(false);
 
@@ -640,6 +648,7 @@ void webusb_command_processor(uint8_t *data)
 void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons)
 {
     static interval_s interval = {0};
+    
 
     if (interval_run(timestamp, 4000, &interval))
     {
@@ -661,6 +670,18 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
             webusb_input_report[7] = buttons->buttons_system;
             webusb_input_report[8] = CLAMP_0_255(buttons->zl_analog >> 4);
             webusb_input_report[9] = CLAMP_0_255(buttons->zr_analog >> 4);
+        }
+
+        imu_data_s *web_imu = imu_fifo_last();
+        if(web_imu != NULL)
+        {
+            
+            webusb_input_report[10] = CLAMP_0_255((uint8_t) ( ( (web_imu->ax*4)+32767)>>8));
+            webusb_input_report[11] = CLAMP_0_255((uint8_t) ( ( (web_imu->ay*4)+32767)>>8));
+            webusb_input_report[12] = CLAMP_0_255((uint8_t) ( ( (web_imu->az*4)+32767)>>8));
+            webusb_input_report[13] = CLAMP_0_255((uint8_t) ( ( (web_imu->gx*4)+32767)>>8));
+            webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (web_imu->gy*4)+32767)>>8));
+            webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (web_imu->gz*4)+32767)>>8));
         }
 
         if (webusb_ready_blocking(4000))

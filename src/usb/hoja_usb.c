@@ -297,9 +297,6 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
 
-  static hoja_rumble_msg_s rumble_msg_left = {0};
-  static hoja_rumble_msg_s rumble_msg_right = {0};
-
   switch (_usb_mode)
   {
   default:
@@ -323,16 +320,8 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        float amp = (buffer[1] > 0) ? 0.65f : 0;
-        rumble_msg_left.sample_count = 1;
-        rumble_msg_left.samples[0].low_amplitude = amp;
-        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        rumble_msg_right.sample_count = 1;
-        rumble_msg_right.samples[0].low_amplitude = amp;
-        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        float amp = (buffer[1] & 0x1) ? HOJA_HAPTIC_BASE_AMP : 0;
+        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
       }
       else if (buffer[0] == 0x13)
       {
@@ -356,15 +345,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 
         float out = (xrl > xrr) ? xrl : xrr;
 
-        rumble_msg_left.sample_count = 1;
-        rumble_msg_left.samples[0].low_amplitude = out;
-        rumble_msg_left.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        rumble_msg_right.sample_count = 1;
-        rumble_msg_right.samples[0].low_amplitude = out;
-        rumble_msg_right.samples[0].low_frequency = HOJA_HAPTIC_BASE_LFREQ;
-
-        cb_hoja_rumble_set(&rumble_msg_left, &rumble_msg_right);
+        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, out);
       }
     }
     break;
