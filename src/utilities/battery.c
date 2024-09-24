@@ -7,29 +7,30 @@
  * fuel gauge processing and updating
 */
 #define BATTERY_CHARGE_TIME_DEFAULT_MINUTES 180
-#define TIME_MINUTE_US (60 * 1000 * 1000) // 60 * 1000ms * 1000us
+#define TIME_MINUTE_SECONDS (60)
+#define TIME_MINUTE_US (TIME_MINUTE_SECONDS * 1000 * 1000) // 60 * 1000ms * 1000us
 
 typedef enum
 {
-    CHARGE_STATUS_ERROR = -3,
-    CHARGE_STATUS_DISABLED = -2,
+    CHARGE_STATUS_UNAVAILABLE = -2,
     CHARGE_STATUS_DISCHARGING = -1,
-    CHARGE_STATUS_NONE = 0,
+    CHARGE_STATUS_NEUTRAL = 0,
     CHARGE_STATUS_CHARGING = 1,
-    CHARGE_STATUS_DONE = 2,
+    CHARGE_STATUS_FULL = 2,
 } charge_status_t;
 
 typedef enum 
 {
     PLUG_STATUS_UNAVAILABLE = -1,
-    PLUG_STATUS_PLUGGED = 1,
     PLUG_STATUS_UNPLUGGED = 0,
+    PLUG_STATUS_PLUGGED = 1,
 } plug_status_t;
 
-charge_status_t charging_status = 0; // -1 discharge, 0 unused, 1 charging
+charge_status_t charging_status = CHARGE_STATUS_NEUTRAL;
+bool charging_disabled = false;
 
 plug_status_t last_plug_status = PLUG_STATUS_UNPLUGGED;
-plug_status_t plug_status = 0;
+plug_status_t plug_status = PLUG_STATUS_UNPLUGGED;
 
 uint16_t battery_get_level()
 {
@@ -49,10 +50,7 @@ void battery_update_status()
 
     if ((readcheck == PICO_ERROR_GENERIC) || (readcheck == PICO_ERROR_TIMEOUT))
     {
-        // No battery, must be USB
-        plug_status = PLUG_STATUS_UNAVAILABLE;
-        charging_status = CHARGE_STATUS_DISABLED;
-        return;
+        
     }
     else
     {
@@ -63,30 +61,32 @@ void battery_update_status()
     switch(raw_status.charge_status)
     {
         default:
+        // Not charging while charging is enabled
         case 0b00:  
-            // Not charging, and we're unplugged (battery power)
+            
             if(plug_status == PLUG_STATUS_UNPLUGGED)
                 charging_status = CHARGE_STATUS_DISCHARGING;
-            
-            // If charging is disabled, but we are plugged in
-            // probably a retro mode :)
-            if(plug_status == PLUG_STATUS_PLUGGED)
-                charging_status = CHARGE_STATUS_NONE;
-
-            // Should never get here, but it's an error state.
-            if(plug_status == PLUG_STATUS_UNAVAILABLE)
-                charging_status = CHARGE_STATUS_ERROR;
+            else charging_status = CHARGE_STATUS_NEUTRAL;
             break;
 
+        // Constant Current Charging
         case 0b01:
         case 0b10:
-            if(plug_status == PLUG_STATUS_PLUGGED)
-                charging_status = CHARGE_STATUS_CHARGING;
+            charging_status = CHARGE_STATUS_CHARGING;
             break; 
 
+        // Charge Done or charging is disabled by the host
         case 0b11:
-            if(plug_status == PLUG_STATUS_PLUGGED)
-                charging_status = CHARGE_STATUS_DONE;
+            if(charging_disabled)
+            {
+                if(plug_status == PLUG_STATUS_UNPLUGGED)
+                    charging_status = CHARGE_STATUS_DISCHARGING;
+                else charging_status = CHARGE_STATUS_NEUTRAL;
+            }
+            else
+            {
+                charging_status = CHARGE_STATUS_FULL;
+            }
             break;
     }
 }
@@ -98,24 +98,25 @@ void battery_monitor_task(uint32_t timestamp)
     static interval_s battery_charge_interval = {0};
     static interval_s battery_status_interval = {0};
 
-    static float power_per_minute = 1.0f;
-    static float charge_level_fine = 1000.0f;
-    static bool controller_idle_state = false;
+    static float    power_per_minute = 10.0f;
+    static float    charge_level_fine = 1000.0f;
+    static bool     controller_idle_state = false;
 
     if(!battery_monitor_init)
     {
         battery_monitor_init = true;
+
+        charge_level_fine = (float) global_loaded_battery_storage.charge_level;
         
         // Get depletion rate in minutes
         float depletion_rate = (HOJA_POWER_CONSUMPTION_SOURCE/HOJA_POWER_CONSUMPTION_RATE) * 60;
         power_per_minute = 1000.0f / depletion_rate;
 
         battery_update_status(); // Get our initial status
+        battery_update_status();
+        battery_update_status();
         last_plug_status = plug_status;
     }
-
-    static uint8_t last_battery_percent = 100;
-    static charge_status_t last_charging_status = 0;
 
     // Run once per second
     if(interval_run(timestamp, 1000000, &battery_status_interval))
@@ -146,8 +147,8 @@ void battery_monitor_task(uint32_t timestamp)
             switch(charging_status)
             {
                 default:
-                case CHARGE_STATUS_NONE:
-                case CHARGE_STATUS_DISABLED:
+                case CHARGE_STATUS_UNAVAILABLE:
+                case CHARGE_STATUS_NEUTRAL:
                 case CHARGE_STATUS_DISCHARGING:
                 break;
 
@@ -156,15 +157,15 @@ void battery_monitor_task(uint32_t timestamp)
                     rgb_flash(COLOR_YELLOW.color, 100);
                     break;
 
-                case CHARGE_STATUS_DONE:
+                case CHARGE_STATUS_FULL:
                     controller_idle_state = true;
                     rgb_flash(COLOR_BLUE.color, 100);
                     break;
 
-                case CHARGE_STATUS_ERROR:
-                    controller_idle_state = true;
-                    rgb_flash(COLOR_RED.color, 100);
-                    break;
+                //case CHARGE_STATUS_ERROR:
+                //    controller_idle_state = true;
+                //    rgb_flash(COLOR_RED.color, 100);
+                //    break;
             }
         }
         else if(controller_idle_state && !hoja_get_idle_state())
@@ -172,25 +173,27 @@ void battery_monitor_task(uint32_t timestamp)
             controller_idle_state = false;
             rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
         }
+    
     }
 
     // Update charge status once per min
     if(interval_run(timestamp, TIME_MINUTE_US, &battery_charge_interval))
     {
+        battery_update_status();
+
         switch(charging_status)
         {
             default:
-            case CHARGE_STATUS_DISABLED:
+            case CHARGE_STATUS_NEUTRAL:
+            case CHARGE_STATUS_UNAVAILABLE:
             break;
 
             case CHARGE_STATUS_DISCHARGING:
             {
                 charge_level_fine -= power_per_minute;
                 charge_level_fine = (charge_level_fine < 0) ? 0 : charge_level_fine;
+                settings_set_charge_level((uint16_t) charge_level_fine);
             }
-            break;
-
-            case CHARGE_STATUS_NONE:
             break;
 
             case CHARGE_STATUS_CHARGING:
@@ -200,7 +203,7 @@ void battery_monitor_task(uint32_t timestamp)
                 settings_set_charge_level((uint16_t) charge_level_fine);
             break;
 
-            case CHARGE_STATUS_DONE:
+            case CHARGE_STATUS_FULL:
                 settings_set_charge_level(1000); // Fully charged at charging done
             break;
         }
@@ -277,6 +280,7 @@ void battery_set_charge_rate(uint16_t rate_ma)
 {
     #if (HOJA_CAPABILITY_BATTERY == 1)
     if(plug_status == PLUG_STATUS_UNAVAILABLE) return;
+
     // Default is 0x5
     uint8_t code = 0x5;
     uint16_t rate = rate_ma;
@@ -284,10 +288,12 @@ void battery_set_charge_rate(uint16_t rate_ma)
     // Handle charge rate disabling
     if(!rate_ma)
     {
+        charging_disabled = true;
         code = 0b10000101;
     }
     else
     {
+        charging_disabled = false;
         charge_rate = rate_ma;
         if (rate_ma <= 35)
         {
@@ -348,4 +354,10 @@ int8_t battery_get_plugged_status()
 {
     battery_update_status();
     return plug_status;
+}
+
+int8_t battery_get_charging_status()
+{
+    battery_update_status();
+    return charging_status;
 }

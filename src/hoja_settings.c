@@ -12,6 +12,10 @@ hoja_settings_vcurrent_s global_loaded_settings = {0};
 hoja_settings_battery_storage_s global_loaded_battery_storage = {.charge_level=1000};
 bool global_loaded_settings_bank = BANK_A_NUM;
 
+volatile bool _save_flag = false;
+volatile bool _save_battery_flag = false;
+volatile bool _webusb_indicate = false;
+
 void _settings_validate()
 {
   // Validate some settings
@@ -184,12 +188,14 @@ bool settings_load()
   static_assert(sizeof(hoja_settings_battery_storage_s) <= FLASH_SECTOR_SIZE);
   const uint8_t *read_bank_c = (const uint8_t *)(XIP_BASE + SETTINGS_BANK_C_OFFSET); // Battery storage
   memcpy(&global_loaded_battery_storage, read_bank_c, sizeof(hoja_settings_battery_storage_s));
+
   // Set defaults if not set
   if(global_loaded_battery_storage.magic != HOJA_DEVICE_ID)
   {
     global_loaded_battery_storage.magic         = HOJA_DEVICE_ID;
     global_loaded_battery_storage.charge_level  = 1000;
     global_loaded_battery_storage.max_depletion_time = 0;
+    _save_battery_flag = true;
   }
   // End battery bank default data setting
 
@@ -256,10 +262,6 @@ bool settings_load()
   return true;
 }
 
-volatile bool _save_flag = false;
-volatile bool _save_battery_flag = false;
-volatile bool _webusb_indicate = false;
-
 void settings_set_charge_level(uint16_t charge_level)
 {
   global_loaded_battery_storage.charge_level = charge_level;
@@ -275,7 +277,7 @@ void settings_save_battery_from_core0()
   _save_battery_flag = true;
 
   // Block until it's done
-  while(!_save_battery_flag)
+  while(_save_battery_flag)
   {
     sleep_us(1);
   }

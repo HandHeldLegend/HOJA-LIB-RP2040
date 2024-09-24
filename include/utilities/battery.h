@@ -42,5 +42,6 @@ void battery_enable_ship_mode();
 void battery_set_charge_rate(uint16_t rate_ma);
 void battery_set_source(BQ25180_battery_source_t source);
 int8_t battery_get_plugged_status();
+int8_t battery_get_charging_status();
 
 #endif

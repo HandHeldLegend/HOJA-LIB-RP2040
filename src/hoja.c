@@ -308,10 +308,9 @@ void _hoja_task_0()
 
 #if (HOJA_CAPABILITY_BATTERY)
   _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, c0_timestamp);
-#endif
-
   // Always run monitor?
   battery_monitor_task(c0_timestamp);
+#endif
 
   // Spend 500us on core 0 callback ops
   // hoja_core0_sleep_us(100);
