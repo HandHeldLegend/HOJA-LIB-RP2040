@@ -139,6 +139,10 @@ bool btinput_init(input_mode_t input_mode)
         _mode_color = COLOR_WHITE.color;
         break;
 
+    case INPUT_MODE_GCUSB:
+        _mode_color = COLOR_CYAN.color;
+        break;
+
     case INPUT_MODE_XINPUT:
         _mode_color = COLOR_GREEN.color;
         break;
