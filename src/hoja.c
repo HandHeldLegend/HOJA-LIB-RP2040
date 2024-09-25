@@ -385,17 +385,6 @@ void hoja_init(hoja_config_t *config)
     triggers_scale_init();
   }
 
-  // Reset pairing if needed.
-  if (_button_data.button_sync)
-  {
-    global_loaded_settings.switch_host_address[0] = 0;
-    global_loaded_settings.switch_host_address[1] = 0;
-    global_loaded_settings.switch_host_address[2] = 0;
-    global_loaded_settings.switch_host_address[3] = 0;
-    global_loaded_settings.switch_host_address[4] = 0;
-    global_loaded_settings.switch_host_address[5] = 0;
-  }
-
   if (reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
   {
     // We're rebooting from a BT start
@@ -451,6 +440,18 @@ void hoja_init(hoja_config_t *config)
     {
       _hoja_input_mode = INPUT_MODE_GAMECUBE;
     }
+  }
+
+  // Reset pairing if needed.
+  if (_button_data.button_sync)
+  {
+    _hoja_input_mode |= 0b10000000; // Set pairing flag
+    //global_loaded_settings.switch_host_address[0] = 0;
+    //global_loaded_settings.switch_host_address[1] = 0;
+    //global_loaded_settings.switch_host_address[2] = 0;
+    //global_loaded_settings.switch_host_address[3] = 0;
+    //global_loaded_settings.switch_host_address[4] = 0;
+    //global_loaded_settings.switch_host_address[5] = 0;
   }
 
   // For switch Pro stuff
