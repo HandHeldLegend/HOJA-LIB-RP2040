@@ -160,7 +160,7 @@ bool btinput_init(input_mode_t input_mode)
     cb_hoja_set_bluetooth_enabled(true);
 
     // BT Baseband update
-    if (input_mode == INPUT_MODE_BASEBANDUPDATE)
+    if (mode == INPUT_MODE_BASEBANDUPDATE)
     {
         cb_hoja_set_uart_enabled(true);
         hoja_set_baseband_update(true);
@@ -356,13 +356,13 @@ void _btinput_message_parse(uint8_t *data)
     {
         // Paired to Nintendo Switch
         printf("New BT Switch Pairing Completed.");
-        global_loaded_settings.switch_host_address[0] = status.data[0];
-        global_loaded_settings.switch_host_address[1] = status.data[1];
-        global_loaded_settings.switch_host_address[2] = status.data[2];
-        global_loaded_settings.switch_host_address[3] = status.data[3];
-        global_loaded_settings.switch_host_address[4] = status.data[4];
-        global_loaded_settings.switch_host_address[5] = status.data[5];
-        settings_save_from_core0();
+        //global_loaded_settings.switch_host_address[0] = status.data[0];
+        //global_loaded_settings.switch_host_address[1] = status.data[1];
+        //global_loaded_settings.switch_host_address[2] = status.data[2];
+        //global_loaded_settings.switch_host_address[3] = status.data[3];
+        //global_loaded_settings.switch_host_address[4] = status.data[4];
+        //global_loaded_settings.switch_host_address[5] = status.data[5];
+        //settings_save_from_core0();
     }
     break;
     }
@@ -376,10 +376,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
     static i2cinput_input_s input_data = {0};
     static interval_s interval = {0};
-    static interval_s bt_dc_interval = {0};
-    static imu_data_s *imu_tmp;
-
-    
+    static imu_data_s *imu_tmp = NULL;
 
     static bool flip = true;
     static bool read_write = true;
