@@ -110,7 +110,7 @@ typedef struct
     // keep settings between updates
     uint16_t    settings_version;
     input_mode_t input_mode;
-    uint8_t     switch_mac_address[6]; // Address of this controller
+    uint8_t     switch_mac_address[6]; // Address of this controller (For USB)
 
     analog_center_u lx_center;
     analog_center_u ly_center;
@@ -147,7 +147,7 @@ typedef struct
     uint8_t gc_sp_light_trigger;
     uint8_t rumble_mode;
 
-    uint8_t switch_host_address[6]; // Host device we are paired to
+    uint8_t switch_host_address[6]; // Host device we are paired to (BEING DEPRECIATED)
 
     // Sub-Angle Notch Adjustments
     float l_sub_angles[8];

@@ -111,44 +111,8 @@ button_data_s *hoja_get_raw_button_data()
   return &_button_data;
 }
 
-// Sleep core0 and run any idle tasks
-void hoja_core0_sleep_us(uint32_t duration)
-{
-  uint32_t t = hoja_get_timestamp();
-  interval_s sleep_interval = {.last_time = t, .this_time = t};
-  bool done = false;
-  while (!done)
-  {
-    // Run any idle task
-    t = hoja_get_timestamp();
-    cb_hoja_task_0_hook(t);
-    if (interval_run(t, duration, &sleep_interval))
-    {
-      done = true;
-    }
-  }
-}
-
-// Sleep core1 and run any idle tasks
-void hoja_core1_sleep_us(uint32_t duration)
-{
-  uint32_t t = hoja_get_timestamp();
-  interval_s sleep_interval = {.last_time = t, .this_time = t};
-  bool done = false;
-  while (!done)
-  {
-    // Run any idle task
-    t = hoja_get_timestamp();
-    cb_hoja_task_1_hook(t);
-    if (interval_run(t, duration, &sleep_interval))
-    {
-      done = true;
-    }
-  }
-}
-
 bool _hoja_idle_state = false;
-#define IDLE_TME_SECONDS 5 * 60 // 5 minutes
+#define IDLE_TME_SECONDS 10 // 5 minutes
 void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
 {
   static interval_s interval = {0};
@@ -312,9 +276,6 @@ void _hoja_task_0()
   battery_monitor_task(c0_timestamp);
 #endif
 
-  // Spend 500us on core 0 callback ops
-  // hoja_core0_sleep_us(100);
-
   cb_hoja_task_0_hook(c0_timestamp);
   watchdog_update();
 }
@@ -385,17 +346,6 @@ void hoja_init(hoja_config_t *config)
     triggers_scale_init();
   }
 
-  // Reset pairing if needed.
-  if (_button_data.button_sync)
-  {
-    global_loaded_settings.switch_host_address[0] = 0;
-    global_loaded_settings.switch_host_address[1] = 0;
-    global_loaded_settings.switch_host_address[2] = 0;
-    global_loaded_settings.switch_host_address[3] = 0;
-    global_loaded_settings.switch_host_address[4] = 0;
-    global_loaded_settings.switch_host_address[5] = 0;
-  }
-
   if (reboot_mem.reboot_reason == ADAPTER_REBOOT_REASON_BTSTART)
   {
     // We're rebooting from a BT start
@@ -451,6 +401,18 @@ void hoja_init(hoja_config_t *config)
     {
       _hoja_input_mode = INPUT_MODE_GAMECUBE;
     }
+  }
+
+  // Reset pairing if needed.
+  if (_button_data.button_sync)
+  {
+    _hoja_input_mode |= 0b10000000; // Set pairing flag
+    //global_loaded_settings.switch_host_address[0] = 0;
+    //global_loaded_settings.switch_host_address[1] = 0;
+    //global_loaded_settings.switch_host_address[2] = 0;
+    //global_loaded_settings.switch_host_address[3] = 0;
+    //global_loaded_settings.switch_host_address[4] = 0;
+    //global_loaded_settings.switch_host_address[5] = 0;
   }
 
   // For switch Pro stuff

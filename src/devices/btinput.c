@@ -130,17 +130,24 @@ bool btinput_init(input_mode_t input_mode)
     cb_hoja_set_uart_enabled(true);
 #endif
 #endif
-    switch (input_mode)
+
+    uint8_t mode = input_mode & 0b1111111;
+
+    switch (mode)
     {
     case INPUT_MODE_SWPRO:
         _mode_color = COLOR_WHITE.color;
+        break;
+
+    case INPUT_MODE_GCUSB:
+        _mode_color = COLOR_CYAN.color;
         break;
 
     case INPUT_MODE_XINPUT:
         _mode_color = COLOR_GREEN.color;
         break;
 
-    case INPUT_MODE_MAX:
+    case INPUT_MODE_BASEBANDUPDATE:
         _mode_color = COLOR_ORANGE.color;
         break;
 
@@ -153,7 +160,7 @@ bool btinput_init(input_mode_t input_mode)
     cb_hoja_set_bluetooth_enabled(true);
 
     // BT Baseband update
-    if (input_mode == INPUT_MODE_MAX)
+    if (mode == INPUT_MODE_BASEBANDUPDATE)
     {
         cb_hoja_set_uart_enabled(true);
         hoja_set_baseband_update(true);
@@ -173,21 +180,20 @@ bool btinput_init(input_mode_t input_mode)
 
     data_out[0] = I2C_CMD_START;
 
-    data_out[2] = (uint8_t)input_mode;
+    data_out[2] = (uint8_t) input_mode;
 
-    data_out[3] = global_loaded_settings.switch_mac_address[0];
-    data_out[4] = global_loaded_settings.switch_mac_address[1];
-    data_out[5] = global_loaded_settings.switch_mac_address[2];
-    data_out[6] = global_loaded_settings.switch_mac_address[3];
-    data_out[7] = global_loaded_settings.switch_mac_address[4];
-    data_out[8] = global_loaded_settings.switch_mac_address[5];
-
-    data_out[9] = global_loaded_settings.switch_host_address[0];
-    data_out[10] = global_loaded_settings.switch_host_address[1];
-    data_out[11] = global_loaded_settings.switch_host_address[2];
-    data_out[12] = global_loaded_settings.switch_host_address[3];
-    data_out[13] = global_loaded_settings.switch_host_address[4];
-    data_out[14] = global_loaded_settings.switch_host_address[5];
+    //data_out[3] = global_loaded_settings.switch_mac_address[0];
+    //data_out[4] = global_loaded_settings.switch_mac_address[1];
+    //data_out[5] = global_loaded_settings.switch_mac_address[2];
+    //data_out[6] = global_loaded_settings.switch_mac_address[3];
+    //data_out[7] = global_loaded_settings.switch_mac_address[4];
+    //data_out[8] = global_loaded_settings.switch_mac_address[5];
+    //data_out[9] = global_loaded_settings.switch_host_address[0];
+    //data_out[10] = global_loaded_settings.switch_host_address[1];
+    //data_out[11] = global_loaded_settings.switch_host_address[2];
+    //data_out[12] = global_loaded_settings.switch_host_address[3];
+    //data_out[13] = global_loaded_settings.switch_host_address[4];
+    //data_out[14] = global_loaded_settings.switch_host_address[5];
 
     // Calculate CRC
     uint8_t crc = crc8_compute(&(data_out[2]), 13);
@@ -350,13 +356,13 @@ void _btinput_message_parse(uint8_t *data)
     {
         // Paired to Nintendo Switch
         printf("New BT Switch Pairing Completed.");
-        global_loaded_settings.switch_host_address[0] = status.data[0];
-        global_loaded_settings.switch_host_address[1] = status.data[1];
-        global_loaded_settings.switch_host_address[2] = status.data[2];
-        global_loaded_settings.switch_host_address[3] = status.data[3];
-        global_loaded_settings.switch_host_address[4] = status.data[4];
-        global_loaded_settings.switch_host_address[5] = status.data[5];
-        settings_save_from_core0();
+        //global_loaded_settings.switch_host_address[0] = status.data[0];
+        //global_loaded_settings.switch_host_address[1] = status.data[1];
+        //global_loaded_settings.switch_host_address[2] = status.data[2];
+        //global_loaded_settings.switch_host_address[3] = status.data[3];
+        //global_loaded_settings.switch_host_address[4] = status.data[4];
+        //global_loaded_settings.switch_host_address[5] = status.data[5];
+        //settings_save_from_core0();
     }
     break;
     }
@@ -370,10 +376,7 @@ void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *an
 
     static i2cinput_input_s input_data = {0};
     static interval_s interval = {0};
-    static interval_s bt_dc_interval = {0};
-    static imu_data_s *imu_tmp;
-
-    
+    static imu_data_s *imu_tmp = NULL;
 
     static bool flip = true;
     static bool read_write = true;
