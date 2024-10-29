@@ -30,7 +30,7 @@ charge_status_t charging_status = CHARGE_STATUS_NEUTRAL;
 bool charging_disabled = false;
 
 plug_status_t last_plug_status = PLUG_STATUS_UNPLUGGED;
-plug_status_t plug_status = PLUG_STATUS_UNPLUGGED;
+plug_status_t plug_status = PLUG_STATUS_UNAVAILABLE;
 
 uint16_t battery_get_level()
 {
@@ -50,7 +50,9 @@ void battery_update_status()
 
     if ((readcheck == PICO_ERROR_GENERIC) || (readcheck == PICO_ERROR_TIMEOUT))
     {
-        
+        plug_status = PLUG_STATUS_UNAVAILABLE;
+        charging_status = CHARGE_STATUS_UNAVAILABLE;
+        return;
     }
     else
     {
