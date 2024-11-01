@@ -112,7 +112,7 @@ button_data_s *hoja_get_raw_button_data()
 }
 
 bool _hoja_idle_state = false;
-#define IDLE_TME_SECONDS 10 // 5 minutes
+#define IDLE_TME_SECONDS 60*5 // 5 minutes
 void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
 {
   static interval_s interval = {0};
@@ -280,12 +280,14 @@ void _hoja_task_0()
   watchdog_update();
 }
 
+volatile bool rumble_init_done = false;
+
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
   static uint32_t c1_timestamp = 0;
 
-  cb_hoja_rumble_init();
+  //cb_hoja_rumble_init();
 
   for (;;)
   {
@@ -484,7 +486,7 @@ void hoja_init(hoja_config_t *config)
   // rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
 
   // Initialize rumble on core 0
-  //cb_hoja_rumble_init();
+  cb_hoja_rumble_init();
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 

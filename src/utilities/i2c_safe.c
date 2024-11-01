@@ -6,7 +6,7 @@ void i2c_safe_enter_blocking()
 {
     while(!mutex_enter_timeout_us(&_i2c_safe_mutex, 10))
     {
-        watchdog_update();
+        sleep_ms(1);
     }
 }
 
