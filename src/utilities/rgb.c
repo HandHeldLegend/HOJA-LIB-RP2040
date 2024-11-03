@@ -1037,7 +1037,7 @@ void rgb_update_speed(uint8_t speed)
     (void) speed;
 }
 
-void rgb_shutdown_start(bool restart)
+void rgb_shutdown_start(bool restart, callback_t cb)
 {
     (void) restart;
 }
