@@ -439,36 +439,41 @@ void hoja_init(hoja_config_t *config)
     }
   }
 
+  battery_set_source(PMIC_SOURCE_AUTO);
+
   // Checks for retro and modes where we don't care about
   // checking the plug status
   switch (_hoja_input_mode)
   {
   case INPUT_MODE_GCUSB:
     indicate_color = COLOR_CYAN.color;
-    //_hoja_input_method = INPUT_METHOD_USB;
+    battery_set_charge_rate(250);
     break;
   case INPUT_MODE_XINPUT:
     indicate_color = COLOR_GREEN.color;
+    battery_set_charge_rate(250);
     break;
 
   default:
   case INPUT_MODE_SWPRO:
     indicate_color = COLOR_WHITE.color;
+    battery_set_charge_rate(250);
     break;
 
   case INPUT_MODE_DS4:
     // hoja_input_method = INPUT_METHOD_USB;
     indicate_color = COLOR_BLUE.color;
+    battery_set_charge_rate(250);
     break;
 
   case INPUT_MODE_SNES:
-    battery_set_charge_rate(0);
+    battery_set_charge_rate(50);
     _hoja_input_method = INPUT_METHOD_WIRED;
     rgbbrightness = 25;
     indicate_color = COLOR_RED.color;
     break;
   case INPUT_MODE_GAMECUBE:
-    battery_set_charge_rate(0);
+    battery_set_charge_rate(50);
     _hoja_input_method = INPUT_METHOD_WIRED;
     rgbbrightness = 15;
     indicate_color = COLOR_PURPLE.color;
