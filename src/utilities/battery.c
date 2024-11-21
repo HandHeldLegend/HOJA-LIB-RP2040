@@ -40,11 +40,15 @@ uint16_t battery_get_level()
 // Run less often
 void battery_update_status()
 {
+    #if (HOJA_CAPABILITY_BATTERY == 1)
+
     BQ25180_status_s raw_status = {0};
 
     // We can poll the PMIC to get our plug status
     uint8_t _getstatus[1] = {0x00};
     uint8_t _readstatus[1] = {0x00};
+
+    #
     
     int readcheck = i2c_safe_write_read_timeout_us(HOJA_I2C_BUS, BATTYPE_BQ25180, _getstatus, 1, _readstatus, 1, 10000);
 
@@ -91,10 +95,13 @@ void battery_update_status()
             }
             break;
     }
+    
+    #endif
 }
 
 void battery_monitor_task(uint32_t timestamp)
 {
+    #if (HOJA_CAPABILITY_BATTERY == 1)
     static bool battery_monitor_init = false;
 
     static interval_s battery_charge_interval = {0};
@@ -211,6 +218,8 @@ void battery_monitor_task(uint32_t timestamp)
             break;
         }
     }
+
+    #endif
 }
 
 bool battery_comms_check()
