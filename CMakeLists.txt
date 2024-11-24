@@ -1,5 +1,10 @@
 add_library(hoja_lib INTERFACE)
 
+file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/drivers/*.c")
+file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/hal/rp2040/*.c")
+
+message("Globbed C files: ${DRIVERS_C}")
+
 target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja_settings.c
@@ -43,6 +48,9 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/xinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/btinput.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/ds4input.c
+
+  ${DRIVERS_C}
+  ${HAL_C}
 )
 
 target_include_directories(hoja_lib INTERFACE
@@ -53,26 +61,14 @@ target_include_directories(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/include/switch 
   ${CMAKE_CURRENT_LIST_DIR}/include/usb 
   ${CMAKE_CURRENT_LIST_DIR}/include/utilities
+  ${CMAKE_CURRENT_LIST_DIR}/include/hal/rp2040
+  ${CMAKE_CURRENT_LIST_DIR}/include/drivers
 )
-
-#pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/joybus.pio)
-#pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/../pio/cvideo.pio)
-
-#add_custom_command(OUTPUT ${CMAKE_CURRENT_LIST_DIR}/include/generated/joybus.pio.h
-#	DEPENDS ${CMAKE_CURRENT_LIST_DIR}/pio/joybus.pio
-#	COMMAND Pioasm ${CMAKE_CURRENT_LIST_DIR}/pio/joybus.pio ${CMAKE_CURRENT_LIST_DIR}/include/generated/joybus.pio.h
-#)
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/nserial.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/joybus.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
-
-
-#add_custom_command(OUTPUT ${CMAKE_CURRENT_LIST_DIR}/generated/cvideo.pio.h
-#	DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cvideo.pio
-#	COMMAND Pioasm ${CMAKE_CURRENT_LIST_DIR}/cvideo.pio ${CMAKE_CURRENT_LIST_DIR}/generated/cvideo.pio.h
-#	)
 
 # Pull in pico libraries that we need
 target_link_libraries(hoja_lib INTERFACE

@@ -3,6 +3,13 @@
 
 #include "hoja_includes.h"
 #include "interval.h"
+#include "hoja_drivers.h"
+
+#ifdef HOJA_IMU_CHAN_A_READ
+    #define HOJA_IMU_DRIVER_ENABLED 1
+#else
+    #define HOJA_IMU_DRIVER_ENABLED 0
+#endif
 
 void imu_pack_quat(mode_2_s *out);
 void imu_get_quat(quaternion_s *out);

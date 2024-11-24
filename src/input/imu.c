@@ -1,4 +1,5 @@
 #include "imu.h"
+#include "hoja_drivers.h"
 
 #define IMU_READ_RATE 1000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 16000
@@ -19,6 +20,17 @@ uint32_t _imu_owner_1;
 
 quaternion_s _imu_quat_state = {.w = 1};
 #define GYRO_SENS (2000.0f / 32768.0f)
+
+void _imu_read(imu_data_s *a, imu_data_s *b)
+{
+  #ifdef HOJA_IMU_CHAN_A_READ
+    HOJA_IMU_CHAN_A_READ(a);
+  #endif
+
+  #ifdef HOJA_IMU_CHAN_B_READ
+    HOJA_IMU_CHAN_B_READ(b);
+  #endif
+}
 
 void imu_get_quat(quaternion_s *out)
 {
@@ -236,7 +248,7 @@ void imu_calibrate_start()
   _imu_calibrate_init = false;
 
   // Read IMU and store first reading
-  cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
+  _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
   global_loaded_settings.imu_0_offsets[0] = _imu_buffer_a.ax;
   global_loaded_settings.imu_0_offsets[1] = _imu_buffer_a.ay;
@@ -269,58 +281,54 @@ void imu_calibrate_stop()
 
 void _imu_calibrate_task()
 {
-  // Read IMU
-  cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
+  #if (HOJA_IMU_DRIVER_ENABLED==1)
+    // Read IMU
+    // cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
+    _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
-  if(!_imu_calibrate_init)
-  {
-    global_loaded_settings.imu_0_offsets[0] = _imu_buffer_a.ax;
-    global_loaded_settings.imu_0_offsets[1] = _imu_buffer_a.ay;
-    global_loaded_settings.imu_0_offsets[2] = _imu_buffer_a.az;
-    global_loaded_settings.imu_0_offsets[3] = _imu_buffer_a.gx;
-    global_loaded_settings.imu_0_offsets[4] = _imu_buffer_a.gy;
-    global_loaded_settings.imu_0_offsets[5] = _imu_buffer_a.gz;
+    if(!_imu_calibrate_init)
+    {
+      global_loaded_settings.imu_0_offsets[0] = _imu_buffer_a.ax;
+      global_loaded_settings.imu_0_offsets[1] = _imu_buffer_a.ay;
+      global_loaded_settings.imu_0_offsets[2] = _imu_buffer_a.az;
+      global_loaded_settings.imu_0_offsets[3] = _imu_buffer_a.gx;
+      global_loaded_settings.imu_0_offsets[4] = _imu_buffer_a.gy;
+      global_loaded_settings.imu_0_offsets[5] = _imu_buffer_a.gz;
 
-    global_loaded_settings.imu_1_offsets[0] = _imu_buffer_b.ax;
-    global_loaded_settings.imu_1_offsets[1] = _imu_buffer_b.ay;
-    global_loaded_settings.imu_1_offsets[2] = _imu_buffer_b.az;
-    global_loaded_settings.imu_1_offsets[3] = _imu_buffer_b.gx;
-    global_loaded_settings.imu_1_offsets[4] = _imu_buffer_b.gy;
-    global_loaded_settings.imu_1_offsets[5] = _imu_buffer_b.gz;
-    _imu_calibrate_init = true;
-    return;
-  }
+      global_loaded_settings.imu_1_offsets[0] = _imu_buffer_b.ax;
+      global_loaded_settings.imu_1_offsets[1] = _imu_buffer_b.ay;
+      global_loaded_settings.imu_1_offsets[2] = _imu_buffer_b.az;
+      global_loaded_settings.imu_1_offsets[3] = _imu_buffer_b.gx;
+      global_loaded_settings.imu_1_offsets[4] = _imu_buffer_b.gy;
+      global_loaded_settings.imu_1_offsets[5] = _imu_buffer_b.gz;
+      _imu_calibrate_init = true;
+      return;
+    }
 
-  global_loaded_settings.imu_0_offsets[0] = _imu_average_value(global_loaded_settings.imu_0_offsets[0], _imu_buffer_a.ax);
-  global_loaded_settings.imu_0_offsets[1] = _imu_average_value(global_loaded_settings.imu_0_offsets[1], _imu_buffer_a.ay);
-  global_loaded_settings.imu_0_offsets[2] = _imu_average_value(global_loaded_settings.imu_0_offsets[2], _imu_buffer_a.az);
-  global_loaded_settings.imu_0_offsets[3] = _imu_average_value(global_loaded_settings.imu_0_offsets[3], _imu_buffer_a.gx);
-  global_loaded_settings.imu_0_offsets[4] = _imu_average_value(global_loaded_settings.imu_0_offsets[4], _imu_buffer_a.gy);
-  global_loaded_settings.imu_0_offsets[5] = _imu_average_value(global_loaded_settings.imu_0_offsets[5], _imu_buffer_a.gz);
+    global_loaded_settings.imu_0_offsets[0] = _imu_average_value(global_loaded_settings.imu_0_offsets[0], _imu_buffer_a.ax);
+    global_loaded_settings.imu_0_offsets[1] = _imu_average_value(global_loaded_settings.imu_0_offsets[1], _imu_buffer_a.ay);
+    global_loaded_settings.imu_0_offsets[2] = _imu_average_value(global_loaded_settings.imu_0_offsets[2], _imu_buffer_a.az);
+    global_loaded_settings.imu_0_offsets[3] = _imu_average_value(global_loaded_settings.imu_0_offsets[3], _imu_buffer_a.gx);
+    global_loaded_settings.imu_0_offsets[4] = _imu_average_value(global_loaded_settings.imu_0_offsets[4], _imu_buffer_a.gy);
+    global_loaded_settings.imu_0_offsets[5] = _imu_average_value(global_loaded_settings.imu_0_offsets[5], _imu_buffer_a.gz);
 
-  global_loaded_settings.imu_1_offsets[0] = _imu_average_value(global_loaded_settings.imu_1_offsets[0], _imu_buffer_b.ax);
-  global_loaded_settings.imu_1_offsets[1] = _imu_average_value(global_loaded_settings.imu_1_offsets[1], _imu_buffer_b.ay);
-  global_loaded_settings.imu_1_offsets[2] = _imu_average_value(global_loaded_settings.imu_1_offsets[2], _imu_buffer_b.az);
-  global_loaded_settings.imu_1_offsets[3] = _imu_average_value(global_loaded_settings.imu_1_offsets[3], _imu_buffer_b.gx);
-  global_loaded_settings.imu_1_offsets[4] = _imu_average_value(global_loaded_settings.imu_1_offsets[4], _imu_buffer_b.gy);
-  global_loaded_settings.imu_1_offsets[5] = _imu_average_value(global_loaded_settings.imu_1_offsets[5], _imu_buffer_b.gz);
+    global_loaded_settings.imu_1_offsets[0] = _imu_average_value(global_loaded_settings.imu_1_offsets[0], _imu_buffer_b.ax);
+    global_loaded_settings.imu_1_offsets[1] = _imu_average_value(global_loaded_settings.imu_1_offsets[1], _imu_buffer_b.ay);
+    global_loaded_settings.imu_1_offsets[2] = _imu_average_value(global_loaded_settings.imu_1_offsets[2], _imu_buffer_b.az);
+    global_loaded_settings.imu_1_offsets[3] = _imu_average_value(global_loaded_settings.imu_1_offsets[3], _imu_buffer_b.gx);
+    global_loaded_settings.imu_1_offsets[4] = _imu_average_value(global_loaded_settings.imu_1_offsets[4], _imu_buffer_b.gy);
+    global_loaded_settings.imu_1_offsets[5] = _imu_average_value(global_loaded_settings.imu_1_offsets[5], _imu_buffer_b.gz);
 
-  _imu_buffer_a.retrieved = false;
-  _imu_buffer_b.retrieved = false;
+    _imu_buffer_a.retrieved = false;
+    _imu_buffer_b.retrieved = false;
 
-  _imu_calibrate_cycles_remaining--;
-  if (!_imu_calibrate_cycles_remaining)
-  {
-    imu_calibrate_stop();
-  }
+    _imu_calibrate_cycles_remaining--;
+    if (!_imu_calibrate_cycles_remaining)
+    {
+      imu_calibrate_stop();
+    }
+  #endif
 }
-
-// Depreciated
-//void _imu_process_8(int16_t val, uint8_t *out)
-//{
-//  out[0] = (val & 0xFF);
-//  out[1] = (val & 0xFF00) >> 8;
-//}
 
 void imu_set_enabled(bool enable)
 {
@@ -329,6 +337,7 @@ void imu_set_enabled(bool enable)
 
 void imu_task(uint32_t timestamp)
 {
+  #if (HOJA_IMU_DRIVER_ENABLED==1)
 
   static interval_s interval = {0};
 
@@ -343,7 +352,7 @@ void imu_task(uint32_t timestamp)
 
   if (interval_run(timestamp, 1000, &interval))
   {
-    cb_hoja_read_imu(&_imu_buffer_a, &_imu_buffer_b);
+    _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
     // If we received two buffers, average A and B
     if (_imu_buffer_b.retrieved && _imu_buffer_a.retrieved)
@@ -368,5 +377,5 @@ void imu_task(uint32_t timestamp)
     _imu_buffer_b.retrieved = false;
   }
 
-  
+  #endif
 }

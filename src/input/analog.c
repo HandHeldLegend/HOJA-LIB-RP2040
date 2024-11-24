@@ -1,4 +1,8 @@
 #include "analog.h"
+#include "hoja_system.h"
+#include "hoja_hal.h"
+#include "hoja_drivers.h"
+
 #define CENTER 2048
 #define DEADZONE_DEFAULT 100
 
@@ -283,6 +287,98 @@ void incrementAndReverse(int *value) {
     }
 }
 
+#if (ADC_SMOOTHING_ENABLED==1)
+#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
+
+typedef struct {
+    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
+    int index;
+    float sum;
+} RollingAverage;
+
+void initRollingAverage(RollingAverage* ra) {
+    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
+        ra->buffer[i] = 0.0f;
+    }
+    ra->index = 0;
+    ra->sum = 0.0f;
+}
+
+void addSample(RollingAverage* ra, float sample) {
+    // Subtract the value being replaced from the sum
+    ra->sum -= ra->buffer[ra->index];
+    
+    // Add the new sample to the buffer and sum
+    ra->buffer[ra->index] = sample;
+    ra->sum += sample;
+    
+    // Move to the next index, wrapping around if necessary
+    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
+}
+
+float getAverage(RollingAverage* ra) {
+    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
+}
+#endif
+
+// Read analog values
+void _analog_read(a_data_s *data)
+{
+    uint16_t lx = STICK_INTERNAL_CENTER;
+    uint16_t ly = STICK_INTERNAL_CENTER;
+    uint16_t rx = STICK_INTERNAL_CENTER;
+    uint16_t ry = STICK_INTERNAL_CENTER;
+
+    #if (ADC_SMOOTHING_ENABLED==1)
+    static RollingAverage ralx = {0};
+    static RollingAverage raly = {0};
+    static RollingAverage rarx = {0};
+    static RollingAverage rary = {0};
+    #endif
+
+    #ifndef HOJA_ADC_CHAN_LX_READ
+        #warning "HOJA_ADC_CHAN_LX_READ undefined and won't produce input."
+    #else
+        lx = HOJA_ADC_CHAN_LX_READ();
+    #endif 
+
+    #ifndef HOJA_ADC_CHAN_LY_READ
+        #warning "HOJA_ADC_CHAN_LY_READ undefined and won't produce input."
+    #else
+        ly = HOJA_ADC_CHAN_LY_READ();
+    #endif 
+
+    #ifndef HOJA_ADC_CHAN_RX_READ
+        #warning "HOJA_ADC_CHAN_RX_READ undefined and won't produce input."
+    #else
+        rx = HOJA_ADC_CHAN_RX_READ();
+    #endif 
+
+    #ifndef HOJA_ADC_CHAN_RY_READ
+        #warning "HOJA_ADC_CHAN_RY_READ undefined and won't produce input."
+    #else
+        ry = HOJA_ADC_CHAN_RY_READ();
+    #endif 
+
+    #if (ADC_SMOOTHING_ENABLED==1)
+        addSample(&ralx, lx);
+        addSample(&raly, ly);
+        addSample(&rarx, rx);
+        addSample(&rary, ry);
+
+        // Convert data
+        data->lx = (uint16_t) getAverage(&ralx);
+        data->ly = (uint16_t) getAverage(&raly);
+        data->rx = (uint16_t) getAverage(&rarx);
+        data->ry = (uint16_t) getAverage(&rary);
+    #else
+        data->lx = lx;
+        data->ly = ly;
+        data->rx = rx;
+        data->ry = ry;
+    #endif
+}
+
 void analog_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
@@ -290,7 +386,7 @@ void analog_task(uint32_t timestamp)
     if (interval_run(timestamp, _analog_interval, &interval))
     {
         // Read analog sticks
-        cb_hoja_read_analog(_data_in);
+        _analog_read(_data_in);
 
         if (_analog_calibrate)
         {

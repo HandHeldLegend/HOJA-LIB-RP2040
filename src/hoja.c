@@ -1,4 +1,7 @@
 #include "hoja.h"
+#include "hoja_system.h"
+#include "hoja_hal.h"
+#include "hoja_drivers.h"
 
 #define CENTER 2048
 
@@ -29,12 +32,6 @@ __attribute__((weak)) uint16_t cb_hoja_hardware_test()
   return 0;
 }
 
-// USER DEFINED CALLBACKS
-// DO NOT EDIT
-__attribute__((weak)) void cb_hoja_hardware_setup()
-{
-}
-
 __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
 {
   (void)&data;
@@ -43,12 +40,6 @@ __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
 __attribute__((weak)) void cb_hoja_read_analog(a_data_s *data)
 {
   (void)&data;
-}
-
-__attribute__((weak)) void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b)
-{
-  (void)&data_a;
-  (void)&data_b;
 }
 
 __attribute__((weak)) void cb_hoja_rumble_init()
@@ -109,6 +100,49 @@ a_data_s *hoja_get_desnapped_analog_data()
 button_data_s *hoja_get_raw_button_data()
 {
   return &_button_data;
+}
+
+void _hoja_hal_setup()
+{
+  // SPI 0
+  #if HOJA_SPI_0_HAL_ENABLED==1
+  spi_hal_init(0, HOJA_SPI_0_GPIO_CLK, HOJA_SPI_0_GPIO_MISO, HOJA_SPI_0_GPIO_MOSI);
+  #endif
+}
+
+void _hoja_driver_setup()
+{
+  #ifdef HOJA_ADC_CHAN_LX_INIT
+    HOJA_ADC_CHAN_LX_INIT();
+  #endif 
+
+  #ifdef HOJA_ADC_CHAN_LY_INIT
+    HOJA_ADC_CHAN_LY_INIT();
+  #endif 
+
+  #ifdef HOJA_ADC_CHAN_RX_INIT
+    HOJA_ADC_CHAN_RX_INIT();
+  #endif 
+
+  #ifdef HOJA_ADC_CHAN_RY_INIT
+    HOJA_ADC_CHAN_RY_INIT();
+  #endif 
+
+  #ifdef HOJA_ADC_CHAN_LT_INIT
+    HOJA_ADC_CHAN_LT_INIT();
+  #endif 
+
+  #ifdef HOJA_ADC_CHAN_RT_INIT
+    HOJA_ADC_CHAN_RT_INIT();
+  #endif 
+
+  #ifdef HOJA_IMU_CHAN_A_INIT
+    HOJA_IMU_CHAN_A_INIT();
+  #endif
+
+  #ifdef HOJA_IMU_CHAN_B_INIT
+    HOJA_IMU_CHAN_B_INIT();
+  #endif
 }
 
 bool _hoja_idle_state = false;
@@ -316,6 +350,9 @@ void hoja_init(hoja_config_t *config)
 
   // Get our reboot reason
   hoja_reboot_memory_u reboot_mem = {.value = reboot_get_memory()};
+
+  _hoja_hal_setup();
+  _hoja_driver_setup();
 
   // Set up hardware first
   cb_hoja_hardware_setup();
