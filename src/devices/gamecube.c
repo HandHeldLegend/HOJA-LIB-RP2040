@@ -1,4 +1,5 @@
 #include "gamecube.h"
+#include "haptics.h"
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 

@@ -1,4 +1,5 @@
 #include "hal/spi_hal.h"
+#include "board_config.h"
 
 // Pico SDK specific code
 #include "hardware/gpio.h"
@@ -6,6 +7,21 @@
 #include "pico/multicore.h"
 
 #define SPI_HAL_MAX_INSTANCES 2
+
+// SPI
+#if defined(HOJA_SPI_0_ENABLE) && (HOJA_SPI_0_ENABLE==1)
+    #ifndef HOJA_SPI_0_GPIO_CLK
+      #error "HOJA_SPI_0_GPIO_CLK undefined in board_config.h"
+    #endif
+
+    #ifndef HOJA_SPI_0_GPIO_MISO
+      #error "HOJA_SPI_0_GPIO_MISO undefined in board_config.h"
+    #endif
+
+    #ifndef HOJA_SPI_0_GPIO_MOSI
+      #error "HOJA_SPI_0_GPIO_MOSI undefined in board_config.h"
+    #endif
+#endif
 
 spi_inst_t* _spi_instances[2] = {spi0, spi1}; // Numerical accessible array to spi hardware
 auto_init_mutex(_spi_safe_mutex); // Mutex to allow thread-safe access to peripheral

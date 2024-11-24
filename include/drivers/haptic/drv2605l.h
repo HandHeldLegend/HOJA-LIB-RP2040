@@ -5,13 +5,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hardware/clocks.h"
+#include "board_config.h"
 
-#ifdef DRIVER_DRV2605
-#if (DRIVER_DRV2605>0)
+#ifdef HAPTIC_DRIVER_DRV2605L
+#if (HAPTIC_DRIVER_DRV2605L>0)
 
 #if (HOJA_BSP_HAS_I2C==0)
     #error "DRV2605L driver requires I2C." 
 #endif
+
+#if !defined(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
+    #error "Define HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE in board_config.h" 
+#endif 
 
 #define RATED_VOLTAGE_HEX 0x3
 #define RATED_VOLTAGE_REGISTER 0x16
@@ -145,6 +150,8 @@
 #define RTP_AMPLITUDE_REGISTER 0x02
 #define RTP_FREQUENCY_REGISTER 0x22
 #define DRV2605_SLAVE_ADDR 0x5A
+
+#define HAPTIC_DRIVER_DRV2605L_INIT() drv2605l_init(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
 
 bool drv2605l_init(uint8_t i2c_instance);
 

@@ -1,5 +1,6 @@
 #include "n64.h"
 #include "n64_crc.h"
+#include "haptics.h"
 
 #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 
@@ -240,8 +241,6 @@ void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog
       {
         _rumblestate = _n64_rumble;
         float amp = _rumblestate ? HOJA_HAPTIC_BASE_AMP : 0;
-        static hoja_rumble_msg_s rumble_msg_left = {0};
-        static hoja_rumble_msg_s rumble_msg_right = {0};
         
         haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
       }

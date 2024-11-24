@@ -51,4 +51,8 @@
 #endif
 #endif
 
+#if (HOJA_BSP_HAS_HDRUMBLE==1)
+#include "hal/hdrumble_hal.h"
+#endif
+
 #endif

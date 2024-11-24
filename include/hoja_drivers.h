@@ -17,4 +17,10 @@
 #endif
 #endif
 
+#ifdef HAPTIC_DRIVER_DRV2605L
+#if (HAPTIC_DRIVER_DRV2605L>0)
+    #include "drivers/haptic/drv2605l.h"
+#endif
+#endif
+
 #endif

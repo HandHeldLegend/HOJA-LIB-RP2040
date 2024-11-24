@@ -1,6 +1,8 @@
 #ifndef SWITCH_HAPTICS_H
 #define SWITCH_HAPTICS_H
-#include "hoja_includes.h"
+
+#include <stdint.h>
+#include <stdbool.h>
 
 #define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 

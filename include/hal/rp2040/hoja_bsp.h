@@ -24,4 +24,6 @@
 #define HOJA_BSP_HAS_N64JOYBUS 1
 #define HOJA_BSP_HAS_NESBUS 1
 
+#define HOJA_BSP_HAS_HDRUMBLE 1
+
 #endif

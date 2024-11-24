@@ -2,6 +2,7 @@
 #include "hoja_system.h"
 #include "hoja_hal.h"
 #include "hoja_drivers.h"
+#include "board_config.h"
 
 #define CENTER 2048
 
@@ -50,16 +51,6 @@ __attribute__((weak)) void cb_hoja_rumble_test()
 {
 }
 
-__attribute__((weak)) void cb_hoja_task_1_hook(uint32_t timestamp)
-{
-  (void)timestamp;
-}
-
-__attribute__((weak)) void cb_hoja_task_0_hook(uint32_t timestamp)
-{
-  (void)timestamp;
-}
-
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
 {
   *intensity = global_loaded_settings.rumble_intensity;
@@ -105,8 +96,18 @@ button_data_s *hoja_get_raw_button_data()
 void _hoja_hal_setup()
 {
   // SPI 0
-  #if HOJA_SPI_0_HAL_ENABLED==1
+  #if defined(HOJA_SPI_0_ENABLE) && (HOJA_SPI_0_ENABLE==1)
   spi_hal_init(0, HOJA_SPI_0_GPIO_CLK, HOJA_SPI_0_GPIO_MISO, HOJA_SPI_0_GPIO_MOSI);
+  #endif
+
+  // I2C 0
+  #if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE==1)
+  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL);
+  #endif
+
+  // HD Rumble
+  #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
+  hdrumble_hal_init();
   #endif
 }
 
@@ -142,6 +143,10 @@ void _hoja_driver_setup()
 
   #ifdef HOJA_IMU_CHAN_B_INIT
     HOJA_IMU_CHAN_B_INIT();
+  #endif
+
+  #ifdef HAPTIC_DRIVER_DRV2605L_INIT
+    HAPTIC_DRIVER_DRV2605L_INIT();
   #endif
 }
 
@@ -304,13 +309,17 @@ void _hoja_task_0()
     hoja_comms_task(c0_timestamp, &_button_data_processed, &_analog_data_output);
   }
 
-#if (HOJA_CAPABILITY_BATTERY)
-  _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, c0_timestamp);
-  // Always run monitor?
-  battery_monitor_task(c0_timestamp);
-#endif
+  #if (HOJA_CAPABILITY_BATTERY)
+    _hoja_set_idle_state(&_button_data_processed, &_analog_data_output, c0_timestamp);
+    // Always run monitor?
+    battery_monitor_task(c0_timestamp);
+  #endif
 
-  cb_hoja_task_0_hook(c0_timestamp);
+  // Handle HD rumble
+  #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
+    hdrumble_hal_task(c0_timestamp);
+  #endif
+
   watchdog_update();
 }
 
@@ -335,8 +344,6 @@ void _hoja_task_1()
 
     // Do IMU stuff
     imu_task(c1_timestamp);
-
-    cb_hoja_task_1_hook(c1_timestamp);
   }
 }
 
@@ -359,9 +366,9 @@ void hoja_init(hoja_config_t *config)
 
 #if ((HOJA_CAPABILITY_BLUETOOTH) == 1 || (HOJA_CAPABILITY_BATTERY == 1))
   // I2C Setup
-  i2c_init(HOJA_I2C_BUS, 400 * 1000);
-  gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
-  gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
+  //i2c_init(HOJA_I2C_BUS, 400 * 1000);
+  //gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
+  //gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
 #endif
 
   // Battery status should self-update
@@ -526,9 +533,6 @@ void hoja_init(hoja_config_t *config)
   rgb_indicate(indicate_color, 50);
   rgb_init(rgbmode, rgbbrightness);
   // rgb_init(RGB_MODE_REACTIVE, rgbbrightness);
-
-  // Initialize rumble on core 0
-  cb_hoja_rumble_init();
 
   hoja_comms_init(_hoja_input_mode, _hoja_input_method);
 

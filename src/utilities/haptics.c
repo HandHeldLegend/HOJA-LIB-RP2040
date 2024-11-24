@@ -12,6 +12,18 @@ int8_t ch_r_count = -1;
 auto_init_mutex(haptic_mutex);
 uint32_t haptic_mutex_owner = 0;
 
+float _rumble_intensity = 1.0f;
+
+void haptics_set_intensity(float intensity)
+{
+    _rumble_intensity = intensity;
+}
+
+float haptics_get_intensity()
+{
+    return _rumble_intensity;
+}
+
 bool haptics_set_all(float f_hi, float a_hi, float f_lo, float a_lo)
 {
     a_hi = (a_hi>1) ? 1 : (a_hi<0) ? 0 : a_hi;
@@ -54,7 +66,6 @@ int8_t haptics_get(bool left, amfm_s* left_out, bool right, amfm_s* right_out)
 
     return status;
 }
-
 
 bool haptics_set(const amfm_s* l_in, int8_t l_count, const amfm_s* r_in, int8_t r_count)
 {

@@ -9,6 +9,7 @@
 #include "hoja_usb.h"
 #include "interval.h"
 #include "hardware/structs/usb.h"
+#include "haptics.h"
 
 input_mode_t _usb_mode = INPUT_MODE_XINPUT;
 

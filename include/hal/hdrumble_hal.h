@@ -6,17 +6,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "board_config.h"
+
 #ifdef HOJA_CONFIG_HDRUMBLE
 #if (HOJA_CONFIG_HDRUMBLE==1)
 
-#define SAMPLE_RATE 12000
-#define REPETITION_RATE 4
-#define BUFFER_SIZE 255
-#define SAMPLE_TRANSITION 30
-#define PWM_WRAP BUFFER_SIZE
-
 bool hdrumble_hal_init();
 
+void hdrumble_hal_task(uint32_t timestamp);
+
+void hdrumble_hal_test();
+
 #endif
 #endif
+
 #endif

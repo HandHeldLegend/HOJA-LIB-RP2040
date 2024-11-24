@@ -1,5 +1,13 @@
 #include "switch_haptics.h"
 
+#include <stddef.h>
+#include <float.h>
+#include <string.h>
+#include "haptics.h"
+
+// TODO replace or have guards to define this accordingly to the MCU
+#include "pico/float.h"
+
 const float MinFrequency = -2.0f;
 const float MaxFrequency = 2.0f;
 const float DefaultFrequency = 0.0f;

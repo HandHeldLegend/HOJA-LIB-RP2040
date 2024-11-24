@@ -4,6 +4,7 @@ file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/hal/rp2040/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
+message("Globbed HAL files: ${HAL_C}")
 
 target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c

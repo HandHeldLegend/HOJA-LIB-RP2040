@@ -1,5 +1,6 @@
 #include "btinput.h"
 #include "interval.h"
+#include "haptics.h"
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32

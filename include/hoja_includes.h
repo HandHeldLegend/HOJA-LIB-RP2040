@@ -18,8 +18,7 @@
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
-#include "hardware/dma.h"
-#include "hardware/pwm.h"
+
 #include "hardware/spi.h"
 #include "hardware/i2c.h"
 #include "hardware/timer.h"
@@ -43,7 +42,6 @@
 #include "snapback.h"
 #include "imu.h"
 #include "macros.h"
-#include "haptics.h"
 
 #include "ws2812.pio.h"
 #include "nserial.pio.h"
