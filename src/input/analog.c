@@ -13,9 +13,18 @@
 #include "utilities/interval.h"
 
 MUTEX_HAL_INIT(_analog_mutex);
-void _analog_safe_enter()
+void _analog_blocking_enter()
 {
     MUTEX_HAL_ENTER_BLOCKING(&_analog_mutex);
+}
+
+bool _analog_try_enter()
+{
+    if(MUTEX_HAL_ENTER_TIMEOUT_US(&_analog_mutex, 10))
+    {
+        return true;
+    }
+    return false
 }
 
 void _analog_exit()
@@ -29,9 +38,9 @@ analog_data_s _snapback_analog_data = {0};
 analog_data_s _deadzone_analog_data = {0};
 
 // Access analog input data safely
-void analog_access(analog_data_s *out, analog_access_t type)
+void analog_access_blocking(analog_data_s *out, analog_access_t type)
 {
-    _input_analog_safe_enter();
+    _analog_blocking_enter();
     switch(type)
     {
         case ANALOG_ACCESS_RAW_DATA:
@@ -50,7 +59,35 @@ void analog_access(analog_data_s *out, analog_access_t type)
         memcpy(out, &_deadzone_analog_data, sizeof(analog_data_s));
         break;
     }
-    _input_analog_exit();
+    _analog_exit();
+}
+
+bool analog_access_try(analog_data_s *out, analog_access_t type)
+{
+    if(_analog_try_enter())
+    {
+        switch(type)
+        {
+            case ANALOG_ACCESS_RAW_DATA:
+            memcpy(out, &_raw_analog_data, sizeof(analog_data_s));
+            break; 
+
+            case ANALOG_ACCESS_SCALED_DATA:
+            memcpy(out, &_scaled_analog_data, sizeof(analog_data_s));
+            break; 
+
+            case ANALOG_ACCESS_SNAPBACK_DATA:
+            memcpy(out, &_snapback_analog_data, sizeof(analog_data_s));
+            break;
+
+            case ANALOG_ACCESS_DEADZONE_DATA:
+            memcpy(out, &_deadzone_analog_data, sizeof(analog_data_s));
+            break;
+        }
+        _analog_exit();
+        return true;
+    }
+    return false;
 }
 
 #define CENTER 2048
@@ -336,7 +373,7 @@ void analog_task(uint32_t timestamp)
 
     if (interval_run(timestamp, _analog_interval, &interval))
     {
-        _analog_safe_enter();
+        _analog_blocking_enter();
 
         // Read raw analog sticks
         _analog_read_raw();
@@ -366,7 +403,7 @@ void analog_task(uint32_t timestamp)
             _analog_process_deadzone(&_snapback_analog_data, &_deadzone_analog_data);
         }
 
-        _analog_exit()
+        _analog_exit();
     }
 }
 

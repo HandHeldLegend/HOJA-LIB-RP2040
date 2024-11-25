@@ -31,7 +31,8 @@ typedef enum
 } analog_access_t;
 
 void analog_init();
-void analog_access(analog_data_s *out, analog_access_t type);
+void analog_access_blocking(analog_data_s *out, analog_access_t type);
+bool analog_access_try(analog_data_s *out, analog_access_t type);
 
 void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant);
 void analog_get_subangle_data(uint8_t *axis, uint8_t *octant);

@@ -247,7 +247,7 @@ void esp32hoja_task(uint32_t timestamp)
             // Update input states
             button_data_s   buttons = {0};
             analog_data_s   analog  = {0};
-            imu_data_s      *imu    = {0};
+            imu_data_s      *imu_tmp    = {0};
             button_access(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
             analog_access(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         
@@ -258,15 +258,15 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.buttons_all = buttons.buttons_all;
             input_data.buttons_system = buttons.buttons_system;
 
-            input_data.lx = (uint16_t)analog->lx;
-            input_data.ly = (uint16_t)analog->ly;
-            input_data.rx = (uint16_t)analog->rx;
-            input_data.ry = (uint16_t)analog->ry;
+            input_data.lx = (uint16_t) analog.lx;
+            input_data.ly = (uint16_t) analog.ly;
+            input_data.rx = (uint16_t) analog.rx;
+            input_data.ry = (uint16_t) analog.ry;
 
-            input_data.lt = (uint16_t)buttons.zl_analog;
-            input_data.rt = (uint16_t)buttons.zr_analog;
+            input_data.lt = (uint16_t) buttons.zl_analog;
+            input_data.rt = (uint16_t) buttons.zr_analog;
 
-            imu = imu_fifo_last();
+            imu_tmp = imu_fifo_last();
 
             if (imu_tmp != NULL)
             {
@@ -283,7 +283,7 @@ void esp32hoja_task(uint32_t timestamp)
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
 
-            int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
+            int write = i2c_safe_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
             if (write == HOJA_I2C_MSG_SIZE_OUT)
             {
                 analog_send_reset();

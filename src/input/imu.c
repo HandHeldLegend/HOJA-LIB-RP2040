@@ -1,6 +1,7 @@
 #include "input/imu.h"
 
 #include "hal/mutex_hal.h"
+#include "hal/sys_hal.h"
 
 #include "utilities/interval.h"
 
@@ -14,7 +15,7 @@ imu_data_s _imu_buffer_b = {0};
 
 imu_data_s _imu_buffer_avg = {0};
 
-#define IMU_FIFO_COUNT 3
+#define IMU_FIFO_COUNT 4
 #define IMU_FIFO_IDX_MAX (IMU_FIFO_COUNT-1)
 int _imu_fifo_idx = 0;
 imu_data_s _imu_fifo[IMU_FIFO_COUNT];
@@ -27,28 +28,74 @@ quaternion_s _imu_quat_state = {.w = 1};
 #define GYRO_SENS (2000.0f / 32768.0f)
 
 MUTEX_HAL_INIT(_imu_mutex);
-void _imu_safe_enter()
+void _imu_blocking_enter()
 {
-    MUTEX_HAL_ENTER_BLOCKING(&_imu_mutex);
+  MUTEX_HAL_ENTER_BLOCKING(&_imu_mutex);
+}
+
+bool _imu_try_enter()
+{
+  if(MUTEX_HAL_ENTER_TIMEOUT_US(&_imu_mutex, 10))
+  {
+    return true;
+  }
+  return false;
 }
 
 void _imu_exit()
 {
-    MUTEX_HAL_EXIT(&_imu_mutex);
+  MUTEX_HAL_EXIT(&_imu_mutex);
 }
 
-void imu_access(imu_data_s *out, imu_access_t type)
+imu_data_s* _imu_fifo_last()
 {
-    _imu_safe_enter();
-    // Only one type for now
+  int idx = _imu_fifo_idx;
+  return &(_imu_fifo[idx]);
+}
+
+// Optional access IMU data (If available)
+bool imu_access_try(imu_data_s *out)
+{
+  if(_imu_try_enter())
+  {
+    imu_data_s* tmp = _imu_fifo_last();
+    memcpy(out, tmp, sizeof(imu_data_s));
     _imu_exit();
+    return true;
+  }
+  return false;
 }
 
-void imu_task(uint32_t timestamp)
+// Access IMU data and block for it
+void imu_access_block(imu_data_s *out)
 {
-
+  _imu_blocking_enter();
+  imu_data_s* tmp = _imu_fifo_last();
+  memcpy(out, tmp, sizeof(imu_data_s));
+  _imu_exit();
 }
 
+// Optional access Quaternion data (If available)
+bool imu_quaternion_access_try(quaternion_s *out)
+{
+  if(_imu_try_enter())
+  {
+    memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
+    _imu_exit();
+    return true;
+  }
+  return false;
+}
+
+// Access Quaternion data and block for it
+void imu_quaternion_access_block(quaternion_s *out)
+{
+  _imu_blocking_enter();
+  memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
+  _imu_exit();
+}
+
+// Read IMU hardware from driver (if defined)
 void _imu_read(imu_data_s *a, imu_data_s *b)
 {
   #ifdef HOJA_IMU_CHAN_A_READ
@@ -58,93 +105,6 @@ void _imu_read(imu_data_s *a, imu_data_s *b)
   #ifdef HOJA_IMU_CHAN_B_READ
     HOJA_IMU_CHAN_B_READ(b);
   #endif
-}
-
-void imu_get_quat(quaternion_s *out)
-{
-  out = &_imu_quat_state;
-}
-
-void imu_pack_quat(mode_2_s *out)
-{
-  static uint32_t last_time;
-  uint32_t time;
-  static uint32_t accumulated_delta = 0;
-  static uint32_t q_timestamp = 0;
-
-  out->mode = 2;
-
-  // Determine maximum quat component
-  uint8_t max_index = 0;
-  for(uint8_t i = 1; i < 4; i++)
-  {
-    if(_imu_quat_state.raw[i] > fabsf(_imu_quat_state.raw[max_index]))
-      max_index = i;
-  }
-
-  out->max_index = max_index;
-
-  int quaternion_30bit_components[3];
-
-  // Exclude the max_index component from the component list, invert sign of the remaining components if it was negative. Scales the final result to a 30 bit fixed precision format where 0x40000000 is 1.0
-  for (int i = 0; i < 3; ++i) {
-      quaternion_30bit_components[i] = _imu_quat_state.raw[(max_index + i + 1) & 3] * 0x40000000 * (_imu_quat_state.raw[max_index] < 0 ? -1 : 1);
-  }
-
-  // Insert into the last sample components, do bit operations to account for split data
-  out->last_sample_0 = quaternion_30bit_components[0] >> 10;
-
-  out->last_sample_1l = ((quaternion_30bit_components[1] >> 10) & 0x7F);
-  out->last_sample_1h = ((quaternion_30bit_components[1] >> 10) & 0x1FFF80) >> 7;
-
-  out->last_sample_2l = ((quaternion_30bit_components[2] >> 10) & 0x3);
-  out->last_sample_2h = ((quaternion_30bit_components[2] >> 10) & 0x1FFFFC) >> 2;
-
-  // We only store one sample, so all deltas are 0
-  out->delta_last_first_0 = 0;
-  out->delta_last_first_1 = 0;
-  out->delta_last_first_2l = 0;
-  out->delta_last_first_2h = 0;
-  out->delta_mid_avg_0 = 0;
-  out->delta_mid_avg_1 = 0;
-  out->delta_mid_avg_2 = 0;
-
-  // Timestamps handling is still a bit unclear, these are the values that motion_data in no drifting 
-  out->timestamp_start_l = q_timestamp & 0x1;
-  out->timestamp_start_h = (q_timestamp  >> 1) & 0x3FF;
-  out->timestamp_count = 3;
-
-  out->accel_0.x = _imu_quat_state.ax;
-  out->accel_0.y = _imu_quat_state.ay;
-  out->accel_0.z = _imu_quat_state.az;
-
-  time = hoja_get_timestamp();
-  uint32_t delta = 0;
-  uint32_t whole = 0;
-  // Increment only by changed time
-  if (time < last_time)
-  {
-    delta = (0xFFFFFFFF - last_time) + time;
-  }
-  else if (time >= last_time)
-  {
-    delta = time - last_time;
-  }
-
-  last_time = time;
-
-  accumulated_delta += delta;
-
-  if(accumulated_delta > 1000)
-  {
-    whole = accumulated_delta;
-    accumulated_delta %= 1000;
-    whole -= accumulated_delta;
-    whole /= 1000; // Convert to ms
-    // Increment for the next cycle
-    q_timestamp += whole;
-    q_timestamp %= 0x7FF;
-  }
 }
 
 void _imu_rotate_quaternion(quaternion_s *first, quaternion_s *second) {
@@ -205,39 +165,25 @@ void _imu_update_quaternion(imu_data_s *imu_data, uint32_t timestamp) {
 
     _imu_quat_state.ax = imu_data->ax;
     _imu_quat_state.ay = imu_data->ay;
-    _imu_quat_state.az = imu_data->az;
-
-    
+    _imu_quat_state.az = imu_data->az;   
 }
 
 // Add data to our FIFO
-void imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp)
-{
-    while(!mutex_try_enter(&_imu_mutex, &_imu_owner_0)) {}
+void _imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp)
+{ 
+  int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
 
-    int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
+  _imu_fifo[_i].ax = imu_data->ax;
+  _imu_fifo[_i].ay = imu_data->ay;
+  _imu_fifo[_i].az = imu_data->az;
 
-    _imu_fifo[_i].ax = imu_data->ax;
-    _imu_fifo[_i].ay = imu_data->ay;
-    _imu_fifo[_i].az = imu_data->az;
+  _imu_fifo[_i].gx = imu_data->gx;
+  _imu_fifo[_i].gy = imu_data->gy;
+  _imu_fifo[_i].gz = imu_data->gz;
 
-    _imu_fifo[_i].gx = imu_data->gx;
-    _imu_fifo[_i].gy = imu_data->gy;
-    _imu_fifo[_i].gz = imu_data->gz;
+  _imu_fifo_idx = _i;
 
-    _imu_fifo_idx = _i;
-
-    _imu_update_quaternion(imu_data, timestamp);
-
-    mutex_exit(&_imu_mutex);
-}
-
-imu_data_s* imu_fifo_last()
-{
-  while(!mutex_try_enter(&_imu_mutex, &_imu_owner_1)) {}
-  int idx = _imu_fifo_idx;
-  mutex_exit(&_imu_mutex);
-  return &(_imu_fifo[idx]);
+  _imu_update_quaternion(imu_data, timestamp);
 }
 
 uint8_t _imu_read_idx = 0;
@@ -380,6 +326,12 @@ void imu_task(uint32_t timestamp)
 
   if (interval_run(timestamp, 1000, &interval))
   {
+    _imu_blocking_enter();
+
+    // Update timestamp since we blocked for unknown time
+    // We need accurate timings for our quaternion calculation/updates
+    timestamp = sys_hal_time_us();
+
     _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
     // If we received two buffers, average A and B
@@ -394,15 +346,17 @@ void imu_task(uint32_t timestamp)
       _imu_buffer_avg.gy = _imu_average_value(_imu_buffer_a.gy-global_loaded_settings.imu_0_offsets[4], _imu_buffer_b.gy-global_loaded_settings.imu_1_offsets[4]);
       _imu_buffer_avg.gz = _imu_average_value(_imu_buffer_a.gz-global_loaded_settings.imu_0_offsets[5], _imu_buffer_b.gz-global_loaded_settings.imu_1_offsets[5]);
 
-      imu_fifo_push(&_imu_buffer_avg, timestamp);
+      _imu_fifo_push(&_imu_buffer_avg, timestamp);
     }
     else if (_imu_buffer_a.retrieved)
     {
-      imu_fifo_push(&_imu_buffer_a, timestamp);
+      _imu_fifo_push(&_imu_buffer_a, timestamp);
     }
 
     _imu_buffer_a.retrieved = false;
     _imu_buffer_b.retrieved = false;
+
+    _imu_exit();
   }
 
   #endif

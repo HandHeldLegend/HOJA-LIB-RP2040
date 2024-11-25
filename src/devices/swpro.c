@@ -1,4 +1,4 @@
-#include "swpro.h"
+#include "devices/swpro.h"
 
 /** Switch PRO HID MODE **/
 // 1. Device Descriptor

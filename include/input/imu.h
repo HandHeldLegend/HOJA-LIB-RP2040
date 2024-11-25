@@ -88,24 +88,22 @@ typedef struct
     int16_t az;
 } quaternion_s;
 
-typedef enum
-{
-    IMU_ACCESS_RAW_DATA, 
-    IMU_ACCESS_QUATERNION_DATA,
-} imu_access_t;
-
 #ifdef HOJA_IMU_CHAN_A_READ
     #define HOJA_IMU_DRIVER_ENABLED 1
 #else
     #define HOJA_IMU_DRIVER_ENABLED 0
 #endif
 
-void imu_access(imu_data_s *out, imu_access_t type);
+bool imu_access_try(imu_data_s *out);
+void imu_access_block(imu_data_s *out);
+
+bool imu_quaternion_access_try(quaternion_s *out);
+void imu_quaternion_access_block(quaternion_s *out);
 
 void imu_task(uint32_t timestamp);
 
-void imu_pack_quat(mode_2_s *out);
-void imu_get_quat(quaternion_s *out);
+
+
 
 imu_data_s* imu_fifo_last();
 imu_data_s* imu_fifo_pop();

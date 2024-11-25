@@ -1,6 +1,6 @@
 #include "hoja.h"
 #include "hoja_system.h"
-#include "hoja_hal.h"
+#include "hal/hal.h"
 #include "drivers/drivers.h"
 #include "board_config.h"
 
@@ -11,7 +11,6 @@
 
 #define CENTER 2048
 
-button_remap_s *_hoja_remap = NULL;
 device_method_t _hoja_input_method = DEVICE_METHOD_AUTO;
 
 uint32_t _timer_owner_0;

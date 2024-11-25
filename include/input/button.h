@@ -1,6 +1,8 @@
 #ifndef HOJA_BUTTON_H
 #define HOJA_BUTTON_H
 
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {
@@ -102,7 +104,8 @@ typedef enum
     BUTTON_ACCESS_BOOT_DATA
 } button_access_t;
 
-button_data_s* button_access(button_access_t type);
+void button_access_blocking(button_data_s *out, button_access_t type);
+bool button_access_try(button_data_s *out, button_access_t type);
 
 void button_task(uint32_t timestamp);
 
