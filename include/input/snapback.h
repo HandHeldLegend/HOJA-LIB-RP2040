@@ -1,8 +1,8 @@
 #ifndef SNAPBACK_H
 #define SNAPBACK_H
 
-#include "hoja_includes.h"
-#include "interval.h"
+#include <stdint.h>
+#include "input/analog.h"
 
 #define ARC_MAX_WIDTH 10
 #define TRIGGER_MAX_WIDTH (ARC_MAX_WIDTH/2)
@@ -14,7 +14,7 @@
 #define INPUT_BUFFER_MAX (TRIGGER_MAX_WIDTH+2)
 #define ARC_MIN_HEIGHT 1850
 
-void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output);
-void snapback_webcapture_task(uint32_t timestamp, a_data_s *data);
+void snapback_process(analog_data_s *input, analog_data_s *output);
+void snapback_webcapture_task(uint32_t timestamp, analog_data_s *data);
 
 #endif

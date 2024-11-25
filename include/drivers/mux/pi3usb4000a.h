@@ -18,6 +18,7 @@
 #if HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A
     #define HOJA_USB_MUX_ENABLE(enable)     pi3usb4000a_enable(enable)
     #define HOJA_USB_MUX_SELECT(channel)    pi3usb4000a_select(channel)
+    #define HOJA_USB_MUX_INIT()             pi3usb4000a_init()
 #endif
 
 bool pi3usb4000a_init();

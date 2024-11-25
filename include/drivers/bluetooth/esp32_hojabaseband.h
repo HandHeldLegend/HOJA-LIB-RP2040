@@ -41,7 +41,7 @@
 
 // Define types
 
-void esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
+bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
 
 void esp32hoja_stop();
 

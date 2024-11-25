@@ -11,31 +11,16 @@
 
 #define CENTER 2048
 
-button_data_s _button_data = {0};
-button_data_s _button_data_processed = {0};
-button_data_s _button_data_output = {0};
-
-// The raw input analog data
-analog_data_s _analog_data_input = {0};
-
-// The buffered analog data
-// This is the analog data minus snapback for checking in the app
-analog_data_s _analog_data_desnapped = {0};
-
-// This is the outgoing analog data
-analog_data_s _analog_data_output = {0};
-
 button_remap_s *_hoja_remap = NULL;
 device_method_t _hoja_input_method = DEVICE_METHOD_AUTO;
 
 uint32_t _timer_owner_0;
 auto_init_mutex(_hoja_timer_mutex);
 
-bool _baseband_loop = false;
 
-__attribute__((weak)) uint16_t cb_hoja_hardware_test()
+__attribute__((weak)) bool cb_hoja_buttons_init()
 {
-  return 0;
+  return false;
 }
 
 __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
@@ -49,26 +34,6 @@ void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
   *type = global_loaded_settings.rumble_mode;
 }
 
-__attribute__((weak)) void cb_hoja_set_bluetooth_enabled(bool enable)
-{
-  (void)enable;
-}
-
-__attribute__((weak)) void cb_hoja_set_uart_enabled(bool enable)
-{
-  (void)enable;
-}
-
-__attribute__((weak)) void cb_hoja_baseband_update_loop(button_data_s *buttons)
-{
-  (void)&buttons;
-}
-
-__attribute__((weak)) uint8_t cb_hoja_get_battery_level()
-{
-  // value between 0 and 100
-  return 100;
-}
 
 input_method_t hoja_get_input_method()
 {
@@ -152,18 +117,6 @@ bool hoja_get_idle_state()
   return _hoja_idle_state;
 }
 
-void hoja_set_baseband_update(bool set)
-{
-  if (set)
-  {
-    cb_hoja_set_uart_enabled(true);
-    cb_hoja_set_bluetooth_enabled(true);
-    _baseband_loop = true;
-  }
-  else
-    _baseband_loop = false;
-}
-
 void hoja_shutdown_instant()
 {
   cb_hoja_set_bluetooth_enabled(false);
@@ -223,12 +176,6 @@ bool _watchdog_enabled = false;
 void _hoja_task_0()
 {
   static uint32_t c0_timestamp = 0;
-
-  if (!_watchdog_enabled)
-  {
-    watchdog_enable(16000, false);
-    _watchdog_enabled = true;
-  }
 
   c0_timestamp = hoja_get_timestamp();
 
@@ -300,11 +247,19 @@ void _hoja_task_1()
   }
 }
 
-void hoja_init(hoja_config_t *config)
+void hoja_init()
 {
-  // Stop if there's no config
-  if (!config)
-    return;
+  if(!cb_hoja_buttons_init())
+  {
+    // reset to USB bootloader if we didn't handle this.
+
+  }
+
+  if (!_watchdog_enabled)
+  {
+    watchdog_enable(16000, false);
+    _watchdog_enabled = true;
+  }
 
   input_mode_t _hoja_input_mode = 0;
 
@@ -314,23 +269,8 @@ void hoja_init(hoja_config_t *config)
   _hoja_hal_setup();
   _hoja_driver_setup();
 
-  // Set up hardware first
-  cb_hoja_hardware_setup();
-
-#if ((HOJA_CAPABILITY_BLUETOOTH) == 1 || (HOJA_CAPABILITY_BATTERY == 1))
-  // I2C Setup
-  //i2c_init(HOJA_I2C_BUS, 400 * 1000);
-  //gpio_set_function(HOJA_I2C_SDA, GPIO_FUNC_I2C);
-  //gpio_set_function(HOJA_I2C_SCL, GPIO_FUNC_I2C);
-#endif
-
-  // Battery status should self-update
-
   // Test overclock
   set_sys_clock_khz(HOJA_SYS_CLK_HZ / 1000, true);
-
-  // Read buttons to get a current state
-  cb_hoja_read_buttons(&_button_data);
 
   // Load settings and related logic
   {
@@ -358,7 +298,7 @@ void hoja_init(hoja_config_t *config)
   }
   else
   {
-    if (config->input_mode == INPUT_MODE_LOAD)
+    if (config->input_mode == DEVICE_MODE_LOAD)
     {
       _hoja_input_mode = global_loaded_settings.input_mode;
     }
@@ -374,31 +314,31 @@ void hoja_init(hoja_config_t *config)
   {
     if (_button_data.button_b)
     {
-      _hoja_input_mode = INPUT_MODE_DS4;
+      _hoja_input_mode = DEVICE_MODE_DS4;
     }
     else if (_button_data.button_x)
     {
-      _hoja_input_mode = INPUT_MODE_XINPUT;
+      _hoja_input_mode = DEVICE_MODE_XINPUT;
     }
     else if (_button_data.button_a)
     {
-      _hoja_input_mode = INPUT_MODE_SWPRO;
+      _hoja_input_mode = DEVICE_MODE_SWPRO;
     }
     else if (_button_data.button_y)
     {
-      _hoja_input_mode = INPUT_MODE_GCUSB;
+      _hoja_input_mode = DEVICE_MODE_GCUSB;
     }
     else if (_button_data.dpad_left)
     {
-      _hoja_input_mode = INPUT_MODE_SNES;
+      _hoja_input_mode = DEVICE_MODE_SNES;
     }
     else if (_button_data.dpad_down && !_button_data.dpad_right)
     {
-      _hoja_input_mode = INPUT_MODE_N64;
+      _hoja_input_mode = DEVICE_MODE_N64;
     }
     else if (_button_data.dpad_right)
     {
-      _hoja_input_mode = INPUT_MODE_GAMECUBE;
+      _hoja_input_mode = DEVICE_MODE_GAMECUBE;
     }
   }
 

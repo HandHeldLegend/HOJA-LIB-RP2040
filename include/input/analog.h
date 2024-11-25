@@ -27,14 +27,15 @@ typedef enum
     ANALOG_ACCESS_RAW_DATA, // Access raw analog data
     ANALOG_ACCESS_SCALED_DATA, // Access scaled analog data
     ANALOG_ACCESS_SNAPBACK_DATA, // Access analog data post-snapback filter
+    ANALOG_ACCESS_DEADZONE_DATA, // Access analog data post-deadzone application
 } analog_access_t;
 
+void analog_init();
 void analog_access(analog_data_s *out, analog_access_t type);
 
 void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant);
 void analog_get_subangle_data(uint8_t *axis, uint8_t *octant);
-void analog_send_reset();
-void analog_init(analog_data_s *in, analog_data_s *out, analog_data_s *desnapped, button_data_s *buttons);
+
 void analog_calibrate_start();
 void analog_calibrate_stop();
 void analog_calibrate_save();

@@ -4,6 +4,7 @@
  */
 
 #include "input/stick_scaling.h"
+#include <math.h>
 
 #define STICK_INTERNAL_CENTER 2048
 #define STICK_MAX 4095

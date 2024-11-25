@@ -1,4 +1,4 @@
-#include "snapback.h"
+#include "input/snapback.h"
 #include <math.h>
 
 // How many measurements we need to
@@ -180,7 +180,7 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
     *out_y = return_y;
 }
 
-void snapback_process(uint32_t timestamp, a_data_s *input, a_data_s *output)
+void snapback_process(analog_data_s *input, analog_data_s *output)
 {
     static axis_s l = {0};
     static axis_s r = {0};
@@ -227,7 +227,7 @@ bool _snapback_add_value(int val)
 #define LOWER_CAP 0 + CAP_OFFSET
 #define CAP_INTERVAL 1000
 
-void snapback_webcapture_task(uint32_t timestamp, a_data_s *data)
+void snapback_webcapture_task(uint32_t timestamp, analog_data_s *data)
 {
     static interval_s interval = {0};
 

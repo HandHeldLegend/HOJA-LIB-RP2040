@@ -4,18 +4,25 @@
 #define HOJA_BACKEND_VERSION 0x0001
 #define HOJA_SETTINGS_VERSION 0xA002
 
-
-
 #define HOJA_SYS_CLK_HZ 200000000
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "input/button.h"
+#include "devices/devices.h"
+
+typedef struct
+{
+    device_method_t  input_method;
+    device_mode_t    input_mode;
+} hoja_config_t;
+
 void cb_hoja_baseband_update_loop(button_data_s *buttons);
 uint16_t cb_hoja_hardware_test();
-void cb_hoja_hardware_setup();
+
 void cb_hoja_read_buttons(button_data_s *data);
-void cb_hoja_read_analog(analog_data_s *data);
+void cb_hoja_buttons_init();
 
 // void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b);
 
@@ -37,7 +44,8 @@ button_data_s *hoja_get_raw_button_data();
 uint32_t hoja_get_timestamp();
 void hoja_deinit(callback_t cb);
 void hoja_shutdown();
-void hoja_init(hoja_config_t *config);
+
+void hoja_init();
 
 void hoja_load_remap(button_remap_s *remap_profile);
 

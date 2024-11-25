@@ -5,7 +5,7 @@
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
 
-#include "extensions/rgb.h"
+#include "utilities/interval.h"
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
@@ -50,9 +50,17 @@ typedef struct
     uint8_t data[10]; // Buffer for related data
 } __attribute__ ((packed)) i2cinput_status_s;
 
-uint32_t _mode_color = 0;
+typedef enum
+{
+    BT_CONNSTAT_NULL = -1,
+    BT_CONNSTAT_DISCONNECTED = 0
+} bt_connstat_t;
+
 uint8_t data_out[HOJA_I2C_MSG_SIZE_OUT] = {0};
 uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
+
+static bt_connstat_t _current_connected = -1;
+static uint8_t _current_i2c_packet_number = 0;
 
 typedef struct
 {
@@ -194,9 +202,31 @@ void _esp32hoja_enable_uart(bool enabled)
     HOJA_USB_MUX_ENABLE(true);
 }
 
-void esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
+bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+    uint8_t out_mode = (pairing_mode ? 0b10000000 : 0) | (uint8_t) device_mode;
 
+    _esp32hoja_enable_chip(true);
+
+    // Give time for the chip to boot
+    sys_hal_sleep_ms(1000);
+
+    _bt_clear_out();
+
+    data_out[0] = I2C_CMD_START;
+    data_out[2] = out_mode;
+
+    // Calculate CRC
+    uint8_t crc = crc8_compute(&(data_out[2]), 13);
+    data_out[1] = crc;
+
+    int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
+
+    if (stat < 0)
+    {
+        return false;
+    }
+    else return true;
 }
 
 void esp32hoja_stop()
@@ -206,7 +236,67 @@ void esp32hoja_stop()
 
 void esp32hoja_task(uint32_t timestamp)
 {
+    static interval_s       interval    = {0};
+    static i2cinput_input_s input_data  = {0};
+    static bool read_write = true;
 
+    if(interval_run(timestamp, 1000, &interval))
+    {
+        if(read_write)
+        {
+            // Update input states
+            button_data_s   buttons = {0};
+            analog_data_s   analog  = {0};
+            imu_data_s      *imu    = {0};
+            button_access(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+            analog_access(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+        
+            data_out[0] = I2C_CMD_STANDARD;
+            data_out[1] = 0;                  // Input CRC location
+            data_out[2] = _current_i2c_packet_number; // Response packet number counter
+
+            input_data.buttons_all = buttons.buttons_all;
+            input_data.buttons_system = buttons.buttons_system;
+
+            input_data.lx = (uint16_t)analog->lx;
+            input_data.ly = (uint16_t)analog->ly;
+            input_data.rx = (uint16_t)analog->rx;
+            input_data.ry = (uint16_t)analog->ry;
+
+            input_data.lt = (uint16_t)buttons.zl_analog;
+            input_data.rt = (uint16_t)buttons.zr_analog;
+
+            imu = imu_fifo_last();
+
+            if (imu_tmp != NULL)
+            {
+                input_data.gx = imu_tmp->gx;
+                input_data.gy = imu_tmp->gy;
+                input_data.gz = imu_tmp->gz;
+                input_data.ax = imu_tmp->ax;
+                input_data.ay = imu_tmp->ay;
+                input_data.az = imu_tmp->az;
+            }
+
+            uint8_t crc = crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
+            data_out[1] = crc;
+
+            memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
+
+            int write = i2c_safe_write_timeout_us(HOJA_I2C_BUS, HOJA_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
+            if (write == HOJA_I2C_MSG_SIZE_OUT)
+            {
+                analog_send_reset();
+                _bt_clear_out();
+            }
+
+        }  
+        else
+        {
+
+        }
+
+    }
 }
 
 int esp32hoja_hwtest()
@@ -231,7 +321,7 @@ uint32_t esp32hoja_get_info()
     _esp32hoja_enable_chip(true);
 
     // Give time for the chip to boot
-    sys_hal_sleep_ms(650);
+    sys_hal_sleep_ms(1000);
 
     static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
@@ -248,9 +338,12 @@ uint32_t esp32hoja_get_info()
         {
             uint16_t version = (data_in[1] << 8) | (data_in[2]);
             ret_info |= version;
+
+            _esp32hoja_enable_chip(false);
             return ret_info;
         }
     }
 
+    _esp32hoja_enable_chip(false);
     return ret_info;
 }

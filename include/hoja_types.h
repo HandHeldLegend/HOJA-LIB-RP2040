@@ -12,12 +12,6 @@ extern "C" {
 #define HOJA_RUMBLE_TYPE_HAPTIC 1
 #define ANALOG_DIGITAL_THRESH 700
 
-typedef struct
-{
-    device_method_t  input_method;
-    device_mode_t    input_mode;
-} hoja_config_t;
-
 #ifdef __cplusplus
 }
 #endif

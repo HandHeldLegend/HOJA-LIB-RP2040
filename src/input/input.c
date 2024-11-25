@@ -9,6 +9,11 @@
 
 #include "utilities/interval.h"
 
+bool input_init(device_mode_t mode)
+{
+    
+}
+
 void input_task_core0(uint32_t timestamp)
 {
     button_task(timestamp);

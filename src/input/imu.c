@@ -4,6 +4,8 @@
 
 #include "utilities/interval.h"
 
+#include <math.h>
+
 #define IMU_READ_RATE 1000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 16000
 

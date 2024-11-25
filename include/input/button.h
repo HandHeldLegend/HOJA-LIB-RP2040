@@ -99,9 +99,10 @@ typedef enum
 {
     BUTTON_ACCESS_RAW_DATA,
     BUTTON_ACCESS_REMAPPED_DATA,
+    BUTTON_ACCESS_BOOT_DATA
 } button_access_t;
 
-void button_access(button_data_s *out, button_access_t type);
+button_data_s* button_access(button_access_t type);
 
 void button_task(uint32_t timestamp);
 
