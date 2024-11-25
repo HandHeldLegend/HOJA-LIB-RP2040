@@ -4,20 +4,18 @@
 #define HOJA_BACKEND_VERSION 0x0001
 #define HOJA_SETTINGS_VERSION 0xA002
 
-#define HOJA_HAPTIC_BASE_HFREQ 320
-#define HOJA_HAPTIC_BASE_LFREQ 130
-#define HOJA_HAPTIC_BASE_AMP 0.55f
+
 
 #define HOJA_SYS_CLK_HZ 200000000
 
-#include "hoja_includes.h"
-#include "interval.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 void cb_hoja_baseband_update_loop(button_data_s *buttons);
 uint16_t cb_hoja_hardware_test();
 void cb_hoja_hardware_setup();
 void cb_hoja_read_buttons(button_data_s *data);
-void cb_hoja_read_analog(a_data_s *data);
+void cb_hoja_read_analog(analog_data_s *data);
 
 // void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b);
 
@@ -34,7 +32,7 @@ void hoja_set_baseband_update(bool set);
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type);
 void hoja_shutdown_instant();
 input_method_t hoja_get_input_method();
-a_data_s *hoja_get_desnapped_analog_data();
+analog_data_s *hoja_get_desnapped_analog_data();
 button_data_s *hoja_get_raw_button_data();
 uint32_t hoja_get_timestamp();
 void hoja_deinit(callback_t cb);

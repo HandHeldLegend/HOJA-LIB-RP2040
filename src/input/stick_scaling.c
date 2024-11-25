@@ -3,7 +3,7 @@
  * @brief This file contains the implementation of stick scaling functions.
  */
 
-#include "stick_scaling.h"
+#include "input/stick_scaling.h"
 
 #define STICK_INTERNAL_CENTER 2048
 #define STICK_MAX 4095

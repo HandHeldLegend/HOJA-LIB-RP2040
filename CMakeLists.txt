@@ -1,36 +1,38 @@
 add_library(hoja_lib INTERFACE)
 
-file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/drivers/*.c")
-file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/hal/rp2040/*.c")
+file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
+file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
 
 target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/hoja_settings.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/hoja_defines.c 
+  
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja_comms.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/rgb.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/battery.c
+  
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/reboot.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/i2c_safe.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/spi_safe.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/haptics.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c 
 
+  ${CMAKE_CURRENT_LIST_DIR}/src/extensions/haptics.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/extensions/rgb.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/extensions/battery.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/extensions/settings.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/extensions/bluetooth.c 
+
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/hoja_usb.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput_device.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_device.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput_usbd.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_usbd.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_spi.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/input.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/button.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/remap.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
@@ -39,6 +41,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/triggers.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
 
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/devices.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/dinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/gcinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/gamecube.c 
@@ -56,14 +59,8 @@ target_sources(hoja_lib INTERFACE
 
 target_include_directories(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/include
-  ${CMAKE_CURRENT_LIST_DIR}/include/devices 
   ${CMAKE_CURRENT_LIST_DIR}/include/generated 
-  ${CMAKE_CURRENT_LIST_DIR}/include/input 
-  ${CMAKE_CURRENT_LIST_DIR}/include/switch 
-  ${CMAKE_CURRENT_LIST_DIR}/include/usb 
-  ${CMAKE_CURRENT_LIST_DIR}/include/utilities
   ${CMAKE_CURRENT_LIST_DIR}/include/hal/rp2040
-  ${CMAKE_CURRENT_LIST_DIR}/include/drivers
 )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/generated)

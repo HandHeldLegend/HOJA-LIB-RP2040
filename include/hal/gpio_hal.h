@@ -10,4 +10,6 @@ void gpio_hal_write(uint32_t gpio, bool level);
 
 bool gpio_hal_read(uint32_t gpio);
 
+void gpio_hal_set_direction(uint32_t gpio, bool input);
+
 #endif

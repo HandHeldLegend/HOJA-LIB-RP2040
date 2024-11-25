@@ -1,6 +1,8 @@
 #ifndef HOJA_BSP_H
 #define HOJA_BSP_H
 
+#define HOJA_BSP_CHIPSET CHIPSET_RP2040
+
 // How many I2C peripheral channels there are
 #define HOJA_BSP_HAS_I2C 2
 

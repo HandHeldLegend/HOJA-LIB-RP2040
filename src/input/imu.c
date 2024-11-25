@@ -1,5 +1,8 @@
-#include "imu.h"
-#include "hoja_drivers.h"
+#include "input/imu.h"
+
+#include "hal/mutex_hal.h"
+
+#include "utilities/interval.h"
 
 #define IMU_READ_RATE 1000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 16000
@@ -20,6 +23,29 @@ uint32_t _imu_owner_1;
 
 quaternion_s _imu_quat_state = {.w = 1};
 #define GYRO_SENS (2000.0f / 32768.0f)
+
+MUTEX_HAL_INIT(_imu_mutex);
+void _imu_safe_enter()
+{
+    MUTEX_HAL_ENTER_BLOCKING(&_imu_mutex);
+}
+
+void _imu_exit()
+{
+    MUTEX_HAL_EXIT(&_imu_mutex);
+}
+
+void imu_access(imu_data_s *out, imu_access_t type)
+{
+    _imu_safe_enter();
+    // Only one type for now
+    _imu_exit();
+}
+
+void imu_task(uint32_t timestamp)
+{
+
+}
 
 void _imu_read(imu_data_s *a, imu_data_s *b)
 {

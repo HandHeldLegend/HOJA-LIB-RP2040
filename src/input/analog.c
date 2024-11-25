@@ -1,7 +1,41 @@
-#include "analog.h"
-#include "hoja_system.h"
-#include "hoja_hal.h"
-#include "hoja_drivers.h"
+#include "input/analog.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+
+#include "hal/sys_hal.h"
+#include "hal/mutex_hal.h"
+
+#include "utilities/interval.h"
+
+MUTEX_HAL_INIT(_analog_mutex);
+void _analog_safe_enter()
+{
+    MUTEX_HAL_ENTER_BLOCKING(&_analog_mutex);
+}
+
+void _analog_exit()
+{
+    MUTEX_HAL_EXIT(&_analog_mutex);
+}
+
+// Access analog input data safely
+void analog_access(analog_data_s *out, analog_access_t type)
+{
+    _input_analog_safe_enter();
+    switch(type)
+    {
+        case ANALOG_ACCESS_RAW_DATA:
+        break; 
+
+        case ANALOG_ACCESS_SCALED_DATA:
+        break; 
+
+        case ANALOG_ACCESS_SNAPBACK_DATA:
+        break;
+    }
+    _input_analog_exit();
+}
 
 #define CENTER 2048
 #define DEADZONE_DEFAULT 100
@@ -15,12 +49,12 @@ bool _analog_calibrate = false;
 bool _analog_centered = false;
 bool _analog_all_angles_got = false;
 bool _analog_capture_angle = false;
-a_data_s *_data_in = NULL;
-a_data_s scaled_analog_data = {0};
-a_data_s *_data_out = NULL;
-a_data_s *_analog_desnapped = NULL; // Data 
-a_data_s analog_data_deadzone = {0}; // Analog data with deadzone coordinates nullified
-a_data_s *_analog_output = NULL;
+analog_data_s *_data_in = NULL;
+analog_data_s scaled_analog_data = {0};
+analog_data_s *_data_out = NULL;
+analog_data_s *_analog_desnapped = NULL; // Data 
+analog_data_s analog_data_deadzone = {0}; // Analog data with deadzone coordinates nullified
+analog_data_s *_analog_output = NULL;
 
 
 button_data_s *_buttons = NULL;
@@ -30,15 +64,6 @@ typedef struct {
     int8_t tracked_direction;
     int last_pos;
 } analog_distance_mem_s;
-
-typedef struct
-{
-    bool button_fifo_full;
-    button_data_s buttons_buffer[INPUT_BUFFER_MAX];
-    int button_fifo_idx;
-} button_fifo_s;
-
-button_fifo_s _button_fifo = {0};
 
 static analog_distance_mem_s _lx_tracker_mem;
 static analog_distance_mem_s _ly_tracker_mem;
@@ -53,7 +78,7 @@ void analog_send_reset()
     _ry_tracker_mem.tracked_direction = 0;
 }
 
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons)
+void analog_init(analog_data_s *in, analog_data_s *out, analog_data_s *desnapped, button_data_s *buttons)
 {
     _data_in    = in;
     _data_out   = out;
@@ -154,46 +179,6 @@ void _analog_calibrate_loop()
     }
 }
 
-void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
-{
-    // Get movement direction
-    // If it's positive, we are moving UP, else DOWN
-    bool d = ( (in - dmem->last_pos) > 0 );
-
-    // Handle perfect center
-    if(in==2048)
-    {
-        *out = 2048;
-    }
-    // If we change direction...
-    else if(!dmem->tracked_direction)
-    {
-        dmem->tracked_direction = d ? 1 : -1;
-        // Set output
-        *out = in;
-    }
-    else if (dmem->tracked_direction>0)
-    {
-        if(in>dmem->last_pos)
-        {
-            *out            =   in;
-            dmem->last_pos  =   in;
-        }
-    }
-    else if (dmem->tracked_direction<0)
-    {
-        if(in<dmem->last_pos)
-        {
-            *out            =   in;
-            dmem->last_pos  =   in;
-        }
-    }
-    else *out = in;
-
-    // Set last pos
-    dmem->last_pos = in;
-}
-
 void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant)
 {
     stick_scaling_get_octant_axis_offset(_data_in, axis, octant);
@@ -209,7 +194,7 @@ void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
 #define SCALE_DISTANCE (float)(CENTER-DEADZONE_DEFAULT)
 #define SCALE_F (float)(CENTER/SCALE_DISTANCE)
 
-void _analog_process_deadzone(a_data_s *in, a_data_s *out)
+void _analog_process_deadzone(analog_data_s *in, analog_data_s *out)
 {
     // Do left side
     float ld = stick_get_distance(in->lx, in->ly, CENTER, CENTER);
@@ -322,7 +307,7 @@ float getAverage(RollingAverage* ra) {
 #endif
 
 // Read analog values
-void _analog_read(a_data_s *data)
+void _analog_read(analog_data_s *data)
 {
     uint16_t lx = STICK_INTERNAL_CENTER;
     uint16_t ly = STICK_INTERNAL_CENTER;

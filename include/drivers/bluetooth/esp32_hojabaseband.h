@@ -1,21 +1,57 @@
-#ifndef HOJA_DRIVER_BLUETOOTH_H
-#define HOJA_DRIVER_BLUETOOTH_H
+#ifndef HOJA_DRIVER_ESP32HOJA_H
+#define HOJA_DRIVER_ESP32HOJA_H
 
 // Requires I2C setup
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "board_config.h"
+#include "hoja_bsp.h"
 
-void bluetooth_driver_init();
+#include "extensions/bluetooth.h"
 
-void bluetooth_driver_start_mode(uint8_t mode, bool pair);
+#include "input/button.h"
+#include "input/imu.h"
+#include "input/analog.h"
 
-void bluetooth_driver_stop();
+#if (HOJA_BSP_HAS_I2C==0)
+    #error "ESP32 Hoja Baseband driver requires I2C!" 
+#endif
 
-void bluetooth_driver_task();
+#if defined(BLUETOOTH_DRIVER_ESP32HOJA) && (BLUETOOTH_DRIVER_ESP32HOJA>0)
 
-int bluetooth_driver_hwtest();
+#if !defined(BLUETOOTH_DRIVER_I2C_INSTANCE)
+    #error "BLUETOOTH_DRIVER_I2C_INSTANCE is undefined in board_config.h"
+#endif
 
-uint16_t bluetooth_driver_get_version();
+#if !defined(BLUETOOTH_DRIVER_ENABLE_PIN)
+    #error "BLUETOOTH_DRIVER_ENABLE_PIN is undefined in board_config.h"
+#endif
+
+// REQUIRE USB_MUX driver
+#if !defined(HOJA_USB_MUX_DRIVER)
+    #error "HOJA_USB_MUX_DRIVER is required for ESP32 Hoja Baseband driver."
+#else
+
+#if HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA
+    #define HOJA_BLUETOOTH_INIT(device_mode, pairing_mode, evt_cb) esp32hoja_init(device_mode, pairing_mode, evt_cb)
+    #define HOJA_BLUETOOTH_TASK(timestamp) esp32hoja_task(timestamp)
+    #define HOJA_BLUETOOTH_GETINFO() esp32hoja_get_info();
+#endif
+
+// Define types
+
+void esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
+
+void esp32hoja_stop();
+
+void esp32hoja_task(uint32_t timestamp);
+
+int esp32hoja_hwtest();
+
+uint32_t esp32hoja_get_info();
+
+#endif
+#endif 
 
 #endif

@@ -1,8 +1,13 @@
 #include "hoja.h"
 #include "hoja_system.h"
 #include "hoja_hal.h"
-#include "hoja_drivers.h"
+#include "drivers/drivers.h"
 #include "board_config.h"
+
+#include "devices/devices.h"
+
+#include "input/button.h"
+#include "extensions/haptics.h"
 
 #define CENTER 2048
 
@@ -11,17 +16,17 @@ button_data_s _button_data_processed = {0};
 button_data_s _button_data_output = {0};
 
 // The raw input analog data
-a_data_s _analog_data_input = {0};
+analog_data_s _analog_data_input = {0};
 
 // The buffered analog data
 // This is the analog data minus snapback for checking in the app
-a_data_s _analog_data_desnapped = {0};
+analog_data_s _analog_data_desnapped = {0};
 
 // This is the outgoing analog data
-a_data_s _analog_data_output = {0};
+analog_data_s _analog_data_output = {0};
 
 button_remap_s *_hoja_remap = NULL;
-input_method_t _hoja_input_method = INPUT_METHOD_AUTO;
+device_method_t _hoja_input_method = DEVICE_METHOD_AUTO;
 
 uint32_t _timer_owner_0;
 auto_init_mutex(_hoja_timer_mutex);
@@ -36,19 +41,6 @@ __attribute__((weak)) uint16_t cb_hoja_hardware_test()
 __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
 {
   (void)&data;
-}
-
-__attribute__((weak)) void cb_hoja_read_analog(a_data_s *data)
-{
-  (void)&data;
-}
-
-__attribute__((weak)) void cb_hoja_rumble_init()
-{
-}
-
-__attribute__((weak)) void cb_hoja_rumble_test()
-{
 }
 
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type)
@@ -83,7 +75,7 @@ input_method_t hoja_get_input_method()
   return _hoja_input_method;
 }
 
-a_data_s *hoja_get_desnapped_analog_data()
+analog_data_s *hoja_get_desnapped_analog_data()
 {
   return &_analog_data_desnapped;
 }
@@ -111,54 +103,15 @@ void _hoja_hal_setup()
   #endif
 }
 
-void _hoja_driver_setup()
-{
-  #ifdef HOJA_ADC_CHAN_LX_INIT
-    HOJA_ADC_CHAN_LX_INIT();
-  #endif 
-
-  #ifdef HOJA_ADC_CHAN_LY_INIT
-    HOJA_ADC_CHAN_LY_INIT();
-  #endif 
-
-  #ifdef HOJA_ADC_CHAN_RX_INIT
-    HOJA_ADC_CHAN_RX_INIT();
-  #endif 
-
-  #ifdef HOJA_ADC_CHAN_RY_INIT
-    HOJA_ADC_CHAN_RY_INIT();
-  #endif 
-
-  #ifdef HOJA_ADC_CHAN_LT_INIT
-    HOJA_ADC_CHAN_LT_INIT();
-  #endif 
-
-  #ifdef HOJA_ADC_CHAN_RT_INIT
-    HOJA_ADC_CHAN_RT_INIT();
-  #endif 
-
-  #ifdef HOJA_IMU_CHAN_A_INIT
-    HOJA_IMU_CHAN_A_INIT();
-  #endif
-
-  #ifdef HOJA_IMU_CHAN_B_INIT
-    HOJA_IMU_CHAN_B_INIT();
-  #endif
-
-  #ifdef HAPTIC_DRIVER_DRV2605L_INIT
-    HAPTIC_DRIVER_DRV2605L_INIT();
-  #endif
-}
-
 bool _hoja_idle_state = false;
 #define IDLE_TME_SECONDS 60*5 // 5 minutes
-void _hoja_set_idle_state(button_data_s *buttons, a_data_s *analogs, uint32_t timestamp)
+void _hoja_set_idle_state(button_data_s *buttons, analog_data_s *analogs, uint32_t timestamp)
 {
   static interval_s interval = {0};
   static interval_s check_interval = {0};
   const uint32_t idle_time = IDLE_TME_SECONDS * 1000 * 1000;
   static uint16_t btns = 0;
-  static a_data_s last_analogs = {0};
+  static analog_data_s last_analogs = {0};
 
   bool reset = false;
 

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hoja_bsp.h"
-#include "hoja_types.h"
+#include "input/imu.h"
 #include "board_config.h"
 
 // LSM6DSR REGISTERS
@@ -73,8 +73,7 @@
 // Driver channel configs
 // Maximum 2 channels
 
-#ifdef HOJA_IMU_CHAN_A_DRIVER
-#if HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR
+#if defined(HOJA_IMU_CHAN_A_DRIVER) && (HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR)
     #ifndef HOJA_IMU_CHAN_A_CS_PIN
         #error "HOJA_IMU_CHAN_A_CS_PIN undefined in board_config.h" 
     #endif
@@ -94,10 +93,8 @@
     #define HOJA_IMU_CHAN_A_READ(out) lsm6dsr_read(out, HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE, HOJA_IMU_CHAN_A_INVERT_FLAGS)
     #define HOJA_IMU_CHAN_A_INIT() lsm6dsr_init(HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE);
 #endif
-#endif
 
-#ifdef HOJA_IMU_CHAN_B_DRIVER
-#if HOJA_IMU_CHAN_B_DRIVER==IMU_DRIVER_LSM6DSR
+#if defined(HOJA_IMU_CHAN_B_DRIVER) && (HOJA_IMU_CHAN_B_DRIVER==IMU_DRIVER_LSM6DSR)
     #ifndef HOJA_IMU_CHAN_B_CS_PIN
         #error "HOJA_IMU_CHAN_B_CS_PIN undefined in board_config.h" 
     #endif
@@ -117,14 +114,11 @@
     #define HOJA_IMU_CHAN_B_READ(out) lsm6dsr_read(out, HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE, HOJA_IMU_CHAN_B_INVERT_FLAGS)
     #define HOJA_IMU_CHAN_B_INIT() lsm6dsr_init(HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE);
 #endif
-#endif
 
-#ifdef HOJA_IMU_CHAN_A_DRIVER
-#if HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR
+#if defined(HOJA_IMU_CHAN_A_DRIVER) && (HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR)
 int lsm6dsr_init(uint32_t cs_gpio, uint8_t spi_instance);
 
 int lsm6dsr_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_t invert_flags);
-#endif
 #endif
 
 #endif
