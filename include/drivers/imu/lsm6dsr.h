@@ -115,10 +115,8 @@
     #define HOJA_IMU_CHAN_B_INIT() lsm6dsr_init(HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE);
 #endif
 
-#if defined(HOJA_IMU_CHAN_A_DRIVER) && (HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR)
 int lsm6dsr_init(uint32_t cs_gpio, uint8_t spi_instance);
 
 int lsm6dsr_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_t invert_flags);
-#endif
 
 #endif

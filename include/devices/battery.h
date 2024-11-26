@@ -3,6 +3,17 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "board_config.h"
+
+#if defined(HOJA_BATTERY_DRIVER)
+    #ifndef HOJA_BATTERY_CAPACITY_MAH
+        #error "HOJA_BATTERY_CAPACITY_MAH undefined in board_config.h" 
+    #endif 
+
+    #ifndef HOJA_BATTERY_DRAWRATE_MA
+        #error "HOJA_BATTERY_DRAWRATE_MA undefined in board_config.h" 
+    #endif
+#endif
 
 typedef enum
 {
@@ -19,6 +30,12 @@ typedef enum
     BATTERY_PLUG_UNPLUGGED,
     BATTERY_PLUG_PLUGGED
 } battery_plug_t;
+
+typedef struct
+{
+    battery_plug_t      plug_status;
+    battery_charge_t    charge_status;
+} battery_status_s;
 
 typedef enum
 {

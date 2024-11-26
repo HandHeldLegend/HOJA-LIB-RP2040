@@ -27,6 +27,11 @@
 #include "drivers/mux/pi3usb4000a.h"
 #endif
 
+// Battery PMIC Single LiPo Charger
+#if defined(BATTERY_DRIVER_BQ25810) && (BATTERY_DRIVER_BQ25810>0)
+#include "drivers/battery/bq25180.h"
+#endif
+
 void drivers_setup();
 
 #endif
