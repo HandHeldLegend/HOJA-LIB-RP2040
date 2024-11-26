@@ -25,7 +25,7 @@ bool _button_try_enter()
     {
         return true;
     }
-    return false
+    return false;
 }
 
 void _button_exit()

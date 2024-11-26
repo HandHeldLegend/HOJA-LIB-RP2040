@@ -1,5 +1,5 @@
-#ifndef HOJA_CAPABILITIES_H
-#define HOJA_CAPABILITIES_H
+#ifndef UTILITIES_CAPABILITIES_H
+#define UTILITIES_CAPABILITIES_H
 
 #include <stdint.h>
 

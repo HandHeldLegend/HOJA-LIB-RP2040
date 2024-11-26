@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
-
 #define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 typedef enum

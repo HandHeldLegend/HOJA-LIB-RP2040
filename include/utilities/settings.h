@@ -1,5 +1,5 @@
-#ifndef HOJA_SETTINGS_H
-#define HOJA_SETTINGS_H
+#ifndef UTILITIES_SETTINGS_H
+#define UTILITIES_SETTINGS_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -8,7 +8,7 @@
 
 #include "input/remap.h"
 
-#include "extensions/haptics.h"
+#include "devices/haptics.h"
 
 typedef union
 {

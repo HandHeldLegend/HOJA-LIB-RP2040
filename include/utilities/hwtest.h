@@ -1,5 +1,5 @@
-#ifndef HOJA_HWTEST_H
-#define HOJA_HWTEST_H
+#ifndef UTILITIES_HWTEST_H
+#define UTILITIES_HWTEST_H
 
 #include <stdint.h>
 #include <stdbool.h>

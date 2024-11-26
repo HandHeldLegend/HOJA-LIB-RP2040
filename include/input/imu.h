@@ -1,5 +1,5 @@
-#ifndef HOJA_IMU_H
-#define HOJA_IMU_H
+#ifndef INPUT_IMU_H
+#define INPUT_IMU_H
 
 #include <stdint.h>
 #include "drivers/drivers.h"
@@ -68,7 +68,7 @@ typedef struct
     };
     
     bool retrieved;
-} __attribute__ ((packed)) imu_data_s;
+} imu_data_s;
 
 typedef struct
 {
@@ -94,6 +94,8 @@ typedef struct
     #define HOJA_IMU_DRIVER_ENABLED 0
 #endif
 
+bool imu_init();
+
 bool imu_access_try(imu_data_s *out);
 void imu_access_block(imu_data_s *out);
 
@@ -101,9 +103,6 @@ bool imu_quaternion_access_try(quaternion_s *out);
 void imu_quaternion_access_block(quaternion_s *out);
 
 void imu_task(uint32_t timestamp);
-
-
-
 
 imu_data_s* imu_fifo_last();
 imu_data_s* imu_fifo_pop();

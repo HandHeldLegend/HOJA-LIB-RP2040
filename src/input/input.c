@@ -11,7 +11,8 @@
 
 bool input_init(device_mode_t mode)
 {
-    
+    button_init();
+    analog_init();
 }
 
 void input_task_core0(uint32_t timestamp)

@@ -1,5 +1,5 @@
-#ifndef REBOOT_H
-#define REBOOT_H
+#ifndef UTILITIES_REBOOT_H
+#define UTILITIES_REBOOT_H
 
 #include <stdint.h>
 

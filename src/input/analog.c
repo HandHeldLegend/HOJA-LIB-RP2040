@@ -12,6 +12,8 @@
 
 #include "utilities/interval.h"
 
+#include "drivers/drivers.h"
+
 MUTEX_HAL_INIT(_analog_mutex);
 void _analog_blocking_enter()
 {
@@ -103,6 +105,30 @@ bool _analog_capture_angle = false;
 
 void analog_init()
 {
+    #if defined(HOJA_ADC_CHAN_LX_INIT)
+        HOJA_ADC_CHAN_LX_INIT();
+    #endif
+
+    #if defined(HOJA_ADC_CHAN_LY_INIT)
+        HOJA_ADC_CHAN_LY_INIT();
+    #endif
+
+    #if defined(HOJA_ADC_CHAN_RX_INIT)
+        HOJA_ADC_CHAN_RX_INIT();
+    #endif
+
+    #if defined(HOJA_ADC_CHAN_RY_INIT)
+        HOJA_ADC_CHAN_RY_INIT();
+    #endif
+
+    #if defined(HOJA_ADC_CHAN_LT_INIT)
+        HOJA_ADC_CHAN_LT_INIT();
+    #endif
+
+    #if defined(HOJA_ADC_CHAN_RT_INIT)
+        HOJA_ADC_CHAN_RT_INIT();
+    #endif
+
     stick_scaling_get_settings();
     stick_scaling_init();
 

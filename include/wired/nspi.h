@@ -1,7 +1,7 @@
-#ifndef NSPI_H
-#define NSPI_H
+#ifndef WIRED_NSPI_H
+#define WIRED_NSPI_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
 
 typedef struct
 {
@@ -39,6 +39,6 @@ typedef struct
     };
 } nspi_input_s;
 
-void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog);
+void nspi_comms_task(uint32_t timestamp);
 
 #endif

@@ -1,4 +1,4 @@
-#include "dinput.h"
+#include "devices/dinput.h"
 
 /** DINPUT HID MODE **/
 // 1. Device Descriptor

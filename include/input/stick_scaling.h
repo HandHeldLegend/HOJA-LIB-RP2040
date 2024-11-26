@@ -2,7 +2,7 @@
 #define HOJA_STICK_SCALING_H
 
 #include <stdint.h>
-#include "input/analog.h"
+#include "input/input.h"
 
 void stick_scaling_get_settings();
 void stick_scaling_set_settings();

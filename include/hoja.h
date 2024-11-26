@@ -10,7 +10,11 @@
 #include <stdint.h>
 
 #include "input/button.h"
+#include "input/analog.h"
+#include "input/remap.h"
+#include "utilities/callback.h"
 #include "devices/devices.h"
+#include "devices/haptics.h"
 
 typedef struct
 {
@@ -22,7 +26,7 @@ void cb_hoja_baseband_update_loop(button_data_s *buttons);
 uint16_t cb_hoja_hardware_test();
 
 void cb_hoja_read_buttons(button_data_s *data);
-void cb_hoja_buttons_init();
+bool cb_hoja_buttons_init();
 
 // void cb_hoja_read_imu(imu_data_s *data_a, imu_data_s *data_b);
 
@@ -38,7 +42,7 @@ bool hoja_get_idle_state();
 void hoja_set_baseband_update(bool set);
 void hoja_get_rumble_settings(uint8_t *intensity, rumble_type_t *type);
 void hoja_shutdown_instant();
-input_method_t hoja_get_input_method();
+device_method_t hoja_get_input_method();
 analog_data_s *hoja_get_desnapped_analog_data();
 button_data_s *hoja_get_raw_button_data();
 uint32_t hoja_get_timestamp();

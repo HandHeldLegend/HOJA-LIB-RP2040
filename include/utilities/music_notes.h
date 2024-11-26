@@ -1,5 +1,5 @@
-#ifndef MUSIC_NOTES_H
-#define MUSIC_NOTES_H
+#ifndef UTILITIES_MUSIC_NOTES_H
+#define UTILITIES_MUSIC_NOTES_H
 
 #define B3 246.94f  // Frequency of B3 in Hz
 #define E4 329.63f  // Frequency of E4 in Hz

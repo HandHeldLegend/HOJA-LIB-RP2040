@@ -1,5 +1,8 @@
-#ifndef HOJA_DEVICES_H
-#define HOJA_DEVICES_H
+#ifndef DEVICES_DEVICES_H
+#define DEVICES_DEVICES_H
+
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {
@@ -23,5 +26,11 @@ typedef enum
     DEVICE_METHOD_USB   = 1, // Use for USB modes where we should power off when unplugged
     DEVICE_METHOD_BLUETOOTH = 2, // Wireless Bluetooth modes
 } device_method_t;
+
+device_mode_t device_mode_get();
+
+void device_task(uint32_t timestamp);
+
+bool device_start(device_mode_t mode, device_method_t method);
 
 #endif

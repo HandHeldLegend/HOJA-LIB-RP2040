@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVERS_H
-#define HOJA_DRIVERS_H
+#ifndef DRIVERS_DRIVERS_H
+#define DRIVERS_DRIVERS_H
 
 #include "board_config.h"
 

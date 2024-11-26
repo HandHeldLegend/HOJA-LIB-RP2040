@@ -1,10 +1,10 @@
-#ifndef HOJA_BLUETOOTH_H
-#define HOJA_BLUETOOTH_H
+#ifndef DEVICES_BLUETOOTH_H
+#define DEVICES_BLUETOOTH_H
 
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "extensions/haptics.h"
+#include "devices/haptics.h"
 
 #include "switch/switch_haptics.h"
 

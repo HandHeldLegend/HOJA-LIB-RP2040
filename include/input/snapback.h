@@ -1,8 +1,8 @@
-#ifndef SNAPBACK_H
-#define SNAPBACK_H
+#ifndef INPUT_SNAPBACK_H
+#define INPUT_SNAPBACK_H
 
 #include <stdint.h>
-#include "input/analog.h"
+#include "input/input.h"
 
 #define ARC_MAX_WIDTH 10
 #define TRIGGER_MAX_WIDTH (ARC_MAX_WIDTH/2)

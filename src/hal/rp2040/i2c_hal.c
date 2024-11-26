@@ -93,5 +93,3 @@ int i2c_hal_write_read_timeout_us(uint8_t instance, uint8_t addr, const uint8_t 
 
     return ret;
 }
-
-

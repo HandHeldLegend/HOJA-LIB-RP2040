@@ -1,5 +1,5 @@
-#ifndef HOJA_INPUT_H
-#define HOJA_INPUT_H
+#ifndef INPUT_INPUT_H
+#define INPUT_INPUT_H
 
 #include <stdint.h>
 #include <stdbool.h>

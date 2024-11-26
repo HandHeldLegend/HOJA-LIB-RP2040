@@ -95,7 +95,7 @@ typedef struct
     int zr_analog;
 
     bool buttons_set;
-} __attribute__ ((packed)) button_data_s;
+} button_data_s;
 
 typedef enum 
 {
@@ -104,6 +104,7 @@ typedef enum
     BUTTON_ACCESS_BOOT_DATA
 } button_access_t;
 
+bool button_init();
 void button_access_blocking(button_data_s *out, button_access_t type);
 bool button_access_try(button_data_s *out, button_access_t type);
 

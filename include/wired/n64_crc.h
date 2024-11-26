@@ -1,5 +1,5 @@
-#ifndef N64_CRC_H
-#define N64_CRC_H
+#ifndef WIRED_N64_CRC_H
+#define WIRED_N64_CRC_H
 
 #include <stdint.h>
 

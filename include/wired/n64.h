@@ -1,8 +1,7 @@
-#ifndef N64_H
-#define N64_H
+#ifndef WIRED_N64_H
+#define WIRED_N64_H
 
-#include "hoja_includes.h"
-#include "interval.h"
+#include <stdint.h>
 
 typedef enum
 {
@@ -49,8 +48,8 @@ typedef struct
 
     int8_t stick_x;
     int8_t stick_y;
-} __attribute__ ((packed)) n64_input_s;
+} n64_input_s;
 
-void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog);
+void n64_comms_task(uint32_t timestamp);
 
 #endif 

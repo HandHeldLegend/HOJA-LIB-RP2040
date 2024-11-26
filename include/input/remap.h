@@ -1,8 +1,8 @@
-#ifndef REMAP_H
-#define REMAP_H
+#ifndef INPUT_REMAP_H
+#define INPUT_REMAP_H
 
-#include <stdint.h>
 #include "input/input.h"
+#include "devices/devices.h"
 
 #define MAPCODE_MAX 16
 // Map code is used during remap
@@ -113,12 +113,12 @@ typedef struct
     buttons_unset_s disabled;
 } remap_profile_s;
 
-void remap_send_data_webusb(input_mode_t mode);
-void remap_reset_default(input_mode_t mode);
+void remap_send_data_webusb(device_mode_t mode);
+void remap_reset_default(device_mode_t mode);
 void remap_set_gc_sp(gc_sp_mode_t sp_mode);
-void remap_init(input_mode_t mode, button_data_s *in, button_data_s *out);
+void remap_init(device_mode_t mode, button_data_s *in, button_data_s *out);
 void remap_listen_stop();
-void remap_listen_enable(input_mode_t mode, mapcode_t mapcode);
+void remap_listen_enable(device_mode_t mode, mapcode_t mapcode);
 void remap_buttons_task();
 
 #endif

@@ -3,7 +3,7 @@
 
 #include "hoja_bsp.h"
 
-#if HOJA_BSP_CHIPSET==CHIPSET_RP2040
+#if (HOJA_BSP_CHIPSET==CHIPSET_RP2040)
     #include "pico/multicore.h"
 
     #define MUTEX_HAL_INIT(name) auto_init_mutex(name)

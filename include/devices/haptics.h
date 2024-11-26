@@ -1,5 +1,5 @@
-#ifndef HOJA_HAPTICS_H
-#define HOJA_HAPTICS_H
+#ifndef DEVICES_HAPTICS_H
+#define DEVICES_HAPTICS_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -62,7 +62,8 @@ typedef enum
   RUMBLE_ON,
 } rumble_t;
 
-uint16_t haptics_mix_pcm(uint16_t pcm_a, uint16_t pcm_b);
+bool haptics_init();
+void haptics_task(uint32_t timestamp);
 
 bool haptics_set_all(float f_hi, float a_hi, float f_lo, float a_lo);
 

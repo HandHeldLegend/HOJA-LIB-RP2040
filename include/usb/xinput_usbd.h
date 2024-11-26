@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#ifndef XINPUT_USBD_H
-#define XINPUT_USBD_H
+#ifndef USB_XINPUT_USBD_H
+#define USB_XINPUT_USBD_H
 
 #include <stdint.h>
 #include <stdbool.h>

@@ -1,5 +1,4 @@
-#include "battery.h"
-#include "interval.h"
+#include "devices/battery.h"
 
 /**
  * We are implementing a new Battery general activity task.

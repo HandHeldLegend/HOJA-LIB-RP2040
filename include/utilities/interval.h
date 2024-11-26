@@ -1,5 +1,5 @@
-#ifndef INTERVAL_H
-#define INTERVAL_H
+#ifndef UTILITIES_INTERVAL_H
+#define UTILITIES_INTERVAL_H
 
 #include <stdint.h>
 #include <stdbool.h>

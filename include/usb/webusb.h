@@ -1,7 +1,7 @@
-#ifndef WEBUSB_H
-#define WEBUSB_H
+#ifndef USB_WEBUSB_H
+#define USB_WEBUSB_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
 
 typedef enum
 {

@@ -1,7 +1,10 @@
-#ifndef GCINPUT_H
-#define GCINPUT_H
+#ifndef USB_GCINPUT_H
+#define USB_GCINPUT_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
+#include "input/button.h"
+#include "bsp/board.h
+#include "tusb.h"
 
 // GC mode definitions
 /********************************/
@@ -48,7 +51,7 @@ typedef struct
   uint8_t trigger_l;
   uint8_t trigger_r;
 
-} __attribute__ ((packed)) gc_input_s;
+} gc_input_s;
 
 extern const tusb_desc_device_t gc_device_descriptor;
 extern const uint8_t gc_hid_report_descriptor[];

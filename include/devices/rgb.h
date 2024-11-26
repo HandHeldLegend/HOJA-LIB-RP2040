@@ -1,5 +1,5 @@
-#ifndef HOJA_RGB_H
-#define HOJA_RGB_H
+#ifndef DEVICES_RGB_H
+#define DEVICES_RGB_H
 
 #include "utilities/interval.h"
 #include "utilities/callback.h"

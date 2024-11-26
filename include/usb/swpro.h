@@ -1,5 +1,5 @@
-#ifndef SWPRO_H
-#define SWPRO_H
+#ifndef USB_SWPRO_H
+#define USB_SWPRO_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -74,7 +74,7 @@ typedef struct
     uint16_t rs_x;
     uint16_t rs_y;
 
-} __attribute__ ((packed)) sw_input_s;
+} sw_input_s;
 
 extern const tusb_desc_device_t swpro_device_descriptor;
 extern const uint8_t swpro_hid_report_descriptor[];

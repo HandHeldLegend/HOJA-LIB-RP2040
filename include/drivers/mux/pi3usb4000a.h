@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVER_PI3USB4000A
-#define HOJA_DRIVER_PI3USB4000A
+#ifndef DRIVERS_USB_MUX_PI3USB4000A
+#define DRIVERS_USB_MUX_PI3USB4000A
 
 #include <stdint.h>
 #include <stdbool.h>

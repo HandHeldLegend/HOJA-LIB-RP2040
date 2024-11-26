@@ -1,5 +1,5 @@
-#include "haptics.h"
-#include "ringbuffer.h"
+#include "devices/haptics.h"
+
 #include "pico/multicore.h"
 #include <string.h>
 

@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVER_IMU_H
-#define HOJA_DRIVER_IMU_H
+#ifndef DRIVERS_IMU_LSM6DSR_H
+#define DRIVERS_IMU_LSM6DSR_H
 
 #include <stdint.h>
 #include <stdbool.h>

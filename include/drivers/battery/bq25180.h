@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVER_BATTERY_H
-#define HOJA_DRIVER_BATTERY_H
+#ifndef DRIVERS_BATTERY_BQ25180_H
+#define DRIVERS_BATTERY_BQ25180_H
 
 #include <stdio.h>
 #include <stdint.h>

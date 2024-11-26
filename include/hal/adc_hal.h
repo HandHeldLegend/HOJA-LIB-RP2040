@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include "hoja_bsp.h"
 
-
 #ifdef HOJA_ADC_LX_DRIVER
 #if HOJA_ADC_LX_DRIVER==ADC_DRIVER_HAL
     #ifndef HOJA_ADC_LX_CHANNEL

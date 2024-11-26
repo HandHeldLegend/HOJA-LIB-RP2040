@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVER_DRV2605L_H
-#define HOJA_DRIVER_DRV2605L_H
+#ifndef DRIVERS_HAPTIC_DRV2605L_H
+#define DRIVERS_HAPTIC_DRV2605L_H
 
 #include "hoja_bsp.h"
 #include <stdint.h>

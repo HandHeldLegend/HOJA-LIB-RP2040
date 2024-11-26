@@ -1,5 +1,5 @@
-#ifndef DS4INPUT_H
-#define DS4INPUT_H
+#ifndef USB_DS4INPUT_H
+#define USB_DS4INPUT_H
 
 #include "hoja_includes.h"
 

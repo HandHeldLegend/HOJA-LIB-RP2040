@@ -1,5 +1,5 @@
-#ifndef GINPUT_USBD_H
-#define GINPUT_USBD_H
+#ifndef USB_GINPUT_USBD_H
+#define USB_GINPUT_USBD_H
 
 #include "device/usbd_pvt.h"
 

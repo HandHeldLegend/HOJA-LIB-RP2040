@@ -1,5 +1,5 @@
-#ifndef HOJA_DRIVER_ADC_MCP3002_H
-#define HOJA_DRIVER_ADC_MCP3002_H
+#ifndef DRIVERS_ADC_MCP3002_H
+#define DRIVERS_ADC_MCP3002_H
 
 #include "board_config.h"
 #include "hoja_bsp.h"

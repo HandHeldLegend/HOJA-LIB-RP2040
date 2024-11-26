@@ -1,7 +1,8 @@
-#ifndef XINPUT_H
-#define XINPUT_H
+#ifndef USB_XINPUT_H
+#define USB_XINPUT_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
+#include "tusb.h"
 
 #define XID_REPORT_LEN 20
 #define REPORT_ID_XINPUT 0x00
@@ -47,7 +48,7 @@ typedef struct
 	short stick_right_x;
 	short stick_right_y;
 	uint8_t reserved_1[6];
-} __attribute__ ((packed)) xid_input_s;
+} xid_input_s;
 
 void xinput_hid_report(button_data_s *button_data, a_data_s *analog_data);
 

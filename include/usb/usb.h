@@ -6,13 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#ifndef HOJA_HUSB_H
-#define HOJA_HUSB_H
+#ifndef USB_HUSB_H
+#define USB_HUSB_H
 
 #include <stdint.h>
 
 #include "utilities/interval.h"
 #include "input/input.h"
+#include "devices/devices.h"
 
 typedef enum
 {
@@ -20,6 +21,10 @@ typedef enum
     USBRATE_4 = 4166,
     USBRATE_1 = 500,
 } usb_rate_t;
+
+void usb_task(uint32_t timestamp);
+
+bool usb_init(input_mode_t mode);
 
 bool hoja_usb_start(input_mode_t mode);
 uint8_t dir_to_hat(hat_mode_t hat_type, uint8_t leftRight, uint8_t upDown);

@@ -1,7 +1,7 @@
 #ifndef SWITCH_SPI_H
 #define SWITCH_SPI_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
 
 // Byte index for start read address on output report
 #define SPI_STARTREAD_IDX   10
