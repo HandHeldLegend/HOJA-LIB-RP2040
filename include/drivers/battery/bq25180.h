@@ -11,7 +11,7 @@
 
 // Requires SPI to function
 #if (HOJA_BSP_HAS_I2C==0)
-    #error "LSM6DSR driver requires I2C." 
+    #error "BQ25180 driver requires I2C." 
 #endif
 
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25810)
@@ -23,7 +23,9 @@
     #define HOJA_BATTERY_GET_STATUS()       bq25180_get_status() 
     #define HOJA_BATTERY_UPDATE_STATUS()    bq25180_update_status()
     #define HOJA_BATTERY_SET_SOURCE(source) bq25180_set_source(source) 
-    #define HOJA_BATTERY_GET_LEVEL()        bq25180_get_level()
+    
+    #warning "HOJA_BATTERY_GET_LEVEL() is unused by BQ25180 and may be overridden."
+
     #define HOJA_BATTERY_SET_SHIP_MODE()    bq25180_set_ship_mode()
     #define HOJA_BATTERY_SET_CHARGE_RATE(rate_ma) bq25180_set_charge_rate(rate_ma)
 #endif

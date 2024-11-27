@@ -3,6 +3,17 @@
 
 #include "hal/mutex_hal.h"
 #include "pico/time.h"
+#include "hardware/watchdog.h"
+
+#define SYS_CLK_HZ 200000000
+
+void sys_hal_reboot()
+{
+    // Configure the watchdog to reset the chip after a short delay
+    watchdog_reboot(0, 0, 0);
+    // Loop forever, waiting for the watchdog to reset the chip
+    for(;;){}
+}
 
 void sys_hal_sleep_ms(uint32_t ms)
 {
@@ -12,6 +23,33 @@ void sys_hal_sleep_ms(uint32_t ms)
 void sys_hal_sleep_us(uint32_t us)
 {
     sleep_us(us);
+}
+
+void sys_hal_tick()
+{
+    watchdog_update();
+}
+
+bool sys_hal_init()
+{
+    watchdog_enable(16000, false);
+    // Test overclock
+    set_sys_clock_khz(SYS_CLK_HZ / 1000, true);
+    return true;
+}
+
+void sys_hal_start(void (*task_core_0)(void), void (*task_core_1)(void))
+{
+    // Enable lockout victimhood :,)
+    multicore_lockout_victim_init();
+
+    if(task_core_1!=NULL)
+        multicore_launch_core1(task_core_1);
+    
+    for(;;)
+    {
+        task_core_0();
+    }
 }
 
 MUTEX_HAL_INIT(_sys_hal_time_mutex);

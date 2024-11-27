@@ -62,15 +62,14 @@ typedef enum
     BATTERY_EVENT_CHARGE_COMPLETE,
 } battery_event_t;
 
-bool                battery_init(); // Init battery PMIC
-int                 battery_get_level();    // Get current battery level.
-bool                battery_set_source(battery_source_t source); // Set the PMIC power source.
-battery_plug_t      battery_get_plug();     // Get the PMIC plugged status.
-battery_charge_t    battery_get_charge();   // Get the PMIC charging status.
-battery_status_t    battery_get_battery();  // Get the PMIC battery status.
-void                battery_task(uint32_t timestamp); // PMIC management task.
-bool                battery_set_charge_rate(uint16_t rate_ma); // Set PMIC charge rate.
-bool                battery_set_ship_mode(); // Enable PMIC ship mode (power off).
-void                battery_event_handler(battery_event_t event);
+bool                battery_init(); 
+int                 battery_get_level(); 
+bool                battery_set_source(battery_source_t source); 
+battery_plug_t      battery_get_plug();   
+battery_charge_t    battery_get_charge();  
+battery_status_t    battery_get_battery(); 
+void                battery_task(uint32_t timestamp); 
+bool                battery_set_charge_rate(uint16_t rate_ma); 
+bool                battery_set_ship_mode(); 
 
 #endif

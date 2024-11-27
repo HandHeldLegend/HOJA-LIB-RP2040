@@ -10,6 +10,7 @@ battery_status_s _battery_status = {
 
 battery_status_s _new_battery_status;
 
+// Battery event handler
 void _event_handler(battery_event_t event)
 {
     switch(event)
@@ -28,6 +29,7 @@ void _event_handler(battery_event_t event)
     }
 }
 
+// Init battery PMIC
 bool battery_init()
 {
     #if defined(HOJA_BATTERY_INIT)
@@ -44,6 +46,7 @@ bool battery_init()
     #endif 
 }
 
+// Get current battery level. Returns -1 if unsupported.
 int battery_get_level()
 {
     #if defined(HOJA_BATTERY_GET_LEVEL)
@@ -53,6 +56,7 @@ int battery_get_level()
     #endif 
 }
 
+// Set the PMIC power source.
 bool battery_set_source(battery_source_t source)
 {
     #if defined(HOJA_BATTERY_SET_SOURCE)
@@ -63,22 +67,26 @@ bool battery_set_source(battery_source_t source)
     #endif 
 }
 
+// Get the PMIC plugged status.
 battery_plug_t battery_get_plug()
 {
     return _battery_status.plug_status;
 }
 
+// Get the PMIC charging status.
 battery_charge_t battery_get_charge()
 {
     return _battery_status.charge_status;
 }
 
+// Get the PMIC battery status.
 battery_status_t battery_get_battery()
 {
     return _battery_status.battery_status;
 }
 
 #define BATTERY_TASK_INTERVAL 1 * 1000 * 1000 // 1 second (1000ms)
+// PMIC management task.
 void battery_task(uint32_t timestamp)
 {
     #if defined(HOJA_BATTERY_DRIVER)
@@ -145,6 +153,7 @@ void battery_task(uint32_t timestamp)
     #endif 
 }
 
+// Set PMIC charge rate.
 bool battery_set_charge_rate(uint16_t rate_ma)
 {
     #if defined(HOJA_BATTERY_SET_CHARGE_RATE)
@@ -154,6 +163,7 @@ bool battery_set_charge_rate(uint16_t rate_ma)
     #endif 
 }
 
+// Enable PMIC ship mode (power off with power conservation).
 bool battery_set_ship_mode()
 {
     #if defined(HOJA_BATTERY_SET_SHIP_MODE)

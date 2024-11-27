@@ -29,6 +29,8 @@ typedef enum
 
 device_mode_t device_mode_get();
 
+void device_init();
+
 void device_task(uint32_t timestamp);
 
 bool device_start(device_mode_t mode, device_method_t method);

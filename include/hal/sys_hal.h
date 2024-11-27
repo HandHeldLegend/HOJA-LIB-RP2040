@@ -4,11 +4,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+bool sys_hal_init();
+
+void sys_hal_start(void (*task_core_0)(void), void (*task_core_1)(void));
+
 // Return a random uint32_t type number
 uint32_t sys_hal_random();
 
 // Update watchdog if applicable
-void sys_hal_watchdog_update();
+void sys_hal_tick();
 
 // Return time/ticks since boot 
 uint32_t sys_hal_time_us();

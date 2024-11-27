@@ -146,9 +146,10 @@ battery_status_s bq25180_get_status()
     return _pmic_status;
 }
 
+// Battery level isn't supported with this PMIC. Returns -1
 int  bq25180_get_level()
 {
-    // Battery level isn't supported with this PMIC
+    
     return -1;
 }
 

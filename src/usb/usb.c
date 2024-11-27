@@ -8,11 +8,12 @@
 
 #include "usb/usb.h"
 #include "devices/devices.h"
+#include "devices/haptics.h"
 #include "utilities/interval.h"
-#include "hardware/structs/usb.h"
-#include "extensions/haptics.h"
+#include "tusb.h"
 
 #include "hal/mutex_hal.h"
+#include "hal/usb_hal.h"
 
 #include "board_config.h"
 
@@ -172,7 +173,7 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
   tud_task();
 
   // Get our SOF frames counter
-  uint32_t sof_rd = usb_hw->sof_rd;
+  uint32_t sof_rd = usb_hal_sof();
   // Handle looparound of the frame counter(11 bits, 2047 max)
   uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047 - frame_storage) + sof_rd);
 
