@@ -1,6 +1,11 @@
 #include "switch/switch_motion.h"
 #include "hal/sys_hal.h"
 
+#include "hoja_bsp.h"
+#if HOJA_BSP_CHIPSET==CHIPSET_RP2040
+  #include "pico/float.h"
+#endif
+
 void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
 {
   static uint32_t last_time;

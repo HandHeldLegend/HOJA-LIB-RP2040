@@ -2,7 +2,7 @@
 #define SWITCH_COMMANDS_H
 
 #include <stdint.h>
-#include "devices/swpro.h"
+#include "usb/swpro.h"
 
 #define SW_OUT_ID_RUMBLE_CMD 0x01
 #define SW_OUT_ID_INFO  0x80

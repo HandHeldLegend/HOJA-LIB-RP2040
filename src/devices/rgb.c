@@ -1,4 +1,4 @@
-#include "rgb.h"
+#include "devices/rgb.h"
 
 #if (HOJA_CAPABILITY_RGB == 1)
 // 21 steps is about 0.35 seconds

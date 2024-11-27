@@ -1,4 +1,4 @@
-#include "interval.h"
+#include "utilities/interval.h"
 
 // This is a static inline function that will return
 // a value of 'true' if an interval is met.

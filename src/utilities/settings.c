@@ -1,4 +1,4 @@
-#include "extensions/settings.h"
+#include "utilities/settings.h"
 
 #define FLASH_TARGET_OFFSET (1200 * 1024)
 #define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
@@ -429,9 +429,9 @@ void settings_set_angles(float *l_angles, float *r_angles)
   memcpy(global_loaded_settings.r_angles, r_angles, sizeof(float) * 8);
 }
 
-void settings_set_mode(input_mode_t mode)
+void settings_set_mode(gamepad_mode_t mode)
 {
-  mode = (mode >= INPUT_MODE_MAX) ? 0 : mode;
+  mode = (mode >= GAMEPAD_MODE_MAX) ? 0 : mode;
   
   global_loaded_settings.input_mode = mode;
 }

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+void sys_hal_reboot();
+
 bool sys_hal_init();
 
 void sys_hal_start(void (*task_core_0)(void), void (*task_core_1)(void));

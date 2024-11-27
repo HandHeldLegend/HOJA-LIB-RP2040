@@ -9,7 +9,9 @@
 
 #include "utilities/interval.h"
 
-bool input_init(device_mode_t mode)
+#include "hoja.h"
+
+bool input_init(gamepad_mode_t mode)
 {
     button_init();
     analog_init();

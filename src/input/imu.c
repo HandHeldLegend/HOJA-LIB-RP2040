@@ -6,6 +6,8 @@
 #include "utilities/interval.h"
 
 #include <math.h>
+#include <stdbool.h>
+#include <string.h>
 
 #define IMU_READ_RATE 1000 // 500KHz 
 #define IMU_CALIBRATE_CYCLES 16000
@@ -360,4 +362,9 @@ void imu_task(uint32_t timestamp)
   }
 
   #endif
+}
+
+bool imu_init()
+{
+
 }

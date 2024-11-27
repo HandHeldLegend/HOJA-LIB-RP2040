@@ -1,4 +1,16 @@
-#include "switch_commands.h"
+#include "switch/switch_commands.h"
+#include "switch/switch_spi.h"
+#include "switch/switch_haptics.h"
+#include "switch/switch_motion.h"
+
+#include "devices/haptics.h"
+#include "devices/rgb.h"
+
+#include "hal/sys_hal.h"
+
+#include "hoja.h"
+
+#include <math.h>
 
 // This C file handles various Switch gamepad commands (OUT reports)
 uint8_t _switch_in_command_buffer[64] = {0};
@@ -19,7 +31,7 @@ void generate_ltk()
   //printf("Generated LTK: ");
   for (uint8_t i = 0; i < 16; i++)
   {
-    _switch_ltk[i] = get_rand_32() & 0xFF;
+    _switch_ltk[i] = sys_hal_random() & 0xFF; 
     //printf("%X : ", _switch_ltk[i]);
   }
   //printf("\n");
@@ -48,7 +60,7 @@ void set_command(uint8_t command)
 void set_timer()
 {
   static uint32_t last_time = 0;
-  uint32_t this_time = hoja_get_timestamp();
+  uint32_t this_time = sys_hal_time_us();
 
   double diff = (double) abs((int) this_time - (int) last_time);
   last_time = this_time;
@@ -134,8 +146,6 @@ void set_shipmode(uint8_t ship_mode)
 {
   // Unhandled.
 }
-
-
 
 // Sends mac address with 0x81 command (unknown?)
 void info_set_mac()
@@ -263,7 +273,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
 
   case SW_CMD_ENABLE_IMU:
     //printf("Enable IMU: %d\n", data[11]);
-    imu_set_enabled(data[11] > 0);
+    //imu_set_enabled(data[11] > 0);
     _switch_imu_mode = data[11];
     set_ack(0x80);
     break;
@@ -455,66 +465,70 @@ void switch_commands_process(sw_input_s *input_data)
 
       if(_switch_imu_mode == 0x01)
       {
-        imu_data_s *_imu_tmp = imu_fifo_last();
+        imu_data_s imu_tmp = {0};
+
+        imu_access_try(&imu_tmp);
 
         // Group 1
-        _switch_command_buffer[12] = _imu_tmp->ay_8l; // Y-axis
-        _switch_command_buffer[13] = _imu_tmp->ay_8h;
+        _switch_command_buffer[12] = imu_tmp.ay_8l; // Y-axis
+        _switch_command_buffer[13] = imu_tmp.ay_8h;
 
-        _switch_command_buffer[14] = _imu_tmp->ax_8l; // X-axis
-        _switch_command_buffer[15] = _imu_tmp->ax_8h;
+        _switch_command_buffer[14] = imu_tmp.ax_8l; // X-axis
+        _switch_command_buffer[15] = imu_tmp.ax_8h;
 
-        _switch_command_buffer[16] = _imu_tmp->az_8l; // Z-axis
-        _switch_command_buffer[17] = _imu_tmp->az_8h;
+        _switch_command_buffer[16] = imu_tmp.az_8l; // Z-axis
+        _switch_command_buffer[17] = imu_tmp.az_8h;
 
-        _switch_command_buffer[18] = _imu_tmp->gy_8l;
-        _switch_command_buffer[19] = _imu_tmp->gy_8h;
+        _switch_command_buffer[18] = imu_tmp.gy_8l;
+        _switch_command_buffer[19] = imu_tmp.gy_8h;
 
-        _switch_command_buffer[20] = _imu_tmp->gx_8l;
-        _switch_command_buffer[21] = _imu_tmp->gx_8h;
+        _switch_command_buffer[20] = imu_tmp.gx_8l;
+        _switch_command_buffer[21] = imu_tmp.gx_8h;
 
-        _switch_command_buffer[22] = _imu_tmp->gz_8l;
-        _switch_command_buffer[23] = _imu_tmp->gz_8h;
+        _switch_command_buffer[22] = imu_tmp.gz_8l;
+        _switch_command_buffer[23] = imu_tmp.gz_8h;
 
-        _imu_tmp = imu_fifo_last();
+        imu_access_try(&imu_tmp);
 
         // Group 2
-        _switch_command_buffer[24] = _imu_tmp->ay_8l; // Y-axis
-        _switch_command_buffer[25] = _imu_tmp->ay_8h;
-        _switch_command_buffer[26] = _imu_tmp->ax_8l; // X-axis
-        _switch_command_buffer[27] = _imu_tmp->ax_8h;
-        _switch_command_buffer[28] = _imu_tmp->az_8l; // Z-axis
-        _switch_command_buffer[29] = _imu_tmp->az_8h;
+        _switch_command_buffer[24] = imu_tmp.ay_8l; // Y-axis
+        _switch_command_buffer[25] = imu_tmp.ay_8h;
+        _switch_command_buffer[26] = imu_tmp.ax_8l; // X-axis
+        _switch_command_buffer[27] = imu_tmp.ax_8h;
+        _switch_command_buffer[28] = imu_tmp.az_8l; // Z-axis
+        _switch_command_buffer[29] = imu_tmp.az_8h;
 
-        _switch_command_buffer[30] = _imu_tmp->gy_8l;
-        _switch_command_buffer[31] = _imu_tmp->gy_8h;
-        _switch_command_buffer[32] = _imu_tmp->gx_8l;
-        _switch_command_buffer[33] = _imu_tmp->gx_8h;
-        _switch_command_buffer[34] = _imu_tmp->gz_8l;
-        _switch_command_buffer[35] = _imu_tmp->gz_8h;
+        _switch_command_buffer[30] = imu_tmp.gy_8l;
+        _switch_command_buffer[31] = imu_tmp.gy_8h;
+        _switch_command_buffer[32] = imu_tmp.gx_8l;
+        _switch_command_buffer[33] = imu_tmp.gx_8h;
+        _switch_command_buffer[34] = imu_tmp.gz_8l;
+        _switch_command_buffer[35] = imu_tmp.gz_8h;
 
-        _imu_tmp = imu_fifo_last();
+        imu_access_try(&imu_tmp);
 
         // Group 3
-        _switch_command_buffer[36] = _imu_tmp->ay_8l; // Y-axis
-        _switch_command_buffer[37] = _imu_tmp->ay_8h;
-        _switch_command_buffer[38] = _imu_tmp->ax_8l; // X-axis
-        _switch_command_buffer[39] = _imu_tmp->ax_8h;
-        _switch_command_buffer[40] = _imu_tmp->az_8l; // Z-axis
-        _switch_command_buffer[41] = _imu_tmp->az_8h;
-        _switch_command_buffer[42] = _imu_tmp->gy_8l;
-        _switch_command_buffer[43] = _imu_tmp->gy_8h;
-        _switch_command_buffer[44] = _imu_tmp->gx_8l;
-        _switch_command_buffer[45] = _imu_tmp->gx_8h;
-        _switch_command_buffer[46] = _imu_tmp->gz_8l;
-        _switch_command_buffer[47] = _imu_tmp->gz_8h;
+        _switch_command_buffer[36] = imu_tmp.ay_8l; // Y-axis
+        _switch_command_buffer[37] = imu_tmp.ay_8h;
+        _switch_command_buffer[38] = imu_tmp.ax_8l; // X-axis
+        _switch_command_buffer[39] = imu_tmp.ax_8h;
+        _switch_command_buffer[40] = imu_tmp.az_8l; // Z-axis
+        _switch_command_buffer[41] = imu_tmp.az_8h;
+        _switch_command_buffer[42] = imu_tmp.gy_8l;
+        _switch_command_buffer[43] = imu_tmp.gy_8h;
+        _switch_command_buffer[44] = imu_tmp.gx_8l;
+        _switch_command_buffer[45] = imu_tmp.gx_8h;
+        _switch_command_buffer[46] = imu_tmp.gz_8l;
+        _switch_command_buffer[47] = imu_tmp.gz_8h;
       }
       else if(_switch_imu_mode == 0x02)
       {
         // New Gyro test code
         static mode_2_s mode_2_data = {0};
+        static quaternion_s quat_data = {0};
 
-        imu_pack_quat(&mode_2_data);
+        imu_quaternion_access_try(&quat_data);
+        switch_motion_pack_quat(&quat_data, &mode_2_data);
 
         memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
       }
@@ -538,7 +552,6 @@ void switch_commands_process(sw_input_s *input_data)
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
 
       tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
-      analog_send_reset();
     }
   }
 }

@@ -1,12 +1,17 @@
-#include "switch_haptics.h"
+#include "switch/switch_haptics.h"
 
 #include <stddef.h>
 #include <float.h>
 #include <string.h>
-#include "haptics.h"
+#include "devices/haptics.h"
 
-// TODO replace or have guards to define this accordingly to the MCU
-#include "pico/float.h"
+
+#include "hoja_bsp.h"
+
+#if HOJA_BSP_CHIPSET == CHIPSET_RP2040
+    // Special float functions for RP2040
+    #include "pico/float.h"
+#endif
 
 const float MinFrequency = -2.0f;
 const float MaxFrequency = 2.0f;

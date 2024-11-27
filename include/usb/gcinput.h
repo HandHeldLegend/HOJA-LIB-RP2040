@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "input/button.h"
-#include "bsp/board.h
+#include "bsp/board.h"
 #include "tusb.h"
 
 // GC mode definitions
@@ -58,6 +58,6 @@ extern const uint8_t gc_hid_report_descriptor[];
 extern const uint8_t gc_configuration_descriptor[];
 
 void gcinput_enable(bool enable);
-void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data);
+void gcinput_hid_report(uint32_t timestamp);
 
 #endif

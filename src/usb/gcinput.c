@@ -1,4 +1,7 @@
-#include "gcinput.h"
+#include "usb/gcinput.h"
+
+#include "input/button.h"
+#include "input/analog.h"
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
@@ -13,37 +16,44 @@ void gcinput_enable(bool enable)
     _gc_enable = enable;
 }
 
-void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
+void gcinput_hid_report(uint32_t timestamp)
 {
     static gc_input_s data = {0};
     static uint8_t buffer[37] = {0};
 
+    static button_data_s buttons = {0};
+    static analog_data_s analog  = {0};
+
+    // Update input data
+    button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+    analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+
     buffer[0] = 0x21;
 
-    float lx = (analog_data->lx*0.0488f) + 28;
-    float ly = (analog_data->ly*0.0488f) + 28;
-    float rx = (analog_data->rx*0.0488f) + 28;
-    float ry = (analog_data->ry*0.0488f) + 28;
+    float lx = (analog.lx*0.0488f) + 28;
+    float ly = (analog.ly*0.0488f) + 28;
+    float rx = (analog.rx*0.0488f) + 28;
+    float ry = (analog.ry*0.0488f) + 28;
 
-    data.button_a = button_data->button_a;
-    data.button_b = button_data->button_b;
-    data.button_x = button_data->button_x;
-    data.button_y = button_data->button_y;
-    data.button_start = button_data->button_plus;
+    data.button_a = buttons.button_a;
+    data.button_b = buttons.button_b;
+    data.button_x = buttons.button_x;
+    data.button_y = buttons.button_y;
+    data.button_start = buttons.button_plus;
 
-    data.button_l = button_data->trigger_zl;
-    data.button_r = button_data->trigger_zr;
-    data.button_z = button_data->trigger_r;
+    data.button_l = buttons.trigger_zl;
+    data.button_r = buttons.trigger_zr;
+    data.button_z = buttons.trigger_r;
 
-    data.stick_x = CLAMP_0_255(lx);
-    data.stick_y = CLAMP_0_255(ly);
-    data.cstick_x = CLAMP_0_255(rx);
-    data.cstick_y = CLAMP_0_255(ry);
+    data.stick_x    = CLAMP_0_255(lx);
+    data.stick_y    = CLAMP_0_255(ly);
+    data.cstick_x   = CLAMP_0_255(rx);
+    data.cstick_y   = CLAMP_0_255(ry);
 
-    data.dpad_down  = button_data->dpad_down;
-    data.dpad_up    = button_data->dpad_up;
-    data.dpad_left  = button_data->dpad_left;
-    data.dpad_right = button_data->dpad_right;
+    data.dpad_down  = buttons.dpad_down;
+    data.dpad_up    = buttons.dpad_up;
+    data.dpad_left  = buttons.dpad_left;
+    data.dpad_right = buttons.dpad_right;
 
     int outl = 0;
     int outr = 0;
@@ -52,39 +62,38 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
     switch(global_loaded_settings.gc_sp_mode)
     {
         default:
-
-            data.trigger_l = button_data->trigger_zl ? 255 : (button_data->zl_analog >> 4);
-            data.trigger_r = button_data->trigger_zr ? 255 : (button_data->zr_analog >> 4);
+            data.trigger_l = buttons.trigger_zl ? 255 : (buttons.zl_analog >> 4);
+            data.trigger_r = buttons.trigger_zr ? 255 : (buttons.zr_analog >> 4);
 
             break;
 
         case GC_SP_MODE_LT:
-            outl = button_data->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-            data.trigger_l = button_data->trigger_zl ? 255 : outl;
+            outl = buttons.trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+            data.trigger_l = buttons.trigger_zl ? 255 : outl;
 
-            data.trigger_r = button_data->zr_analog >> 4;
-            data.trigger_r = button_data->trigger_zr ? 255 : data.trigger_r;
+            data.trigger_r = buttons.zr_analog >> 4;
+            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
 
             break;
 
         case GC_SP_MODE_RT:
-            outr = button_data->trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-            data.trigger_r = button_data->trigger_zr ? 255 : outr;
+            outr = buttons.trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
+            data.trigger_r = buttons.trigger_zr ? 255 : outr;
 
-            data.trigger_l = button_data->zl_analog >> 4;
-            data.trigger_l = button_data->trigger_zl ? 255 : data.trigger_l;
+            data.trigger_l = buttons.zl_analog >> 4;
+            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
 
             break;
 
         case GC_SP_MODE_TRAINING:
         
-            data.trigger_l = button_data->zl_analog >> 4;
-            data.trigger_l = button_data->trigger_zl ? 255 : data.trigger_l;
+            data.trigger_l = buttons.zl_analog >> 4;
+            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
 
-            data.trigger_r = button_data->zr_analog >> 4;
-            data.trigger_r = button_data->trigger_zr ? 255 : data.trigger_r;
+            data.trigger_r = buttons.zr_analog >> 4;
+            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
 
-            if(button_data->trigger_l)
+            if(buttons.trigger_l)
             {
                 data.button_a = 1;
                 data.trigger_l = 255;
@@ -96,16 +105,16 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
             break;
 
         case GC_SP_MODE_DUALZ:
-            data.button_z |= button_data->trigger_l;
+            data.button_z |= buttons.trigger_l;
 
-            data.button_l = button_data->trigger_zl;
-            data.button_r = button_data->trigger_zr;
+            data.button_l = buttons.trigger_zl;
+            data.button_r = buttons.trigger_zr;
 
-            data.trigger_l = button_data->zl_analog >> 4;
-            data.trigger_l = button_data->trigger_zl ? 255 : data.trigger_l;
+            data.trigger_l = buttons.zl_analog >> 4;
+            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
 
-            data.trigger_r = button_data->zr_analog >> 4;
-            data.trigger_r = button_data->trigger_zr ? 255 : data.trigger_r;
+            data.trigger_r = buttons.zr_analog >> 4;
+            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
 
           break;
     }
@@ -133,6 +142,5 @@ void gcinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
     }
 
     tud_ginput_report(0, buffer, 37);
-    analog_send_reset();
 }   
 

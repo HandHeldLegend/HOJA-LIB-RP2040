@@ -1,4 +1,6 @@
-#include "remap.h"
+#include "input/remap.h"
+#include "input/button.h"
+#include "hoja.h"
 
 #define REMAP_SET(button, shift, unset) ( (!unset) ? ((button) << shift) : 0)
 
@@ -6,7 +8,7 @@ button_data_s *_buttons_in;
 button_data_s _remap_internal = {0};
 button_data_s *_buttons_out;
 
-input_mode_t    _remap_mode;
+gamepad_mode_t    _remap_mode;
 button_remap_s *_remap_struct;
 buttons_unset_s *_unset_struct;
 
@@ -17,7 +19,7 @@ bool            _button_remap_listen = false;
 mapcode_t       _tmp_remap_arr[MAPCODE_MAX];
 button_remap_s  *_tmp_remap_struct;
 buttons_unset_s *_tmp_unset_struct;
-input_mode_t    _tmp_remap_mode;
+gamepad_mode_t    _tmp_remap_mode;
 
 bool _l_analog_remapped = false;
 bool _r_analog_remapped = false;
@@ -50,7 +52,7 @@ const buttons_unset_s default_n64_unset       = {.val = (1<<MAPCODE_B_STICKL) | 
 const buttons_unset_s default_gamecube_unset  = {.val = (1<<MAPCODE_B_MINUS) | (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_L)};
 const buttons_unset_s default_snes_unset      = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_ZL) | (1<<MAPCODE_T_ZR)};
 
-void _remap_load_remap(input_mode_t mode, button_remap_s **remap_out, buttons_unset_s **unset_out)
+void _remap_load_remap(gamepad_mode_t mode, button_remap_s **remap_out, buttons_unset_s **unset_out)
 {
   switch(mode)
   {
@@ -189,7 +191,7 @@ void _remap_listener(uint16_t buttons, bool clear)
   }
 }
 
-void remap_send_data_webusb(input_mode_t mode)
+void remap_send_data_webusb(gamepad_mode_t mode)
 {
   _remap_load_remap(mode, &_tmp_remap_struct, &_tmp_unset_struct);
   _remap_unpack_remap(_tmp_remap_arr, _tmp_remap_struct);
@@ -227,7 +229,7 @@ void remap_send_data_webusb(input_mode_t mode)
   }
 }
 
-void remap_reset_default(input_mode_t mode)
+void remap_reset_default(gamepad_mode_t mode)
 {
   _remap_load_remap(mode, &_remap_struct, &_unset_struct);
 
@@ -255,7 +257,7 @@ void remap_reset_default(input_mode_t mode)
   _remap_unpack_remap(_remap_arr, _remap_struct);
 }
 
-void remap_init(input_mode_t mode, button_data_s *in, button_data_s *out)
+void remap_init(gamepad_mode_t mode, button_data_s *in, button_data_s *out)
 {
   _buttons_in = in;
   _buttons_out = out;
@@ -278,7 +280,7 @@ void remap_listen_stop()
   _remap_unpack_remap(_remap_arr, _remap_struct);
 }
 
-void remap_listen_enable(input_mode_t mode, mapcode_t mapcode)
+void remap_listen_enable(gamepad_mode_t mode, mapcode_t mapcode)
 {
   _remap_load_remap(mode, &_tmp_remap_struct, &_tmp_unset_struct);
   _remap_unpack_remap(_tmp_remap_arr, _tmp_remap_struct);

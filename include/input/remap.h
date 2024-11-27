@@ -1,7 +1,8 @@
 #ifndef INPUT_REMAP_H
 #define INPUT_REMAP_H
 
-#include "input/input.h"
+#include "hoja_shared.h"
+#include "input/remap.h"
 #include "devices/devices.h"
 
 #define MAPCODE_MAX 16
@@ -47,10 +48,10 @@ typedef struct
     {
         struct
         {
-            mapcode_t dpad_up     : 4;
-            mapcode_t dpad_down   : 4;
-            mapcode_t dpad_left   : 4;
-            mapcode_t dpad_right  : 4;
+            mapcode_t dpad_up     : 4; // Default 0
+            mapcode_t dpad_down   : 4; // Default 1
+            mapcode_t dpad_left   : 4; // Default 2
+            mapcode_t dpad_right  : 4; // Default 3...
             mapcode_t button_a      : 4;
             mapcode_t button_b      : 4;
             mapcode_t button_x      : 4;
@@ -119,6 +120,8 @@ void remap_set_gc_sp(gc_sp_mode_t sp_mode);
 void remap_init(device_mode_t mode, button_data_s *in, button_data_s *out);
 void remap_listen_stop();
 void remap_listen_enable(device_mode_t mode, mapcode_t mapcode);
-void remap_buttons_task();
+
+void remap_set(uint8_t button_assignment, uint8_t new_button); // Assign new_button to button_assignment output.
+void remap_process(button_data_s *in, button_data_s *out);
 
 #endif

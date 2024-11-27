@@ -1,4 +1,4 @@
-#include "reboot.h"
+#include "utilities/reboot.h"
 
 #define SCRATCH_OFFSET 0xC
 #define MAX_INDEX     7
@@ -6,10 +6,7 @@
 
 void _software_reset()
 {
-  // Configure the watchdog to reset the chip after a short delay
-  watchdog_reboot(0, 0, 0);
-  // Loop forever, waiting for the watchdog to reset the chip
-  for(;;){}
+  
 }
 
 void _scratch_set(uint8_t index, uint32_t value) {

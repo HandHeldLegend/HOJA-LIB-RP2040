@@ -1,11 +1,3 @@
-/*
- * Copyright (c) [2023] [Mitch Cairns/Handheldlegend, LLC]
- * All rights reserved.
- *
- * This source code is licensed under the provisions of the license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
 #include "usb/usb.h"
 #include "devices/devices.h"
 #include "devices/haptics.h"
@@ -15,7 +7,24 @@
 #include "hal/mutex_hal.h"
 #include "hal/usb_hal.h"
 
+#include "utilities/callback.h"
+
 #include "board_config.h"
+
+#include "usb/ginput_usbd.h"
+#include "usb/xinput_usbd.h"
+#include "usb/desc_bos.h"
+
+#include "usb/swpro.h"
+#include "usb/xinput.h"
+#include "usb/gcinput.h"
+
+typedef enum
+{
+    USBRATE_8 = 8333,
+    USBRATE_4 = 4166,
+    USBRATE_1 = 500,
+} usb_rate_t;
 
 const char* global_string_descriptor[] = {
     // array of pointer to string descriptors
@@ -26,46 +35,61 @@ const char* global_string_descriptor[] = {
     "GC Mode" // 4 Identifier for GC Mode
 };
 
-device_mode_t _usb_mode = DEVICE_MODE_XINPUT;
+time_callback_t _usb_task_cb = NULL;
 
 uint32_t _usb_clear_owner_0;
 uint32_t _usb_clear_owner_0;
-MUTEX_HAL_INIT(_hoja_usb_clear_mutex);
+
 // Whether our last input was sent through or not
 volatile bool _usb_clear = false;
 // Whether USB is ready for another input
 volatile bool _usb_ready = false;
 
-void hoja_usb_set_usb_clear()
+MUTEX_HAL_INIT(_hoja_usb_mutex);
+void _usb_enter_blocking()
 {
-  
-  if (MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_clear_mutex, 16000))
-  {
-    _usb_clear = true;
-    MUTEX_HAL_EXIT(&_hoja_usb_clear_mutex);
-  }
+  MUTEX_HAL_ENTER_BLOCKING(&_hoja_usb_mutex);
 }
 
-void hoja_usb_unset_usb_clear()
+bool _usb_enter_try()
 {
-  if (MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_clear_mutex, 16000))
+  if(MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_mutex, 10))
   {
-    _usb_clear = false;
-    MUTEX_HAL_EXIT(&_hoja_usb_clear_mutex);
+    return true;
   }
+  return false;
 }
 
-bool hoja_usb_get_usb_clear(uint32_t timestamp)
+void _usb_exit()
 {
-  static interval_s s = {0};
+  MUTEX_HAL_EXIT(&_hoja_usb_mutex);
+}
+
+void _usb_set_usb_clear()
+{
+  _usb_enter_blocking();
+  _usb_clear = true;
+  _usb_exit();
+}
+
+void _usb_unset_usb_clear()
+{
+  _usb_enter_blocking();
+  _usb_clear = false;
+  _usb_exit();
+}
+
+bool _usb_get_usb_clear(uint32_t timestamp)
+{
   bool clear = false;
 
-  if (MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_clear_mutex, 100))
+  if(_usb_enter_try())
   {
     clear = _usb_clear;
-    MUTEX_HAL_EXIT(&_hoja_usb_clear_mutex);
+    _usb_exit();
   }
 
+  static interval_s s = {0};
   if (interval_resettable_run(timestamp, 100000, clear, &s))
   {
     hoja_usb_set_usb_clear();
@@ -82,10 +106,7 @@ uint32_t _usb_rate = 0;
 // before we will initiate a USB data send
 uint32_t _usb_frames = 0;
 
-typedef void (*usb_cb_t)(button_data_s *, a_data_s *);
 typedef bool (*usb_ready_t)(void);
-
-usb_cb_t _usb_hid_cb = NULL;
 usb_ready_t _usb_ready_cb = NULL;
 
 // Set up custom TinyUSB XInput Driver
@@ -93,12 +114,12 @@ usb_ready_t _usb_ready_cb = NULL;
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
   *driver_count += 1;
-  if (_usb_mode == INPUT_MODE_GCUSB)
+  if (hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB)
     return &tud_ginput_driver;
   return &tud_xinput_driver;
 }
 
-void _hoja_usb_set_interval(usb_rate_t rate)
+void _usb_set_interval(usb_rate_t rate)
 {
   _usb_rate = rate;
   switch (rate)
@@ -115,41 +136,37 @@ void _hoja_usb_set_interval(usb_rate_t rate)
   }
 }
 
-bool hoja_usb_start(device_mode_t mode)
+bool usb_mode_start(gamepad_mode_t mode)
 {
-  imu_set_enabled(false);
-
   switch (mode)
   {
   default:
-  case INPUT_MODE_SWPRO:
-    imu_set_enabled(true);
-    _hoja_usb_set_interval(USBRATE_8);
-    _usb_hid_cb = swpro_hid_report;
+  case GAMEPAD_MODE_SWPRO:
+    _usb_set_interval(USBRATE_8);
+    _usb_task_cb  = swpro_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
 
-  case INPUT_MODE_XINPUT:
-    _hoja_usb_set_interval(USBRATE_1);
-    _usb_hid_cb = xinput_hid_report;
+  case GAMEPAD_MODE_XINPUT:
+    _usb_set_interval(USBRATE_1);
+    _usb_task_cb  = xinput_hid_report;
     _usb_ready_cb = tud_xinput_ready;
     break;
 
-  case INPUT_MODE_DS4:
-    imu_set_enabled(true);
-    _hoja_usb_set_interval(USBRATE_4);
-    _usb_hid_cb = ds4_hid_report;
-    _usb_ready_cb = tud_hid_ready;
-    break;
+  //case GAMEPAD_MODE_DS4:
+  //  imu_set_enabled(true);
+  //  _hoja_usb_set_interval(USBRATE_4);
+  //  _usb_task_cb = ds4_hid_report;
+  //  _usb_ready_cb = tud_hid_ready;
+  //  break;
 
-  case INPUT_MODE_GCUSB:
-    _hoja_usb_set_interval(USBRATE_1);
-    _usb_hid_cb = gcinput_hid_report;
+  case GAMEPAD_MODE_GCUSB:
+    _usb_set_interval(USBRATE_1);
+    _usb_task_cb  = gcinput_hid_report;
     _usb_ready_cb = tud_ginput_ready;
     break;
   }
 
-  _usb_mode = mode;
   return tusb_init();
 }
 
@@ -160,11 +177,10 @@ static inline bool _hoja_usb_ready()
   return _usb_ready_cb();
 }
 
-void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *analog_data)
+void usb_mode_task(uint32_t timestamp)
 {
-  static interval_s usb_interval = {0};
-
-  static uint32_t frame_storage = 0;
+  static interval_s usb_interval  = {0};
+  static uint32_t frame_storage   = 0;
 
   // This flag gets set when we check our frame data
   static bool frame_requirement_met = false;
@@ -177,57 +193,62 @@ void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *ana
   // Handle looparound of the frame counter(11 bits, 2047 max)
   uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047 - frame_storage) + sof_rd);
 
+  // Check that we are at the appropriate count of SOF frames
   if (dif >= _usb_frames)
   {
     frame_requirement_met = true;
   }
 
+  // Check that we hit our USB target interval
   if (interval_run(timestamp, _usb_rate, &usb_interval))
   {
     usb_requirement_met = true;
   }
 
+  // Ensure USB is ready
   if (!_usb_ready)
   {
     _usb_ready = _hoja_usb_ready();
   }
-  else if (hoja_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
+  else if (_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
   {
     frame_storage = sof_rd;
     frame_requirement_met = false;
     usb_requirement_met = false;
     _usb_ready = false;
 
-    hoja_usb_unset_usb_clear();
+    _usb_unset_usb_clear();
 
-    _usb_hid_cb(button_data, analog_data);
+    _usb_task_cb(timestamp);
   }
 }
 
+
+/***********************************************/
 /********* TinyUSB HID callbacks ***************/
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb(void)
 {
-  switch (_usb_mode)
+  switch (hoja_gamepad_mode_get())
   {
   default:
-  case INPUT_MODE_SWPRO:
+  case GAMEPAD_MODE_SWPRO:
     return (uint8_t const *)&swpro_device_descriptor;
     break;
 
-  case INPUT_MODE_XINPUT:
+  case GAMEPAD_MODE_XINPUT:
     return (uint8_t const *)&xid_device_descriptor;
     break;
 
-  case INPUT_MODE_GCUSB:
+  case GAMEPAD_MODE_GCUSB:
     return (uint8_t const *)&ginput_device_descriptor;
     break;
 
-  case INPUT_MODE_DS4:
-    return (uint8_t const *)&ds4_device_descriptor;
-    break;
+  //case GAMEPAD_MODE_DS4:
+  //  return (uint8_t const *)&ds4_device_descriptor;
+  //  break;
   }
 }
 
@@ -237,25 +258,24 @@ uint8_t const *tud_descriptor_device_cb(void)
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
-  switch (_usb_mode)
+  switch (hoja_gamepad_mode_get())
   {
   default:
-
-  case INPUT_MODE_SWPRO:
+  case GAMEPAD_MODE_SWPRO:
     return (uint8_t const *)&swpro_configuration_descriptor;
     break;
 
-  case INPUT_MODE_XINPUT:
+  case GAMEPAD_MODE_XINPUT:
     return (uint8_t const *)&xid_configuration_descriptor;
     break;
 
-  case INPUT_MODE_GCUSB:
+  case GAMEPAD_MODE_GCUSB:
     return (uint8_t const *)&ginput_configuration_descriptor;
     break;
 
-  case INPUT_MODE_DS4:
-    return (uint8_t const *)&ds4_configuration_descriptor;
-    break;
+  //case GAMEPAD_MODE_DS4:
+  //  return (uint8_t const *)&ds4_configuration_descriptor;
+  //  break;
   }
 }
 
@@ -274,37 +294,37 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 // Invoked when report complete
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
 {
-  switch (_usb_mode)
+  switch (hoja_gamepad_mode_get())
   {
-  case INPUT_MODE_SWPRO:
+  case GAMEPAD_MODE_SWPRO:
     if ((report[0] == REPORT_ID_SWITCH_INPUT) || (report[0] == REPORT_ID_SWITCH_CMD) || (report[0] == REPORT_ID_SWITCH_INIT))
     {
-      hoja_usb_set_usb_clear();
+      _usb_set_usb_clear();
     }
     break;
 
   default:
 
-  case INPUT_MODE_XINPUT:
+  case GAMEPAD_MODE_XINPUT:
     if ((report[0] == REPORT_ID_XINPUT))
     {
-      hoja_usb_set_usb_clear();
+      _usb_set_usb_clear();
     }
     break;
 
-  case INPUT_MODE_GCUSB:
+  case GAMEPAD_MODE_GCUSB:
     if ((report[0] == REPORT_ID_GAMECUBE))
     {
-      hoja_usb_set_usb_clear();
+      _usb_set_usb_clear();
     }
     break;
 
-  case INPUT_MODE_DS4:
-    if ((report[0] == REPORT_ID_DS4))
-    {
-      hoja_usb_set_usb_clear();
-    }
-    break;
+  //case GAMEPAD_MODE_DS4:
+  //  if ((report[0] == REPORT_ID_DS4))
+  //  {
+  //    hoja_usb_set_usb_clear();
+  //  }
+  //  break;
   }
 }
 
@@ -314,11 +334,11 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
 
-  switch (_usb_mode)
+  switch (hoja_gamepad_mode_get())
   {
   default:
     break;
-  case INPUT_MODE_SWPRO:
+  case GAMEPAD_MODE_SWPRO:
     if (!report_id && !report_type)
     {
       if (buffer[0] == SW_OUT_ID_RUMBLE)
@@ -332,7 +352,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     }
     break;
 
-  case INPUT_MODE_GCUSB:
+  case GAMEPAD_MODE_GCUSB:
     if (!report_id && !report_type)
     {
       if (buffer[0] == 0x11)
@@ -347,7 +367,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     }
     break;
 
-  case INPUT_MODE_XINPUT:
+  case GAMEPAD_MODE_XINPUT:
     if (!report_id && !report_type)
     {
       if ((buffer[0] == 0x00) && (buffer[1] == 0x08))
@@ -374,20 +394,20 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 {
   (void)instance;
-  switch (_usb_mode)
+  switch (hoja_gamepad_mode_get())
   {
   default:
-  case INPUT_MODE_SWPRO:
+  case GAMEPAD_MODE_SWPRO:
     return swpro_hid_report_descriptor;
     break;
 
-  case INPUT_MODE_GCUSB:
+  case GAMEPAD_MODE_GCUSB:
     return gc_hid_report_descriptor;
     break;
 
-  case INPUT_MODE_DS4:
-    return ds4_hid_report_descriptor;
-    break;
+  //case GAMEPAD_MODE_DS4:
+  //  return ds4_hid_report_descriptor;
+  //  break;
   }
   return NULL;
 }
@@ -462,7 +482,7 @@ void tud_vendor_rx_cb(uint8_t itf)
   tud_vendor_n_read(0, buffer, 64);
   tud_vendor_n_read_flush(0);
 
-  if (_usb_mode == INPUT_MODE_SWPRO)
+  if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
   {
     printf("WebUSB Data Received.\n");
     webusb_command_processor(buffer);
@@ -574,7 +594,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         // Get Microsoft OS 2.0 compatible descriptor
         uint16_t total_len;
 
-        if (_usb_mode == INPUT_MODE_GCUSB)
+        if (hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB)
         {
           memcpy(&total_len, gc_desc_ms_os_20 + 8, 2);
           return tud_control_xfer(rhport, request, (void *)(uintptr_t)gc_desc_ms_os_20, total_len);

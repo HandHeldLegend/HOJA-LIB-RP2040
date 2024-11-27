@@ -1,11 +1,10 @@
 #ifndef DRIVERS_IMU_LSM6DSR_H
 #define DRIVERS_IMU_LSM6DSR_H
 
+#include "input/imu.h"
+
 #include <stdint.h>
 #include <stdbool.h>
-#include "hoja_bsp.h"
-#include "input/imu.h"
-#include "board_config.h"
 
 // LSM6DSR REGISTERS
 #define FUNC_CFG_ACCESS 0x01

@@ -1,6 +1,7 @@
-#include "extensions/bluetooth.h"
+#include "devices/bluetooth.h"
+#include "devices/rgb.h"
 #include "drivers/drivers.h"
-#include "extensions/rgb.h"
+#include "devices/haptics.h"
 
 uint32_t _mode_color = 0;
 
@@ -49,6 +50,14 @@ void bluetooth_task(uint32_t timestamp)
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
 {
     static uint8_t connection_status = 0;
+    hoja_rumble_msg_s rumble_msg_left = {0};
+    hoja_rumble_msg_s rumble_msg_right = {0};
+
+    uint8_t l = msg->data[0];
+    uint8_t r = msg->data[1];
+
+    float la = (float) l / 255.0f;
+    float ra = (float) r / 255.0f;
     
     switch(msg->type)
     {
@@ -59,15 +68,6 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
 
         case BTCB_SD_RUMBLE:
-            hoja_rumble_msg_s rumble_msg_left = {0};
-            hoja_rumble_msg_s rumble_msg_right = {0};
-
-            uint8_t l = msg->data[0];
-            uint8_t r = msg->data[1];
-
-            float la = (float) l / 255.0f;
-            float ra = (float) r / 255.0f;
-
             haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, la);
         break;
 

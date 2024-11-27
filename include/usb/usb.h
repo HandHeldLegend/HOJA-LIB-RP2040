@@ -10,25 +10,11 @@
 #define USB_HUSB_H
 
 #include <stdint.h>
+#include <stdbool.h>
+#include "hoja.h"
 
-#include "utilities/interval.h"
-#include "input/input.h"
-#include "devices/devices.h"
+void usb_mode_task(uint32_t timestamp);
 
-typedef enum
-{
-    USBRATE_8 = 8333,
-    USBRATE_4 = 4166,
-    USBRATE_1 = 500,
-} usb_rate_t;
-
-void usb_task(uint32_t timestamp);
-
-bool usb_init(input_mode_t mode);
-
-bool hoja_usb_start(input_mode_t mode);
-uint8_t dir_to_hat(hat_mode_t hat_type, uint8_t leftRight, uint8_t upDown);
-void hoja_usb_task(uint32_t timestamp, button_data_s *button_data, a_data_s *analog_data);
-void hoja_usb_set_usb_clear();
+bool usb_mode_start(gamepad_mode_t mode);
 
 #endif

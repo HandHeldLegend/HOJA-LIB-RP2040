@@ -5,19 +5,10 @@
 #include "drivers/drivers.h"
 #include "board_config.h"
 
-#include "devices/devices.h"
-#include "devices/haptics.h"
+#include "utilities/callback.h"
 
-#include "input/button.h"
-
-
-#define CENTER 2048
-
-device_method_t _hoja_input_method = DEVICE_METHOD_AUTO;
-
-uint32_t _timer_owner_0;
-auto_init_mutex(_hoja_timer_mutex);
-
+time_callback_t _hoja_mode_task_cb = NULL;
+gamepad_mode_t  _hoja_current_gamepad_mode = GAMEPAD_MODE_LOAD;
 
 __attribute__((weak)) bool cb_hoja_buttons_init()
 {
@@ -82,14 +73,18 @@ void hoja_shutdown()
 #endif
 }
 
-bool _watchdog_enabled = false;
-
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
   static uint32_t c0_timestamp = 0;
 
   c0_timestamp = sys_hal_time_us();
+
+  // Comms task
+  if(_hoja_mode_task_cb != NULL)
+  {
+    _hoja_mode_task_cb(c0_timestamp);
+  }
 
   rgb_task(c0_timestamp);
 
@@ -100,8 +95,6 @@ void _hoja_task_0()
 
   sys_hal_tick();
 }
-
-
 
 // Core 1 task loop entrypoint
 void _hoja_task_1()
@@ -123,37 +116,32 @@ void _hoja_task_1()
   }
 }
 
+bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method)
+{
+
+}
+
+gamepad_mode_t hoja_gamepad_mode_get()
+{
+  if(_hoja_current_gamepad_mode != NULL)
+  return _hoja_current_gamepad_mode;
+
+  return GAMEPAD_MODE_SWPRO;
+}
+
 void hoja_init()
 {
   if(!cb_hoja_buttons_init())
   {
     // reset to USB bootloader if we didn't handle this.
+    sys_hal_reboot();
   }
 
   _hoja_hal_setup();
   _hoja_driver_setup();
 
+  // Init specific GAMEPAD mode
+
+
   sys_hal_start(_hoja_task_0, _hoja_task_1);
-}
-
-void hoja_setup_gpio_scan(uint8_t gpio)
-{
-  gpio_init(gpio);
-  gpio_pull_up(gpio);
-  gpio_set_dir(gpio, GPIO_OUT);
-  gpio_put(gpio, true);
-}
-
-void hoja_setup_gpio_push(uint8_t gpio)
-{
-  gpio_init(gpio);
-  gpio_pull_up(gpio);
-  gpio_set_dir(gpio, GPIO_IN);
-}
-
-void hoja_setup_gpio_button(uint8_t gpio)
-{
-  gpio_init(gpio);
-  gpio_pull_up(gpio);
-  gpio_set_dir(gpio, GPIO_IN);
 }

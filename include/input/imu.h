@@ -1,8 +1,10 @@
 #ifndef INPUT_IMU_H
 #define INPUT_IMU_H
 
+#include "hoja_bsp.h"
+#include "board_config.h"
 #include <stdint.h>
-#include "drivers/drivers.h"
+#include <stdbool.h>
 
 // IMU data structure
 typedef struct
@@ -104,12 +106,9 @@ void imu_quaternion_access_block(quaternion_s *out);
 
 void imu_task(uint32_t timestamp);
 
-imu_data_s* imu_fifo_last();
-imu_data_s* imu_fifo_pop();
-void imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp);
 void imu_calibrate_start();
 void imu_calibrate_stop();
-void imu_register(imu_data_s *data_a, imu_data_s *data_b);
+
 void imu_set_enabled(bool enable);
 
 #endif

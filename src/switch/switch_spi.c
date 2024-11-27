@@ -1,4 +1,5 @@
 #include "switch/switch_spi.h"
+#include "switch/switch_commands.h"
 
 /**
  * @brief Reads a chunk of memory from SPI (emulated)
