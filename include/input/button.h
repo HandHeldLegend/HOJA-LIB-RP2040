@@ -1,7 +1,8 @@
-#ifndef HOJA_BUTTON_H
-#define HOJA_BUTTON_H
+#ifndef INPUT_BUTTON_H
+#define INPUT_BUTTON_H
 
-#include "hoja_shared.h"
+#include "input_shared_types.h"
+#include <stdbool.h>
 
 typedef enum
 {

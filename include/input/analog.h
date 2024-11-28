@@ -6,14 +6,7 @@
 #include "utilities/interval.h"
 #include "input/button.h"
 
-// Analog input data structure
-typedef struct
-{
-    int lx;
-    int ly;
-    int rx;
-    int ry;
-} analog_data_s;
+
 
 typedef enum
 {
@@ -24,8 +17,8 @@ typedef enum
 
 typedef enum
 {
-    ANALOG_ACCESS_RAW_DATA, // Access raw analog data
-    ANALOG_ACCESS_SCALED_DATA, // Access scaled analog data
+    ANALOG_ACCESS_RAW_DATA,     // Access raw analog data
+    ANALOG_ACCESS_SCALED_DATA,  // Access scaled analog data
     ANALOG_ACCESS_SNAPBACK_DATA, // Access analog data post-snapback filter
     ANALOG_ACCESS_DEADZONE_DATA, // Access analog data post-deadzone application
 } analog_access_t;

@@ -63,6 +63,15 @@ typedef struct
     int zr_analog;
 } button_data_s;
 
+// Analog input data structure
+typedef struct
+{
+    int lx;
+    int ly;
+    int rx;
+    int ry;
+} analog_data_s;
+
 typedef enum
 {
     GC_SP_MODE_NONE = 0, // No function. LT and RT are output full according to digital button.
@@ -74,7 +83,5 @@ typedef enum
 
     GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
 } gc_sp_mode_t;
-
-
 
 #endif

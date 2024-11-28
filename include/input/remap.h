@@ -1,7 +1,7 @@
 #ifndef INPUT_REMAP_H
 #define INPUT_REMAP_H
 
-#include "hoja_shared.h"
+#include "input_shared_types.h"
 #include "input/remap.h"
 #include "devices/devices.h"
 
@@ -96,18 +96,6 @@ typedef struct
     };
 } buttons_unset_s;
 
-typedef enum
-{
-    GC_SP_MODE_NONE = 0, // No function. LT and RT are output full according to digital button.
-    GC_SP_MODE_LT   = 1, // SP buttton inputs light trigger left
-    GC_SP_MODE_RT   = 2, // SP buttton inputs light trigger right
-    GC_SP_MODE_TRAINING = 3, // Training mode reset
-    GC_SP_MODE_DUALZ = 4, // Dual Z Button
-    GC_SP_MODE_ADC  = 5, // Controlled fully by analog, SP button is unused
-
-    GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
-} gc_sp_mode_t;
-
 typedef struct
 {
     button_remap_s  remap;
@@ -116,11 +104,8 @@ typedef struct
 
 void remap_send_data_webusb(device_mode_t mode);
 void remap_reset_default(device_mode_t mode);
-void remap_set_gc_sp(gc_sp_mode_t sp_mode);
-void remap_init(device_mode_t mode, button_data_s *in, button_data_s *out);
-void remap_listen_stop();
-void remap_listen_enable(device_mode_t mode, mapcode_t mapcode);
-
+void remap_set_gc_sp(uint8_t sp_mode);
+void remap_init();
 void remap_set(uint8_t button_assignment, uint8_t new_button); // Assign new_button to button_assignment output.
 void remap_process(button_data_s *in, button_data_s *out);
 

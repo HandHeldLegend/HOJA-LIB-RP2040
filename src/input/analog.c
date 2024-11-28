@@ -2,10 +2,11 @@
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
 
-#include "extensions/rgb.h"
+#include "devices/rgb.h"
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <math.h>
 
 #include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
@@ -13,6 +14,9 @@
 #include "utilities/interval.h"
 
 #include "drivers/drivers.h"
+
+
+
 
 MUTEX_HAL_INIT(_analog_mutex);
 void _analog_blocking_enter()
@@ -390,6 +394,8 @@ void _analog_read_raw()
         _raw_analog_data.ry = ry;
     #endif
 }
+
+void analog_setting_write()
 
 const uint32_t _analog_interval = 200;
 
