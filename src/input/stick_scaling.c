@@ -41,6 +41,27 @@ typedef struct
   float distance;
 } ad_pair_s;
 
+void _set_default_distances()
+{
+  for(int i = 0; i < 64; i++)
+  {
+    _distances_l[i] = ANALOG_MAX_DISTANCE;
+    _distances_r[i] = ANALOG_MAX_DISTANCE;
+  }
+}
+
+void _set_default_angle_mappings()
+{
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    _angle_map_l[i].input  = i*ANGLE_MAPPING_CHUNK;
+    _angle_map_l[i].output = i*ANGLE_MAPPING_CHUNK;
+
+    _angle_map_r[i].input  = i*ANGLE_MAPPING_CHUNK;
+    _angle_map_r[i].output = i*ANGLE_MAPPING_CHUNK;
+  }
+}
+
 float _normalize_angle(float angle);
 float _angle_diff(float angle1, float angle2);
 int   _find_lower_index(float input_angle, angle_map_s *map);
@@ -129,15 +150,6 @@ bool _set_angle_mapping(int index, float input_angle, float output_angle, angle_
   map[index].output = output_angle;
 
   return true;
-}
-
-void _set_default_angle_mappings(angle_map_s *map)
-{
-  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
-  {
-    map[i].input  = i*ANGLE_MAPPING_CHUNK;
-    map[i].output = i*ANGLE_MAPPING_CHUNK;
-  }
 }
 
 // Normalize angle to 0-360 range
@@ -250,6 +262,12 @@ void _process_axis(int *in, int *out, angle_map_s *map, float *distances)
   float out_angle = _transform_angle(angle, map);
   float distance  = _get_scaled_distance(in, angle, distances);
   _angle_distance_to_coordinate(out_angle, distance, out);
+}
+
+bool stick_scaling_init()
+{
+  _set_default_distances();
+  _set_default_angle_mappings();
 }
 
 void stick_scaling_process(analog_data_s *in, analog_data_s *out)
