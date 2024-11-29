@@ -6,6 +6,8 @@
 #include "input/stick_scaling.h"
 #include "input_shared_types.h"
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define TOTAL_ANGLES 64
 #define ADJUSTABLE_ANGLES 16
@@ -41,6 +43,26 @@ typedef struct
   float distance;
 } ad_pair_s;
 
+float _normalize_angle(float angle);
+float _angle_diff(float angle1, float angle2);
+int   _find_lower_index(float input_angle, angle_map_s *map);
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map);
+float _transform_angle(float input_angle, angle_map_s *map);
+
+// Comparison function for qsort
+int _compare_by_input(const void *a, const void *b) {
+    const angle_map_s *angle_a = (const angle_map_s *)a;
+    const angle_map_s *angle_b = (const angle_map_s *)b;
+
+    if (angle_a->input < angle_b->input) {
+        return -1;
+    } else if (angle_a->input > angle_b->input) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 void _set_default_distances()
 {
   for(int i = 0; i < 64; i++)
@@ -62,11 +84,26 @@ void _set_default_angle_mappings()
   }
 }
 
-float _normalize_angle(float angle);
-float _angle_diff(float angle1, float angle2);
-int   _find_lower_index(float input_angle, angle_map_s *map);
-bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map);
-float _transform_angle(float input_angle, angle_map_s *map);
+// Function to sort the array
+int _validate_angle_map(angle_map_s *in) {
+  qsort(in, ADJUSTABLE_ANGLES, sizeof(angle_map_s), _compare_by_input);
+
+  float tmp_input   = in[0].input;
+  float tmp_output  = in[0].output;
+
+  // Check for duplicates or invalid mappings
+  for(int i = 1; i < ADJUSTABLE_ANGLES; i++)
+  {
+    if(in[i].input == tmp_input) return -1;
+    if(_angle_diff(tmp_input, tmp_output) >= MAX_ANGLE_ADJUSTMENT) return -2;
+    if(_angle_diff(in[i].output, tmp_output) >= MAX_ANGLE_ADJUSTMENT) return -3;
+
+    tmp_input = in[i].input;
+    tmp_output = in[i].output;
+  }
+
+  return 0;
+}
 
 float _coordinate_distance(int x, int y) {
     // Use Pythagorean theorem to calculate distance
@@ -105,8 +142,8 @@ float _get_scaled_distance(int *in_coords, float angle, float *distances)
 // Calculates the shortest angular distance between two angles
 float _angle_diff(float angle1, float angle2)
 {
-  float diff = fabsf(normalize_angle(angle1 - angle2));
-  return diff > 180.0f ? 360.0f - diff : diff;
+  float diff = fmodf(fabsf(angle1 - angle2), 360.0f); // Normalize difference to 0–360
+  return diff > 180.0f ? 360.0f - diff : diff;        // Use the shorter path
 }
 
 // Set mapping with angle difference validation
@@ -159,28 +196,28 @@ float _normalize_angle(float angle)
   return angle < 0 ? angle + 360.0f : angle;
 }
 
-// Find the closest lower index in the mapping array
-int _find_lower_index(float input_angle, angle_map_s *map)
+// Find the low and high index pair that contains our angle
+void _find_containing_index_pair(float input_angle, angle_map_s *map, int *idx_pair)
 {
-  int lower_index = 0;
-  float min_diff = 360.0f;
+  idx_pair[0] = -1;
+  idx_pair[1] = -1;
 
-  for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  for (int i = 0; i < (ADJUSTABLE_ANGLES-1); i++)
   {
-    float diff = input_angle - map[i].input;
-
-    // Wrap around consideration
-    if (diff < 0)
-      diff += 360.0f;
-
-    if (diff < min_diff)
+    if( (input_angle >= map[i].input) && (input_angle < map[i+1].input) )
     {
-      lower_index = i;
-      min_diff = diff;
+      idx_pair[0] = i;
+      idx_pair[1] = i+1;
+      return;
     }
   }
 
-  return lower_index;
+  if( (input_angle >= map[ADJUSTABLE_ANGLES-1].input) || (input_angle < map[0].input) )
+  {
+    idx_pair[0] = ADJUSTABLE_ANGLES-1;
+    idx_pair[1] = 0;
+    return;
+  }
 }
 
 // Transform input angle based on configured mappings

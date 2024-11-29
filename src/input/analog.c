@@ -396,6 +396,9 @@ void _analog_read_raw()
 }
 
 void analog_setting_write()
+{
+    
+}
 
 const uint32_t _analog_interval = 200;
 
