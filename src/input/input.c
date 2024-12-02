@@ -17,12 +17,12 @@ bool input_init(gamepad_mode_t mode)
     analog_init();
 }
 
-void input_task_core0(uint32_t timestamp)
+void input_digital_task(uint32_t timestamp)
 {
     button_task(timestamp);
 }
 
-void input_task_core1(uint32_t timestamp)
+void input_analog_task(uint32_t timestamp)
 {
     analog_task(timestamp);
     imu_task(timestamp);

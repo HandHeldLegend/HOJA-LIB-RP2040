@@ -1,8 +1,13 @@
-#include "gamecube.h"
-#include "haptics.h"
+#include "wired/gamecube.h"
+#include "devices/haptics.h"
+
+#include <stdint.h>
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
+#define ALIGNED_JOYBUS_8(val) ((val) << 24)
+
+#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 uint _gamecube_irq;
 uint _gamecube_irq_tx;
 uint _gamecube_offset;
@@ -16,9 +21,6 @@ uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
 static gamecube_input_s _out_buffer = {.stick_left_x = 127, .stick_left_y = 127, .stick_right_x = 127, .stick_right_y = 127};
 
-#define ALIGNED_JOYBUS_8(val) ((val) << 24)
-
-#if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 void _gamecube_send_probe()
 {
   pio_sm_put_blocking(GAMEPAD_PIO, GAMEPAD_SM, ALIGNED_JOYBUS_8(0x09));
@@ -195,7 +197,7 @@ static void _gamecube_isr_txdone(void)
 }
 #endif
 
-void gamecube_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
+void gamecube_comms_task(uint32_t timestamp)
 {
   #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
   static interval_s interval = {0};

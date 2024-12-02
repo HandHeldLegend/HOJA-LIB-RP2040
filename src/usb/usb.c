@@ -19,6 +19,8 @@
 #include "usb/xinput.h"
 #include "usb/gcinput.h"
 
+#include "switch/switch_commands.h"
+
 typedef enum
 {
     USBRATE_8 = 8333,
@@ -645,41 +647,41 @@ uint8_t dir_to_hat(hat_mode_t hat_type, uint8_t leftRight, uint8_t upDown)
   switch (hat_type)
   {
   default:
-  case HAT_MODE_NS:
-    ret = NS_HAT_CENTER;
+  case HAT_MODE_DI:
+    ret = DI_HAT_CENTER;
 
     if (leftRight == 2)
     {
-      ret = NS_HAT_RIGHT;
+      ret = DI_HAT_RIGHT;
       if (upDown == 2)
       {
-        ret = NS_HAT_TOP_RIGHT;
+        ret = DI_HAT_TOP_RIGHT;
       }
       else if (upDown == 0)
       {
-        ret = NS_HAT_BOTTOM_RIGHT;
+        ret = DI_HAT_BOTTOM_RIGHT;
       }
     }
     else if (leftRight == 0)
     {
-      ret = NS_HAT_LEFT;
+      ret = DI_HAT_LEFT;
       if (upDown == 2)
       {
-        ret = NS_HAT_TOP_LEFT;
+        ret = DI_HAT_TOP_LEFT;
       }
       else if (upDown == 0)
       {
-        ret = NS_HAT_BOTTOM_LEFT;
+        ret = DI_HAT_BOTTOM_LEFT;
       }
     }
 
     else if (upDown == 2)
     {
-      ret = NS_HAT_TOP;
+      ret = DI_HAT_TOP;
     }
     else if (upDown == 0)
     {
-      ret = NS_HAT_BOTTOM;
+      ret = DI_HAT_BOTTOM;
     }
 
     return ret;

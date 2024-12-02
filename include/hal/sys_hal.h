@@ -8,7 +8,7 @@ void sys_hal_reboot();
 
 bool sys_hal_init();
 
-void sys_hal_start(void (*task_core_0)(void), void (*task_core_1)(void));
+void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void));
 
 // Return a random uint32_t type number
 uint32_t sys_hal_random();

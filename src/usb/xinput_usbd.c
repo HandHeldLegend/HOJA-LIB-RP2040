@@ -7,6 +7,8 @@
  */
 
 #include "usb/xinput_usbd.h"
+#include "usb/usb.h"
+#include "tusb.h"
 
 const tusb_desc_device_t xid_device_descriptor =
     {

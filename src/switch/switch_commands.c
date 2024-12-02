@@ -11,6 +11,7 @@
 #include "hoja.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 // This C file handles various Switch gamepad commands (OUT reports)
 uint8_t _switch_in_command_buffer[64] = {0};
@@ -155,12 +156,12 @@ void info_set_mac()
   _switch_command_buffer[2] = 0x03;
 
   // Mac in LE
-  _switch_command_buffer[3] = global_loaded_settings.switch_mac_address[5];
-  _switch_command_buffer[4] = global_loaded_settings.switch_mac_address[4];
-  _switch_command_buffer[5] = global_loaded_settings.switch_mac_address[3];
-  _switch_command_buffer[6] = global_loaded_settings.switch_mac_address[2];
-  _switch_command_buffer[7] = global_loaded_settings.switch_mac_address[1];
-  _switch_command_buffer[8] = global_loaded_settings.switch_mac_address[0];
+  //_switch_command_buffer[3] = global_loaded_settings.switch_mac_address[5];
+  //_switch_command_buffer[4] = global_loaded_settings.switch_mac_address[4];
+  //_switch_command_buffer[5] = global_loaded_settings.switch_mac_address[3];
+  //_switch_command_buffer[6] = global_loaded_settings.switch_mac_address[2];
+  //_switch_command_buffer[7] = global_loaded_settings.switch_mac_address[1];
+  //_switch_command_buffer[8] = global_loaded_settings.switch_mac_address[0];
 }
 
 // A second part to the initialization,
@@ -207,29 +208,29 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
   case 1:
 
     // Get host address and compare it.
-    for (uint i = 0; i < 6; i++)
-    {
-      if (global_loaded_settings.switch_host_address[i] != host_address[5 - i])
-      {
-        global_loaded_settings.switch_host_address[i] = host_address[5 - i];
-        diff_host = true;
-      }
-    }
+    //for (uint i = 0; i < 6; i++)
+    //{
+    //  if (global_loaded_settings.switch_host_address[i] != host_address[5 - i])
+    //  {
+    //    global_loaded_settings.switch_host_address[i] = host_address[5 - i];
+    //    diff_host = true;
+    //  }
+    //}
 
     // Save if we have an updated host address.
     if (diff_host)
-      settings_save_from_core0();
+      //settings_save_from_core0();
 
     set_ack(0x81);
     _switch_command_buffer[14] = 1;
 
     // Mac in LE
-    _switch_command_buffer[15] = global_loaded_settings.switch_mac_address[5];
-    _switch_command_buffer[16] = global_loaded_settings.switch_mac_address[4];
-    _switch_command_buffer[17] = global_loaded_settings.switch_mac_address[3];
-    _switch_command_buffer[18] = global_loaded_settings.switch_mac_address[2];
-    _switch_command_buffer[19] = global_loaded_settings.switch_mac_address[1];
-    _switch_command_buffer[20] = global_loaded_settings.switch_mac_address[0];
+    //_switch_command_buffer[15] = global_loaded_settings.switch_mac_address[5];
+    //_switch_command_buffer[16] = global_loaded_settings.switch_mac_address[4];
+    //_switch_command_buffer[17] = global_loaded_settings.switch_mac_address[3];
+    //_switch_command_buffer[18] = global_loaded_settings.switch_mac_address[2];
+    //_switch_command_buffer[19] = global_loaded_settings.switch_mac_address[1];
+    //_switch_command_buffer[20] = global_loaded_settings.switch_mac_address[0];
 
     memcpy(&_switch_command_buffer[15 + 6], pro_controller_string, 24);
     break;

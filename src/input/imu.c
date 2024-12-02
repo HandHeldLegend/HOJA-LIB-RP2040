@@ -4,6 +4,7 @@
 #include "hal/sys_hal.h"
 
 #include "utilities/interval.h"
+#include "devices_shared_types.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -213,11 +214,11 @@ void imu_calibrate_start()
       .b = 0,
   };
 
-  rgb_flash(c.color, -1);
+  //rgb_flash(c.color, -1);
 
   // Reset offsets to 0
-  memset(global_loaded_settings.imu_0_offsets, 0x00, sizeof(int8_t) * 6);
-  memset(global_loaded_settings.imu_1_offsets, 0x00, sizeof(int8_t) * 6);
+  //memset(global_loaded_settings.imu_0_offsets, 0x00, sizeof(int8_t) * 6);
+  //memset(global_loaded_settings.imu_1_offsets, 0x00, sizeof(int8_t) * 6);
 
   _imu_calibrate = true;
   _imu_calibrate_cycles_remaining = IMU_CALIBRATE_CYCLES;
@@ -226,30 +227,27 @@ void imu_calibrate_start()
   // Read IMU and store first reading
   _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
-  global_loaded_settings.imu_0_offsets[0] = _imu_buffer_a.ax;
-  global_loaded_settings.imu_0_offsets[1] = _imu_buffer_a.ay;
-  global_loaded_settings.imu_0_offsets[2] = _imu_buffer_a.az;
-
-  global_loaded_settings.imu_0_offsets[3] = _imu_buffer_a.gx;
-  global_loaded_settings.imu_0_offsets[4] = _imu_buffer_a.gy;
-  global_loaded_settings.imu_0_offsets[5] = _imu_buffer_a.gz;
-
-  global_loaded_settings.imu_1_offsets[0] = _imu_buffer_b.ax;
-  global_loaded_settings.imu_1_offsets[1] = _imu_buffer_b.ay;
-  global_loaded_settings.imu_1_offsets[2] = _imu_buffer_b.az;
-
-  global_loaded_settings.imu_1_offsets[3] = _imu_buffer_b.gx;
-  global_loaded_settings.imu_1_offsets[4] = _imu_buffer_b.gy;
-  global_loaded_settings.imu_1_offsets[5] = _imu_buffer_b.gz;
+  //global_loaded_settings.imu_0_offsets[0] = _imu_buffer_a.ax;
+  //global_loaded_settings.imu_0_offsets[1] = _imu_buffer_a.ay;
+  //global_loaded_settings.imu_0_offsets[2] = _imu_buffer_a.az;
+  //global_loaded_settings.imu_0_offsets[3] = _imu_buffer_a.gx;
+  //global_loaded_settings.imu_0_offsets[4] = _imu_buffer_a.gy;
+  //global_loaded_settings.imu_0_offsets[5] = _imu_buffer_a.gz;
+  //global_loaded_settings.imu_1_offsets[0] = _imu_buffer_b.ax;
+  //global_loaded_settings.imu_1_offsets[1] = _imu_buffer_b.ay;
+  //global_loaded_settings.imu_1_offsets[2] = _imu_buffer_b.az;
+  //global_loaded_settings.imu_1_offsets[3] = _imu_buffer_b.gx;
+  //global_loaded_settings.imu_1_offsets[4] = _imu_buffer_b.gy;
+  //global_loaded_settings.imu_1_offsets[5] = _imu_buffer_b.gz;
 }
 
 void imu_calibrate_stop()
 {
 
-  rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
+  //rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
 
-  settings_save_webindicate();
-  settings_save_from_core0();
+  //settings_save_webindicate();
+  //settings_save_from_core0();
 
   _imu_calibrate = false;
   

@@ -6,7 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "ginput_device.h"
+#include "usb/ginput_usbd.h"
+#include "tusb.h"
+#include "hoja.h"
 
 bool gc_connected = false;
 
@@ -220,7 +222,7 @@ void ginputd_reset(uint8_t rhport)
 
 uint16_t ginputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
-  TU_VERIFY(hoja_comms_current_mode() == INPUT_MODE_GCUSB);
+  TU_VERIFY(hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB);
 
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +

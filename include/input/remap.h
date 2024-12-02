@@ -102,11 +102,6 @@ typedef struct
     buttons_unset_s disabled;
 } remap_profile_s;
 
-void remap_send_data_webusb(device_mode_t mode);
-void remap_reset_default(device_mode_t mode);
-void remap_set_gc_sp(uint8_t sp_mode);
-void remap_init();
-void remap_set(uint8_t button_assignment, uint8_t new_button); // Assign new_button to button_assignment output.
 void remap_process(button_data_s *in, button_data_s *out);
 
 #endif

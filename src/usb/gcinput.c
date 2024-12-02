@@ -58,6 +58,7 @@ void gcinput_hid_report(uint32_t timestamp)
     int outl = 0;
     int outr = 0;
 
+    /*
     // Handle trigger SP stuff
     switch(global_loaded_settings.gc_sp_mode)
     {
@@ -118,6 +119,7 @@ void gcinput_hid_report(uint32_t timestamp)
 
           break;
     }
+    */
 
     if(!_gc_first)
     {

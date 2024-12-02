@@ -25,8 +25,4 @@ void hoja_shutdown();
 void hoja_deinit(callback_t cb);
 void hoja_init();
 
-void hoja_setup_gpio_scan(uint8_t gpio);
-void hoja_setup_gpio_push(uint8_t gpio);
-void hoja_setup_gpio_button(uint8_t gpio);
-
 #endif

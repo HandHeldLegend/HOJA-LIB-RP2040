@@ -38,7 +38,7 @@ bool sys_hal_init()
     return true;
 }
 
-void sys_hal_start(void (*task_core_0)(void), void (*task_core_1)(void))
+void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void))
 {
     // Enable lockout victimhood :,)
     multicore_lockout_victim_init();

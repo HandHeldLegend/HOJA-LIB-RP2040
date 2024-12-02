@@ -1,10 +1,11 @@
-#include "webusb.h"
-#include "interval.h"
+#include "usb/webusb.h"
+#include "utilities/interval.h"
+#include "input_shared_types.h"
 
 uint8_t _webusb_out_buffer[64] = {0x00};
 bool _webusb_output_enabled = false;
 
-hoja_capabilities_t _webusb_capabilities = {
+/*hoja_capabilities_t _webusb_capabilities = {
     .analog_stick_left = HOJA_CAPABILITY_ANALOG_STICK_L,
     .analog_stick_right = HOJA_CAPABILITY_ANALOG_STICK_R,
     .analog_trigger_left = HOJA_CAPABILITY_ANALOG_TRIGGER_L,
@@ -18,7 +19,7 @@ hoja_capabilities_t _webusb_capabilities = {
     .battery_pmic = HOJA_CAPABILITY_BATTERY,
     .rumble_lra = HOJA_CAPABILITY_RUMBLE_LRA,
     .padding = 0,
-};
+};*/
 
 void webusb_save_confirm()
 {
@@ -645,9 +646,10 @@ void webusb_command_processor(uint8_t *data)
 }
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
-void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_s *buttons)
+void webusb_input_report_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
+    static buttons_s
     
 
     if (interval_run(timestamp, 4000, &interval))
@@ -655,7 +657,7 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
         uint8_t webusb_input_report[64] = {0};
         webusb_input_report[0] = WEBUSB_CMD_INPUT_REPORT;
 
-        if(analog != NULL)
+        if(0)
         {
             webusb_input_report[1] = CLAMP_0_255(analog->lx >> 4);
             webusb_input_report[2] = CLAMP_0_255(analog->ly >> 4);
@@ -663,7 +665,7 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
             webusb_input_report[4] = CLAMP_0_255(analog->ry >> 4);
         }
 
-        if (buttons != NULL)
+        if (0)
         {
             webusb_input_report[5] = buttons->buttons_all & 0xFF;
             webusb_input_report[6] = (buttons->buttons_all >> 8) & 0xFF;
@@ -675,7 +677,6 @@ void webusb_input_report_task(uint32_t timestamp, a_data_s *analog, button_data_
         imu_data_s *web_imu = imu_fifo_last();
         if(web_imu != NULL)
         {
-            
             webusb_input_report[10] = CLAMP_0_255((uint8_t) ( ( (web_imu->ax*4)+32767)>>8));
             webusb_input_report[11] = CLAMP_0_255((uint8_t) ( ( (web_imu->ay*4)+32767)>>8));
             webusb_input_report[12] = CLAMP_0_255((uint8_t) ( ( (web_imu->az*4)+32767)>>8));

@@ -7,6 +7,10 @@
 
 #include "utilities/callback.h"
 
+#include "input/input.h"
+
+#include "devices/battery.h"
+
 time_callback_t _hoja_mode_task_cb = NULL;
 gamepad_mode_t  _hoja_current_gamepad_mode = GAMEPAD_MODE_LOAD;
 
@@ -46,13 +50,13 @@ void hoja_deinit(callback_t cb)
   if(deinit) return;
   deinit = true;
 
-  cb_hoja_set_uart_enabled(false);
-  cb_hoja_set_bluetooth_enabled(false);
+  //cb_hoja_set_uart_enabled(false);
+  //cb_hoja_set_bluetooth_enabled(false);
 
-  sleep_ms(100);
+  //sleep_ms(100);
 
   #if (HOJA_CAPABILITY_RGB == 1 && HOJA_CAPABILITY_BATTERY == 1)
-  rgb_shutdown_start(false, cb);
+  //rgb_shutdown_start(false, cb);
   #else
   cb();
   #endif
@@ -67,7 +71,7 @@ void hoja_shutdown()
   _shutdown_started = true;
 
 #if (HOJA_CAPABILITY_BATTERY == 1)
-  battery_enable_ship_mode();
+  battery_set_ship_mode();
 #else
   hoja_shutdown_instant();
 #endif
@@ -80,18 +84,18 @@ void _hoja_task_0()
 
   c0_timestamp = sys_hal_time_us();
 
+  input_digital_task(c0_timestamp);
+
+  // Handle HD rumble
+  //#if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
+  //  hdrumble_hal_task(c0_timestamp);
+  //#endif
+
   // Comms task
-  if(_hoja_mode_task_cb != NULL)
+  if(_hoja_mode_task_cb!=NULL)
   {
     _hoja_mode_task_cb(c0_timestamp);
   }
-
-  rgb_task(c0_timestamp);
-
-  // Handle HD rumble
-  #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
-    hdrumble_hal_task(c0_timestamp);
-  #endif
 
   sys_hal_tick();
 }
@@ -105,14 +109,7 @@ void _hoja_task_1()
   {
     c1_timestamp = sys_hal_time_us();
 
-    // Check if we need to save
-    settings_core1_save_check();
-
-    // Do analog stuff :)
-    analog_task(c1_timestamp);
-
-    // Do IMU stuff
-    imu_task(c1_timestamp);
+    input_analog_task(c1_timestamp);
   }
 }
 
@@ -123,7 +120,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method)
 
 gamepad_mode_t hoja_gamepad_mode_get()
 {
-  if(_hoja_current_gamepad_mode != NULL)
+  if(_hoja_current_gamepad_mode != GAMEPAD_MODE_UNDEFINED)
   return _hoja_current_gamepad_mode;
 
   return GAMEPAD_MODE_SWPRO;
@@ -138,10 +135,7 @@ void hoja_init()
   }
 
   _hoja_hal_setup();
-  _hoja_driver_setup();
 
   // Init specific GAMEPAD mode
-
-
-  sys_hal_start(_hoja_task_0, _hoja_task_1);
+  sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);
 }

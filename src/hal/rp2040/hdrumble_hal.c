@@ -16,7 +16,7 @@
 #include "hardware/pwm.h"
 #include "hardware/dma.h"
 
-#include "extensions/haptics.h"
+#include "devices/haptics.h"
 
 
 #define SIN_TABLE_SIZE 4096

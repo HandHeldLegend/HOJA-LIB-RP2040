@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "hoja_types.h"
 
 typedef struct
 {

@@ -73,13 +73,13 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_usbd.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/swpro.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/ds4input.c
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/dinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
 
-
+  #${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
+  
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/gamecube.c 

@@ -26,14 +26,16 @@ typedef struct
 
 typedef struct
 {
-  float input;  // Input Angle
-  float output; // Output Angle
+  float input;    // Input Angle
+  float output;   // Output Angle
+  float distance; // Distance to this input angle maximum for hard polygonal shape stick gates
 } angle_map_s;
 
 angle_map_s _angle_map_l[ADJUSTABLE_ANGLES] = {0};
 angle_map_s _angle_map_r[ADJUSTABLE_ANGLES] = {0};
 
 // Index represents actual measured angle from raw sensor data
+// Results in great calibration points for round output
 float _distances_l[64] = {0};
 float _distances_r[64] = {0};
 
@@ -78,9 +80,11 @@ void _set_default_angle_mappings()
   {
     _angle_map_l[i].input  = i*ANGLE_MAPPING_CHUNK;
     _angle_map_l[i].output = i*ANGLE_MAPPING_CHUNK;
+    _angle_map_l[i].distance = ANALOG_MAX_DISTANCE;
 
     _angle_map_r[i].input  = i*ANGLE_MAPPING_CHUNK;
     _angle_map_r[i].output = i*ANGLE_MAPPING_CHUNK;
+    _angle_map_r[i].distance = ANALOG_MAX_DISTANCE;
   }
 }
 
@@ -147,7 +151,7 @@ float _angle_diff(float angle1, float angle2)
 }
 
 // Set mapping with angle difference validation
-bool _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map)
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map)
 {
   // Validate index
   if (index < 0 || index >= ADJUSTABLE_ANGLES)

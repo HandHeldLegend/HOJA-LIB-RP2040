@@ -1,4 +1,5 @@
 #include "utilities/reboot.h"
+#include "hardware/regs/addressmap.h"
 
 #define SCRATCH_OFFSET 0xC
 #define MAX_INDEX     7

@@ -1,6 +1,6 @@
-#include "n64.h"
-#include "n64_crc.h"
-#include "haptics.h"
+#include "wired/n64.h"
+#include "wired/n64_crc.h"
+#include "devices/haptics.h"
 
 #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 
@@ -204,7 +204,7 @@ void _n64_reset_state()
 
 #endif
 
-void n64_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
+void n64_comms_task(uint32_t timestamp)
 {
   #if(HOJA_CAPABILITY_NINTENDO_JOYBUS==1)
 

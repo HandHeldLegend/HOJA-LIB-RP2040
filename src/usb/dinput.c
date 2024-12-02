@@ -1,4 +1,4 @@
-#include "devices/dinput.h"
+#include "usb/dinput.h"
 
 /** DINPUT HID MODE **/
 // 1. Device Descriptor
@@ -114,7 +114,7 @@ const uint8_t di_configuration_descriptor[] = {
     7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 1,
 };
 
-void dinput_hid_report(button_data_s *button_data, a_data_s *analog_data)
+void dinput_hid_report(uint32_t timestamp)
 {
 
 }

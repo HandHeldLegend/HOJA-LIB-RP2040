@@ -1,4 +1,4 @@
-#include "nspi.h"
+#include "wired/nspi.h"
 
 #if(HOJA_CAPABILITY_NINTENDO_SERIAL==1)
 static bool _nspi_running;
@@ -43,7 +43,7 @@ void nspi_init()
   #endif
 }
 
-void nspi_comms_task(uint32_t timestamp, button_data_s *buttons, a_data_s *analog)
+void nspi_comms_task(uint32_t timestamp)
 {
   #if(HOJA_CAPABILITY_NINTENDO_SERIAL==1)
   if(!_nspi_running)

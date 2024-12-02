@@ -50,6 +50,6 @@ typedef struct
 	uint8_t reserved_1[6];
 } xid_input_s;
 
-void xinput_hid_report(button_data_s *button_data, a_data_s *analog_data);
+void xinput_hid_report(uint32_t timestamp);
 
 #endif

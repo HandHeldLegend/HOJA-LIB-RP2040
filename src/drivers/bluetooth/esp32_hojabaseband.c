@@ -1,11 +1,19 @@
 #include "drivers/bluetooth/esp32_hojabaseband.h"
 
+#include <string.h>
+
 #include "drivers/drivers.h"
 #include "hal/gpio_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
 
 #include "utilities/interval.h"
+
+#include "input/button.h"
+#include "input/analog.h"
+#include "input/imu.h"
+
+#include "drivers/mux/pi3usb4000a.h"
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
@@ -155,7 +163,7 @@ uint8_t _crc8_compute(uint8_t *data, size_t length)
 
 bool _crc8_verify(uint8_t *data, size_t length, uint8_t received_crc)
 {
-    uint8_t calculated_crc = crc8_compute(data, length);
+    uint8_t calculated_crc = _crc8_compute(data, length);
     return calculated_crc == received_crc;
 }
 
@@ -217,7 +225,7 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[2] = out_mode;
 
     // Calculate CRC
-    uint8_t crc = crc8_compute(&(data_out[2]), 13);
+    uint8_t crc = _crc8_compute(&(data_out[2]), 13);
     data_out[1] = crc;
 
     int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);
@@ -247,9 +255,9 @@ void esp32hoja_task(uint32_t timestamp)
             // Update input states
             button_data_s   buttons = {0};
             analog_data_s   analog  = {0};
-            imu_data_s      *imu_tmp    = {0};
-            button_access(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-            analog_access(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+            imu_data_s      imu_tmp    = {0};
+            button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+            analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
@@ -266,27 +274,23 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.lt = (uint16_t) buttons.zl_analog;
             input_data.rt = (uint16_t) buttons.zr_analog;
 
-            imu_tmp = imu_fifo_last();
+            imu_access_try(&imu_tmp);
 
-            if (imu_tmp != NULL)
-            {
-                input_data.gx = imu_tmp->gx;
-                input_data.gy = imu_tmp->gy;
-                input_data.gz = imu_tmp->gz;
-                input_data.ax = imu_tmp->ax;
-                input_data.ay = imu_tmp->ay;
-                input_data.az = imu_tmp->az;
-            }
+            input_data.gx = imu_tmp.gx;
+            input_data.gy = imu_tmp.gy;
+            input_data.gz = imu_tmp.gz;
+            input_data.ax = imu_tmp.ax;
+            input_data.ay = imu_tmp.ay;
+            input_data.az = imu_tmp.az;
 
-            uint8_t crc = crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
+            uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
             data_out[1] = crc;
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
 
-            int write = i2c_safe_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
+            int write = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 16000);
             if (write == HOJA_I2C_MSG_SIZE_OUT)
             {
-                analog_send_reset();
                 _bt_clear_out();
             }
 
@@ -332,7 +336,7 @@ uint32_t esp32hoja_get_info()
 
         int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 10000);
         sys_hal_sleep_ms(4);
-        int read = i2c_safe_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
+        int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
 
         if (read == HOJA_I2C_MSG_SIZE_IN)
         {

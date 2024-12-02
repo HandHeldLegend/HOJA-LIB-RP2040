@@ -87,7 +87,7 @@ bool button_init()
 
     if(_boot_button_data.button_safemode && _boot_button_data.trigger_l)
     {
-        reset_usb_boot(0, 0);
+        //reset_usb_boot(0, 0);
     }
     
     _button_exit();

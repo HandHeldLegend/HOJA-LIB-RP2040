@@ -1,4 +1,6 @@
-#include "ds4input.h"
+#include "usb/ds4input.h"
+#include "input_shared_types.h"
+#include "usb/usb.h"
 
 typedef struct {
     uint8_t ls_x;
@@ -352,67 +354,70 @@ const uint8_t ds4_configuration_descriptor[] = {
         7, TUSB_DESC_ENDPOINT, 0x03, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4
     };
 
-    void ds4_hid_report(button_data_s *button_data, a_data_s *analog_data)
-    {
-        static ds4_input_s data = {.dpad = NS_HAT_CENTER};
-        static uint8_t output_buffer[64] = {0};
+void ds4_hid_report(uint32_t timestamp)
+{
+    static ds4_input_s data = {.dpad = DI_HAT_CENTER};
+    static uint8_t output_buffer[64] = {0};
 
-        data.ls_x = (analog_data->lx>>4);
-        data.ls_y = 255-(analog_data->ly>>4);
-        data.rs_x = (analog_data->rx>>4);
-        data.rs_y = 255-(analog_data->ry>>4);
+    static analog_data_s analog_data = {0};
+    static button_data_s button_data = {0};
 
-        // Retrieve and write IMU data
-        imu_data_s *_imu_tmp = imu_fifo_last();
-        // X input is tilting forward/backward
-        // Z input is steering motion
-        // Y input is tilting left/right
+    data.ls_x = (analog_data.lx>>4);
+    data.ls_y = 255-(analog_data.ly>>4);
+    data.rs_x = (analog_data.rx>>4);
+    data.rs_y = 255-(analog_data.ry>>4);
 
-        // Tilt forward/Back
-        data.gyro_x = -_imu_tmp->gx;
+    // Retrieve and write IMU data
+    //imu_data_s *_imu_tmp = imu_fifo_last();
+    // X input is tilting forward/backward
+    // Z input is steering motion
+    // Y input is tilting left/right
 
-        // Steer left/right
-        data.gyro_y = _imu_tmp->gz;
+    // Tilt forward/Back
+    //data.gyro_x = -_imu_tmp->gx;
 
-        // Tilt left/right. Invert input
-        data.gyro_z = _imu_tmp->gy;
+    // Steer left/right
+    //data.gyro_y = _imu_tmp->gz;
 
-        // Tilt forward/back
-        //data.gyro_z = _imu_tmp->gx;
+    // Tilt left/right. Invert input
+    //data.gyro_z = _imu_tmp->gy;
 
-        //data.accel_x = _imu_tmp->ax;
-        //data.accel_y = _imu_tmp->ay;
-        //data.accel_z = _imu_tmp->az;
+    // Tilt forward/back
+    //data.gyro_z = _imu_tmp->gx;
 
-        data.imu_timestamp = 1;
+    //data.accel_x = _imu_tmp->ax;
+    //data.accel_y = _imu_tmp->ay;
+    //data.accel_z = _imu_tmp->az;
 
-        data.button_cross = button_data->button_b;
-        data.button_circle = button_data->button_a;
-        data.button_square = button_data->button_y;
-        data.button_triangle = button_data->button_x;
+    data.imu_timestamp = 1;
 
-        data.button_l3 = button_data->button_stick_left;
-        data.button_r3 = button_data->button_stick_right;
+    data.button_cross = button_data.button_b;
+    data.button_circle = button_data.button_a;
+    data.button_square = button_data.button_y;
+    data.button_triangle = button_data.button_x;
 
-        data.button_l1 = button_data->trigger_l;
-        data.button_r1 = button_data->trigger_r;
+    data.button_l3 = button_data.button_stick_left;
+    data.button_r3 = button_data.button_stick_right;
 
-        data.button_l2 = button_data->trigger_zl;
-        data.button_r2 = button_data->trigger_zr;
+    data.button_l1 = button_data.trigger_l;
+    data.button_r1 = button_data.trigger_r;
 
-        data.trigger_l2 = button_data->zl_analog>>4;
-        data.trigger_r2 = button_data->zr_analog>>4;
+    data.button_l2 = button_data.trigger_zl;
+    data.button_r2 = button_data.trigger_zr;
 
-        data.button_share = button_data->button_capture;
-        data.button_options = button_data->button_plus;
-        data.button_ps = button_data->button_home;
-        data.button_touchpad = button_data->button_minus;
+    data.trigger_l2 = button_data.zl_analog>>4;
+    data.trigger_r2 = button_data.zr_analog>>4;
 
-        uint8_t lr = 1 - button_data->dpad_left + button_data->dpad_right;
-        uint8_t ud = 1 + button_data->dpad_up - button_data->dpad_down;
+    data.button_share = button_data.button_capture;
+    data.button_options = button_data.button_plus;
+    data.button_ps = button_data.button_home;
+    data.button_touchpad = button_data.button_minus;
 
-        data.dpad = dir_to_hat(HAT_MODE_NS, lr, ud);
+    uint8_t lr = 1 - button_data.dpad_left + button_data.dpad_right;
+    uint8_t ud = 1 + button_data.dpad_up - button_data.dpad_down;
 
-        memcpy(output_buffer, &data, sizeof(ds4_input_s));
-        tud_hid_report(0x01, output_buffer, 64);
-    }
+    data.dpad = dir_to_hat(HAT_MODE_DI, lr, ud);
+
+    memcpy(output_buffer, &data, sizeof(ds4_input_s));
+    tud_hid_report(0x01, output_buffer, 64);
+}

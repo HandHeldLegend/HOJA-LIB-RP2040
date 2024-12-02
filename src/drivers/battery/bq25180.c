@@ -71,7 +71,7 @@ bool bq25180_update_status()
     bq25180_status_1_s this_status_1 = {0};
 
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
-    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, &this_status_0, 1, 32000);
+    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, &this_status_0.status, 1, 32000);
 
     if(ret==1)
     {
@@ -157,29 +157,29 @@ bool bq25180_set_source(battery_source_t source)
 {
     // We want to disable the onboard regulation
     // SYS_REG_CTRL_2:0 set as 111 will set as Pass-Through 
-    uint8_t source = 0b11100000;
+    uint8_t new_source = 0b11100000;
 
     // We will enable the I2C watchdog.
     // This ensures that if there's a freeze or lockup, we will reboot.
-    source |= 0b10;
+    new_source |= 0b10;
 
     // Disable VDPPM (set VPPM_DIS bit) to allow charger operation with lower voltage input.
     // 15 seconds is the timeout
-    source |= 0b1;
+    new_source |= 0b1;
 
     switch(source)
     {   
         case BATTERY_SOURCE_EXTERNAL: // Picking external only isn't supported.
         case BATTERY_SOURCE_AUTO:
-        source |= 0b0000; // Automatically choose Battery or VIN
+        new_source |= 0b0000; // Automatically choose Battery or VIN
         break;
 
         case BATTERY_SOURCE_BATTERY:
-        source |= 0b0100; // ONLY power from Battery
+        new_source |= 0b0100; // ONLY power from Battery
         break;
     }
 
-    uint8_t write[2] = {BQ25180_REG_SYS_REG, source};
+    uint8_t write[2] = {BQ25180_REG_SYS_REG, new_source};
 
     int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
 

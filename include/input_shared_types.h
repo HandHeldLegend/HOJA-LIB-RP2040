@@ -74,6 +74,19 @@ typedef struct
 
 typedef enum
 {
+    ANALOG_SCALER_ROUND,
+    ANALOG_SCALER_POLYGON,
+} analog_scaler_t;
+
+typedef enum 
+{
+    SNAPBACK_TYPE_DISABLED,
+    SNAPBACK_TYPE_ZERO,
+    SNAPBACK_TYPE_POST,
+} snapback_type_t;
+
+typedef enum
+{
     GC_SP_MODE_NONE = 0, // No function. LT and RT are output full according to digital button.
     GC_SP_MODE_LT   = 1, // SP buttton inputs light trigger left
     GC_SP_MODE_RT   = 2, // SP buttton inputs light trigger right

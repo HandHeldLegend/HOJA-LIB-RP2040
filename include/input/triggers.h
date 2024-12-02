@@ -1,7 +1,8 @@
-#ifndef TRIGGERS_H
-#define TRIGGERS_H
+#ifndef INPUT_TRIGGERS_H
+#define INPUT_TRIGGERS_H
 
-#include "hoja_includes.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 void triggers_set_disabled(bool left_right, bool disabled);
 void triggers_scale(int left_trigger_in, int *left_trigger_out, int right_trigger_in, int *right_trigger_out);

@@ -1,6 +1,10 @@
 #include "devices/battery.h"
 #include "utilities/interval.h"
-#include "drivers/drivers.h"
+#include "board_config.h"
+
+#if HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25810
+    #include "drivers/battery/bq25180.h"
+#endif
 
 battery_status_s _battery_status = {
     .battery_status = BATTERY_STATUS_UNAVAILABLE,
