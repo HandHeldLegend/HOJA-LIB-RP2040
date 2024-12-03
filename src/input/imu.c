@@ -7,7 +7,8 @@
 
 #include "utilities/interval.h"
 #include "devices_shared_types.h"
-#include "settings_shared_types.h"
+
+#include "utilities/settings.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -26,17 +27,14 @@ imu_data_s _imu_buffer_b = {0};
 // Average IMU buffer containing both A and B data averaged together
 imu_data_s _imu_buffer_avg = {0};
 
-// Data that contains the config block for the IMU
-imu_config_u _imu_config = {0};
-
 // Processing task which we use to handle the newly read IMU data
 time_callback_t _imu_process_task = NULL;
 
 // Access IMU config union members macro
-#define CH_A_GYRO_CFG(axis) (_imu_config.imu_a_gyro_config[axis])
-#define CH_B_GYRO_CFG(axis) (_imu_config.imu_b_gyro_config[axis])
-#define CH_A_ACCEL_CFG(axis) (_imu_config.imu_a_accel_config[axis])
-#define CH_B_ACCEL_CFG(axis) (_imu_config.imu_b_accel_config[axis])
+#define CH_A_GYRO_CFG(axis)   (imu_cfg->imu_a_gyro_config[axis])
+#define CH_B_GYRO_CFG(axis)   (imu_cfg->imu_b_gyro_config[axis])
+#define CH_A_ACCEL_CFG(axis)  (imu_cfg->imu_a_accel_config[axis])
+#define CH_B_ACCEL_CFG(axis)  (imu_cfg->imu_b_accel_config[axis])
 
 // Macro to retrieve IMU offset based on set bit flag
 #define IMU_OFFSET_GET(cfg) ( (cfg & 0b1000000) ? ((int) -(cfg & 0b111111)) : ((int) cfg & 0b111111) )
@@ -257,16 +255,18 @@ void _imu_std_function(uint32_t timestamp)
   _imu_buffer_b.retrieved = false;
 }
 
+// Function we call when our IMU calibration is completed
 setting_callback_t _calibrate_done_cb = NULL;
+
 void _imu_calibrate_stop()
 {
-  _imu_blocking_enter();
+  
   _imu_process_task = _imu_std_function;
   // Send success code
-  const uint8_t done[1] = {1};
+  const uint8_t done[2] = {IMU_CMD_CALIBRATE, 1};
 
   if(_calibrate_done_cb != NULL)
-    _calibrate_done_cb(done, 1);
+    _calibrate_done_cb(done, 2);
 
   _imu_exit();
 }
@@ -286,7 +286,6 @@ void _imu_calibrate_function(uint32_t timestamp)
   }
 }
 
-
 void _imu_calibrate_start()
 {
   _imu_blocking_enter();
@@ -295,27 +294,31 @@ void _imu_calibrate_start()
   _imu_exit();
 }
 
-
-void imu_command_handler(imu_cmd_t cmd, setting_callback_t cb)
+// IMU module command handler
+void imu_config_cmd(imu_cmd_t cmd, setting_callback_t cb)
 {
-  const uint8_t cb_dat[1] = {0};
+  const uint8_t cb_dat[3] = {CFG_BLOCK_IMU, cmd, 1};
 
   switch(cmd)
   {
     default:
-    cb(cb_dat, 0); // Do nothing
+    if(cb!=NULL)
+      cb(cb_dat, 0); // Do nothing
     break;
 
     case IMU_CMD_CALIBRATE:
-    // Start calibration
-    _calibrate_done_cb = cb;
-    _imu_calibrate_start();
+
+      if(cb!=NULL)
+        _calibrate_done_cb = cb;
+
+      _imu_calibrate_start();
 
     // We don't send a callback until the calibration is done.
     break;
   }
 }
 
+// IMU module operational task
 void imu_task(uint32_t timestamp)
 {
   static interval_s interval = {0};
@@ -341,6 +344,7 @@ void imu_task(uint32_t timestamp)
   }
 }
 
+// IMU module initialization function
 bool imu_init()
 {
   #if defined(HOJA_IMU_CHAN_A_INIT)

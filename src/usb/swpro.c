@@ -1,5 +1,7 @@
 #include "usb/swpro.h"
 
+#include "switch/switch_commands.h"
+
 #include "tusb.h"
 #include "input/button.h"
 #include "input/analog.h"

@@ -2,6 +2,7 @@
 #define INPUT_REMAP_H
 
 #include "input_shared_types.h"
+#include "settings_shared_types.h"
 #include "input/remap.h"
 #include "devices/devices.h"
 
@@ -102,6 +103,7 @@ typedef struct
     buttons_unset_s disabled;
 } remap_profile_s;
 
+void remap_config_cmd(remap_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
 void remap_process(button_data_s *in, button_data_s *out);
 
 #endif

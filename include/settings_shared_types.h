@@ -3,17 +3,62 @@
 
 #include <stdint.h>
 
-// Analog config commands
+
+typedef enum 
+{
+    CFG_BLOCK_GAMEPAD, 
+    CFG_BLOCK_REMAP, 
+    CFG_BLOCK_ANALOG, 
+    CFG_BLOCK_RGB, 
+    CFG_BLOCK_TRIGGER, 
+    CFG_BLOCK_IMU, 
+    CFG_BLOCK_HAPTIC
+} cfg_block_t;
+
+typedef enum 
+{
+    GAMEPAD_CMD_SET_DEFAULT_MODE, 
+    GAMEPAD_CMD_RESET_TO_BOOTLOADER, 
+    GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
+    GAMEPAD_CMD_SAVE_ALL, 
+} gamepad_cmd_t;
+
+typedef enum 
+{
+    REMAP_CMD_SET_REMAP,
+    REMAP_CMD_SET_UNSET,
+} remap_cmd_t;
+
 typedef enum 
 {
     ANALOG_CMD_SET_CENTERS, 
-    ANALOG_CMD_SET_DISTANCES, 
-    ANALOG_CMD_SET_ANGLES, 
+    ANALOG_CMD_CALIBRATE_START, 
+    ANALOG_CMD_CALIBRATE_STOP, 
+    ANALOG_CMD_CAPTURE_ANGLE, 
+    ANALOG_CMD_UPDATE_ANGLE, 
     ANALOG_CMD_SET_SNAPBACK, 
     ANALOG_CMD_SET_DEADZONES, 
 } analog_cmd_t;
 
-// Trigger config commands 
+typedef enum 
+{
+    RGB_CMD_SET_MODE, 
+    RGB_CMD_SET_GROUP, 
+    RGB_CMD_SET_LED,  
+    RGB_CMD_SET_SPEED,  
+} rgb_cmd_t;
+
+typedef enum 
+{
+    IMU_CMD_CALIBRATE, 
+} imu_cmd_t;
+
+typedef enum 
+{
+    HAPTIC_CMD_SET_STRENGTH, 
+    HAPTIC_CMD_TEST_STRENGTH, 
+} haptic_cmd_t;
+
 typedef enum 
 {
     TRIGGER_CMD_SET_BOUNDS, 
@@ -21,43 +66,9 @@ typedef enum
     TRIGGER_CMD_SET_ENABLE, 
 } trigger_cmd_t;
 
-// Gamepad config commands
-typedef enum 
-{
-    GAMEPAD_CMD_SET_DEFAULT_MODE, 
-    GAMEPAD_CMD_RESET_TO_BOOTLOADER,
-    GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD,
-    GAMEPAD_CMD_SAVE_ALL,
-} gamepad_cmd_t;
-
-// IMU config commands
-typedef enum 
-{
-    IMU_CMD_CALIBRATE,
-} imu_cmd_t;
-
-// Button config commands
-typedef enum 
-{
-    BUTTON_CMD_SET_REMAP,
-    BUTTON_CMD_SET_UNSET,
-} button_cmd_t;
-
-// Haptic config commands
-typedef enum 
-{
-    HAPTIC_CMD_SET_STRENGTH, 
-} haptic_cmd_t;
-
-typedef enum 
-{
-    RGB_CMD_SET_MODE,
-    RGB_CMD_SET_GROUP, 
-    RGB_CMD_SET_SPEED, 
-} rgb_cmd_t;
-
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 
+// Byte sizes of our various blocks
 #define GAMEPAD_CFB_SIZE    64 
 #define REMAP_CFB_SIZE      64 
 #define RGB_CFB_SIZE        256 
@@ -66,8 +77,19 @@ typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 #define IMU_CFB_SIZE        64 
 #define HAPTIC_CFB_SIZE     8 
 
+// Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE)
+
+typedef union 
+{
+    struct 
+    {
+        uint8_t     haptic_strength;
+        uint8_t     reserved[HAPTIC_CFB_SIZE-1];
+    };
+    uint8_t haptic_configuration_block[HAPTIC_CFB_SIZE];
+} haptic_config_u;
 
 typedef union 
 {

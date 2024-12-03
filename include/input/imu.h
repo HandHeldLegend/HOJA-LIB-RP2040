@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "settings_shared_types.h"
+
 // IMU data structure
 typedef struct
 {
@@ -98,6 +100,8 @@ typedef struct
 
 bool imu_init();
 
+void imu_config_cmd(imu_cmd_t cmd, setting_callback_t cb);
+
 bool imu_access_try(imu_data_s *out);
 void imu_access_block(imu_data_s *out);
 
@@ -106,9 +110,5 @@ void imu_quaternion_access_block(quaternion_s *out);
 
 void imu_task(uint32_t timestamp);
 
-void imu_calibrate_start();
-void imu_calibrate_stop();
-
-void imu_set_enabled(bool enable);
 
 #endif

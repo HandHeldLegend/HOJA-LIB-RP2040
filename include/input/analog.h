@@ -5,6 +5,7 @@
 
 #include "utilities/interval.h"
 #include "input/button.h"
+#include "settings_shared_types.h"
 
 typedef enum
 {
@@ -25,14 +26,7 @@ void analog_init();
 void analog_access_blocking(analog_data_s *out, analog_access_t type);
 bool analog_access_try(analog_data_s *out, analog_access_t type);
 
-void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant);
-void analog_get_subangle_data(uint8_t *axis, uint8_t *octant);
-
-void analog_calibrate_start();
-void analog_calibrate_stop();
-void analog_calibrate_save();
-void analog_calibrate_angle();
-void analog_calibrate_center();
+void analog_config_cmd(analog_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
 void analog_task(uint32_t timestamp);
 
 #endif

@@ -1,16 +1,12 @@
 #include "input/remap.h"
 #include "input/button.h"
 #include "hoja_shared_types.h"
-#include "input_shared_types.h"
 #include "hoja.h"
 
 #define REMAP_SET(button, shift, unset) ( (unset) ? 0 : ((button) << shift))
 
 button_remap_s  _remap_profile;
 buttons_unset_s _unset_profile;
-
-bool _l_analog_remapped = false;
-bool _r_analog_remapped = false;
 
 #define DEFAULT_REMAP { \
     .dpad_up = MAPCODE_DUP, \
@@ -113,14 +109,26 @@ void _remap_unpack_remap(mapcode_t *array, button_remap_s *remap)
 
 }
 
-void _remap_listener(uint16_t buttons, bool clear)
+void remap_config_cmd(remap_cmd_t cmd, const uint8_t *data, setting_callback_t cb)
 {
+    const uint8_t cb_dat[3] = {CFG_BLOCK_REMAP, cmd, 0};
 
-}
+    switch(cmd)
+    {
+        default:
+        break;
 
-void remap_send_data_webusb(gamepad_mode_t mode)
-{
+        case REMAP_CMD_SET_REMAP:
+        break;
 
+        case REMAP_CMD_SET_UNSET:
+        break;
+    }
+
+    if(cb!=NULL)
+    {
+        cb(cb_dat, 3);
+    }
 }
 
 void remap_reset_default(gamepad_mode_t mode)
@@ -133,17 +141,3 @@ void remap_init(gamepad_mode_t mode, button_data_s *in, button_data_s *out)
 
 }
 
-void remap_set_gc_sp(gc_sp_mode_t sp_mode)
-{
-
-}
-
-void remap_listen_stop()
-{
-
-}
-
-void remap_listen_enable(gamepad_mode_t mode, mapcode_t mapcode)
-{
-
-}

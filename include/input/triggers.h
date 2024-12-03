@@ -4,10 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-void triggers_set_disabled(bool left_right, bool disabled);
-void triggers_scale(int left_trigger_in, int *left_trigger_out, int right_trigger_in, int *right_trigger_out);
-void triggers_scale_init();
-void triggers_stop_calibration();
-void triggers_start_calibration();
+#include "settings_shared_types.h"
+#include "input_shared_types.h"
+
+void triggers_config_cmd(trigger_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
+bool triggers_init();
+void triggers_process(button_data_s *in, button_data_s *out);
 
 #endif

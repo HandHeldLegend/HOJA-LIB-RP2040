@@ -2,8 +2,6 @@
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
 
-#include "settings_shared_types.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <math.h>
@@ -182,6 +180,41 @@ float getAverage(RollingAverage* ra) {
     return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
 }
 #endif
+
+void analog_config_cmd(analog_cmd_t cmd, const uint8_t *data, setting_callback_t cb)
+{
+    const uint8_t cb_dat[2] = {cmd, 1};
+
+    switch(cmd)
+    {
+        default:
+        if(cb!=NULL)
+            cb(cb_dat, 0); // Do nothing
+        return;
+        break;
+
+        case ANALOG_CMD_SET_CENTERS:
+        break;
+
+        case ANALOG_CMD_CALIBRATE_START:
+        break;
+
+        case ANALOG_CMD_CALIBRATE_STOP:
+        break;
+
+        case ANALOG_CMD_CAPTURE_ANGLE:
+        break;
+
+        case ANALOG_CMD_UPDATE_ANGLE:
+        break;
+
+        case ANALOG_CMD_SET_DEADZONES:
+        break;
+
+        case ANALOG_CMD_SET_SNAPBACK:
+        break;
+    }
+}
 
 // Read analog values
 void _analog_read_raw()
