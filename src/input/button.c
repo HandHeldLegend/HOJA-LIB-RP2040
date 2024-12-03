@@ -1,11 +1,13 @@
 #include "input/button.h"
+#include "input/remap.h"
 
 #include <string.h>
 
 #include "utilities/interval.h"
 
 #include "hal/mutex_hal.h"
-#include "input/remap.h"
+#include "hal/sys_hal.h"
+
 #include "hoja.h"
 
 MUTEX_HAL_INIT(_button_mutex);
@@ -81,6 +83,13 @@ bool button_access_try(button_data_s *out, button_access_t type)
 
 bool button_init()
 {
+    // Init hardware buttons
+    if(!cb_hoja_buttons_init())
+    {
+        // reset to USB bootloader if we didn't handle this.
+        sys_hal_reboot();
+    }
+
     // Store boot button state
     _button_blocking_enter();
     cb_hoja_read_buttons(&_boot_button_data);
@@ -108,6 +117,9 @@ void button_task(uint32_t timestamp)
         cb_hoja_read_buttons(&_raw_button_data);
         // Process button remaps
         //--
+
+        // Debug paste remapped buttons
+        memcpy(&_remapped_button_data, &_raw_button_data, sizeof(button_data_s));
         _button_exit();
     }
 }

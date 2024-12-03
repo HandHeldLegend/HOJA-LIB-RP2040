@@ -11,10 +11,11 @@
 
 #include "hoja.h"
 
-bool input_init(gamepad_mode_t mode)
+bool input_init()
 {
     button_init();
     analog_init();
+    imu_init();
 }
 
 void input_digital_task(uint32_t timestamp)

@@ -6,8 +6,6 @@
 #include "utilities/interval.h"
 #include "input/button.h"
 
-
-
 typedef enum
 {
     CALIBRATE_START,

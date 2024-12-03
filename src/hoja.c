@@ -1,4 +1,8 @@
 #include "hoja.h"
+
+#include "usb/usb.h"
+#include "wired/wired.h"
+
 #include "hoja_system.h"
 #include "hal/hal.h"
 #include "hal/sys_hal.h"
@@ -11,8 +15,9 @@
 
 #include "devices/battery.h"
 
-time_callback_t _hoja_mode_task_cb = NULL;
-gamepad_mode_t  _hoja_current_gamepad_mode = GAMEPAD_MODE_LOAD;
+time_callback_t   _hoja_mode_task_cb = NULL;
+gamepad_mode_t    _hoja_current_gamepad_mode    = GAMEPAD_MODE_LOAD;
+gamepad_method_t  _hoja_current_gamepad_method  = GAMEPAD_METHOD_AUTO;
 
 __attribute__((weak)) bool cb_hoja_buttons_init()
 {
@@ -22,26 +27,6 @@ __attribute__((weak)) bool cb_hoja_buttons_init()
 __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
 {
   (void)&data;
-}
-
-void _hoja_hal_setup()
-{
-  sys_hal_init();
-
-  // SPI 0
-  #if defined(HOJA_SPI_0_ENABLE) && (HOJA_SPI_0_ENABLE==1)
-  spi_hal_init(0, HOJA_SPI_0_GPIO_CLK, HOJA_SPI_0_GPIO_MISO, HOJA_SPI_0_GPIO_MOSI);
-  #endif
-
-  // I2C 0
-  #if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE==1)
-  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL);
-  #endif
-
-  // HD Rumble
-  #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
-  hdrumble_hal_init();
-  #endif
 }
 
 void hoja_deinit(callback_t cb)
@@ -113,9 +98,23 @@ void _hoja_task_1()
   }
 }
 
+
+// Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method)
 {
+  bool ret = false;
+  switch(mode)
+  {
+    default:
+    case GAMEPAD_MODE_SWPRO:
+      _hoja_current_gamepad_method = GAMEPAD_METHOD_USB;
+      _hoja_current_gamepad_mode   = mode;
+      _hoja_mode_task_cb = usb_mode_task;
+      usb_mode_start(GAMEPAD_MODE_SWPRO);
+    break;
+  }
 
+  return true;
 }
 
 gamepad_mode_t hoja_gamepad_mode_get()
@@ -128,13 +127,11 @@ gamepad_mode_t hoja_gamepad_mode_get()
 
 void hoja_init()
 {
-  if(!cb_hoja_buttons_init())
-  {
-    // reset to USB bootloader if we didn't handle this.
-    sys_hal_reboot();
-  }
+  
 
-  _hoja_hal_setup();
+  hal_init();
+  input_init();
+  _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
 
   // Init specific GAMEPAD mode
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

@@ -2,20 +2,25 @@
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
 
-#include "devices/rgb.h"
+#include "settings_shared_types.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <math.h>
+#include <string.h>
 
-#include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
 
 #include "utilities/interval.h"
 
-#include "drivers/drivers.h"
-
 #include "switch/switch_analog.h"
+
+// Include all ADC drivers
+#include "hal/adc_hal.h"
+#include "drivers/adc/mcp3002.h"
+
+analog_config_u _analog_config = {0};
+
 
 MUTEX_HAL_INIT(_analog_mutex);
 void _analog_blocking_enter()
@@ -38,7 +43,7 @@ void _analog_exit()
 }
 
 analog_data_s _raw_analog_data      = {0};  // Stage 0
-analog_data_s _scaled_analog_data = {0};    // Stage 1
+analog_data_s _scaled_analog_data   = {0};  // Stage 1
 analog_data_s _snapback_analog_data = {0};  // Stage 2
 analog_data_s _deadzone_analog_data = {0};  // Stage 3
 
@@ -132,8 +137,8 @@ void analog_init()
         HOJA_ADC_CHAN_RT_INIT();
     #endif
 
-    stick_scaling_get_settings();
-    stick_scaling_init();
+    //stick_scaling_get_settings();
+    //stick_scaling_init();
     switch_analog_calibration_init();
 
     //if (_buttons->button_minus && _buttons->button_plus)

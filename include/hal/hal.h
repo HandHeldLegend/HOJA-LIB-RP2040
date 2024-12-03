@@ -55,6 +55,6 @@
 #include "hal/hdrumble_hal.h"
 #endif
 
-void hal_setup();
+bool hal_init();
 
 #endif

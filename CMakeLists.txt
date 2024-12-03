@@ -86,6 +86,8 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/n64.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/nspi.c 
 
+  ${CMAKE_CURRENT_LIST_DIR}/src/hal/hal.c
+
   ${DRIVERS_C}
   ${HAL_C}
 )

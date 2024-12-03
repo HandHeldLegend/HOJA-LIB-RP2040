@@ -20,6 +20,7 @@
 #include "usb/gcinput.h"
 
 #include "switch/switch_commands.h"
+#include "switch/switch_haptics.h"
 
 typedef enum
 {
@@ -94,7 +95,7 @@ bool _usb_get_usb_clear(uint32_t timestamp)
   static interval_s s = {0};
   if (interval_resettable_run(timestamp, 100000, clear, &s))
   {
-    hoja_usb_set_usb_clear();
+    _usb_set_usb_clear();
     return true;
   }
 
@@ -487,7 +488,7 @@ void tud_vendor_rx_cb(uint8_t itf)
   if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
   {
     printf("WebUSB Data Received.\n");
-    webusb_command_processor(buffer);
+    //webusb_command_processor(buffer);
   }
 }
 

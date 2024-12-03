@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "devices_shared_types.h"
+#include "settings_shared_types.h"
 
 #include "devices/devices.h"
 
@@ -10,60 +12,7 @@
 
 #include "devices/haptics.h"
 
-// Analog config commands
-typedef enum 
-{
-    ANALOG_CMD_SET_CENTER, 
-    ANALOG_CMD_SET_DISTANCE, 
-    ANALOG_CMD_SET_ANGLE, 
-    ANALOG_CMD_SET_SUBANGLE, 
-    ANALOG_CMD_SET_SNAPBACK, 
-    ANALOG_CMD_SET_DEADZONE, 
-    ANALOG_CMD_SET_INVERT, 
-} analog_cmd_t;
 
-// Trigger config commands 
-typedef enum 
-{
-    TRIGGER_CMD_SET_BOUNDS, 
-    TRIGGER_CMD_SET_DEADZONE, 
-    TRIGGER_CMD_SET_ENABLE, 
-} trigger_cmd_t;
-
-// Gamepad config commands
-typedef enum 
-{
-    GAMEPAD_CMD_SET_DEFAULT_MODE, 
-    GAMEPAD_CMD_RESET_TO_BOOTLOADER,
-    GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD,
-    GAMEPAD_CMD_SAVE_ALL,
-} gamepad_cmd_t;
-
-// IMU config commands
-typedef enum 
-{
-    IMU_CMD_SET_OFFSETS,
-} imu_cmd_t;
-
-// Button config commands
-typedef enum 
-{
-    BUTTON_CMD_SET_REMAP,
-    BUTTON_CMD_SET_UNSET,
-} button_cmd_t;
-
-// Haptic config commands
-typedef enum 
-{
-    HAPTIC_CMD_SET_STRENGTH, 
-} haptic_cmd_t;
-
-typedef enum 
-{
-    RGB_CMD_SET_MODE,
-    RGB_CMD_SET_GROUP, 
-    RGB_CMD_SET_SPEED, 
-} rgb_cmd_t;
 
 typedef union
 {
@@ -86,5 +35,38 @@ typedef union
     };
     uint32_t value;
 } trigger_calibration_u;
+
+// We have a STRICT budget of 4096 bytes for configuration data
+typedef struct 
+{
+    uint16_t settings_version; // 2 bytes
+
+    // We can set our budgets for each configuration area
+    // To allow future changes by only changing these 'blocks'
+
+    // Gamepad configuration block
+    uint8_t gamepad_configuration_block[GAMEPAD_CFB_SIZE]; 
+
+    // Remap configuration block
+    uint8_t remap_configuration_block[REMAP_CFB_SIZE]; 
+
+    // RGB configuration block
+    uint8_t rgb_configuration_block[RGB_CFB_SIZE]; 
+
+    // Analog configuration block
+    uint8_t analog_configuration_block[ANALOG_CFB_SIZE]; 
+
+    // Trigger configuration block
+    uint8_t trigger_configuration_block[TRIGGER_CFB_SIZE]; 
+
+    // IMU configuration block
+    uint8_t imu_configuration_block[IMU_CFB_SIZE]; 
+
+    // Haptic configuration block
+    uint8_t haptic_configuration_block[HAPTIC_CFB_SIZE]; 
+
+    // REMAINING 2550 bytes
+    uint8_t reserved[4096-TOTAL_CFB_SIZE]; 
+} settings_data_s;
 
 #endif
