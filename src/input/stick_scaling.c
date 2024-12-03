@@ -321,4 +321,9 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
 
   _process_axis(in_left,  out_left,   _angle_map_l, _distances_l);
   _process_axis(in_right, out_right,  _angle_map_r, _distances_r);
+
+  out->lx = out_left[0];
+  out->ly = out_left[1];
+  out->rx = out_right[0];
+  out->ry = out_right[1];
 }

@@ -4,6 +4,7 @@
 #include "hal/mutex_hal.h"
 #include "pico/time.h"
 #include "hardware/watchdog.h"
+#include "pico/bootrom.h"
 
 #define SYS_CLK_HZ 200000000
 
@@ -12,6 +13,13 @@ void sys_hal_reboot()
     // Configure the watchdog to reset the chip after a short delay
     watchdog_reboot(0, 0, 0);
     // Loop forever, waiting for the watchdog to reset the chip
+    for(;;){}
+}
+
+void sys_hal_bootloader()
+{
+    reset_usb_boot(0, 0);
+    // Loop forever
     for(;;){}
 }
 

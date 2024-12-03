@@ -86,7 +86,7 @@ bool button_init()
     // Init hardware buttons
     if(!cb_hoja_buttons_init())
     {
-        // reset to USB bootloader if we didn't handle this.
+        // Reboot
         sys_hal_reboot();
     }
 
@@ -96,7 +96,7 @@ bool button_init()
 
     if(_boot_button_data.button_safemode && _boot_button_data.trigger_l)
     {
-        //reset_usb_boot(0, 0);
+        sys_hal_bootloader();
     }
     
     _button_exit();

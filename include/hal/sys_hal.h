@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+void sys_hal_bootloader();
 void sys_hal_reboot();
 
 bool sys_hal_init();
