@@ -1,6 +1,7 @@
 #include "input/snapback.h"
 #include "utilities/interval.h"
 #include <math.h>
+#include <stdlib.h>
 
 // How many measurements we need to
 // 'fall' before we activate

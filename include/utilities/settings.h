@@ -41,6 +41,9 @@ typedef struct
     // Haptic configuration block
     uint8_t haptic_configuration_block[HAPTIC_CFB_SIZE]; 
 
+    // User data configuration block
+    uint8_t user_configuration_block[USER_CFB_SIZE];
+
     // REMAINING 2550 bytes
     uint8_t reserved[4096-TOTAL_CFB_SIZE]; 
 } settings_flash_s;
@@ -73,19 +76,24 @@ typedef struct
 
     // Haptic configuration block
     uint8_t haptic_configuration_block[HAPTIC_CFB_SIZE]; 
+
+    // User data configuration block
+    uint8_t user_configuration_block[USER_CFB_SIZE];
 } settings_live_s;
 
 extern settings_live_s      live_settings;
-extern gamepad_config_u     *gamepad_cfg;
+extern gamepad_config_u     *gamepad_config;
 extern remap_config_u       *remap_config;
 extern rgb_config_u         *rgb_config;
 extern analog_config_u      *analog_config;
 extern trigger_config_u     *trigger_config;
-extern imu_config_u         *imu_cfg;
-extern haptic_config_u      *haptic_cfg;
+extern imu_config_u         *imu_config;
+extern haptic_config_u      *haptic_config;
+extern user_config_u        *user_config;
 
 void settings_init();
 void settings_commit_blocks();
 void settings_commit_task();
+void settings_return_config_block(cfg_block_t block, setting_callback_t cb);
 
 #endif

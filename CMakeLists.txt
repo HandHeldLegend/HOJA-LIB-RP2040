@@ -78,7 +78,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/dinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
 
-  #${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
   
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
 

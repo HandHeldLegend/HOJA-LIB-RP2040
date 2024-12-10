@@ -97,4 +97,88 @@ typedef enum
     GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
 } gc_sp_mode_t;
 
+// IMU data structure
+typedef struct
+{
+    union
+    {
+        struct
+        {
+            uint8_t ax_8l : 8;
+            uint8_t ax_8h : 8;
+        };
+        int16_t ax;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t ay_8l : 8;
+            uint8_t ay_8h : 8;
+        };
+        int16_t ay;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t az_8l : 8;
+            uint8_t az_8h : 8;
+        };
+        int16_t az;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gx_8l : 8;
+            uint8_t gx_8h : 8;
+        };
+        int16_t gx;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t gy_8l : 8;
+            uint8_t gy_8h : 8;
+        };
+        int16_t gy;
+    };
+    
+    union
+    {
+        struct
+        {
+            uint8_t gz_8l : 8;
+            uint8_t gz_8h : 8;
+        };
+        int16_t gz;
+    };
+    
+    bool retrieved;
+} imu_data_s;
+
+typedef struct
+{
+    union
+    {
+        float raw[4];
+        struct {
+            float x;
+            float y;
+            float z;
+            float w;
+        };
+    };
+    //uint32_t timestamp;
+    int16_t ax;
+    int16_t ay;
+    int16_t az;
+} quaternion_s;
+
 #endif

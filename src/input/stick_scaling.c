@@ -17,6 +17,7 @@
 #define LERP(a, b, t) ((a) + (t) * ((b) - (a)))
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
 #define MAX_ANGLE_ADJUSTMENT 10
+#define MINIMUM_REQUIRED_DISTANCE 1000
 
 typedef struct
 {
@@ -31,6 +32,8 @@ typedef struct
   float distance; // Distance to this input angle maximum for hard polygonal shape stick gates
 } angle_map_s;
 
+int _angle_map_l_max_idx = ADJUSTABLE_ANGLES-1;
+int _angle_map_r_max_idx = ADJUSTABLE_ANGLES-1;
 angle_map_s _angle_map_l[ADJUSTABLE_ANGLES] = {0};
 angle_map_s _angle_map_r[ADJUSTABLE_ANGLES] = {0};
 
@@ -39,11 +42,7 @@ angle_map_s _angle_map_r[ADJUSTABLE_ANGLES] = {0};
 float _distances_l[64] = {0};
 float _distances_r[64] = {0};
 
-typedef struct
-{
-  float angle;
-  float distance;
-} ad_pair_s;
+analog_scaler_t _scaling_mode = ANALOG_SCALER_ROUND;
 
 float _normalize_angle(float angle);
 float _angle_diff(float angle1, float angle2);
@@ -90,13 +89,34 @@ void _set_default_angle_mappings()
 
 // Function to sort the array
 int _validate_angle_map(angle_map_s *in) {
-  qsort(in, ADJUSTABLE_ANGLES, sizeof(angle_map_s), _compare_by_input);
 
-  float tmp_input   = in[0].input;
-  float tmp_output  = in[0].output;
+  int unused_idx_max = ADJUSTABLE_ANGLES; 
+  int used_idx_max = 0;
+  angle_map_s filtered_map[ADJUSTABLE_ANGLES] = {0};
+
+  // First, remove all unused angles and put them at the end
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    if(in[i].distance<MINIMUM_REQUIRED_DISTANCE)
+    {
+      unused_idx_max--;
+    }
+    else
+    {
+      filtered_map[used_idx_max] = in[i];
+      used_idx_max++;
+    }
+  }
+
+  qsort(filtered_map, used_idx_max, sizeof(angle_map_s), _compare_by_input);
+
+  float tmp_input   = filtered_map[0].input;
+  float tmp_output  = filtered_map[0].output;
+
+  if(used_idx_max<4) return -4;
 
   // Check for duplicates or invalid mappings
-  for(int i = 1; i < ADJUSTABLE_ANGLES; i++)
+  for(int i = 1; i < used_idx_max; i++)
   {
     if(in[i].input == tmp_input) return -1;
     if(_angle_diff(tmp_input, tmp_output) >= MAX_ANGLE_ADJUSTMENT) return -2;
@@ -106,7 +126,7 @@ int _validate_angle_map(angle_map_s *in) {
     tmp_output = in[i].output;
   }
 
-  return 0;
+  return used_idx_max;
 }
 
 float _coordinate_distance(int x, int y) {
@@ -299,10 +319,33 @@ float _coordinate_to_angle(int x, int y)
 
 void _process_axis(int *in, int *out, angle_map_s *map, float *distances)
 {
-  float angle     = _coordinate_to_angle(in[0], in[1]);
-  float out_angle = _transform_angle(angle, map);
-  float distance  = _get_scaled_distance(in, angle, distances);
-  _angle_distance_to_coordinate(out_angle, distance, out);
+  float distance = 0;
+  float angle = _coordinate_to_angle(in[0], in[1]);
+
+  int idx_pair[2] = {-1,-1};
+  _find_containing_index_pair(angle, map, idx_pair);
+  
+
+  if( (idx_pair[0]>-1) && (idx_pair[1]>-1))
+  {
+    float out_angle = _transform_angle(angle, map);
+
+    switch(_scaling_mode)
+    {
+      default:
+      case ANALOG_SCALER_ROUND:
+      break;
+
+      case ANALOG_SCALER_POLYGON:
+      break;
+    }
+
+
+    distance  = _get_scaled_distance(in, angle, distances);
+    _angle_distance_to_coordinate(out_angle, distance, out);
+  }
+
+  
 }
 
 bool stick_scaling_init()

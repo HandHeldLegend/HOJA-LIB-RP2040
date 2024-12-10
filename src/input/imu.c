@@ -31,10 +31,10 @@ imu_data_s _imu_buffer_avg = {0};
 time_callback_t _imu_process_task = NULL;
 
 // Access IMU config union members macro
-#define CH_A_GYRO_CFG(axis)   (imu_cfg->imu_a_gyro_config[axis])
-#define CH_B_GYRO_CFG(axis)   (imu_cfg->imu_b_gyro_config[axis])
-#define CH_A_ACCEL_CFG(axis)  (imu_cfg->imu_a_accel_config[axis])
-#define CH_B_ACCEL_CFG(axis)  (imu_cfg->imu_b_accel_config[axis])
+#define CH_A_GYRO_CFG(axis)   (imu_config->imu_a_gyro_config[axis])
+#define CH_B_GYRO_CFG(axis)   (imu_config->imu_b_gyro_config[axis])
+#define CH_A_ACCEL_CFG(axis)  (imu_config->imu_a_accel_config[axis])
+#define CH_B_ACCEL_CFG(axis)  (imu_config->imu_b_accel_config[axis])
 
 // Macro to retrieve IMU offset based on set bit flag
 #define IMU_OFFSET_GET(cfg) ( (cfg & 0b1000000) ? ((int) -(cfg & 0b111111)) : ((int) cfg & 0b111111) )

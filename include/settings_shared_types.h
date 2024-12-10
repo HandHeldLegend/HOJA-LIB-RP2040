@@ -12,7 +12,9 @@ typedef enum
     CFG_BLOCK_RGB, 
     CFG_BLOCK_TRIGGER, 
     CFG_BLOCK_IMU, 
-    CFG_BLOCK_HAPTIC
+    CFG_BLOCK_HAPTIC, 
+    CFG_BLOCK_USER, 
+    CFG_BLOCK_MAX, 
 } cfg_block_t;
 
 typedef enum 
@@ -69,17 +71,29 @@ typedef enum
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 
 // Byte sizes of our various blocks
-#define GAMEPAD_CFB_SIZE    64 
-#define REMAP_CFB_SIZE      64 
+#define GAMEPAD_CFB_SIZE    32 
+#define REMAP_CFB_SIZE      32 
 #define RGB_CFB_SIZE        256 
 #define ANALOG_CFB_SIZE     1024 
-#define TRIGGER_CFB_SIZE    64 
-#define IMU_CFB_SIZE        64 
+#define TRIGGER_CFB_SIZE    32 
+#define IMU_CFB_SIZE        32 
 #define HAPTIC_CFB_SIZE     8 
+#define USER_CFB_SIZE       64
 
 // Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
-                        ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE)
+                        ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
+                        USER_CFB_SIZE)
+
+typedef union 
+{
+    struct 
+    {
+        uint8_t user_name[24];
+        uint8_t reserved[USER_CFB_SIZE-24];
+    };
+    uint8_t user_configuration_block[USER_CFB_SIZE];
+} user_config_u;
 
 typedef union 
 {
@@ -124,10 +138,14 @@ typedef struct
     struct 
     {
         uint8_t     analog_config_version;
-        uint16_t    lx_config; // Center and invert value
-        uint16_t    ly_config;
-        uint16_t    rx_config;
-        uint16_t    ry_config;
+        uint8_t     lx_invert : 1;
+        uint16_t    lx_center : 15;
+        uint8_t     ly_invert : 1;
+        uint16_t    ly_center : 15;
+        uint8_t     rx_invert : 1;
+        uint16_t    rx_center : 15;
+        uint8_t     ry_invert : 1;
+        uint16_t    ry_center : 15;
         uint8_t     reserved[ANALOG_CFB_SIZE-9];
     };
     uint8_t analog_configuration_block[ANALOG_CFB_SIZE];
