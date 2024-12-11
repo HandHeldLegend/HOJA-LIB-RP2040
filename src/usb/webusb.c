@@ -3,16 +3,66 @@
 #include "input_shared_types.h"
 
 #include "utilities/settings.h"
+#include "hal/sys_hal.h"
 
 #include "input/analog.h"
 #include "input/button.h"
 #include "input/imu.h"
 
+#include "bsp/board.h"
 #include "tusb.h"
 
 #define WEBUSB_ITF 0
 
 uint8_t _webusb_out_buffer[64] = {0x00};
+
+// Can be used to block until webUSB
+// is clear and ready to send output data
+// Set timeout to value greater than zero.
+bool webusb_ready_blocking(int timeout)
+{
+    if (timeout > 0)
+    {
+        int internal = timeout;
+        while (!tud_vendor_n_write_available(WEBUSB_ITF) && (internal > 0))
+        {
+            sys_hal_sleep_us(100);
+            tud_task();
+            internal--;
+        }
+
+        if (!internal)
+        {
+            return false;
+        }
+
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void webusb_send_bulk(const uint8_t *data, uint16_t size)
+{
+    //memset(_webusb_out_buffer, 0, 64);
+    //memcpy(_webusb_out_buffer, data, sizeof(uint8_t) * size);
+
+    // Test
+    for(int i = 0; i < 64; i++)
+    {
+        _webusb_out_buffer[i] = (uint8_t) i;
+    }
+
+    if(webusb_ready_blocking(4000))
+    {
+        tud_vendor_n_flush(0);
+        tud_vendor_n_write(0, _webusb_out_buffer, 64);
+    }
+}
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 void webusb_input_task(uint32_t timestamp)
@@ -64,45 +114,19 @@ void webusb_input_task(uint32_t timestamp)
     }
 }
 
-// Can be used to block until webUSB
-// is clear and ready to send output data
-// Set timeout to value greater than zero.
-bool webusb_ready_blocking(int timeout)
+void webusb_command_handler(uint8_t *data)
 {
-    if (timeout > 0)
+    webusb_send_bulk(data, 64);
+    return;
+    switch(data[0])
     {
-        int internal = timeout;
-        while (!tud_vendor_n_write_available(0) && (internal > 0))
-        {
-            sleep_us(100);
-            tud_task();
-            internal--;
-        }
+        case 0x1:
+            settings_return_config_block(data[1]);
+        break;
 
-        if (!internal)
-        {
-            webusb_enable_output(false);
-            return false;
-        }
-
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
-}
-
-void _webusb_send_bulk(const uint8_t *data, uint16_t size)
-{
-    memset(_webusb_out_buffer, 0, 64);
-    memcpy(_webusb_out_buffer, data, size);
-
-    if(webusb_ready_blocking(32000))
-    {
-        tud_vendor_n_write(WEBUSB_ITF, data, 64);
+        case 0x2:
+            settings_write_config_block(data[1], &(data[2]));
+        break;
     }
 }
 
@@ -113,10 +137,6 @@ void webusb_version_read(uint8_t type)
 
 }
 
-void webusb_setting_write(cfg_block_t block, uint8_t *data)
-{
-
-}
 
 // Read out all configuration blocks
 void webusb_settings_read()
@@ -124,6 +144,6 @@ void webusb_settings_read()
     // Read all config blocks
     for(int i = 0; i < CFG_BLOCK_MAX; i++)
     {
-        settings_return_config_block(i, _webusb_send_bulk);
+        settings_return_config_block(i);
     }
 }

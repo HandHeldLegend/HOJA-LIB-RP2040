@@ -133,6 +133,23 @@ typedef union
     uint8_t trigger_configuration_block[TRIGGER_CFB_SIZE];
 } trigger_config_u;
 
+typedef union 
+{
+    struct 
+    {
+        int first_distance;
+        int16_t offsets[63];
+    };
+    uint8_t values[130];
+} analog_packed_distances_u; // 130 bytes
+
+typedef struct
+{
+  float input;    // Input Angle
+  float output;   // Output Angle
+  int distance; // Distance to this input angle maximum for hard polygonal shape stick gates
+} angle_map_s;
+
 typedef struct 
 {
     struct 
@@ -145,8 +162,14 @@ typedef struct
         uint8_t     rx_invert : 1;
         uint16_t    rx_center : 15;
         uint8_t     ry_invert : 1;
-        uint16_t    ry_center : 15;
-        uint8_t     reserved[ANALOG_CFB_SIZE-9];
+        uint16_t    ry_center : 15; // 9 bytes up to here
+        analog_packed_distances_u l_packed_distances;
+        analog_packed_distances_u r_packed_distances; // 269 bytes up to here
+        angle_map_s l_angle_maps[16]; // 461
+        angle_map_s r_angle_maps[16]; // 473
+        uint8_t     l_scaler_type; // 474
+        uint8_t     r_scaler_type; // 475
+        uint8_t     reserved[ANALOG_CFB_SIZE-475];
     };
     uint8_t analog_configuration_block[ANALOG_CFB_SIZE];
 } analog_config_u;

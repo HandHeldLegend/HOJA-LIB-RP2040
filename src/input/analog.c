@@ -98,8 +98,10 @@ bool analog_access_try(analog_data_s *out, analog_access_t type)
     return false;
 }
 
-#define CENTER 2048
+#define ANALOG_MAX_DISTANCE 4095
+#define ANALOG_HALF_DISTANCE 2048
 #define DEADZONE_DEFAULT 100
+#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < 0) ? 0 : value)
 
 uint16_t _analog_deadzone_l = DEADZONE_DEFAULT;
 uint16_t _analog_deadzone_r = DEADZONE_DEFAULT;
@@ -138,6 +140,7 @@ void analog_init()
     //stick_scaling_get_settings();
     //stick_scaling_init();
     switch_analog_calibration_init();
+    stick_scaling_init();
 
     //if (_buttons->button_minus && _buttons->button_plus)
     //{
@@ -287,9 +290,23 @@ void analog_task(uint32_t timestamp)
         // Read raw analog sticks
         _analog_read_raw();
 
+        // Rebase data to 0 center
+        _raw_analog_data.lx -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.ly -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.rx -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.ry -= ANALOG_HALF_DISTANCE;
+
+        stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
+
+        // Rebase analog data to full non-negative scale
+        _scaled_analog_data.lx = CAP_ANALOG(_scaled_analog_data.lx+ANALOG_HALF_DISTANCE);
+        _scaled_analog_data.ly = CAP_ANALOG(_scaled_analog_data.ly+ANALOG_HALF_DISTANCE);
+        _scaled_analog_data.rx = CAP_ANALOG(_scaled_analog_data.rx+ANALOG_HALF_DISTANCE);
+        _scaled_analog_data.ry = CAP_ANALOG(_scaled_analog_data.ry+ANALOG_HALF_DISTANCE);
+
         // Temp debug
-        memcpy(&_snapback_analog_data, &_raw_analog_data, sizeof(analog_data_s));
-        memcpy(&_deadzone_analog_data, &_raw_analog_data, sizeof(analog_data_s));
+        //memcpy(&_snapback_analog_data, &_raw_analog_data, sizeof(analog_data_s));
+        memcpy(&_deadzone_analog_data, &_scaled_analog_data, sizeof(analog_data_s));
 
         _analog_exit();
     }

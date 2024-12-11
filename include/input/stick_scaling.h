@@ -2,8 +2,9 @@
 #define INPUT_STICK_SCALING_H
 
 #include <stdint.h>
-#include "input/input.h"
+#include "input_shared_types.h"
 
-
+void stick_scaling_process(analog_data_s *in, analog_data_s *out);
+bool stick_scaling_init();
 
 #endif

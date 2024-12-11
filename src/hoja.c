@@ -10,6 +10,7 @@
 #include "board_config.h"
 
 #include "utilities/callback.h"
+#include "utilities/settings.h"
 
 #include "input/input.h"
 
@@ -127,11 +128,11 @@ gamepad_mode_t hoja_gamepad_mode_get()
 
 void hoja_init()
 {
-  
-
   hal_init();
   input_init();
   _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
+
+  settings_init();
 
   // Init specific GAMEPAD mode
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);
