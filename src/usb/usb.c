@@ -2,8 +2,9 @@
 #include "devices/devices.h"
 #include "devices/haptics.h"
 #include "utilities/interval.h"
+
+#include "bsp/board.h"
 #include "tusb.h"
-#include "class/vendor/vendor_device.h"
 
 #include "hal/mutex_hal.h"
 #include "hal/usb_hal.h"
@@ -484,13 +485,13 @@ void tud_vendor_rx_cb(uint8_t itf)
 {
   uint8_t buffer[64];
 
+  uint32_t size = tud_vendor_n_read(0, buffer, 64);
   tud_vendor_n_read_flush(0);
-  tud_vendor_n_read(0, buffer, 64);
 
-  if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
+  //if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
   {
     //printf("WebUSB Data Received.\n");
-    webusb_command_handler(buffer);
+    webusb_command_handler(buffer, size);
   }
 }
 

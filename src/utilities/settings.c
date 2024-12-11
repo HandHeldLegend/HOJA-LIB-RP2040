@@ -131,16 +131,14 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
     
 }
 
-void settings_return_config_block(cfg_block_t block)
+uint8_t _sdata[64] = {0};
+void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
 {
-    uint8_t data[64] = {0};
-
-    data[0] = (uint8_t) block;
+    _sdata[0] = (uint8_t) block;
     
     switch(block)
     {
         default:
-            return;
         break;
 
         case CFG_BLOCK_GAMEPAD:
@@ -148,64 +146,64 @@ void settings_return_config_block(cfg_block_t block)
             // We have byte 0 represent the type of setting chunk
             // and byte 1 represents the index for reassembly
             // a Byte 1 value of 255 means it's the end of a chunk
-            data[1] = 0;
-            memcpy(&data[2], &live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE);
-            webusb_send_bulk(data, 34);
+            _sdata[1] = 0;
+            memcpy(&_sdata[2], &live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE);
+            cb(_sdata, 34);
         break;
 
         case CFG_BLOCK_REMAP:
-            data[1] = 0;
-            memcpy(&data[2], &live_settings.remap_configuration_block, REMAP_CFB_SIZE);
-            webusb_send_bulk(data, 34);
+            _sdata[1] = 0;
+            memcpy(&_sdata[2], &live_settings.remap_configuration_block, REMAP_CFB_SIZE);
+            cb(_sdata, 34);
         break;
 
         case CFG_BLOCK_ANALOG:
             for(int i = 0; i < (ANALOG_CFB_SIZE/32); i++)
             {
-                data[1] = i;
-                memcpy(&data[2], &live_settings.analog_configuration_block[i*32], 32);
-                webusb_send_bulk(data, 34);
+                _sdata[1] = i;
+                memcpy(&_sdata[2], &live_settings.analog_configuration_block[i*32], 32);
+                cb(_sdata, 34);
             }
         break;
 
         case CFG_BLOCK_RGB:
             for(int i = 0; i < (RGB_CFB_SIZE/32); i++)
             {
-                data[1] = i;
-                memcpy(&data[2], &live_settings.rgb_configuration_block[i*32], 32);
-                webusb_send_bulk(data, 34);
+                _sdata[1] = i;
+                memcpy(&_sdata[2], &live_settings.rgb_configuration_block[i*32], 32);
+                cb(_sdata, 34);
             }
         break;
 
         case CFG_BLOCK_TRIGGER:
-            data[1] = 0;
-            memcpy(&data[2], &live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE);
-            webusb_send_bulk(data, 34);
+            _sdata[1] = 0;
+            memcpy(&_sdata[2], &live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE);
+            cb(_sdata, 34);
         break;
 
         case CFG_BLOCK_IMU:
-            data[1] = 0;
-            memcpy(&data[2], &live_settings.imu_configuration_block, IMU_CFB_SIZE);
-            webusb_send_bulk(data, 34);
+            _sdata[1] = 0;
+            memcpy(&_sdata[2], &live_settings.imu_configuration_block, IMU_CFB_SIZE);
+            cb(_sdata, 34);
         break;
 
         case CFG_BLOCK_HAPTIC:
-            data[1] = 0;
-            memcpy(&data[2], &live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE);
-            webusb_send_bulk(data, HAPTIC_CFB_SIZE+2);
+            _sdata[1] = 0;
+            memcpy(&_sdata[2], &live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE);
+            cb(_sdata, HAPTIC_CFB_SIZE+2);
         break;
 
         case CFG_BLOCK_USER:
             for(int i = 0; i < (USER_CFB_SIZE/32); i++)
             {
-                data[1] = i;
-                memcpy(&data[2], &live_settings.user_configuration_block[i*32], 32);
-                webusb_send_bulk(data, 34);
+                _sdata[1] = i;
+                memcpy(&_sdata[2], &live_settings.user_configuration_block[i*32], 32);
+                cb(_sdata, 34);
             }
         break;
     }
 
     // Here we send the chunk completion byte
-    data[1] = 255;
-    webusb_send_bulk(data, 2);
+    _sdata[1] = 255;
+    cb(_sdata, 2);
 }

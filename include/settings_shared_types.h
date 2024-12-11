@@ -6,7 +6,7 @@
 
 typedef enum 
 {
-    CFG_BLOCK_GAMEPAD, 
+    CFG_BLOCK_GAMEPAD = 0, 
     CFG_BLOCK_REMAP, 
     CFG_BLOCK_ANALOG, 
     CFG_BLOCK_RGB, 

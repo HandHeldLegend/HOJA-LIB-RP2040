@@ -26,7 +26,7 @@ bool webusb_ready_blocking(int timeout)
         int internal = timeout;
         while (!tud_vendor_n_write_available(WEBUSB_ITF) && (internal > 0))
         {
-            sys_hal_sleep_us(100);
+            sys_hal_sleep_ms(1);
             tud_task();
             internal--;
         }
@@ -48,19 +48,13 @@ bool webusb_ready_blocking(int timeout)
 
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {
-    //memset(_webusb_out_buffer, 0, 64);
-    //memcpy(_webusb_out_buffer, data, sizeof(uint8_t) * size);
-
-    // Test
-    for(int i = 0; i < 64; i++)
-    {
-        _webusb_out_buffer[i] = (uint8_t) i;
-    }
+    memset(_webusb_out_buffer, 0, 64);
+    memcpy(_webusb_out_buffer, data, size);
 
     if(webusb_ready_blocking(4000))
     {
-        tud_vendor_n_flush(0);
         tud_vendor_n_write(0, _webusb_out_buffer, 64);
+        tud_vendor_n_flush(0);
     }
 }
 
@@ -114,14 +108,19 @@ void webusb_input_task(uint32_t timestamp)
     }
 }
 
-void webusb_command_handler(uint8_t *data)
+void webusb_command_handler(uint8_t *data, uint32_t size)
 {
-    webusb_send_bulk(data, 64);
+    webusb_send_bulk(data, size);
     return;
+
+    uint8_t test[4] = {1,2,3,4};
     switch(data[0])
     {
         case 0x1:
-            settings_return_config_block(data[1]);
+        
+        webusb_send_bulk(test, 4);
+        return;
+            settings_return_config_block(data[1], webusb_send_bulk);
         break;
 
         case 0x2:
@@ -144,6 +143,6 @@ void webusb_settings_read()
     // Read all config blocks
     for(int i = 0; i < CFG_BLOCK_MAX; i++)
     {
-        settings_return_config_block(i);
+        settings_return_config_block(i, webusb_send_bulk);
     }
 }
