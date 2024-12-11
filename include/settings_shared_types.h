@@ -3,10 +3,9 @@
 
 #include <stdint.h>
 
-
 typedef enum 
 {
-    CFG_BLOCK_GAMEPAD = 0, 
+    CFG_BLOCK_GAMEPAD, 
     CFG_BLOCK_REMAP, 
     CFG_BLOCK_ANALOG, 
     CFG_BLOCK_RGB, 
@@ -14,6 +13,7 @@ typedef enum
     CFG_BLOCK_IMU, 
     CFG_BLOCK_HAPTIC, 
     CFG_BLOCK_USER, 
+    CFG_BLOCK_BATTERY,
     CFG_BLOCK_MAX, 
 } cfg_block_t;
 
@@ -79,11 +79,21 @@ typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 #define IMU_CFB_SIZE        32 
 #define HAPTIC_CFB_SIZE     8 
 #define USER_CFB_SIZE       64
+#define BATTERY_CFB_SIZE    8
 
 // Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE)
+                        USER_CFB_SIZE+BATTERY_CFB_SIZE)
+
+typedef union 
+{
+    struct {
+        float charge_level_percent;
+        uint8_t reserved[BATTERY_CFB_SIZE-4];
+    };
+    uint8_t battery_config_block[BATTERY_CFB_SIZE];
+} battery_config_u;
 
 typedef union 
 {

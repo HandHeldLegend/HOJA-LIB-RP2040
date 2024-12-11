@@ -6,6 +6,8 @@
 #include "devices_shared_types.h"
 #include "settings_shared_types.h"
 
+#include "utilities/static_config.h"
+
 #include "devices/devices.h"
 
 #include "input/remap.h"
@@ -15,8 +17,6 @@
 // We have a STRICT budget of 4096 bytes for configuration data
 typedef struct 
 {
-    uint16_t settings_version; // 2 bytes
-
     // We can set our budgets for each configuration area
     // To allow future changes by only changing these 'blocks'
 
@@ -43,6 +43,9 @@ typedef struct
 
     // User data configuration block
     uint8_t user_configuration_block[USER_CFB_SIZE];
+
+    // Battery data configuration block
+    uint8_t battery_configuration_block[BATTERY_CFB_SIZE];
 
     // REMAINING 2550 bytes
     uint8_t reserved[4096-TOTAL_CFB_SIZE]; 
@@ -51,8 +54,6 @@ typedef struct
 // Duplicate struct, but this is designed to be mapped into RAM
 typedef struct 
 {
-    uint16_t settings_version; // 2 bytes
-
     // We can set our budgets for each configuration area
     // To allow future changes by only changing these 'blocks'
 
@@ -79,6 +80,9 @@ typedef struct
 
     // User data configuration block
     uint8_t user_configuration_block[USER_CFB_SIZE];
+
+    // Battery data configuration block
+    uint8_t battery_configuration_block[BATTERY_CFB_SIZE];
 } settings_live_s;
 
 extern settings_live_s      live_settings;
@@ -94,6 +98,8 @@ extern user_config_u        *user_config;
 void settings_init();
 void settings_commit_blocks();
 void settings_commit_task();
+
+void settings_return_static_block(static_block_t block, setting_callback_t cb);
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb);
 void settings_write_config_block(cfg_block_t block, const uint8_t *data);
 

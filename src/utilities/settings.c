@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "utilities/static_config.h"
+
 #define FLASH_TARGET_OFFSET (1200 * 1024)
 #define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
 #define SETTINGS_BANK_A_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
@@ -26,7 +28,8 @@ analog_config_u      *analog_config     = NULL;
 trigger_config_u     *trigger_config    = NULL;
 imu_config_u         *imu_config        = NULL;
 haptic_config_u      *haptic_config     = NULL;
-user_config_u        *user_config          = NULL;
+user_config_u        *user_config       = NULL;
+battery_config_u     *battery_config    = NULL;
 
 void settings_init()
 {
@@ -38,6 +41,7 @@ void settings_init()
     imu_config         = (imu_config_u *)      live_settings.imu_configuration_block;
     haptic_config      = (haptic_config_u *)   live_settings.haptic_configuration_block;
     user_config        = (user_config_u *)     live_settings.user_configuration_block;
+    battery_config     = (battery_config_u *)  live_settings.battery_configuration_block;
 }
 
 MUTEX_HAL_INIT(_settings_mutex);
@@ -206,4 +210,37 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
     // Here we send the chunk completion byte
     _sdata[1] = 255;
     cb(_sdata, 2);
+}
+
+void settings_return_static_block(static_block_t block, setting_callback_t cb)
+{
+    switch(block)
+    {
+        default:
+        break;
+
+        case STATIC_BLOCK_DEVICE:
+        break;
+
+        case STATIC_BLOCK_BUTTONS:
+        break;
+
+        case STATIC_BLOCK_ANALOG:
+        break;
+
+        case STATIC_BLOCK_HAPTIC:
+        break;
+
+        case STATIC_BLOCK_IMU:
+        break;
+
+        case STATIC_BLOCK_BATTERY:
+        break;
+
+        case STATIC_BLOCK_BLUETOOTH:
+        break;
+
+        case STATIC_BLOCK_RGB:
+        break;
+    }
 }
