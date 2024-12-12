@@ -3,6 +3,8 @@
 #include "switch/switch_haptics.h"
 #include "switch/switch_motion.h"
 
+#include "utilities/settings.h"
+
 #include "devices/haptics.h"
 #include "devices/rgb.h"
 
@@ -156,12 +158,12 @@ void info_set_mac()
   _switch_command_buffer[2] = 0x03;
 
   // Mac in LE
-  //_switch_command_buffer[3] = global_loaded_settings.switch_mac_address[5];
-  //_switch_command_buffer[4] = global_loaded_settings.switch_mac_address[4];
-  //_switch_command_buffer[5] = global_loaded_settings.switch_mac_address[3];
-  //_switch_command_buffer[6] = global_loaded_settings.switch_mac_address[2];
-  //_switch_command_buffer[7] = global_loaded_settings.switch_mac_address[1];
-  //_switch_command_buffer[8] = global_loaded_settings.switch_mac_address[0];
+  _switch_command_buffer[3] = gamepad_config->switch_mac_address[5];
+  _switch_command_buffer[4] = gamepad_config->switch_mac_address[4];
+  _switch_command_buffer[5] = gamepad_config->switch_mac_address[3];
+  _switch_command_buffer[6] = gamepad_config->switch_mac_address[2];
+  _switch_command_buffer[7] = gamepad_config->switch_mac_address[1];
+  _switch_command_buffer[8] = gamepad_config->switch_mac_address[0];
 }
 
 // A second part to the initialization,
@@ -225,12 +227,12 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
     _switch_command_buffer[14] = 1;
 
     // Mac in LE
-    //_switch_command_buffer[15] = global_loaded_settings.switch_mac_address[5];
-    //_switch_command_buffer[16] = global_loaded_settings.switch_mac_address[4];
-    //_switch_command_buffer[17] = global_loaded_settings.switch_mac_address[3];
-    //_switch_command_buffer[18] = global_loaded_settings.switch_mac_address[2];
-    //_switch_command_buffer[19] = global_loaded_settings.switch_mac_address[1];
-    //_switch_command_buffer[20] = global_loaded_settings.switch_mac_address[0];
+    _switch_command_buffer[15] = gamepad_config->switch_mac_address[5];
+    _switch_command_buffer[16] = gamepad_config->switch_mac_address[4];
+    _switch_command_buffer[17] = gamepad_config->switch_mac_address[3];
+    _switch_command_buffer[18] = gamepad_config->switch_mac_address[2];
+    _switch_command_buffer[19] = gamepad_config->switch_mac_address[1];
+    _switch_command_buffer[20] = gamepad_config->switch_mac_address[0];
 
     memcpy(&_switch_command_buffer[15 + 6], pro_controller_string, 24);
     break;

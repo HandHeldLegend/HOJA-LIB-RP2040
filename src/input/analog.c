@@ -13,11 +13,11 @@
 
 #include "switch/switch_analog.h"
 
+#include "utilities/settings.h"
+
 // Include all ADC drivers
 #include "hal/adc_hal.h"
 #include "drivers/adc/mcp3002.h"
-
-analog_config_u _analog_config = {0};
 
 
 MUTEX_HAL_INIT(_analog_mutex);
@@ -103,14 +103,6 @@ bool analog_access_try(analog_data_s *out, analog_access_t type)
 #define DEADZONE_DEFAULT 100
 #define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < 0) ? 0 : value)
 
-uint16_t _analog_deadzone_l = DEADZONE_DEFAULT;
-uint16_t _analog_deadzone_r = DEADZONE_DEFAULT;
-
-bool _analog_calibrate = false;
-bool _analog_centered = false;
-bool _analog_all_angles_got = false;
-bool _analog_capture_angle = false;
-
 void analog_init()
 {
     #if defined(HOJA_ADC_CHAN_LX_INIT)
@@ -149,75 +141,6 @@ void analog_init()
 }
 
 #define STICK_INTERNAL_CENTER 2048
-
-#if (ADC_SMOOTHING_ENABLED==1)
-#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
-
-typedef struct {
-    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
-    int index;
-    float sum;
-} RollingAverage;
-
-void initRollingAverage(RollingAverage* ra) {
-    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
-        ra->buffer[i] = 0.0f;
-    }
-    ra->index = 0;
-    ra->sum = 0.0f;
-}
-
-void addSample(RollingAverage* ra, float sample) {
-    // Subtract the value being replaced from the sum
-    ra->sum -= ra->buffer[ra->index];
-    
-    // Add the new sample to the buffer and sum
-    ra->buffer[ra->index] = sample;
-    ra->sum += sample;
-    
-    // Move to the next index, wrapping around if necessary
-    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
-}
-
-float getAverage(RollingAverage* ra) {
-    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
-}
-#endif
-
-void analog_config_cmd(analog_cmd_t cmd, const uint8_t *data, setting_callback_t cb)
-{
-    const uint8_t cb_dat[2] = {cmd, 1};
-
-    switch(cmd)
-    {
-        default:
-        if(cb!=NULL)
-            cb(cb_dat, 0); // Do nothing
-        return;
-        break;
-
-        case ANALOG_CMD_SET_CENTERS:
-        break;
-
-        case ANALOG_CMD_CALIBRATE_START:
-        break;
-
-        case ANALOG_CMD_CALIBRATE_STOP:
-        break;
-
-        case ANALOG_CMD_CAPTURE_ANGLE:
-        break;
-
-        case ANALOG_CMD_UPDATE_ANGLE:
-        break;
-
-        case ANALOG_CMD_SET_DEADZONES:
-        break;
-
-        case ANALOG_CMD_SET_SNAPBACK:
-        break;
-    }
-}
 
 // Read analog values
 void _analog_read_raw()
@@ -277,6 +200,77 @@ void _analog_read_raw()
     #endif
 }
 
+void _capture_center_offsets()
+{
+    _analog_blocking_enter();
+
+    // Read raw analog sticks
+    _analog_read_raw();
+
+    analog_config->lx_center = ANALOG_HALF_DISTANCE-_raw_analog_data.lx;
+    analog_config->ly_center = ANALOG_HALF_DISTANCE-_raw_analog_data.ly;
+    analog_config->rx_center = ANALOG_HALF_DISTANCE-_raw_analog_data.rx;
+    analog_config->ry_center = ANALOG_HALF_DISTANCE-_raw_analog_data.ry;
+
+    _analog_exit();
+}
+
+#if (ADC_SMOOTHING_ENABLED==1)
+#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
+
+typedef struct {
+    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
+    int index;
+    float sum;
+} RollingAverage;
+
+void initRollingAverage(RollingAverage* ra) {
+    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
+        ra->buffer[i] = 0.0f;
+    }
+    ra->index = 0;
+    ra->sum = 0.0f;
+}
+
+void addSample(RollingAverage* ra, float sample) {
+    // Subtract the value being replaced from the sum
+    ra->sum -= ra->buffer[ra->index];
+    
+    // Add the new sample to the buffer and sum
+    ra->buffer[ra->index] = sample;
+    ra->sum += sample;
+    
+    // Move to the next index, wrapping around if necessary
+    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
+}
+
+float getAverage(RollingAverage* ra) {
+    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
+}
+#endif
+
+void analog_config_command(analog_cmd_t cmd)
+{
+    switch(cmd)
+    {
+        default:
+        break;
+
+        case ANALOG_CMD_CALIBRATE_START:
+            // Capture centers first
+            _capture_center_offsets();
+            stick_scaling_calibrate_start(true);
+        break;
+
+        case ANALOG_CMD_CALIBRATE_STOP:
+            stick_scaling_calibrate_start(false);
+        break;
+
+        case ANALOG_CMD_CAPTURE_ANGLE:
+        break;
+    }
+}
+
 const uint32_t _analog_interval = 200;
 
 void analog_task(uint32_t timestamp)
@@ -289,6 +283,12 @@ void analog_task(uint32_t timestamp)
 
         // Read raw analog sticks
         _analog_read_raw();
+
+        // Offset data by center offsets
+        _raw_analog_data.lx += analog_config->lx_center;
+        _raw_analog_data.ly += analog_config->ly_center;
+        _raw_analog_data.rx += analog_config->rx_center;
+        _raw_analog_data.ry += analog_config->ry_center;
 
         // Rebase data to 0 center
         _raw_analog_data.lx -= ANALOG_HALF_DISTANCE;

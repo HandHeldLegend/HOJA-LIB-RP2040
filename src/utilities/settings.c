@@ -3,6 +3,7 @@
 #include "hoja.h"
 
 #include "hal/mutex_hal.h"
+#include "hal/sys_hal.h"
 #include "usb/webusb.h"
 
 #include <stdbool.h>
@@ -11,6 +12,8 @@
 
 #include "utilities/static_config.h"
 
+#include "input/stick_scaling.h"
+
 #define FLASH_TARGET_OFFSET (1200 * 1024)
 #define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
 #define SETTINGS_BANK_A_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
@@ -18,7 +21,6 @@
 #define BANK_A_NUM 0
 #define BANK_B_NUM 1
 #define BANK_C_NUM 2 // Bank for power or battery configuration
-
 
 settings_live_s      live_settings = {0};
 gamepad_config_u     *gamepad_config    = NULL;
@@ -42,6 +44,17 @@ void settings_init()
     haptic_config      = (haptic_config_u *)   live_settings.haptic_configuration_block;
     user_config        = (user_config_u *)     live_settings.user_configuration_block;
     battery_config     = (battery_config_u *)  live_settings.battery_configuration_block;
+
+    // Debug mac address if zero
+    if(!gamepad_config->switch_mac_address[0])
+    {
+        for(uint8_t i = 0; i < 6; i++)
+        {
+            uint8_t rand = sys_hal_random() & 0xFF;
+            if(!rand) rand++;
+            gamepad_config->switch_mac_address[i] = rand;
+        }
+    }
 }
 
 MUTEX_HAL_INIT(_settings_mutex);
@@ -67,13 +80,54 @@ void settings_commit_task()
         MUTEX_HAL_EXIT(&_settings_mutex);
         _save_go = false;
     }
-    
+}
+
+// Input only commands that don't involve writing data
+void settings_config_command(cfg_block_t block, uint8_t command)
+{
+    switch(block)
+    {
+        default:
+        return;
+
+        case CFG_BLOCK_GAMEPAD:
+            
+        break;
+
+        case CFG_BLOCK_REMAP:
+            
+        break;
+
+        case CFG_BLOCK_ANALOG:
+            analog_config_command(command);
+        break;
+
+        case CFG_BLOCK_RGB:
+            
+        break;
+
+        case CFG_BLOCK_TRIGGER:
+            
+        break;
+
+        case CFG_BLOCK_IMU:
+            
+        break;
+
+        case CFG_BLOCK_HAPTIC:
+            
+        break;
+
+        case CFG_BLOCK_USER:
+            
+        break;
+    }
 }
 
 void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 {
-    static uint8_t tmp_dat[1024] = {0};
-    static cfg_block_t last_block_type = 0;
+    static uint8_t      tmp_dat[1024]   = {0};
+    static cfg_block_t  last_block_type = 0;
 
     if(last_block_type != block)
     {
@@ -82,7 +136,7 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
         last_block_type = block;
     }
 
-    // Commit data command
+    // Commit data index value
     if(data[0] == 0xFF)
     {
         switch(block)
@@ -98,12 +152,14 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
                 memcpy(remap_config, tmp_dat, REMAP_CFB_SIZE);
             break;
 
-            case CFG_BLOCK_RGB:
-                memcpy(rgb_config, tmp_dat, RGB_CFB_SIZE);
-            break;
-
             case CFG_BLOCK_ANALOG:
                 memcpy(analog_config, tmp_dat, ANALOG_CFB_SIZE);
+                // Reinit analog sections as needed 
+                stick_scaling_init();
+            break;
+
+            case CFG_BLOCK_RGB:
+                memcpy(rgb_config, tmp_dat, RGB_CFB_SIZE);
             break;
 
             case CFG_BLOCK_TRIGGER:
@@ -135,10 +191,18 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
     
 }
 
+#define BLOCK_TYPE_IDX 1
+#define BLOCK_CHUNK_SIZE_IDX 2
+#define BLOCK_CHUNK_PART_IDX 3
+#define BLOCK_CHUNK_BEGIN_IDX 4
+
+#define BLOCK_CHUNK_HEADER_SIZE 4
+
 uint8_t _sdata[64] = {0};
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
 {
-    _sdata[0] = (uint8_t) block;
+    _sdata[0] = WEBUSB_ID_READ_CONFIG_BLOCK;
+    _sdata[BLOCK_TYPE_IDX] = (uint8_t) block;
     
     switch(block)
     {
@@ -146,70 +210,83 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
         break;
 
         case CFG_BLOCK_GAMEPAD:
-            // Each chunk we send is 32 byte limited
-            // We have byte 0 represent the type of setting chunk
-            // and byte 1 represents the index for reassembly
-            // a Byte 1 value of 255 means it's the end of a chunk
-            _sdata[1] = 0;
-            memcpy(&_sdata[2], &live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE);
-            cb(_sdata, 34);
+            /* 
+                Each chunk we send is 32 byte limited
+                We have byte 0 which is our report ID
+                byte 1 is the block type
+                byte 2 is the data size we are sending
+                byte 3 is our assembly index...
+                a Byte 1 value of 255 means it's the end of a chunk
+            */
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; // Size of bytes being written to host
+            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE);
+            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
         break;
 
         case CFG_BLOCK_REMAP:
-            _sdata[1] = 0;
-            memcpy(&_sdata[2], &live_settings.remap_configuration_block, REMAP_CFB_SIZE);
-            cb(_sdata, 34);
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; 
+            _sdata[BLOCK_CHUNK_PART_IDX] = 0; 
+            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.remap_configuration_block, REMAP_CFB_SIZE);
+            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
         break;
 
         case CFG_BLOCK_ANALOG:
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; 
             for(int i = 0; i < (ANALOG_CFB_SIZE/32); i++)
             {
-                _sdata[1] = i;
-                memcpy(&_sdata[2], &live_settings.analog_configuration_block[i*32], 32);
-                cb(_sdata, 34);
+                _sdata[BLOCK_CHUNK_PART_IDX] = i;
+                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.analog_configuration_block[i*32], 32);
+                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
             }
         break;
 
         case CFG_BLOCK_RGB:
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
             for(int i = 0; i < (RGB_CFB_SIZE/32); i++)
             {
-                _sdata[1] = i;
-                memcpy(&_sdata[2], &live_settings.rgb_configuration_block[i*32], 32);
-                cb(_sdata, 34);
+                _sdata[BLOCK_CHUNK_PART_IDX] = i;
+                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.rgb_configuration_block[i*32], 32);
+                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
             }
         break;
 
         case CFG_BLOCK_TRIGGER:
-            _sdata[1] = 0;
-            memcpy(&_sdata[2], &live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE);
-            cb(_sdata, 34);
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
+            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE);
+            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
         break;
 
         case CFG_BLOCK_IMU:
-            _sdata[1] = 0;
-            memcpy(&_sdata[2], &live_settings.imu_configuration_block, IMU_CFB_SIZE);
-            cb(_sdata, 34);
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
+            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.imu_configuration_block, IMU_CFB_SIZE);
+            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
         break;
 
         case CFG_BLOCK_HAPTIC:
-            _sdata[1] = 0;
-            memcpy(&_sdata[2], &live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE);
-            cb(_sdata, HAPTIC_CFB_SIZE+2);
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 8;
+            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE);
+            cb(_sdata, HAPTIC_CFB_SIZE+BLOCK_CHUNK_HEADER_SIZE);
         break;
 
         case CFG_BLOCK_USER:
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
             for(int i = 0; i < (USER_CFB_SIZE/32); i++)
             {
-                _sdata[1] = i;
-                memcpy(&_sdata[2], &live_settings.user_configuration_block[i*32], 32);
-                cb(_sdata, 34);
+                _sdata[BLOCK_CHUNK_PART_IDX] = i;
+                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.user_configuration_block[i*32], 32);
+                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
             }
         break;
     }
 
     // Here we send the chunk completion byte
-    _sdata[1] = 255;
-    cb(_sdata, 2);
+    _sdata[BLOCK_CHUNK_SIZE_IDX] = 0;
+    _sdata[BLOCK_CHUNK_PART_IDX] = 0xFF;
+    cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
 }
 
 void settings_return_static_block(static_block_t block, setting_callback_t cb)

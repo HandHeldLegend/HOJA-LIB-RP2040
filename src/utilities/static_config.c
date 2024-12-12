@@ -164,3 +164,13 @@ const rgb_static_u       rgb_static = {
     .rgb_group_names = RGB_GROUP_NAMES,
     .rgb_player_group = PLAYER_GROUP
 };
+
+void static_config_read_all_blocks(setting_callback_t cb)
+{
+    
+}
+
+void static_config_read_block(static_block_t block, setting_callback_t cb)
+{
+
+}

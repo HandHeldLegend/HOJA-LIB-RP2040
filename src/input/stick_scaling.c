@@ -16,13 +16,13 @@
 #define TOTAL_ANGLES 64
 #define ADJUSTABLE_ANGLES 16
 #define ANGLE_CHUNK (float) 5.625f
+#define HALF_ANGLE_CHUNK (float) ANGLE_CHUNK/2
 #define ANGLE_MAPPING_CHUNK (float) 22.5f // ONLY USE FOR DEFAULT SETTING
 #define ANALOG_MAX_DISTANCE 2048
 #define LERP(a, b, t) ((a) + (t) * ((b) - (a)))
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
-
 
 typedef struct 
 {
@@ -40,6 +40,8 @@ typedef struct
 angle_setup_s _left_setup   = ANGLE_SETUP_DEFAULT;
 angle_setup_s _right_setup  = ANGLE_SETUP_DEFAULT;
 
+bool _sticks_calibrating = false;
+
 MUTEX_HAL_INIT(_stick_scaling_mutex);
 
 float _normalize_angle(float angle);
@@ -47,6 +49,15 @@ float _angle_diff(float angle1, float angle2);
 int   _find_lower_index(float input_angle, angle_map_s *map);
 bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map);
 float _transform_angle(float input_angle, angle_map_s *map);
+
+// Reset distances 
+void _zero_distances(angle_setup_s *setup)
+{
+  for(int i = 0; i < TOTAL_ANGLES; i++)
+  {
+    setup->round_distances[i] = 5;
+  }
+}
 
 // Comparison function for qsort
 int _compare_by_input(const void *a, const void *b) {
@@ -196,6 +207,13 @@ void _find_containing_index_pair(float input_angle, angle_setup_s *setup, int *i
   idx_pair[0] = -1;
   idx_pair[1] = -1;
 
+  if( (input_angle >= setup->angle_maps[(setup->max_idx)].input) )
+  {
+    idx_pair[0] = (setup->max_idx);
+    idx_pair[1] = 0;
+    return;
+  }
+
   for (int i = 0; i < (setup->max_idx); i++)
   {
     if( (input_angle >= setup->angle_maps[i].input) && (input_angle < setup->angle_maps[i+1].input) )
@@ -205,38 +223,36 @@ void _find_containing_index_pair(float input_angle, angle_setup_s *setup, int *i
       return;
     }
   }
-
-  if( (input_angle >= setup->angle_maps[(setup->max_idx)].input) || (input_angle < setup->angle_maps[0].input) )
-  {
-    idx_pair[0] = (setup->max_idx);
-    idx_pair[1] = 0;
-    return;
-  }
 }
 
 float _angle_magnitude(float input, float lower, float upper)
 { 
+  if(upper < lower)
+  {
+    upper += 360.0f;
+    if(input < lower) input += 360.0f;
+  }
+
   float distance = _angle_diff(lower, upper);
   float magnitude_distance = _angle_diff(lower, input);
 
   return (magnitude_distance/distance);
 }
 
-float _angle_lerp(float magnitude, float a, float b)
+float _angle_lerp(float magnitude, float lower, float upper)
 {
-  float upper = (a>=b) ? a : b;
-  float lower = (a>=b) ? b : a;
+  if(upper < lower)
+  {
+    upper += 360.0f;
+  }
 
   float distance = _angle_diff(lower, upper);
   float new_out = (distance*magnitude) + lower;
   return _normalize_angle(new_out);
 }
 
-float _distance_lerp(float magnitude, float a, float b) 
+float _distance_lerp(float magnitude, float lower, float upper) 
 {
-  float upper = (a>=b) ? a : b;
-  float lower = (a>=b) ? b : a;
-
   float distance = upper-lower;
   float new_out = (distance*magnitude) + lower;
   return new_out;
@@ -315,6 +331,24 @@ float _coordinate_to_angle(int x, int y)
     return angle_degrees;
 }
 
+void _calibrate_axis(int *in, angle_setup_s *setup)
+{
+  // Get input distance
+  float distance  = _coordinate_distance(in[0], in[1]);
+  // Get input angle
+  float angle     = _coordinate_to_angle(in[0], in[1]);
+
+  angle   -= HALF_ANGLE_CHUNK;
+  angle   = roundf(angle/ANGLE_CHUNK);
+  int idx = (int) angle % 64;
+
+  // Assign distance if needed
+  if(distance > setup->round_distances[idx])
+  {
+    setup->round_distances[idx] = distance;
+  }
+}
+
 void _process_axis(int *in, int *out, angle_setup_s *setup)
 {
   // Get input distance
@@ -359,9 +393,19 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
       default:
       case ANALOG_SCALER_ROUND:
         // Get our 64 angle index
-        distance_index_lower  = floorf(angle / ANGLE_CHUNK);
+        if(angle >= (ANGLE_CHUNK*63))
+        {
+          distance_index_lower = 63;
+          distance_index_upper = 0;
+        }
+        else 
+        {
+          distance_index_lower  = floorf(angle / ANGLE_CHUNK);
+          distance_index_upper  = (distance_index_lower+1);
+        }
+        
         angle_floor           = distance_index_lower*ANGLE_CHUNK;
-        distance_index_upper  = (distance_index_upper+1) % TOTAL_ANGLES;
+        
         // Calculate the magnitude of our angle for the 64 chunks
         distance_magnitude    = _angle_magnitude(angle, angle_floor, angle_floor+ANGLE_CHUNK);
 
@@ -378,26 +422,6 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
 
     _angle_distance_to_coordinate(new_angle, output_distance, out);
   }
-}
-
-// Input and output are based around -2048 to 2048 values with 0 as centers
-void stick_scaling_process(analog_data_s *in, analog_data_s *out)
-{
-  int in_left[2]    = {in->lx, in->ly};
-  int in_right[2]   = {in->rx, in->ry};
-
-  int out_left[2];
-  int out_right[2];
-
-  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
-  _process_axis(in_left,  out_left,   &_left_setup);
-  _process_axis(in_right, out_right,  &_right_setup);
-  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
-
-  out->lx = out_left[0];
-  out->ly = out_left[1];
-  out->rx = out_right[0];
-  out->ry = out_right[1];
 }
 
 void _unpack_stick_distances(analog_packed_distances_u *distances, angle_setup_s *setup)
@@ -421,6 +445,65 @@ void _pack_stick_distances(analog_packed_distances_u *distances, angle_setup_s *
     int16_t diff = (int16_t) setup->round_distances[i] - (int16_t) setup->round_distances[i-1];
     distances->offsets[i-1] = diff;
   }
+}
+
+// Write distance data to config block
+void _write_to_config_block()
+{
+  analog_packed_distances_u packed;
+
+  _pack_stick_distances(&packed, &_left_setup);
+  memcpy(&(analog_config->l_packed_distances), &packed, sizeof(analog_packed_distances_u));
+
+  _pack_stick_distances(&packed, &_right_setup);
+  memcpy(&(analog_config->r_packed_distances), &packed, sizeof(analog_packed_distances_u));
+}
+
+void stick_scaling_calibrate_start(bool start)
+{
+  if(!_sticks_calibrating && start) 
+  {
+    // Reset all to default
+    _zero_distances(&_left_setup);
+    _zero_distances(&_right_setup);
+
+    _sticks_calibrating = true;
+  }
+  else if (_sticks_calibrating && !start) 
+  {
+    _write_to_config_block();
+    _sticks_calibrating = false;
+  }
+}
+
+// Input and output are based around -2048 to 2048 values with 0 as centers
+void stick_scaling_process(analog_data_s *in, analog_data_s *out)
+{
+  int in_left[2]    = {in->lx, in->ly};
+  int in_right[2]   = {in->rx, in->ry};
+
+  int out_left[2];
+  int out_right[2];
+
+  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+  if(_sticks_calibrating)
+  {
+    _calibrate_axis(in_left, &_left_setup);
+    _calibrate_axis(in_right, &_right_setup);
+    memset(out_left,  0, 2);
+    memset(out_right, 0, 2);
+  }
+  else 
+  {
+    _process_axis(in_left,  out_left,   &_left_setup);
+    _process_axis(in_right, out_right,  &_right_setup);
+  }
+  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+
+  out->lx = out_left[0];
+  out->ly = out_left[1];
+  out->rx = out_right[0];
+  out->ry = out_right[1];
 }
 
 bool stick_scaling_init()

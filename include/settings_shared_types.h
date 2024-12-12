@@ -33,13 +33,9 @@ typedef enum
 
 typedef enum 
 {
-    ANALOG_CMD_SET_CENTERS, 
     ANALOG_CMD_CALIBRATE_START, 
     ANALOG_CMD_CALIBRATE_STOP, 
     ANALOG_CMD_CAPTURE_ANGLE, 
-    ANALOG_CMD_UPDATE_ANGLE, 
-    ANALOG_CMD_SET_SNAPBACK, 
-    ANALOG_CMD_SET_DEADZONES, 
 } analog_cmd_t;
 
 typedef enum 

@@ -99,6 +99,7 @@ void settings_init();
 void settings_commit_blocks();
 void settings_commit_task();
 
+void settings_config_command(cfg_block_t block, uint8_t command);
 void settings_return_static_block(static_block_t block, setting_callback_t cb);
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb);
 void settings_write_config_block(cfg_block_t block, const uint8_t *data);

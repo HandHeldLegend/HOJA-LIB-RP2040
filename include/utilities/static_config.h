@@ -2,6 +2,7 @@
 #define UTILITIES_STATIC_CONFIG_H
 
 #include <stdint.h>
+#include "settings_shared_types.h"
 
 typedef enum 
 {
@@ -20,11 +21,12 @@ typedef union
 {
     struct 
     {
-        uint8_t name[16]; 
-        uint8_t maker[16];
-        uint16_t fw_version; 
+        uint8_t     name[16]; 
+        uint8_t     maker[16];
+        uint8_t     fcc_id[32];
+        uint16_t    fw_version; 
     };
-    uint8_t device_info[34];
+    uint8_t device_info[66];
 } device_static_u;
 
 typedef union 
@@ -115,5 +117,9 @@ extern const battery_static_u   battery_static;
 extern const haptic_static_u    haptic_static;
 extern const bluetooth_static_u bluetooth_static;
 extern const rgb_static_u       rgb_static;
+
+void static_config_read_all_blocks(setting_callback_t cb);
+
+void static_config_read_block(static_block_t block, setting_callback_t cb);
 
 #endif

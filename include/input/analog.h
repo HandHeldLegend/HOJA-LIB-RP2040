@@ -26,7 +26,7 @@ void analog_init();
 void analog_access_blocking(analog_data_s *out, analog_access_t type);
 bool analog_access_try(analog_data_s *out, analog_access_t type);
 
-void analog_config_cmd(analog_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
+void analog_config_command(analog_cmd_t cmd);
 void analog_task(uint32_t timestamp);
 
 #endif

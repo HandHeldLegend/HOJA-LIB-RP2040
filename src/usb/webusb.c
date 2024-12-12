@@ -110,23 +110,35 @@ void webusb_input_task(uint32_t timestamp)
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
 {
-    webusb_send_bulk(data, size);
-    return;
-
-    uint8_t test[4] = {1,2,3,4};
     switch(data[0])
     {
-        case 0x1:
-        
-        webusb_send_bulk(test, 4);
-        return;
+        case WEBUSB_ID_READ_CONFIG_BLOCK:
             settings_return_config_block(data[1], webusb_send_bulk);
         break;
 
-        case 0x2:
+        /*  
+            Data must be written in chunks of 32 bytes, set at index 3
+            index 1 defines which block to write the data to
+            index 2 is the index number of the array data. Index 2 value of 0xFF indicates
+            that our data is complete and we should now write the whole block to active memory.
+        */
+        case WEBUSB_ID_WRITE_CONFIG_BLOCK:
             settings_write_config_block(data[1], &(data[2]));
         break;
-    }
+
+        case WEBUSB_ID_READ_ALL_CONFIG_BLOCKS:
+        break;;
+
+        case WEBUSB_ID_READ_STATIC_BLOCK:
+        break;
+
+        case WEBUSB_ID_READ_ALL_STATIC_BLOCKS:
+        break;
+
+        case WEBUSB_ID_CONFIG_COMMAND:
+            settings_config_command(data[1], data[2]);
+        break;
+    }   
 }
 
 void webusb_version_read(uint8_t type)

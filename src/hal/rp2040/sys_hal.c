@@ -5,6 +5,7 @@
 #include "pico/time.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
+#include "pico/rand.h"
 
 #define SYS_CLK_HZ 200000000
 
@@ -72,4 +73,9 @@ uint32_t sys_hal_time_us()
     }
 
     return time;
+}
+
+uint32_t sys_hal_random()
+{
+    return get_rand_32();
 }

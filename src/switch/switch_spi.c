@@ -1,6 +1,7 @@
 #include "switch/switch_spi.h"
 #include "switch/switch_commands.h"
 #include "switch/switch_analog.h"
+#include "utilities/settings.h"
 
 /**
  * @brief Reads a chunk of memory from SPI (emulated)
@@ -71,10 +72,10 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
 
                 // Host BT address (Big-endian)
                 case 0x2A ... 0x2F:
-                    return 0; //global_loaded_settings.switch_host_address[address-0x2A];
+                    return gamepad_config->switch_mac_address[address-0x2A];
                     break;
                 case 0x04 ... 0x09:
-                    return 0; //global_loaded_settings.switch_host_address[address-4];
+                    return gamepad_config->switch_mac_address[address-0x04];
                     break;
 
                 // Bluetooth LTK (Little-endian) NOT IMPLEMENTED YET
