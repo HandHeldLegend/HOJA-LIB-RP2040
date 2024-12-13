@@ -66,158 +66,128 @@ typedef enum
 
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 
-// Byte sizes of our various blocks
-#define GAMEPAD_CFB_SIZE    32 
-#define REMAP_CFB_SIZE      32 
-#define RGB_CFB_SIZE        256 
-#define ANALOG_CFB_SIZE     1024 
-#define TRIGGER_CFB_SIZE    32 
-#define IMU_CFB_SIZE        32 
-#define HAPTIC_CFB_SIZE     8 
-#define USER_CFB_SIZE       64
-#define BATTERY_CFB_SIZE    8
-
-// Byte size of all combined blocks
-#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
-                        ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE+BATTERY_CFB_SIZE)
-
-typedef union 
+#pragma pack(push, 1)
+typedef struct 
 {
-    struct {
-        float charge_level_percent;
-        uint8_t reserved[BATTERY_CFB_SIZE-4];
-    };
-    uint8_t battery_config_block[BATTERY_CFB_SIZE];
-} battery_config_u;
+    float charge_level_percent;
+    uint8_t reserved[4];
+} batteryConfig_s;
 
-typedef union 
+typedef struct 
 {
-    struct 
-    {
-        uint8_t user_name[24];
-        uint8_t reserved[USER_CFB_SIZE-24];
-    };
-    uint8_t user_configuration_block[USER_CFB_SIZE];
-} user_config_u;
+    uint8_t user_name[24];
+    uint8_t reserved[40];
+} userConfig_s;
 
-typedef union 
+typedef struct 
 {
-    struct 
-    {
-        uint8_t     haptic_strength;
-        uint8_t     reserved[HAPTIC_CFB_SIZE-1];
-    };
-    uint8_t haptic_configuration_block[HAPTIC_CFB_SIZE];
-} haptic_config_u;
 
-typedef union 
-{
-    struct 
-    {
-        uint8_t     imu_config_version;
-        uint8_t     imu_a_gyro_config[3];
-        uint8_t     imu_a_accel_config[3];
-        uint8_t     imu_b_gyro_config[3];
-        uint8_t     imu_b_accel_config[3];
-        uint8_t     reserved[IMU_CFB_SIZE-25];
-    };
-    uint8_t imu_configuration_block[IMU_CFB_SIZE];
-} imu_config_u;
+    uint8_t     haptic_strength;
+    uint8_t     reserved[7];
+} hapticConfig_s;
 
-typedef union 
+typedef struct 
 {
-    struct 
-    {
-        uint8_t     trigger_config_version;
-        uint32_t    left_config;
-        uint32_t    right_config;
-        uint8_t     left_static_output_value;
-        uint8_t     right_static_output_value;
-        uint8_t     reserved[TRIGGER_CFB_SIZE-11];
-    };
-    uint8_t trigger_configuration_block[TRIGGER_CFB_SIZE];
-} trigger_config_u;
 
-typedef union 
+    uint8_t     imu_config_version;
+    uint8_t     imu_a_gyro_config[3];
+    uint8_t     imu_a_accel_config[3];
+    uint8_t     imu_b_gyro_config[3];
+    uint8_t     imu_b_accel_config[3];
+    uint8_t     reserved[19];
+} imuConfig_s;
+
+typedef struct 
 {
-    struct 
-    {
-        int first_distance;
-        int16_t offsets[63];
-    };
-    uint8_t values[130];
-} analog_packed_distances_u; // 130 bytes
+    uint8_t     trigger_config_version;
+    uint32_t    left_config;
+    uint32_t    right_config;
+    uint8_t     left_static_output_value;
+    uint8_t     right_static_output_value;
+    uint8_t     reserved[21];
+} triggerConfig_s;
+
+typedef struct 
+{
+    int first_distance;
+    int16_t offsets[63];
+} analogPackedDistances_s;
+
+#define ANALOG_PACKED_DISTANCES_SIZE sizeof(analogPackedDistances_s)
 
 typedef struct
 {
   float input;    // Input Angle
   float output;   // Output Angle
   int distance; // Distance to this input angle maximum for hard polygonal shape stick gates
-} angle_map_s;
+} angleMap_s;
+
+#define ANGLE_MAP_SIZE sizeof(angleMap_s)
 
 typedef struct 
 {
-    struct 
-    {
         uint8_t     analog_config_version;
-        uint8_t     lx_invert : 1;
+        uint16_t    lx_invert : 1;
         uint16_t    lx_center : 15;
-        uint8_t     ly_invert : 1;
+        uint16_t    ly_invert : 1;
         uint16_t    ly_center : 15;
-        uint8_t     rx_invert : 1;
+        uint16_t    rx_invert : 1;
         uint16_t    rx_center : 15;
-        uint8_t     ry_invert : 1;
-        uint16_t    ry_center : 15; // 9 bytes up to here
-        analog_packed_distances_u l_packed_distances;
-        analog_packed_distances_u r_packed_distances; // 269 bytes up to here
-        angle_map_s l_angle_maps[16]; // 461
-        angle_map_s r_angle_maps[16]; // 473
-        uint8_t     l_scaler_type; // 474
-        uint8_t     r_scaler_type; // 475
-        uint8_t     reserved[ANALOG_CFB_SIZE-475];
-    };
-    uint8_t analog_configuration_block[ANALOG_CFB_SIZE];
-} analog_config_u;
+        uint16_t    ry_invert : 1;
+        uint16_t    ry_center : 15; 
+        analogPackedDistances_s l_packed_distances; // SIZE=130
+        analogPackedDistances_s r_packed_distances; // SIZE=130
+        angleMap_s  l_angle_maps[16]; // SIZE=12
+        angleMap_s  r_angle_maps[16]; // SIZE=12
+        uint8_t     l_scaler_type; 
+        uint8_t     r_scaler_type; 
+        uint8_t     reserved[369];
+} analogConfig_s;
 
-typedef union 
+typedef struct 
 {
-    struct 
-    {
-        uint8_t rgb_config_version;
-        uint8_t  rgb_mode;
-        uint8_t  rgb_speed_factor;
-        uint32_t rgb_colors[32]; // Store 32 RGB colors
-        uint8_t  reserved[RGB_CFB_SIZE-3-(32*4)];
-    };
-    uint8_t rgb_configuration_block[RGB_CFB_SIZE];
-} rgb_config_u;
+    uint8_t rgb_config_version;
+    uint8_t  rgb_mode;
+    uint8_t  rgb_speed_factor;
+    uint32_t rgb_colors[32]; // Store 32 RGB colors
+    uint8_t  reserved[125];
+} rgbConfig_s;
 
-typedef union 
+typedef struct 
 {
-    struct 
-    {
-        uint8_t gamepad_config_version;
-        uint8_t switch_mac_address[6];
-        uint8_t gamepad_default_mode;
-        uint8_t sp_function_mode;
-        uint8_t dpad_socd_mode;
-        uint8_t reserved[GAMEPAD_CFB_SIZE-10];
-    };
-    uint8_t gamepad_configuration_block[GAMEPAD_CFB_SIZE];
-} gamepad_config_u;
+    uint8_t gamepad_config_version;
+    uint8_t switch_mac_address[6];
+    uint8_t gamepad_default_mode;
+    uint8_t sp_function_mode;
+    uint8_t dpad_socd_mode;
+    uint8_t reserved[22];
+} gamepadConfig_s;
 
-typedef union
+typedef struct
 {
-    struct 
-    {
-        uint8_t remap_config_version;
-        // SNES, N64, GameCube, Switch, XInput
-        uint16_t profiles[12]; // Reserve space for 12 profiles
-        uint16_t disabled[12]; // 12 disabled options (tells remap which buttons to disable)
-        uint8_t  reserved[REMAP_CFB_SIZE-25];
-    };
-    uint8_t remap_configuration_block[REMAP_CFB_SIZE];
-} remap_config_u;           
+    uint8_t remap_config_version : 4;
+    uint8_t remap_config_setting : 4;
+    // SNES, N64, GameCube, Switch, XInput
+    uint16_t profiles[12]; // Reserve space for 12 profiles
+    uint16_t disabled[12]; // 12 disabled options (tells remap which buttons to disable)
+    uint8_t  reserved[15];
+} remapConfig_s; 
+#pragma pack(pop)
+
+// Byte sizes of our various blocks
+#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) 
+#define REMAP_CFB_SIZE      sizeof(remapConfig_s) 
+#define RGB_CFB_SIZE        sizeof(rgbConfig_s) 
+#define ANALOG_CFB_SIZE     sizeof(analogConfig_s) 
+#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) 
+#define IMU_CFB_SIZE        sizeof(imuConfig_s) 
+#define HAPTIC_CFB_SIZE     sizeof(hapticConfig_s) 
+#define USER_CFB_SIZE       sizeof(userConfig_s)
+#define BATTERY_CFB_SIZE    sizeof(batteryConfig_s)
+
+// Byte size of all combined blocks
+#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
+                        ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
+                        USER_CFB_SIZE+BATTERY_CFB_SIZE)
 
 #endif
