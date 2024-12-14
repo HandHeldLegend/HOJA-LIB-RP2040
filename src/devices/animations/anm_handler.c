@@ -104,8 +104,12 @@ void ani_setup_mode(uint8_t rgb_mode)
 
 // Set this flag to clear the override
 bool _force_clear_override = false;
+
+// Call this once per frame
 void ani_handler()
 {
+    // Only compile this function if we have our driver update function
+    #if defined(RGB_DRIVER_UPDATE)
     if(_fade)
     {
         if(_ani_queue_fade_handler(_current_ani_leds))
@@ -133,31 +137,12 @@ void ani_handler()
     {
         _ani_main_fn(_current_ani_leds);
     }
-    #if defined(RGB_DRIVER_UPDATE)
+    
     RGB_DRIVER_UPDATE(_current_ani_leds);
     #endif
 }
 
 void ani_setup_override(rgb_override_t override, uint32_t *parameters)
 {
-    switch(override)
-    {
-        case RGB_OVERRIDE_FLASH:
-            // First param is our target color
-            memset(_fade_end, parameters[0], ALL_LEDS_SIZE);
-            or_flash_load(parameters[0]);
-            tmp_anim.loop = true;
-            tmp_anim.function = or_flash_handler;
-            _ani_add_to_queue(&tmp_anim);
-        break;
-
-        case RGB_OVERRIDE_INDICATE:
-            // No flash animation for this one
-            or_indicate_load(parameters[0]);
-            memset(_fade_end, parameters[0], ALL_LEDS_SIZE);
-            tmp_anim.function = or_indicate_handler;
-        break;
-    }
-
-    // Add our original animation for after
+    
 }
