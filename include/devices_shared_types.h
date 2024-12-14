@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "hoja_system.h"
 
+// Handle RGB mode choosing compiler side
 #if (RGB_DEVICE_ENABLED==1)
 #if (RGB_DRIVER_ORDER == RGB_ORDER_GRB)
 typedef struct
