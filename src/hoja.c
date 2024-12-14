@@ -6,6 +6,7 @@
 #include "hoja_system.h"
 #include "hal/hal.h"
 #include "hal/sys_hal.h"
+#include "hal/flash_hal.h"
 #include "drivers/drivers.h"
 #include "board_config.h"
 
@@ -90,6 +91,9 @@ void _hoja_task_0()
 void _hoja_task_1()
 {
   static uint32_t c1_timestamp = 0;
+
+  // Init settings hal
+  flash_hal_init();
 
   for (;;)
   {

@@ -9,14 +9,6 @@
 // Only 2 channels per ADC
 #define MCP3002_MAX_CHANNELS 1
 
-// Support up to 3 MCP3002
-#ifdef ADC_DRIVER_MCP3002
-#if (ADC_DRIVER_MCP3002 > 0)
-
-#if(ADC_DRIVER_MCP3002>3)
-    #error "Only up to 3 MCP3002 supported currently" 
-#endif
-
 #ifdef HOJA_ADC_LX_DRIVER
 #if HOJA_ADC_LX_DRIVER==ADC_DRIVER_MCP3002
     #ifndef HOJA_ADC_LX_CHANNEL
@@ -188,8 +180,5 @@
 
 uint16_t    mcp3002_read(bool channel, uint32_t cs_gpio, uint8_t spi_instance);
 bool        mcp3002_init(uint32_t cs_gpio);
-
-#endif
-#endif
 
 #endif

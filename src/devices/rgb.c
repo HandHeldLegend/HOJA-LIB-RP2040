@@ -1,6 +1,14 @@
 #include "devices/rgb.h"
+#include "hoja_system.h"
 
-#if (HOJA_CAPABILITY_RGB == 1)
+#include "utilities/settings.h"
+
+// Include all RGB drivers
+#include "hal/rgb_hal.h"
+
+#include <stdlib.h>
+
+#if (RGB_DEVICE_ENABLED == 1)
 // 21 steps is about 0.35 seconds
 // Formula is time period us / 16666us (60hz)
 // #define RGB_FADE_STEPS 21
@@ -35,9 +43,9 @@ void rgb_set_override(rgb_override_anim_cb animation, uint16_t duration)
 uint16_t _rgb_active_anim_steps = 0;
 
 uint32_t _rgb_flash_color = 0x00;
-rgb_s _rgb_next[HOJA_RGB_COUNT] = {0};
-rgb_s _rgb_current[HOJA_RGB_COUNT] = {0};
-rgb_s _rgb_last[HOJA_RGB_COUNT] = {0};
+rgb_s _rgb_next[RGB_DRIVER_COUNT] = {0};
+rgb_s _rgb_current[RGB_DRIVER_COUNT] = {0};
+rgb_s _rgb_last[RGB_DRIVER_COUNT] = {0};
 rgb_preset_t *_rgb_preset;
 rgb_preset_t _rgb_preset_loaded;
 uint8_t _rgb_brightness = 100;
@@ -45,61 +53,14 @@ uint8_t _rgb_brightness = 100;
 uint8_t _rgb_rainbow_step = 5;
 
 hsv_s _rainbow_hsv = {.hue = 0, .saturation = 255, .value = 255};
-uint8_t _rainbowoffset_hsv[HOJA_RGB_COUNT] = {0};
+uint8_t _rainbowoffset_hsv[RGB_DRIVER_COUNT] = {0};
 
 uint8_t _cycle_idx = 0;
-uint8_t _cycle_offset_idx[HOJA_RGB_COUNT] = {0};
+uint8_t _cycle_offset_idx[RGB_DRIVER_COUNT] = {0};
 
 rgb_s _rainbow_next = {0};
 
-const int8_t _rgb_group_rs[] = HOJA_RGB_GROUP_RS;
-const uint8_t _rs_size = sizeof(_rgb_group_rs) / sizeof(_rgb_group_rs[0]);
 
-const int8_t _rgb_group_ls[] = HOJA_RGB_GROUP_LS;
-const uint8_t _ls_size = sizeof(_rgb_group_ls) / sizeof(_rgb_group_ls[0]);
-
-const int8_t _rgb_group_dpad[] = HOJA_RGB_GROUP_DPAD;
-const uint8_t _dpad_size = sizeof(_rgb_group_dpad) / sizeof(_rgb_group_dpad[0]);
-
-const int8_t _rgb_group_minus[] = HOJA_RGB_GROUP_MINUS;
-const uint8_t _minus_size = sizeof(_rgb_group_minus) / sizeof(_rgb_group_minus[0]);
-
-const int8_t _rgb_group_capture[] = HOJA_RGB_GROUP_CAPTURE;
-const uint8_t _capture_size = sizeof(_rgb_group_capture) / sizeof(_rgb_group_capture[0]);
-
-const int8_t _rgb_group_home[] = HOJA_RGB_GROUP_HOME;
-const uint8_t _home_size = sizeof(_rgb_group_home) / sizeof(_rgb_group_home[0]);
-
-const int8_t _rgb_group_plus[] = HOJA_RGB_GROUP_PLUS;
-const uint8_t _plus_size = sizeof(_rgb_group_plus) / sizeof(_rgb_group_plus[0]);
-
-const int8_t _rgb_group_y[] = HOJA_RGB_GROUP_Y;
-const uint8_t _y_size = sizeof(_rgb_group_y) / sizeof(_rgb_group_y[0]);
-
-const int8_t _rgb_group_x[] = HOJA_RGB_GROUP_X;
-const uint8_t _x_size = sizeof(_rgb_group_x) / sizeof(_rgb_group_x[0]);
-
-const int8_t _rgb_group_a[] = HOJA_RGB_GROUP_A;
-const uint8_t _a_size = sizeof(_rgb_group_a) / sizeof(_rgb_group_a[0]);
-
-const int8_t _rgb_group_b[] = HOJA_RGB_GROUP_B;
-const uint8_t _b_size = sizeof(_rgb_group_b) / sizeof(_rgb_group_b[0]);
-
-const int8_t _rgb_group_l[] = HOJA_RGB_GROUP_L;
-const uint8_t _l_size = sizeof(_rgb_group_l) / sizeof(_rgb_group_l[0]);
-
-const int8_t _rgb_group_zl[] = HOJA_RGB_GROUP_ZL;
-const uint8_t _zl_size = sizeof(_rgb_group_zl) / sizeof(_rgb_group_zl[0]);
-
-const int8_t _rgb_group_r[] = HOJA_RGB_GROUP_R;
-const uint8_t _r_size = sizeof(_rgb_group_r) / sizeof(_rgb_group_r[0]);
-
-const int8_t _rgb_group_zr[] = HOJA_RGB_GROUP_ZR;
-const uint8_t _zr_size = sizeof(_rgb_group_zr) / sizeof(_rgb_group_zr[0]);
-
-const int8_t _rgb_group_player[] = HOJA_RGB_GROUP_PLAYER;
-const uint8_t _player_size = sizeof(_rgb_group_player) / sizeof(_rgb_group_player[0]);
-uint8_t _rgb_player_number = 0;
 
 rgb_mode_t _rgb_mode = 0;
 
@@ -245,32 +206,13 @@ void _rgb_normalize_output_power(rgb_s *color)
 
 void _rgb_update_all()
 {
-    for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
     {
         pio_sm_put_blocking(RGB_PIO, RGB_SM, _rgb_current[i].color);
     }
 }
 
-uint32_t _rgb_blend(rgb_s *original, rgb_s *new, float blend)
-{
-    float or = (float)original->r;
-    float og = (float)original->g;
-    float ob = (float)original->b;
-    float nr = (float)new->r;
-    float ng = (float)new->g;
-    float nb = (float)new->b;
-    float outr = or +((nr - or) * blend);
-    float outg = og + ((ng - og) * blend);
-    float outb = ob + ((nb - ob) * blend);
-    uint8_t outr_int = (uint8_t)outr;
-    uint8_t outg_int = (uint8_t)outg;
-    uint8_t outb_int = (uint8_t)outb;
-    rgb_s col = {
-        .r = outr_int,
-        .g = outg_int,
-        .b = outb_int};
-    return col.color;
-}
+
 #endif
 
 #if (HOJA_CAPABILITY_RGB)
@@ -388,7 +330,7 @@ bool _rgb_animate_step()
     {
         float blender = blend_step * (float)steps;
         // Blend between old and next colors appropriately
-        for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+        for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
         {
             _rgb_current[i].color = _rgb_blend(&_rgb_last[i], &_rgb_next[i], blender);
         }
@@ -429,7 +371,7 @@ void _rgb_set_brightness(uint8_t brightness)
 // Set all RGBs to one color
 void _rgb_set_all(uint32_t color)
 {
-    for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
     {
         rgb_s col = {.color = color};
         _rgb_set_color_brightness(&col);
@@ -626,14 +568,14 @@ void _rgbanim_rainbowoffset_do()
     
     if (!_rgb_mode_setup)
     {
-        for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+        for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
         {
             _rainbowoffset_hsv[i] = get_rand_32() % 255;
         }
         _rgb_mode_setup = true;
     }
 
-    for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
     {
         _rainbowoffset_hsv[i] = (_rainbowoffset_hsv[i] + _rgb_rainbow_step) % 255;
         hsv_s hsv = {.hue = _rainbowoffset_hsv[i], .saturation = 255, .value = 255};
@@ -682,7 +624,7 @@ void _rgbanim_cycleoffset_do()
 
         _rgb_mode_setup = true;
 
-        for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+        for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
         {
             _cycle_offset_idx[i] = get_rand_32() % 6;
         }
@@ -698,7 +640,7 @@ void _rgbanim_cycleoffset_do()
         initial_setup = true;
     }
 
-    for (uint8_t i = 0; i < HOJA_RGB_COUNT; i++)
+    for (uint8_t i = 0; i < RGB_DRIVER_COUNT; i++)
     {
         _rgb_next[i].color = global_loaded_settings.rainbow_colors[_cycle_offset_idx[i]];
         _cycle_offset_idx[i] = get_rand_32() % 6;
@@ -856,7 +798,7 @@ uint32_t _rgb_indicate_color = 0x00;
 bool _rgb_indicate_override_do()
 {
     static uint8_t reps = 0;
-    static rgb_s rgb_indicate_store[HOJA_RGB_COUNT] = {0};
+    static rgb_s rgb_indicate_store[RGB_DRIVER_COUNT] = {0};
 
     if(!_rgb_anim_override_setup)
     {

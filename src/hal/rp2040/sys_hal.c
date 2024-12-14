@@ -50,11 +50,13 @@ bool sys_hal_init()
 void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void))
 {
     // Enable lockout victimhood :,)
-    multicore_lockout_victim_init();
+    // multicore_lockout_victim_init();
 
     if(task_core_1!=NULL)
         multicore_launch_core1(task_core_1);
     
+    //
+
     for(;;)
     {
         task_core_0();

@@ -2,6 +2,7 @@ add_library(hoja_lib INTERFACE)
 
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
+file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
@@ -14,7 +15,9 @@ target_link_libraries(hoja_lib INTERFACE
   pico_platform
   pico_rand
   pico_float
+  pico_flash
 
+  hardware_exception
   hardware_gpio
   hardware_adc
   hardware_flash
@@ -91,6 +94,7 @@ target_sources(hoja_lib INTERFACE
 
   ${DRIVERS_C}
   ${HAL_C}
+  ${RGB_C}
 )
 
 target_include_directories(hoja_lib INTERFACE

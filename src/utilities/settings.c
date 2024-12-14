@@ -22,28 +22,28 @@
 #define BANK_B_NUM 1
 #define BANK_C_NUM 2 // Bank for power or battery configuration
 
-settings_live_s      live_settings = {0};
-gamepad_config_u     *gamepad_config    = NULL;
-remap_config_u       *remap_config      = NULL;
-rgb_config_u         *rgb_config        = NULL;
-analog_config_u      *analog_config     = NULL;
-trigger_config_u     *trigger_config    = NULL;
-imu_config_u         *imu_config        = NULL;
-haptic_config_u      *haptic_config     = NULL;
-user_config_u        *user_config       = NULL;
-battery_config_u     *battery_config    = NULL;
+settings_live_s     live_settings = {0};
+gamepadConfig_s     *gamepad_config    = NULL;
+remapConfig_s       *remap_config      = NULL;
+rgbConfig_s         *rgb_config        = NULL;
+analogConfig_s      *analog_config     = NULL;
+triggerConfig_s     *trigger_config    = NULL;
+imuConfig_s         *imu_config        = NULL;
+hapticConfig_s      *haptic_config     = NULL;
+userConfig_s        *user_config       = NULL;
+batteryConfig_s     *battery_config    = NULL;
 
 void settings_init()
 {
-    gamepad_config     = (gamepad_config_u *)  live_settings.gamepad_configuration_block;
-    remap_config       = (remap_config_u *)    live_settings.remap_configuration_block;
-    rgb_config         = (rgb_config_u *)      live_settings.rgb_configuration_block;
-    analog_config      = (analog_config_u *)   live_settings.analog_configuration_block;
-    trigger_config     = (trigger_config_u *)  live_settings.trigger_configuration_block;
-    imu_config         = (imu_config_u *)      live_settings.imu_configuration_block;
-    haptic_config      = (haptic_config_u *)   live_settings.haptic_configuration_block;
-    user_config        = (user_config_u *)     live_settings.user_configuration_block;
-    battery_config     = (battery_config_u *)  live_settings.battery_configuration_block;
+    gamepad_config     = (gamepadConfig_s *)  live_settings.gamepad_configuration_block;
+    remap_config       = (remapConfig_s *)    live_settings.remap_configuration_block;
+    rgb_config         = (rgbConfig_s *)      live_settings.rgb_configuration_block;
+    analog_config      = (analogConfig_s *)   live_settings.analog_configuration_block;
+    trigger_config     = (triggerConfig_s *)  live_settings.trigger_configuration_block;
+    imu_config         = (imuConfig_s *)      live_settings.imu_configuration_block;
+    haptic_config      = (hapticConfig_s *)   live_settings.haptic_configuration_block;
+    user_config        = (userConfig_s *)     live_settings.user_configuration_block;
+    battery_config     = (batteryConfig_s *)  live_settings.battery_configuration_block;
 
     // Debug mac address if zero
     if(!gamepad_config->switch_mac_address[0])

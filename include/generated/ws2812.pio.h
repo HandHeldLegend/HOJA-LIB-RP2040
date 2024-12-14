@@ -39,7 +39,7 @@ static inline pio_sm_config ws2812_program_get_default_config(uint offset) {
 }
 
 #include "hardware/clocks.h"
-static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin, bool rgbw) {
+static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
     pio_sm_config c = ws2812_program_get_default_config(offset);
@@ -47,6 +47,7 @@ static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin, 
     sm_config_set_out_shift(&c, false, true, rgbw ? 32 : 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     // Must run 12800000hz
+    // This is dynamic (to a point) isn't that cool?
     float div = clock_get_hz(clk_sys) / (12800000);
     sm_config_set_clkdiv(&c, div);
     pio_sm_init(pio, sm, offset, &c);

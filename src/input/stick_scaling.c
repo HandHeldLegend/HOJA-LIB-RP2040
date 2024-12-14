@@ -27,7 +27,7 @@
 typedef struct 
 {
   int max_idx; 
-  angle_map_s angle_maps[ADJUSTABLE_ANGLES];
+  angleMap_s angle_maps[ADJUSTABLE_ANGLES];
   int round_distances[64];
   analog_scaler_t scaling_mode;
 } angle_setup_s;
@@ -46,9 +46,9 @@ MUTEX_HAL_INIT(_stick_scaling_mutex);
 
 float _normalize_angle(float angle);
 float _angle_diff(float angle1, float angle2);
-int   _find_lower_index(float input_angle, angle_map_s *map);
-bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map);
-float _transform_angle(float input_angle, angle_map_s *map);
+int   _find_lower_index(float input_angle, angleMap_s *map);
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map);
+float _transform_angle(float input_angle, angleMap_s *map);
 
 // Reset distances 
 void _zero_distances(angle_setup_s *setup)
@@ -61,8 +61,8 @@ void _zero_distances(angle_setup_s *setup)
 
 // Comparison function for qsort
 int _compare_by_input(const void *a, const void *b) {
-    const angle_map_s *angle_a = (const angle_map_s *)a;
-    const angle_map_s *angle_b = (const angle_map_s *)b;
+    const angleMap_s *angle_a = (const angleMap_s *)a;
+    const angleMap_s *angle_b = (const angleMap_s *)b;
 
     if (angle_a->input < angle_b->input) {
         return -1;
@@ -96,11 +96,11 @@ void _init_angle_setup(angle_setup_s *setup)
 }
 
 // Function to sort the array
-int _validate_angle_maps(angle_map_s *in) {
+int _validate_angle_maps(angleMap_s *in) {
 
   int unused_idx_max = ADJUSTABLE_ANGLES; 
   int used_idx_max = 0;
-  angle_map_s filtered_map[ADJUSTABLE_ANGLES] = {0};
+  angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
 
   // First, remove all unused angles and put them at the end
   for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
@@ -116,7 +116,7 @@ int _validate_angle_maps(angle_map_s *in) {
     }
   }
 
-  qsort(filtered_map, used_idx_max, sizeof(angle_map_s), _compare_by_input);
+  qsort(filtered_map, used_idx_max, sizeof(angleMap_s), _compare_by_input);
 
   float tmp_input   = filtered_map[0].input;
   float tmp_output  = filtered_map[0].output;
@@ -152,7 +152,7 @@ float _angle_diff(float angle1, float angle2)
 }
 
 // Set mapping with angle difference validation
-bool  _set_angle_mapping(int index, float input_angle, float output_angle, angle_map_s *map)
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map)
 {
   // Validate index
   if (index < 0 || index >= ADJUSTABLE_ANGLES)
@@ -259,7 +259,7 @@ float _distance_lerp(float magnitude, float lower, float upper)
 }
 
 // Transform input angle based on configured mappings
-float _transform_angle(float input_angle, angle_map_s *map)
+float _transform_angle(float input_angle, angleMap_s *map)
 {
   // Normalize input angle
   input_angle = _normalize_angle(input_angle);
@@ -424,7 +424,7 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
   }
 }
 
-void _unpack_stick_distances(analog_packed_distances_u *distances, angle_setup_s *setup)
+void _unpack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
 {
   // Set first distance
   setup->round_distances[0] = distances->first_distance;
@@ -435,7 +435,7 @@ void _unpack_stick_distances(analog_packed_distances_u *distances, angle_setup_s
   }
 }
 
-void _pack_stick_distances(analog_packed_distances_u *distances, angle_setup_s *setup)
+void _pack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
 {
   // Set first distance
   distances->first_distance = setup->round_distances[0];
@@ -450,13 +450,13 @@ void _pack_stick_distances(analog_packed_distances_u *distances, angle_setup_s *
 // Write distance data to config block
 void _write_to_config_block()
 {
-  analog_packed_distances_u packed;
+  analogPackedDistances_s packed;
 
   _pack_stick_distances(&packed, &_left_setup);
-  memcpy(&(analog_config->l_packed_distances), &packed, sizeof(analog_packed_distances_u));
+  memcpy(&(analog_config->l_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
 
   _pack_stick_distances(&packed, &_right_setup);
-  memcpy(&(analog_config->r_packed_distances), &packed, sizeof(analog_packed_distances_u));
+  memcpy(&(analog_config->r_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
 }
 
 void stick_scaling_calibrate_start(bool start)
@@ -514,8 +514,8 @@ bool stick_scaling_init()
   _unpack_stick_distances(&(analog_config->l_packed_distances), &_left_setup);
   _unpack_stick_distances(&(analog_config->r_packed_distances), &_right_setup);
 
-  memcpy(&(_left_setup.angle_maps),  &(analog_config->l_angle_maps), sizeof(angle_map_s) * ADJUSTABLE_ANGLES);
-  memcpy(&(_right_setup.angle_maps), &(analog_config->r_angle_maps), sizeof(angle_map_s) * ADJUSTABLE_ANGLES);
+  memcpy(&(_left_setup.angle_maps),  &(analog_config->l_angle_maps), sizeof(angleMap_s) * ADJUSTABLE_ANGLES);
+  memcpy(&(_right_setup.angle_maps), &(analog_config->r_angle_maps), sizeof(angleMap_s) * ADJUSTABLE_ANGLES);
 
   _left_setup.scaling_mode = analog_config->l_scaler_type;
   _left_setup.scaling_mode = analog_config->r_scaler_type;

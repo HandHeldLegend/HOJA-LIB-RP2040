@@ -22,4 +22,11 @@
   #define ADC_SMOOTHING_ENABLED 0
 #endif
 
+// RGB 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+  #define RGB_DEVICE_ENABLED 1
+#else 
+  #define RGB_DEVICE_ENABLED 0
+#endif
+
 #endif

@@ -86,14 +86,14 @@ typedef struct
 } settings_live_s;
 
 extern settings_live_s      live_settings;
-extern gamepad_config_u     *gamepad_config;
-extern remap_config_u       *remap_config;
-extern rgb_config_u         *rgb_config;
-extern analog_config_u      *analog_config;
-extern trigger_config_u     *trigger_config;
-extern imu_config_u         *imu_config;
-extern haptic_config_u      *haptic_config;
-extern user_config_u        *user_config;
+extern gamepadConfig_s     *gamepad_config;
+extern remapConfig_s       *remap_config;
+extern rgbConfig_s         *rgb_config;
+extern analogConfig_s      *analog_config;
+extern triggerConfig_s     *trigger_config;
+extern imuConfig_s         *imu_config;
+extern hapticConfig_s      *haptic_config;
+extern userConfig_s        *user_config;
 
 void settings_init();
 void settings_commit_blocks();
