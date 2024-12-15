@@ -16,6 +16,7 @@
 #include "input/input.h"
 
 #include "devices/battery.h"
+#include "devices/rgb.h"
 
 time_callback_t   _hoja_mode_task_cb = NULL;
 gamepad_mode_t    _hoja_current_gamepad_mode    = GAMEPAD_MODE_LOAD;
@@ -84,6 +85,9 @@ void _hoja_task_0()
     _hoja_mode_task_cb(c0_timestamp);
   }
 
+  // RGB task
+  rgb_task(c0_timestamp);
+
   sys_hal_tick();
 }
 
@@ -137,6 +141,8 @@ void hoja_init()
   _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
 
   settings_init();
+
+  rgb_init(-1, -1);
 
   // Init specific GAMEPAD mode
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

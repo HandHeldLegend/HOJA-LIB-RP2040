@@ -19,6 +19,46 @@
 #include "hal/adc_hal.h"
 #include "drivers/adc/mcp3002.h"
 
+#define ANALOG_MAX_DISTANCE 4095
+#define ANALOG_HALF_DISTANCE 2048
+#define DEADZONE_DEFAULT 100
+#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < 0) ? 0 : value)
+
+#if (ADC_SMOOTHING_ENABLED==1)
+#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
+typedef struct {
+    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
+    int index;
+    float sum;
+} RollingAverage;
+
+void initRollingAverage(RollingAverage* ra) {
+    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
+        ra->buffer[i] = 0.0f;
+    }
+    ra->index = 0;
+    ra->sum = 0.0f;
+}
+
+void addSample(RollingAverage* ra, float sample) {
+    // Subtract the value being replaced from the sum
+    ra->sum -= ra->buffer[ra->index];
+    
+    // Add the new sample to the buffer and sum
+    ra->buffer[ra->index] = sample;
+    ra->sum += sample;
+    
+    // Move to the next index, wrapping around if necessary
+    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
+}
+
+float getAverage(RollingAverage* ra) {
+    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
+}
+
+#endif 
+#define STICK_INTERNAL_CENTER 2048
+
 
 MUTEX_HAL_INIT(_analog_mutex);
 void _analog_blocking_enter()
@@ -98,11 +138,6 @@ bool analog_access_try(analog_data_s *out, analog_access_t type)
     return false;
 }
 
-#define ANALOG_MAX_DISTANCE 4095
-#define ANALOG_HALF_DISTANCE 2048
-#define DEADZONE_DEFAULT 100
-#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < 0) ? 0 : value)
-
 void analog_init()
 {
     #if defined(HOJA_ADC_CHAN_LX_INIT)
@@ -129,18 +164,9 @@ void analog_init()
         HOJA_ADC_CHAN_RT_INIT();
     #endif
 
-    //stick_scaling_get_settings();
-    //stick_scaling_init();
     switch_analog_calibration_init();
     stick_scaling_init();
-
-    //if (_buttons->button_minus && _buttons->button_plus)
-    //{
-    //    analog_calibrate_start();
-    //}
 }
-
-#define STICK_INTERNAL_CENTER 2048
 
 // Read analog values
 void _analog_read_raw()
@@ -214,40 +240,6 @@ void _capture_center_offsets()
 
     _analog_exit();
 }
-
-#if (ADC_SMOOTHING_ENABLED==1)
-#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
-
-typedef struct {
-    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
-    int index;
-    float sum;
-} RollingAverage;
-
-void initRollingAverage(RollingAverage* ra) {
-    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
-        ra->buffer[i] = 0.0f;
-    }
-    ra->index = 0;
-    ra->sum = 0.0f;
-}
-
-void addSample(RollingAverage* ra, float sample) {
-    // Subtract the value being replaced from the sum
-    ra->sum -= ra->buffer[ra->index];
-    
-    // Add the new sample to the buffer and sum
-    ra->buffer[ra->index] = sample;
-    ra->sum += sample;
-    
-    // Move to the next index, wrapping around if necessary
-    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
-}
-
-float getAverage(RollingAverage* ra) {
-    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
-}
-#endif
 
 void analog_config_command(analog_cmd_t cmd)
 {

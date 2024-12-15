@@ -25,6 +25,7 @@
 // RGB 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
   #define RGB_DEVICE_ENABLED 1
+  #define RGB_TASK_INTERVAL (1000000/RGB_DRIVER_REFRESHRATE)
 #else 
   #define RGB_DEVICE_ENABLED 0
 #endif

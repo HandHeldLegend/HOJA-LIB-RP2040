@@ -35,15 +35,15 @@ batteryConfig_s     *battery_config    = NULL;
 
 void settings_init()
 {
-    gamepad_config     = (gamepadConfig_s *)  live_settings.gamepad_configuration_block;
-    remap_config       = (remapConfig_s *)    live_settings.remap_configuration_block;
-    rgb_config         = (rgbConfig_s *)      live_settings.rgb_configuration_block;
-    analog_config      = (analogConfig_s *)   live_settings.analog_configuration_block;
-    trigger_config     = (triggerConfig_s *)  live_settings.trigger_configuration_block;
-    imu_config         = (imuConfig_s *)      live_settings.imu_configuration_block;
-    haptic_config      = (hapticConfig_s *)   live_settings.haptic_configuration_block;
-    user_config        = (userConfig_s *)     live_settings.user_configuration_block;
-    battery_config     = (batteryConfig_s *)  live_settings.battery_configuration_block;
+    gamepad_config     = (gamepadConfig_s *)  &live_settings.gamepad_configuration_block;
+    remap_config       = (remapConfig_s *)    &live_settings.remap_configuration_block;
+    rgb_config         = (rgbConfig_s *)      &live_settings.rgb_configuration_block;
+    analog_config      = (analogConfig_s *)   &live_settings.analog_configuration_block;
+    trigger_config     = (triggerConfig_s *)  &live_settings.trigger_configuration_block;
+    imu_config         = (imuConfig_s *)      &live_settings.imu_configuration_block;
+    haptic_config      = (hapticConfig_s *)   &live_settings.haptic_configuration_block;
+    user_config        = (userConfig_s *)     &live_settings.user_configuration_block;
+    battery_config     = (batteryConfig_s *)  &live_settings.battery_configuration_block;
 
     // Debug mac address if zero
     if(!gamepad_config->switch_mac_address[0])
@@ -226,9 +226,12 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
 
         case CFG_BLOCK_REMAP:
             _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; 
-            _sdata[BLOCK_CHUNK_PART_IDX] = 0; 
-            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.remap_configuration_block, REMAP_CFB_SIZE);
-            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
+            for(int i = 0; i < (ANALOG_CFB_SIZE/32); i++)
+            {
+                _sdata[BLOCK_CHUNK_PART_IDX] = i;
+                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.remap_configuration_block[i*32], 32);
+                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
+            }
         break;
 
         case CFG_BLOCK_ANALOG:

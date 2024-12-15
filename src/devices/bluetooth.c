@@ -3,6 +3,8 @@
 #include "drivers/drivers.h"
 #include "devices/haptics.h"
 
+#include "devices_shared_types.h"
+
 uint32_t _mode_color = 0;
 
 bool bluetooth_init(int device_mode, bool pairing_mode)
@@ -27,7 +29,7 @@ bool bluetooth_init(int device_mode, bool pairing_mode)
         _mode_color = COLOR_ORANGE.color;
         break;
     }
-    rgb_flash(_mode_color, -1);
+    //rgb_flash(_mode_color, -1);
 
     #if defined(HOJA_BLUETOOTH_INIT)
     return HOJA_BLUETOOTH_INIT(device_mode, pairing_mode, bluetooth_callback_handler);

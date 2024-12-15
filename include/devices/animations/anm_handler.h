@@ -1,12 +1,8 @@
 #ifndef ANM_HANDLER_H
 #define ANM_HANDLER_H
+#include <stdint.h>
 
-#define ALL_LEDS_SIZE sizeof(uint32_t) * RGB_DRIVER_COUNT
-
-#define FRAMERATE_FPS 120
-#define INTERVAL_US_PER_FRAME (1000000/FRAMERATE_FPS)
-#define FADE_LENGTH_MS 350
-#define FADE_LENGTH_FRAMES ((FADE_LENGTH_MS*1000) / INTERVAL_US_PER_FRAME)
-#define FADE_STEP_FLOAT (float) (1.0f / FADE_LENGTH_FRAMES)
+void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness);
+void anm_handler_tick();
 
 #endif

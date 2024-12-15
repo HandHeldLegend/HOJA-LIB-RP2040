@@ -2,8 +2,9 @@
 #define ANM_NONE_H
 #include <stdint.h>
 #include <stdbool.h>
+#include "devices_shared_types.h"
 
-void anm_none_get_state(uint32_t *output);
-bool anm_none_handler(uint32_t* output);
+bool anm_none_get_state(rgb_s *output);
+bool anm_none_handler(rgb_s* output);
 
 #endif

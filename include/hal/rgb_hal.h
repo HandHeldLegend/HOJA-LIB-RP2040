@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "hoja_bsp.h"
 #include "hoja_system.h"
+#include "devices_shared_types.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER == RGB_DRIVER_HAL)
 
@@ -11,7 +12,7 @@
     #error "RGB_DRIVER_OUTPUT_PIN undefined in board_config.h" 
 #endif
 
-#if !defined(RGB_DRIVER_COUNT)
+#if !defined(RGB_DRIVER_LED_COUNT)
     #error "RGB_DRIVER_COUNT (num of leds) undefined in board_config.h" 
 #endif
 
@@ -28,7 +29,7 @@ void rgb_hal_init();
 void rgb_hal_deinit();
 
 // Update all RGBs
-void rgb_hal_update(uint32_t *data);
+void rgb_hal_update(rgb_s *data);
 
 #endif
 #endif

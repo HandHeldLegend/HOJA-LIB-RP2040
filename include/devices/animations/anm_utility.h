@@ -5,6 +5,6 @@
 
 uint32_t anm_utility_blend(rgb_s *original, rgb_s *new, float blend);
 
-void anm_utility_process(rgb_s *leds, uint16_t brightness);
+void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness);
 
 #endif
