@@ -8,7 +8,6 @@
 
 #include "devices/animations/anm_handler.h"
 
-
 /**
 void _rgb_set_player(uint8_t player_number)
 {
@@ -109,7 +108,6 @@ void rgb_set_player(uint8_t player)
     (void) player;
 }
 
-
 // This function will start a shutdown
 // that includes an LED fade-out animation
 // This ensures the LEDs properly turn off before power off.
@@ -146,7 +144,7 @@ void rgb_init(int mode, int brightness)
         brightness = 0;
 
         set_mode = 0;
-        set_brightness = 255*6;
+        set_brightness = 100;
     }
     
     static bool _rgb_ll_init = false;
@@ -155,8 +153,6 @@ void rgb_init(int mode, int brightness)
         RGB_DRIVER_INIT();
         _rgb_ll_init = true;
     }
-    
-    
 
     if(mode<0)
     {
@@ -185,4 +181,17 @@ void rgb_task(uint32_t timestamp)
         anm_handler_tick();
     }
     #endif
+}
+
+void rgb_config_command(rgb_cmd_t cmd)
+{
+    switch(cmd)
+    {
+        default:
+        break;
+
+        case RGB_CMD_REFRESH:
+            rgb_init(-1, -1);
+        break;
+    }
 }

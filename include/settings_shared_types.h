@@ -19,6 +19,7 @@ typedef enum
 
 typedef enum 
 {
+    GAMEPAD_CMD_REFRESH, 
     GAMEPAD_CMD_SET_DEFAULT_MODE, 
     GAMEPAD_CMD_RESET_TO_BOOTLOADER, 
     GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
@@ -33,6 +34,7 @@ typedef enum
 
 typedef enum 
 {
+    ANALOG_CMD_REFRESH, 
     ANALOG_CMD_CALIBRATE_START, 
     ANALOG_CMD_CALIBRATE_STOP, 
     ANALOG_CMD_CAPTURE_ANGLE, 
@@ -40,31 +42,30 @@ typedef enum
 
 typedef enum 
 {
-    RGB_CMD_SET_MODE, 
-    RGB_CMD_SET_GROUP, 
-    RGB_CMD_SET_LED,  
-    RGB_CMD_SET_SPEED,  
+    RGB_CMD_REFRESH, 
 } rgb_cmd_t;
 
 typedef enum 
 {
-    IMU_CMD_CALIBRATE, 
+    IMU_CMD_REFRESH, 
+    IMU_CMD_CALIBRATE_START, 
 } imu_cmd_t;
 
 typedef enum 
 {
-    HAPTIC_CMD_SET_STRENGTH, 
+    HAPTIC_CMD_REFRESH, 
     HAPTIC_CMD_TEST_STRENGTH, 
 } haptic_cmd_t;
 
 typedef enum 
 {
-    TRIGGER_CMD_SET_BOUNDS, 
-    TRIGGER_CMD_SET_DEADZONE, 
-    TRIGGER_CMD_SET_ENABLE, 
+    TRIGGER_CMD_REFRESH, 
+    TRIGGER_CMD_CALIBRATE_START, 
+    TRIGGER_CMD_CALIBRATE_STOP, 
 } trigger_cmd_t;
 
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
+typedef void (*command_confirm_t)(cfg_block_t, uint8_t);
 
 #pragma pack(push, 1)
 typedef struct 

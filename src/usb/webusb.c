@@ -14,8 +14,6 @@
 
 #define WEBUSB_ITF 0
 
-uint8_t _webusb_out_buffer[64] = {0x00};
-
 // Can be used to block until webUSB
 // is clear and ready to send output data
 // Set timeout to value greater than zero.
@@ -46,6 +44,7 @@ bool webusb_ready_blocking(int timeout)
     return true;
 }
 
+uint8_t _webusb_out_buffer[64] = {0x00};
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {
     memset(_webusb_out_buffer, 0, 64);
@@ -103,9 +102,18 @@ void webusb_input_task(uint32_t timestamp)
         webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (imu.gy*4)+32767)>>8));
         webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (imu.gz*4)+32767)>>8));
 
-        tud_vendor_n_write(0, webusb_input_report, 64);
-        tud_vendor_n_flush(0);
+        //tud_vendor_n_write(0, webusb_input_report, 64);
+        //tud_vendor_n_flush(0);
     }
+}
+
+void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd)
+{
+    uint8_t cmd_confirm_buffer[64] = {0x00};
+    cmd_confirm_buffer[0] = WEBUSB_ID_COMMAND_CONFIRM;
+    cmd_confirm_buffer[1] = config_block;
+    cmd_confirm_buffer[2] = cmd;
+    webusb_send_bulk(cmd_confirm_buffer, 3);
 }
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
@@ -123,7 +131,7 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
             that our data is complete and we should now write the whole block to active memory.
         */
         case WEBUSB_ID_WRITE_CONFIG_BLOCK:
-            settings_write_config_block(data[1], &(data[2]));
+            settings_write_config_block(data[1], data);
         break;
 
         case WEBUSB_ID_READ_ALL_CONFIG_BLOCKS:

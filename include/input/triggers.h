@@ -7,7 +7,7 @@
 #include "settings_shared_types.h"
 #include "input_shared_types.h"
 
-void triggers_config_cmd(trigger_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
+void triggers_config_cmd(trigger_cmd_t cmd, command_confirm_t cb);
 bool triggers_init();
 void triggers_process(button_data_s *in, button_data_s *out);
 

@@ -7,6 +7,7 @@
 
 #include "utilities/interval.h"
 #include "devices_shared_types.h"
+#include "settings_shared_types.h"
 
 #include "utilities/settings.h"
 
@@ -256,18 +257,21 @@ void _imu_std_function(uint32_t timestamp)
 }
 
 // Function we call when our IMU calibration is completed
-setting_callback_t _calibrate_done_cb = NULL;
+command_confirm_t _calibrate_done_cb = NULL;
+uint8_t _command = 0;
 
 void _imu_calibrate_stop()
 {
-  
   _imu_process_task = _imu_std_function;
-  // Send success code
-  const uint8_t done[2] = {IMU_CMD_CALIBRATE, 1};
 
   if(_calibrate_done_cb != NULL)
-    _calibrate_done_cb(done, 2);
+  { 
+    _calibrate_done_cb(CFG_BLOCK_IMU, _command);
+  }
 
+  _calibrate_done_cb = NULL;
+  _command = 0;
+  
   _imu_exit();
 }
 
@@ -295,22 +299,17 @@ void _imu_calibrate_start()
 }
 
 // IMU module command handler
-void imu_config_cmd(imu_cmd_t cmd, setting_callback_t cb)
+void imu_config_cmd(imu_cmd_t cmd, command_confirm_t cb)
 {
-  const uint8_t cb_dat[3] = {CFG_BLOCK_IMU, cmd, 1};
-
+  
   switch(cmd)
   {
     default:
-    if(cb!=NULL)
-      cb(cb_dat, 0); // Do nothing
     break;
 
-    case IMU_CMD_CALIBRATE:
-
-      if(cb!=NULL)
-        _calibrate_done_cb = cb;
-
+    case IMU_CMD_CALIBRATE_START:
+      _command = cmd;
+      _calibrate_done_cb = cb;
       _imu_calibrate_start();
 
     // We don't send a callback until the calibration is done.

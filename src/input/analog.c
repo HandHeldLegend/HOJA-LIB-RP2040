@@ -241,7 +241,7 @@ void _capture_center_offsets()
     _analog_exit();
 }
 
-void analog_config_command(analog_cmd_t cmd)
+void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
 {
     switch(cmd)
     {
@@ -261,6 +261,8 @@ void analog_config_command(analog_cmd_t cmd)
         case ANALOG_CMD_CAPTURE_ANGLE:
         break;
     }
+
+    cb(CFG_BLOCK_ANALOG, cmd);
 }
 
 const uint32_t _analog_interval = 200;

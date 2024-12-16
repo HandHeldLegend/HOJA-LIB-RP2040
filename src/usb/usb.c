@@ -8,6 +8,7 @@
 
 #include "hal/mutex_hal.h"
 #include "hal/usb_hal.h"
+#include "hal/sys_hal.h"
 
 #include "utilities/callback.h"
 
@@ -483,6 +484,8 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 // Vendor Device Class CB for receiving data
 void tud_vendor_rx_cb(uint8_t itf)
 {
+  sys_hal_tick();
+
   uint8_t buffer[64];
 
   uint32_t size = tud_vendor_n_read(0, buffer, 64);

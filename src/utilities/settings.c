@@ -13,14 +13,18 @@
 #include "utilities/static_config.h"
 
 #include "input/stick_scaling.h"
+#include "input/imu.h"
 
-#define FLASH_TARGET_OFFSET (1200 * 1024)
-#define SETTINGS_BANK_B_OFFSET (FLASH_TARGET_OFFSET)
-#define SETTINGS_BANK_A_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
-#define SETTINGS_BANK_C_OFFSET (FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE + FLASH_SECTOR_SIZE)
-#define BANK_A_NUM 0
-#define BANK_B_NUM 1
-#define BANK_C_NUM 2 // Bank for power or battery configuration
+#include "devices/rgb.h"
+
+#define BLOCK_CHUNK_MAX 32
+#define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
+#define BLOCK_TYPE_IDX 1
+#define BLOCK_CHUNK_SIZE_IDX 2
+#define BLOCK_CHUNK_PART_IDX 3
+#define BLOCK_CHUNK_BEGIN_IDX 4
+
+#define BLOCK_CHUNK_HEADER_SIZE 4
 
 settings_live_s     live_settings = {0};
 gamepadConfig_s     *gamepad_config    = NULL;
@@ -99,7 +103,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_ANALOG:
-            analog_config_command(command);
+            analog_config_command(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_RGB:
@@ -111,7 +115,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_IMU:
-            
+            imu_config_cmd(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_HAPTIC:
@@ -120,176 +124,167 @@ void settings_config_command(cfg_block_t block, uint8_t command)
 
         case CFG_BLOCK_USER:
             
+        break;
+
+        case CFG_BLOCK_BATTERY:
+
         break;
     }
 }
 
 void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 {
-    static uint8_t      tmp_dat[1024]   = {0};
-    static cfg_block_t  last_block_type = 0;
+    uint8_t write_size = data[BLOCK_CHUNK_SIZE_IDX];
+    uint8_t write_idx = data[BLOCK_CHUNK_PART_IDX];
 
-    if(last_block_type != block)
-    {
-        // Clear tmp block
-        memset(tmp_dat, 0, 1024);
-        last_block_type = block;
-    }
-
-    // Commit data index value
-    if(data[0] == 0xFF)
-    {
-        switch(block)
-        {
-            default:
-            return;
-
-            case CFG_BLOCK_GAMEPAD:
-                memcpy(gamepad_config, tmp_dat, GAMEPAD_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_REMAP:
-                memcpy(remap_config, tmp_dat, REMAP_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_ANALOG:
-                memcpy(analog_config, tmp_dat, ANALOG_CFB_SIZE);
-                // Reinit analog sections as needed 
-                stick_scaling_init();
-            break;
-
-            case CFG_BLOCK_RGB:
-                memcpy(rgb_config, tmp_dat, RGB_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_TRIGGER:
-                memcpy(trigger_config, tmp_dat, TRIGGER_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_IMU:
-                memcpy(imu_config, tmp_dat, IMU_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_HAPTIC:
-                memcpy(haptic_config, tmp_dat, HAPTIC_CFB_SIZE);
-            break;
-
-            case CFG_BLOCK_USER:
-                memcpy(user_config, tmp_dat, USER_CFB_SIZE);
-            break;
-        }
-    }
-    else 
-    {
-        uint32_t write_idx = data[0] * 32;
-        if(write_idx<=991)
-        {
-            memcpy(&tmp_dat[write_idx], &data[1], 32);
-        }
-    }
-
+    bool completed = false;
+    bool write = false;
     
-}
+    if(write_idx==0xFF)
+        completed = true;
 
-#define BLOCK_TYPE_IDX 1
-#define BLOCK_CHUNK_SIZE_IDX 2
-#define BLOCK_CHUNK_PART_IDX 3
-#define BLOCK_CHUNK_BEGIN_IDX 4
+    if(write_size>0)
+        write = true;
 
-#define BLOCK_CHUNK_HEADER_SIZE 4
+    uint8_t *write_to_ptr = NULL;
 
-uint8_t _sdata[64] = {0};
-void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
-{
-    _sdata[0] = WEBUSB_ID_READ_CONFIG_BLOCK;
-    _sdata[BLOCK_TYPE_IDX] = (uint8_t) block;
-    
     switch(block)
     {
         default:
-        break;
+        return;
 
         case CFG_BLOCK_GAMEPAD:
-            /* 
-                Each chunk we send is 32 byte limited
-                We have byte 0 which is our report ID
-                byte 1 is the block type
-                byte 2 is the data size we are sending
-                byte 3 is our assembly index...
-                a Byte 1 value of 255 means it's the end of a chunk
-            */
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; // Size of bytes being written to host
-            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
-            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE);
-            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
+            write_to_ptr = live_settings.gamepad_configuration_block;
         break;
 
         case CFG_BLOCK_REMAP:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; 
-            for(int i = 0; i < (ANALOG_CFB_SIZE/32); i++)
-            {
-                _sdata[BLOCK_CHUNK_PART_IDX] = i;
-                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.remap_configuration_block[i*32], 32);
-                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
-            }
+            write_to_ptr = live_settings.remap_configuration_block;
         break;
 
         case CFG_BLOCK_ANALOG:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32; 
-            for(int i = 0; i < (ANALOG_CFB_SIZE/32); i++)
-            {
-                _sdata[BLOCK_CHUNK_PART_IDX] = i;
-                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.analog_configuration_block[i*32], 32);
-                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
-            }
+            write_to_ptr = live_settings.analog_configuration_block;
+            // Reinit analog sections as needed 
+            if(completed)
+                stick_scaling_init();
         break;
 
         case CFG_BLOCK_RGB:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
-            for(int i = 0; i < (RGB_CFB_SIZE/32); i++)
-            {
-                _sdata[BLOCK_CHUNK_PART_IDX] = i;
-                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.rgb_configuration_block[i*32], 32);
-                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
-            }
+            write_to_ptr = live_settings.rgb_configuration_block;
+            if(completed)
+                rgb_init(-1, -1);
         break;
 
         case CFG_BLOCK_TRIGGER:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
-            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
-            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE);
-            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
+            write_to_ptr = live_settings.trigger_configuration_block;
         break;
 
         case CFG_BLOCK_IMU:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
-            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
-            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.imu_configuration_block, IMU_CFB_SIZE);
-            cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
+            write_to_ptr = live_settings.imu_configuration_block;
         break;
 
         case CFG_BLOCK_HAPTIC:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 8;
-            _sdata[BLOCK_CHUNK_PART_IDX] = 0;
-            memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE);
-            cb(_sdata, HAPTIC_CFB_SIZE+BLOCK_CHUNK_HEADER_SIZE);
+            write_to_ptr = live_settings.haptic_configuration_block;
         break;
 
         case CFG_BLOCK_USER:
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = 32;
-            for(int i = 0; i < (USER_CFB_SIZE/32); i++)
-            {
-                _sdata[BLOCK_CHUNK_PART_IDX] = i;
-                memcpy(&_sdata[BLOCK_CHUNK_BEGIN_IDX], &live_settings.user_configuration_block[i*32], 32);
-                cb(_sdata, 32+BLOCK_CHUNK_HEADER_SIZE);
-            }
+            write_to_ptr = live_settings.user_configuration_block;
         break;
+
+        case CFG_BLOCK_BATTERY:
+            write_to_ptr = live_settings.battery_configuration_block;
+        break;
+    }
+
+    if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
+
+    // Send confirmation data 
+    //uint8_t confirm_data[3] = {WEBUSB_ID_WRITE_CONFIG_BLOCK, (uint8_t) block, write_idx};
+    //webusb_send_bulk(confirm_data, 3);
+}
+
+
+
+uint8_t _sdata[64] = {0};
+void _serialize_block(cfg_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
+{
+    memset(_sdata, 0, 64);
+    _sdata[0] = WEBUSB_ID_READ_CONFIG_BLOCK;
+    _sdata[BLOCK_TYPE_IDX] = (uint8_t) block;
+
+    if(size <= BLOCK_CHUNK_MAX)
+    {
+        _sdata[BLOCK_CHUNK_SIZE_IDX] = (uint8_t) size;
+        _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+        memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), data, size);
+        cb(_sdata, size+BLOCK_CHUNK_HEADER_SIZE);
+    }
+    else 
+    {
+        uint32_t remaining = size;
+        uint8_t idx = 0;
+        while(remaining>0 && idx<200)
+        {
+            uint32_t loop_size = remaining <= BLOCK_CHUNK_MAX ? remaining : BLOCK_CHUNK_MAX;
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = loop_size;
+            _sdata[BLOCK_CHUNK_PART_IDX] = idx;
+            memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), &(data[idx*BLOCK_CHUNK_MAX]), loop_size);
+            cb(_sdata, loop_size+BLOCK_CHUNK_HEADER_SIZE);
+            
+            remaining -= loop_size;
+            idx += 1;
+        }
     }
 
     // Here we send the chunk completion byte
     _sdata[BLOCK_CHUNK_SIZE_IDX] = 0;
     _sdata[BLOCK_CHUNK_PART_IDX] = 0xFF;
     cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
+}
+
+
+void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
+{    
+    switch(block)
+    {
+        default:
+        break;
+
+        case CFG_BLOCK_GAMEPAD:
+            _serialize_block(block, live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_REMAP:
+            _serialize_block(block, live_settings.remap_configuration_block, REMAP_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_ANALOG:
+            _serialize_block(block, live_settings.analog_configuration_block, ANALOG_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_RGB:
+            _serialize_block(block, live_settings.rgb_configuration_block, RGB_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_TRIGGER:
+            _serialize_block(block, live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_IMU:
+            _serialize_block(block, live_settings.imu_configuration_block, IMU_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_HAPTIC:
+            _serialize_block(block, live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_USER:
+            _serialize_block(block, live_settings.user_configuration_block, USER_CFB_SIZE, cb);
+        break;
+
+        case CFG_BLOCK_BATTERY:
+            _serialize_block(block, live_settings.battery_configuration_block, BATTERY_CFB_SIZE, cb);
+        break;
+    }
 }
 
 void settings_return_static_block(static_block_t block, setting_callback_t cb)
