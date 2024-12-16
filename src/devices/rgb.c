@@ -148,11 +148,12 @@ void rgb_init(int mode, int brightness)
             rgb_config->rgb_colors[i] = rgb_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
         }
+        
         mode = 0;
         brightness = 0;
 
         set_mode = 0;
-        set_brightness = 100;
+        set_brightness = 1000;
     }
     
     static bool _rgb_ll_init = false;

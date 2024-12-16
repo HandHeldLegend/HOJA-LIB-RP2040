@@ -100,20 +100,17 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness)
 {
     _anim_brightness = brightness;
 
-    if(rgb_mode != _current_mode)
+    _current_mode = rgb_mode;
+    switch(rgb_mode)
     {
-        _current_mode = rgb_mode;
-        switch(rgb_mode)
-        {
-            // RGB_ANIM_NONE
-            default:
-            case 0:
-                _ani_main_fn = anm_none_handler;
-                _ani_fn_get_state = anm_none_get_state;
-                _ani_queue_fade_start();
-                return;
-            break;
-        }
+        // RGB_ANIM_NONE
+        default:
+        case 0:
+            _ani_main_fn = anm_none_handler;
+            _ani_fn_get_state = anm_none_get_state;
+            _ani_queue_fade_start();
+            return;
+        break;
     }
 }
 
