@@ -3,6 +3,8 @@
 #include "board_config.h"
 #include "usb/webusb.h"
 
+#include <string.h>
+
 #if !defined(HOJA_DEVICE_NAME)
  #warning "HOJA_DEVICE_NAME undefined in board_config.h"
  #define DEVICE_NAME "HOJA GamePad"
@@ -84,7 +86,7 @@ const analogInfoStatic_s    analog_static = {
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)
-    #define IMU_AVAILABLE 0b1111
+    #define IMU_AVAILABLE 1
 #else 
     #define IMU_AVAILABLE 0
 #endif
@@ -106,7 +108,7 @@ const imuInfoStatic_s       imu_static = {
  #define HOJA_BATTERY_PART_CODE "N/A"
 #endif
 
-const batteryInfoStatic   battery_static = {
+const batteryInfoStatic_s   battery_static = {
     .capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
     .part_number  = HOJA_BATTERY_PART_CODE,
 };
@@ -135,7 +137,7 @@ const hapticInfoStatic_s    haptic_static = {
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
-    #define BTSUPPORT 0b11 
+    #define BTSUPPORT 1 
 #else 
     #warning "HOJA_BLUETOOTH_DRIVER undefined. Bluetooth features will be disabled."
     #define BTSUPPORT 0
@@ -170,11 +172,21 @@ const bluetoothInfoStatic_s bluetooth_static = {
     #define PLAYER_GROUP HOJA_RGB_PLAYER_GROUP_IDX 
 #endif
 
-const rgbInfoStatic_s rgb_static = {
+uint8_t _rgb_names[32][8] = HOJA_RGB_GROUP_NAMES;
+
+rgbInfoStatic_s rgb_static = {
     .rgb_groups = RGB_GROUPS,
-    .rgb_group_names = RGB_GROUP_NAMES,
     .rgb_player_group = PLAYER_GROUP
 };
+
+void _rgb_static_set_names() 
+{
+    for(int i = 0; i < RGB_GROUPS; i++)
+    {
+        memcpy(&rgb_static.rgb_group_names[i].rgb_group_name[0], 
+        &_rgb_names[i][0], 8);
+    }
+}
 
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
@@ -185,19 +197,19 @@ const rgbInfoStatic_s rgb_static = {
 
 #define BLOCK_CHUNK_HEADER_SIZE 4
 
-uint8_t _sdata[64] = {0};
-void _serialize_block(static_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
+uint8_t _serdata[64] = {0};
+void _serialize_static_block(static_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
 {
-    memset(_sdata, 0, 64);
-    _sdata[0] = WEBUSB_ID_READ_STATIC_BLOCK;
-    _sdata[BLOCK_TYPE_IDX] = (uint8_t) block;
+    memset(_serdata, 0, 64);
+    _serdata[0] = WEBUSB_ID_READ_STATIC_BLOCK;
+    _serdata[BLOCK_TYPE_IDX] = (uint8_t) block;
 
     if(size <= BLOCK_CHUNK_MAX)
     {
-        _sdata[BLOCK_CHUNK_SIZE_IDX] = (uint8_t) size;
-        _sdata[BLOCK_CHUNK_PART_IDX] = 0;
-        memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), data, size);
-        cb(_sdata, size+BLOCK_CHUNK_HEADER_SIZE);
+        _serdata[BLOCK_CHUNK_SIZE_IDX] = (uint8_t) size;
+        _serdata[BLOCK_CHUNK_PART_IDX] = 0;
+        memcpy(&(_serdata[BLOCK_CHUNK_BEGIN_IDX]), data, size);
+        cb(_serdata, size+BLOCK_CHUNK_HEADER_SIZE);
     }
     else 
     {
@@ -206,10 +218,10 @@ void _serialize_block(static_block_t block, uint8_t *data , uint32_t size, setti
         while(remaining>0 && idx<200)
         {
             uint32_t loop_size = remaining <= BLOCK_CHUNK_MAX ? remaining : BLOCK_CHUNK_MAX;
-            _sdata[BLOCK_CHUNK_SIZE_IDX] = loop_size;
-            _sdata[BLOCK_CHUNK_PART_IDX] = idx;
-            memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), &(data[idx*BLOCK_CHUNK_MAX]), loop_size);
-            cb(_sdata, loop_size+BLOCK_CHUNK_HEADER_SIZE);
+            _serdata[BLOCK_CHUNK_SIZE_IDX] = loop_size;
+            _serdata[BLOCK_CHUNK_PART_IDX] = idx;
+            memcpy(&(_serdata[BLOCK_CHUNK_BEGIN_IDX]), &(data[idx*BLOCK_CHUNK_MAX]), loop_size);
+            cb(_serdata, loop_size+BLOCK_CHUNK_HEADER_SIZE);
             
             remaining -= loop_size;
             idx += 1;
@@ -217,9 +229,9 @@ void _serialize_block(static_block_t block, uint8_t *data , uint32_t size, setti
     }
 
     // Here we send the chunk completion byte
-    _sdata[BLOCK_CHUNK_SIZE_IDX] = 0;
-    _sdata[BLOCK_CHUNK_PART_IDX] = 0xFF;
-    cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
+    _serdata[BLOCK_CHUNK_SIZE_IDX] = 0;
+    _serdata[BLOCK_CHUNK_PART_IDX] = 0xFF;
+    cb(_serdata, BLOCK_CHUNK_HEADER_SIZE);
 }
 
 void static_config_read_all_blocks(setting_callback_t cb)
@@ -235,35 +247,36 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_DEVICE:
-            _serialize_block(block, &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
         break;
 
         case STATIC_BLOCK_BUTTONS:
-            _serialize_block(block, &buttons_static, STATINFO_DEVICE_BUTTON_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &buttons_static, STATINFO_DEVICE_BUTTON_SIZE, cb);
         break;
 
         case STATIC_BLOCK_ANALOG:
-            _serialize_block(block, &analog_static, STATINFO_ANALOG_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &analog_static, STATINFO_ANALOG_SIZE, cb);
         break;
 
         case STATIC_BLOCK_HAPTIC:
-            _serialize_block(block, &haptic_static, STATINFO_HAPTIC_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &haptic_static, STATINFO_HAPTIC_SIZE, cb);
         break;
 
         case STATIC_BLOCK_IMU:
-            _serialize_block(block, &imu_static, STATINFO_IMU_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &imu_static, STATINFO_IMU_SIZE, cb);
         break;
 
         case STATIC_BLOCK_BATTERY:
-            _serialize_block(block, &battery_static, STATINFO_BATTERY_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
-            _serialize_block(block, &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
+            _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
         case STATIC_BLOCK_RGB:
-            _serialize_block(block, &rgb_static, STATINFO_RGB_SIZE, cb);
+            _rgb_static_set_names();
+            _serialize_static_block(block, (uint8_t *) &rgb_static, STATINFO_RGB_SIZE, cb);
         break;
     }
 }

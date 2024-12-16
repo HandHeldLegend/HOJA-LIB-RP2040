@@ -110,7 +110,7 @@ void webusb_input_task(uint32_t timestamp)
 void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd)
 {
     uint8_t cmd_confirm_buffer[64] = {0x00};
-    cmd_confirm_buffer[0] = WEBUSB_ID_COMMAND_CONFIRM;
+    cmd_confirm_buffer[0] = WEBUSB_ID_CONFIG_COMMAND;
     cmd_confirm_buffer[1] = config_block;
     cmd_confirm_buffer[2] = cmd;
     webusb_send_bulk(cmd_confirm_buffer, 3);
@@ -124,12 +124,6 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
             settings_return_config_block(data[1], webusb_send_bulk);
         break;
 
-        /*  
-            Data must be written in chunks of 32 bytes, set at index 3
-            index 1 defines which block to write the data to
-            index 2 is the index number of the array data. Index 2 value of 0xFF indicates
-            that our data is complete and we should now write the whole block to active memory.
-        */
         case WEBUSB_ID_WRITE_CONFIG_BLOCK:
             settings_write_config_block(data[1], data);
         break;

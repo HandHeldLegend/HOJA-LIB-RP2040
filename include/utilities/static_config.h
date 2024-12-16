@@ -74,7 +74,7 @@ typedef struct
 
 typedef struct 
 {
-    rgb_group_name[8];
+    uint8_t rgb_group_name[8];
 } rgbGroupName_s;
 
 typedef struct 
@@ -89,7 +89,7 @@ typedef struct
 #define STATINFO_DEVICE_BUTTON_SIZE     sizeof(buttonInfoStatic_s)
 #define STATINFO_ANALOG_SIZE            sizeof(analogInfoStatic_s)
 #define STATINFO_IMU_SIZE               sizeof(imuInfoStatic_s)
-#define STATINFO_BATTERY_SIZE           sizeof(batteryInfoStatic)
+#define STATINFO_BATTERY_SIZE           sizeof(batteryInfoStatic_s)
 #define STATINFO_HAPTIC_SIZE            sizeof(hapticInfoStatic_s)
 #define STATINFO_BLUETOOTH_SIZE         sizeof(bluetoothInfoStatic_s)
 #define STATINFO_RGB_SIZE               sizeof(rgbInfoStatic_s)
@@ -98,10 +98,10 @@ extern const deviceInfoStatic_s     device_static;
 extern const buttonInfoStatic_s     buttons_static; 
 extern const analogInfoStatic_s     analog_static; 
 extern const imuInfoStatic_s        imu_static; 
-extern const batteryInfoStatic      battery_static; 
+extern const batteryInfoStatic_s    battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
 extern const bluetoothInfoStatic_s  bluetooth_static;
-extern const rgbInfoStatic_s        rgb_static;
+extern rgbInfoStatic_s        rgb_static;
 
 void static_config_read_block(static_block_t block, setting_callback_t cb);
 

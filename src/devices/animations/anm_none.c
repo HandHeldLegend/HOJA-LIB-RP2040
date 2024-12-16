@@ -35,8 +35,13 @@ bool anm_none_get_state(rgb_s *output)
     // Reset our static state from stored rgb group data
     for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
     {
+        rgb_s tmp_color = {
+            .r = (rgb_config->rgb_colors[i] & 0xFF0000) >> 16, 
+            .g = (rgb_config->rgb_colors[i] & 0xFF00) >> 8, 
+            .b = (rgb_config->rgb_colors[i] & 0xFF)
+        };
         // Load our colors from the settings
-        _rgb_groups[i].color = rgb_config->rgb_colors[i];
+        _rgb_groups[i].color = tmp_color.color;
     }
 
     _unpack_groups_to_leds(output);

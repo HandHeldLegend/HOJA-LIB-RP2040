@@ -124,6 +124,14 @@ void rgb_shutdown_init(bool restart, callback_t cb)
 
 const rgb_s _rainbow[] = COLORS_RAINBOW;
 
+uint32_t rgb_pack_local_color(rgb_s color)
+{
+    return  
+    (color.r << 16) |
+    (color.g << 8) |
+    (color.b);
+}
+
 void rgb_init(int mode, int brightness)
 {
     #if defined(RGB_DRIVER_INIT)
@@ -137,7 +145,7 @@ void rgb_init(int mode, int brightness)
         const uint8_t color_count = 7;
         for(int i = 0; i < 32; i++)
         {
-            rgb_config->rgb_colors[i] = _rainbow[col].color;
+            rgb_config->rgb_colors[i] = rgb_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
         }
         mode = 0;
