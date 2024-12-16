@@ -1,6 +1,7 @@
 #include "utilities/static_config.h"
 #include "hoja.h"
 #include "board_config.h"
+#include "usb/webusb.h"
 
 #if !defined(HOJA_DEVICE_NAME)
  #warning "HOJA_DEVICE_NAME undefined in board_config.h"
@@ -16,7 +17,7 @@
     #define DEVICE_MAKER HOJA_DEVICE_MAKER 
 #endif
 
-const device_static_u    device_static = {
+const deviceInfoStatic_s    device_static = {
     .fw_version = HOJA_FW_VERSION,
     .maker      = DEVICE_MAKER, 
     .name       = DEVICE_NAME
@@ -30,7 +31,7 @@ const device_static_u    device_static = {
  #error "HOJA_BUTTONS_SUPPORTED_SYSTEM undefined in board_config.h"
 #endif
 
-const buttons_static_u   buttons_static = {
+const buttonInfoStatic_s   buttons_static = {
     .main_buttons   = HOJA_BUTTONS_SUPPORTED_MAIN,
     .system_buttons = HOJA_BUTTONS_SUPPORTED_SYSTEM
 };
@@ -42,39 +43,44 @@ const buttons_static_u   buttons_static = {
 #endif
 
 #if defined(HOJA_ADC_LY_DRIVER) 
- #define ALY (1<<1)
+ #define ALY (1)
 #else 
  #define ALY (0)
 #endif
 
 #if defined(HOJA_ADC_RX_DRIVER) 
- #define ARX (1<<2)
+ #define ARX (1)
 #else 
  #define ARX (0)
 #endif
 
 #if defined(HOJA_ADC_RY_DRIVER) 
- #define ARY (1<<3)
+ #define ARY (1)
 #else 
  #define ARY (0)
 #endif
 
 #if defined(HOJA_ADC_LT_DRIVER) 
- #define ALT (1<<4)
+ #define ALT (1)
 #else 
  #define ALT (0)
 #endif
 
 #if defined(HOJA_ADC_RT_DRIVER) 
- #define ART (1<<5)
+ #define ART (1)
 #else 
  #define ART (0)
 #endif
 
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)
 
-const analog_static_u    analog_static = {
-    .available_axes = ANALOG_SUPPORTED,
+const analogInfoStatic_s    analog_static = {
+    .axis_lx = ALX,
+    .axis_ly = ALY,
+    .axis_rx = ARX,
+    .axis_ry = ARY,
+    .axis_lt = ALT,
+    .axis_rt = ART,
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)
@@ -83,8 +89,11 @@ const analog_static_u    analog_static = {
     #define IMU_AVAILABLE 0
 #endif
 
-const imu_static_u       imu_static = {
-    .available_axes = IMU_AVAILABLE,
+const imuInfoStatic_s       imu_static = {
+    .axis_gyro_a = IMU_AVAILABLE,
+    .axis_gyro_b = IMU_AVAILABLE,
+    .axis_accel_a = IMU_AVAILABLE,
+    .axis_accel_b = IMU_AVAILABLE,
 };
 
 #if !defined(HOJA_BATTERY_CAPACITY_MAH)
@@ -97,19 +106,19 @@ const imu_static_u       imu_static = {
  #define HOJA_BATTERY_PART_CODE "N/A"
 #endif
 
-const battery_static_u   battery_static = {
+const batteryInfoStatic   battery_static = {
     .capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
     .part_number  = HOJA_BATTERY_PART_CODE,
 };
 
 #if defined(HOJA_CONFIG_HDRUMBLE)
-    #define HDRUMBLE 0b1 
+    #define HDRUMBLE 1 
 #else 
     #define HDRUMBLE 0
 #endif 
 
 #if defined(HOJA_CONFIG_SDRUMBLE)
-    #define SDRUMBLE 0b10 
+    #define SDRUMBLE 1 
 #else 
     #define SDRUMBLE 0 
 #endif 
@@ -120,8 +129,9 @@ const battery_static_u   battery_static = {
 
 #define RUMBLE_SUPPORT (HDRUMBLE | SDRUMBLE)
 
-const haptic_static_u    haptic_static = {
-    .available_haptics = RUMBLE_SUPPORT
+const hapticInfoStatic_s    haptic_static = {
+    .haptic_hd = HDRUMBLE,
+    .haptic_sd = SDRUMBLE,
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
@@ -131,8 +141,9 @@ const haptic_static_u    haptic_static = {
     #define BTSUPPORT 0
 #endif
 
-const bluetooth_static_u bluetooth_static = {
-    .available_bluetooth = BTSUPPORT
+const bluetoothInfoStatic_s bluetooth_static = {
+    .bluetooth_bdr = BTSUPPORT,
+    .bluetooth_ble = BTSUPPORT
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)
@@ -159,11 +170,57 @@ const bluetooth_static_u bluetooth_static = {
     #define PLAYER_GROUP HOJA_RGB_PLAYER_GROUP_IDX 
 #endif
 
-const rgb_static_u       rgb_static = {
+const rgbInfoStatic_s rgb_static = {
     .rgb_groups = RGB_GROUPS,
     .rgb_group_names = RGB_GROUP_NAMES,
     .rgb_player_group = PLAYER_GROUP
 };
+
+#define BLOCK_CHUNK_MAX 32
+#define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
+#define BLOCK_TYPE_IDX 1
+#define BLOCK_CHUNK_SIZE_IDX 2
+#define BLOCK_CHUNK_PART_IDX 3
+#define BLOCK_CHUNK_BEGIN_IDX 4
+
+#define BLOCK_CHUNK_HEADER_SIZE 4
+
+uint8_t _sdata[64] = {0};
+void _serialize_block(static_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
+{
+    memset(_sdata, 0, 64);
+    _sdata[0] = WEBUSB_ID_READ_STATIC_BLOCK;
+    _sdata[BLOCK_TYPE_IDX] = (uint8_t) block;
+
+    if(size <= BLOCK_CHUNK_MAX)
+    {
+        _sdata[BLOCK_CHUNK_SIZE_IDX] = (uint8_t) size;
+        _sdata[BLOCK_CHUNK_PART_IDX] = 0;
+        memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), data, size);
+        cb(_sdata, size+BLOCK_CHUNK_HEADER_SIZE);
+    }
+    else 
+    {
+        uint32_t remaining = size;
+        uint8_t idx = 0;
+        while(remaining>0 && idx<200)
+        {
+            uint32_t loop_size = remaining <= BLOCK_CHUNK_MAX ? remaining : BLOCK_CHUNK_MAX;
+            _sdata[BLOCK_CHUNK_SIZE_IDX] = loop_size;
+            _sdata[BLOCK_CHUNK_PART_IDX] = idx;
+            memcpy(&(_sdata[BLOCK_CHUNK_BEGIN_IDX]), &(data[idx*BLOCK_CHUNK_MAX]), loop_size);
+            cb(_sdata, loop_size+BLOCK_CHUNK_HEADER_SIZE);
+            
+            remaining -= loop_size;
+            idx += 1;
+        }
+    }
+
+    // Here we send the chunk completion byte
+    _sdata[BLOCK_CHUNK_SIZE_IDX] = 0;
+    _sdata[BLOCK_CHUNK_PART_IDX] = 0xFF;
+    cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
+}
 
 void static_config_read_all_blocks(setting_callback_t cb)
 {
@@ -172,5 +229,41 @@ void static_config_read_all_blocks(setting_callback_t cb)
 
 void static_config_read_block(static_block_t block, setting_callback_t cb)
 {
+    switch(block)
+    {
+        default:
+        break;
 
+        case STATIC_BLOCK_DEVICE:
+            _serialize_block(block, &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_BUTTONS:
+            _serialize_block(block, &buttons_static, STATINFO_DEVICE_BUTTON_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_ANALOG:
+            _serialize_block(block, &analog_static, STATINFO_ANALOG_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_HAPTIC:
+            _serialize_block(block, &haptic_static, STATINFO_HAPTIC_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_IMU:
+            _serialize_block(block, &imu_static, STATINFO_IMU_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_BATTERY:
+            _serialize_block(block, &battery_static, STATINFO_BATTERY_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_BLUETOOTH:
+            _serialize_block(block, &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
+        break;
+
+        case STATIC_BLOCK_RGB:
+            _serialize_block(block, &rgb_static, STATINFO_RGB_SIZE, cb);
+        break;
+    }
 }

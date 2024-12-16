@@ -202,8 +202,6 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
     //webusb_send_bulk(confirm_data, 3);
 }
 
-
-
 uint8_t _sdata[64] = {0};
 void _serialize_block(cfg_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
 {
@@ -283,39 +281,6 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
 
         case CFG_BLOCK_BATTERY:
             _serialize_block(block, live_settings.battery_configuration_block, BATTERY_CFB_SIZE, cb);
-        break;
-    }
-}
-
-void settings_return_static_block(static_block_t block, setting_callback_t cb)
-{
-    switch(block)
-    {
-        default:
-        break;
-
-        case STATIC_BLOCK_DEVICE:
-        break;
-
-        case STATIC_BLOCK_BUTTONS:
-        break;
-
-        case STATIC_BLOCK_ANALOG:
-        break;
-
-        case STATIC_BLOCK_HAPTIC:
-        break;
-
-        case STATIC_BLOCK_IMU:
-        break;
-
-        case STATIC_BLOCK_BATTERY:
-        break;
-
-        case STATIC_BLOCK_BLUETOOTH:
-        break;
-
-        case STATIC_BLOCK_RGB:
         break;
     }
 }

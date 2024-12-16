@@ -134,13 +134,8 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
             settings_write_config_block(data[1], data);
         break;
 
-        case WEBUSB_ID_READ_ALL_CONFIG_BLOCKS:
-        break;;
-
         case WEBUSB_ID_READ_STATIC_BLOCK:
-        break;
-
-        case WEBUSB_ID_READ_ALL_STATIC_BLOCKS:
+            static_config_read_block(data[1], webusb_send_bulk);
         break;
 
         case WEBUSB_ID_CONFIG_COMMAND:
