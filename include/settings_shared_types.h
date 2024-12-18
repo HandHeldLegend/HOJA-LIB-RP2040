@@ -17,6 +17,16 @@ typedef enum
     CFG_BLOCK_MAX, 
 } cfg_block_t;
 
+#define CFG_BLOCK_GAMEPAD_VERSION   0x1
+#define CFG_BLOCK_REMAP_VERSION     0x1 
+#define CFG_BLOCK_ANALOG_VERSION    0x1
+#define CFG_BLOCK_RGB_VERSION       0x1
+#define CFG_BLOCK_TRIGGER_VERSION   0x1
+#define CFG_BLOCK_IMU_VERSION       0x1
+#define CFG_BLOCK_HAPTIC_VERSION    0x1
+#define CFG_BLOCK_USER_VERSION      0x1
+#define CFG_BLOCK_BATTERY_VERSION   0x1
+
 typedef enum 
 {
     GAMEPAD_CMD_REFRESH, 
@@ -127,9 +137,9 @@ typedef struct
 
 typedef struct 
 {
-        uint8_t     analog_config_version;
-        uint16_t    lx_invert : 1;
-        uint16_t    lx_center : 15;
+        uint8_t     analog_config_version; // 0
+        uint16_t    lx_invert : 1; 
+        uint16_t    lx_center : 15; 
         uint16_t    ly_invert : 1;
         uint16_t    ly_center : 15;
         uint16_t    rx_invert : 1;

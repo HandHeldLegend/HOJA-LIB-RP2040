@@ -136,11 +136,11 @@ gamepad_mode_t hoja_gamepad_mode_get()
 
 void hoja_init()
 {
+
+  settings_init();
   hal_init();
   input_init();
   _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
-
-  settings_init();
 
   rgb_init(-1, -1);
 

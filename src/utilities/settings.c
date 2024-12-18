@@ -239,7 +239,6 @@ void _serialize_block(cfg_block_t block, uint8_t *data , uint32_t size, setting_
     cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
 }
 
-
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
 {    
     switch(block)

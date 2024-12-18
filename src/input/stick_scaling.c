@@ -15,6 +15,7 @@
 
 #define TOTAL_ANGLES 64
 #define ADJUSTABLE_ANGLES 16
+#define ANGLE_MAP_COUNT ADJUSTABLE_ANGLES
 #define ANGLE_CHUNK (float) 5.625f
 #define HALF_ANGLE_CHUNK (float) ANGLE_CHUNK/2
 #define ANGLE_MAPPING_CHUNK (float) 22.5f // ONLY USE FOR DEFAULT SETTING
@@ -74,10 +75,10 @@ int _compare_by_input(const void *a, const void *b) {
 }
 
 // Initialize angle setup to defaults
-void _init_angle_setup(angle_setup_s *setup)
+void _angle_setup_reset_to_defaults(angle_setup_s *setup)
 {
   setup->max_idx = ADJUSTABLE_ANGLES-1;
-
+  setup->scaling_mode = 0;
   // Set up angle maps
   for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
   {
@@ -97,7 +98,7 @@ void _init_angle_setup(angle_setup_s *setup)
 
 // Function to sort the array
 int _validate_angle_maps(angleMap_s *in) {
-
+  return -1;
   int unused_idx_max = ADJUSTABLE_ANGLES; 
   int used_idx_max = 0;
   angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
@@ -450,13 +451,48 @@ void _pack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *se
 // Write distance data to config block
 void _write_to_config_block()
 {
-  analogPackedDistances_s packed;
+  analogPackedDistances_s packed = {0};
 
   _pack_stick_distances(&packed, &_left_setup);
   memcpy(&(analog_config->l_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
 
   _pack_stick_distances(&packed, &_right_setup);
   memcpy(&(analog_config->r_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
+
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    analog_config->l_angle_maps[i].distance = _left_setup.angle_maps[i].distance;
+    analog_config->l_angle_maps[i].input    = _left_setup.angle_maps[i].input;
+    analog_config->l_angle_maps[i].output   = _left_setup.angle_maps[i].output;
+
+    analog_config->r_angle_maps[i].distance = _right_setup.angle_maps[i].distance;
+    analog_config->r_angle_maps[i].input    = _right_setup.angle_maps[i].input;
+    analog_config->r_angle_maps[i].output   = _right_setup.angle_maps[i].output;
+  }
+}
+
+// Read parameters from config block
+void _read_from_config_block() 
+{
+  memcpy(&(_left_setup.angle_maps),   &(analog_config->l_angle_maps), ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+  memcpy(&(_right_setup.angle_maps),  &(analog_config->r_angle_maps), ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+
+  _unpack_stick_distances(&(analog_config->l_packed_distances), &_left_setup);
+  _unpack_stick_distances(&(analog_config->r_packed_distances), &_right_setup);
+
+  _left_setup.scaling_mode  = analog_config->l_scaler_type;
+  _right_setup.scaling_mode = analog_config->r_scaler_type;
+}
+
+// Validates a setup
+void _validate_setup(angle_setup_s *setup)
+{
+  // Validate the angles
+  int validation_code = _validate_angle_maps(setup->angle_maps);
+  if(validation_code < 4) // We need 4 valid angles
+  {
+    _angle_setup_reset_to_defaults(setup);
+  }
 }
 
 void stick_scaling_calibrate_start(bool start)
@@ -473,6 +509,29 @@ void stick_scaling_calibrate_start(bool start)
   {
     _write_to_config_block();
     _sticks_calibrating = false;
+  }
+}
+
+void stick_scaling_default_check()
+{
+  if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
+  {
+    analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
+
+    // Set to default left setup
+    _angle_setup_reset_to_defaults(&_left_setup);
+    _angle_setup_reset_to_defaults(&_right_setup);
+
+    memcpy((uint8_t *) &(analog_config->l_angle_maps), (uint8_t *) &(_left_setup.angle_maps), ANGLE_MAP_SIZE*16);
+    memcpy((uint8_t *) &(analog_config->r_angle_maps), (uint8_t *) &(_right_setup.angle_maps), ANGLE_MAP_SIZE*16);
+
+    analogPackedDistances_s tmpPacked = {0};
+
+    _pack_stick_distances(&tmpPacked, &_left_setup);
+    memcpy((uint8_t *) &(analog_config->l_packed_distances), (uint8_t *) &(_left_setup.round_distances), ANALOG_PACKED_DISTANCES_SIZE);
+  
+    _pack_stick_distances(&tmpPacked, &_right_setup);
+    memcpy((uint8_t *) &(analog_config->r_packed_distances), (uint8_t *) &(_right_setup.round_distances), ANALOG_PACKED_DISTANCES_SIZE);
   }
 }
 
@@ -510,37 +569,16 @@ bool stick_scaling_init()
 {
   MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
 
-  // Unpack analog distances
-  _unpack_stick_distances(&(analog_config->l_packed_distances), &_left_setup);
-  _unpack_stick_distances(&(analog_config->r_packed_distances), &_right_setup);
+  // Load from config
+  _read_from_config_block();
 
-  memcpy(&(_left_setup.angle_maps),  &(analog_config->l_angle_maps), sizeof(angleMap_s) * ADJUSTABLE_ANGLES);
-  memcpy(&(_right_setup.angle_maps), &(analog_config->r_angle_maps), sizeof(angleMap_s) * ADJUSTABLE_ANGLES);
+  // Perform a default check. This applies defaults
+  // if the config block version is a mismatch
+  stick_scaling_default_check();
 
-  _left_setup.scaling_mode = analog_config->l_scaler_type;
-  _left_setup.scaling_mode = analog_config->r_scaler_type;
-
-  int res = _validate_angle_maps(_left_setup.angle_maps);
-  if(res<0)
-  {
-    // Set default if we fail validation
-    _init_angle_setup(&(_left_setup));
-  }
-  else 
-  {
-    _left_setup.max_idx = res;
-  }
-
-  res = _validate_angle_maps(_right_setup.angle_maps);
-  if(res<0)
-  {
-    // Set default if we fail validation
-    _init_angle_setup(&(_right_setup));
-  }
-  else 
-  {
-    _right_setup.max_idx = res;
-  }
+  // Validate our settings
+  _validate_setup(&_left_setup); 
+  _validate_setup(&_right_setup); 
 
   MUTEX_HAL_EXIT(&_stick_scaling_mutex);
   return true;
