@@ -57,8 +57,10 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
     }
 }
 
+bool _ready_to_go = false;
+
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
-void webusb_input_task(uint32_t timestamp)
+void webusb_send_rawinput(uint32_t timestamp)
 {
     static interval_s interval_ready = {0};
     static interval_s interval = {0};
@@ -68,42 +70,53 @@ void webusb_input_task(uint32_t timestamp)
 
     static bool ready = false;
 
-    if(interval_run(timestamp, 2000, &interval_ready))
+    if(!_ready_to_go) return;
+
+    if(!ready)
     {
-        //if(!ready)
-        //    ready = _webusb_ready();
+        if(webusb_ready_blocking(10))
+        {
+            ready = true;
+        }
     }
 
-    if (ready && interval_run(timestamp, 8000, &interval))
+    if (interval_run(timestamp, 8000, &interval) && ready)
     {
         uint8_t webusb_input_report[64] = {0};
 
-        analog_access_try(&analog, ANALOG_ACCESS_DEADZONE_DATA);
-        button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+        analog_access_try(&analog, ANALOG_ACCESS_SCALED_DATA);
+        //button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
 
-        webusb_input_report[0] = WEBUSB_INPUT_PROCESSED;
+        webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-        webusb_input_report[1] = CLAMP_0_255(analog.lx >> 4);
-        webusb_input_report[2] = CLAMP_0_255(analog.ly >> 4);
-        webusb_input_report[3] = CLAMP_0_255(analog.rx >> 4);
-        webusb_input_report[4] = CLAMP_0_255(analog.ry >> 4);
+        webusb_input_report[1] = (analog.lx & 0xFF00) >> 8;
+        webusb_input_report[2] = (analog.lx & 0xFF);       
+        webusb_input_report[3] = (analog.ly & 0xFF00) >> 8;
+        webusb_input_report[4] = (analog.ly & 0xFF);       
 
-        webusb_input_report[5] = buttons.buttons_all & 0xFF;
-        webusb_input_report[6] = (buttons.buttons_all >> 8) & 0xFF;
-        webusb_input_report[7] = buttons.buttons_system;
-        webusb_input_report[8] = CLAMP_0_255(buttons.zl_analog >> 4);
-        webusb_input_report[9] = CLAMP_0_255(buttons.zr_analog >> 4);
+        webusb_input_report[5] = (analog.rx & 0xFF00) >> 8;
+        webusb_input_report[6] = (analog.rx & 0xFF);       
+        webusb_input_report[7] = (analog.ry & 0xFF00) >> 8;
+        webusb_input_report[8] = (analog.ry & 0xFF);       
+
+        webusb_input_report[9] = buttons.buttons_all & 0xFF;
+        webusb_input_report[10] = (buttons.buttons_all >> 8) & 0xFF;
+        webusb_input_report[11] = buttons.buttons_system;
+        webusb_input_report[12] = CLAMP_0_255(buttons.zl_analog >> 4);
+        webusb_input_report[13] = CLAMP_0_255(buttons.zr_analog >> 4);
 
 
-        webusb_input_report[10] = CLAMP_0_255((uint8_t) ( ( (imu.ax*4)+32767)>>8));
-        webusb_input_report[11] = CLAMP_0_255((uint8_t) ( ( (imu.ay*4)+32767)>>8));
-        webusb_input_report[12] = CLAMP_0_255((uint8_t) ( ( (imu.az*4)+32767)>>8));
-        webusb_input_report[13] = CLAMP_0_255((uint8_t) ( ( (imu.gx*4)+32767)>>8));
-        webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (imu.gy*4)+32767)>>8));
-        webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (imu.gz*4)+32767)>>8));
+        webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (imu.ax*4)+32767)>>8));
+        webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (imu.ay*4)+32767)>>8));
+        webusb_input_report[16] = CLAMP_0_255((uint8_t) ( ( (imu.az*4)+32767)>>8));
+        webusb_input_report[17] = CLAMP_0_255((uint8_t) ( ( (imu.gx*4)+32767)>>8));
+        webusb_input_report[18] = CLAMP_0_255((uint8_t) ( ( (imu.gy*4)+32767)>>8));
+        webusb_input_report[19] = CLAMP_0_255((uint8_t) ( ( (imu.gz*4)+32767)>>8));
 
-        //tud_vendor_n_write(0, webusb_input_report, 64);
-        //tud_vendor_n_flush(0);
+        tud_vendor_n_write(0, webusb_input_report, 64);
+        tud_vendor_n_flush(0);
+
+        ready = false;
     }
 }
 
@@ -118,6 +131,7 @@ void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd)
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
 {
+    _ready_to_go = true;
     switch(data[0])
     {
         case WEBUSB_ID_READ_CONFIG_BLOCK:

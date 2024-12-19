@@ -15,10 +15,12 @@
 
 #define TOTAL_ANGLES 64
 #define ADJUSTABLE_ANGLES 16
+#define DEFAULT_ANGLES_COUNT 8
 #define ANGLE_MAP_COUNT ADJUSTABLE_ANGLES
 #define ANGLE_CHUNK (float) 5.625f
 #define HALF_ANGLE_CHUNK (float) ANGLE_CHUNK/2
-#define ANGLE_MAPPING_CHUNK (float) 22.5f // ONLY USE FOR DEFAULT SETTING
+#define ANGLE_MAPPING_CHUNK (float) 22.5f 
+#define ANGLE_DEFAULT_CHUNK (float) (360.0f / 8.0f)
 #define ANALOG_MAX_DISTANCE 2048
 #define LERP(a, b, t) ((a) + (t) * ((b) - (a)))
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
@@ -77,13 +79,17 @@ int _compare_by_input(const void *a, const void *b) {
 // Initialize angle setup to defaults
 void _angle_setup_reset_to_defaults(angle_setup_s *setup)
 {
-  setup->max_idx = ADJUSTABLE_ANGLES-1;
+  setup->max_idx = DEFAULT_ANGLES_COUNT - 1;
   setup->scaling_mode = 0;
+
+  // Reset to zero
+  memset(setup->angle_maps, 0, sizeof(ANGLE_MAP_SIZE) * ADJUSTABLE_ANGLES);
+
   // Set up angle maps
-  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  for(int i = 0; i < DEFAULT_ANGLES_COUNT; i++)
   {
-    setup->angle_maps[i].input  = i*ANGLE_MAPPING_CHUNK;
-    setup->angle_maps[i].output = i*ANGLE_MAPPING_CHUNK;
+    setup->angle_maps[i].input  = i * ANGLE_DEFAULT_CHUNK;
+    setup->angle_maps[i].output = i * ANGLE_DEFAULT_CHUNK;
     setup->angle_maps[i].distance = ANALOG_MAX_DISTANCE;
   }
 

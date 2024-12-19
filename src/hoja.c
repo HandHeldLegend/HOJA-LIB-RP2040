@@ -1,6 +1,7 @@
 #include "hoja.h"
 
 #include "usb/usb.h"
+#include "usb/webusb.h"
 #include "wired/wired.h"
 
 #include "hoja_system.h"
@@ -83,6 +84,8 @@ void _hoja_task_0()
   if(_hoja_mode_task_cb!=NULL)
   {
     _hoja_mode_task_cb(c0_timestamp);
+    // Optional web Input
+    webusb_send_rawinput(c0_timestamp);
   }
 
   // RGB task
