@@ -80,7 +80,7 @@ void webusb_send_rawinput(uint32_t timestamp)
         }
     }
 
-    if (interval_run(timestamp, 8000, &interval) && ready)
+    if (interval_run(timestamp, 3000, &interval) && ready)
     {
         uint8_t webusb_input_report[64] = {0};
 

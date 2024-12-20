@@ -152,7 +152,9 @@ typedef struct
         angleMap_s  r_angle_maps[16]; // SIZE=12
         uint8_t     l_scaler_type; 
         uint8_t     r_scaler_type; 
-        uint8_t     reserved[369];
+        uint16_t    l_deadzone; 
+        uint16_t    r_deadzone; 
+        uint8_t     reserved[365];
 } analogConfig_s;
 
 typedef struct 

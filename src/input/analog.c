@@ -265,7 +265,7 @@ void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
     cb(CFG_BLOCK_ANALOG, cmd);
 }
 
-const uint32_t _analog_interval = 200;
+const uint32_t _analog_interval = 500;
 
 void analog_task(uint32_t timestamp)
 {

@@ -29,8 +29,16 @@
 
 typedef struct 
 {
+  float distance_a;
+  float distance_mid;
+  float distance_b;
+} polygon_solved_s;
+
+typedef struct 
+{
   int max_idx; 
   angleMap_s angle_maps[ADJUSTABLE_ANGLES];
+  float polygon_mid_distances[ADJUSTABLE_ANGLES];
   int round_distances[64];
   analog_scaler_t scaling_mode;
 } angle_setup_s;
@@ -62,20 +70,6 @@ void _zero_distances(angle_setup_s *setup)
   }
 }
 
-// Comparison function for qsort
-int _compare_by_input(const void *a, const void *b) {
-    const angleMap_s *angle_a = (const angleMap_s *)a;
-    const angleMap_s *angle_b = (const angleMap_s *)b;
-
-    if (angle_a->input < angle_b->input) {
-        return -1;
-    } else if (angle_a->input > angle_b->input) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
 // Initialize angle setup to defaults
 void _angle_setup_reset_to_defaults(angle_setup_s *setup)
 {
@@ -83,7 +77,7 @@ void _angle_setup_reset_to_defaults(angle_setup_s *setup)
   setup->scaling_mode = 0;
 
   // Reset to zero
-  memset(setup->angle_maps, 0, sizeof(ANGLE_MAP_SIZE) * ADJUSTABLE_ANGLES);
+  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
 
   // Set up angle maps
   for(int i = 0; i < DEFAULT_ANGLES_COUNT; i++)
@@ -102,46 +96,19 @@ void _angle_setup_reset_to_defaults(angle_setup_s *setup)
   setup->scaling_mode = ANALOG_SCALER_ROUND;
 }
 
-// Function to sort the array
-int _validate_angle_maps(angleMap_s *in) {
-  return -1;
-  int unused_idx_max = ADJUSTABLE_ANGLES; 
-  int used_idx_max = 0;
-  angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
 
-  // First, remove all unused angles and put them at the end
-  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
-  {
-    if(in[i].distance<MINIMUM_REQUIRED_DISTANCE)
-    {
-      unused_idx_max--;
+// Comparison function for qsort
+int _compare_by_input(const void *a, const void *b) {
+    const angleMap_s *angle_a = (const angleMap_s *)a;
+    const angleMap_s *angle_b = (const angleMap_s *)b;
+
+    if (angle_a->input < angle_b->input) {
+        return -1;
+    } else if (angle_a->input > angle_b->input) {
+        return 1;
+    } else {
+        return 0;
     }
-    else
-    {
-      filtered_map[used_idx_max] = in[i];
-      used_idx_max++;
-    }
-  }
-
-  qsort(filtered_map, used_idx_max, sizeof(angleMap_s), _compare_by_input);
-
-  float tmp_input   = filtered_map[0].input;
-  float tmp_output  = filtered_map[0].output;
-
-  if(used_idx_max<4) return -4;
-
-  // Check for duplicates or invalid mappings
-  for(int i = 1; i < used_idx_max; i++)
-  {
-    if(in[i].input == tmp_input) return -1;
-    if(_angle_diff(tmp_input, tmp_output) >= MAX_ANGLE_ADJUSTMENT) return -2;
-    if(_angle_diff(in[i].output, tmp_output) >= MAX_ANGLE_ADJUSTMENT) return -3;
-
-    tmp_input = in[i].input;
-    tmp_output = in[i].output;
-  }
-
-  return used_idx_max;
 }
 
 // Get distance to coordinates based on a 0, 0 center
@@ -214,6 +181,16 @@ void _find_containing_index_pair(float input_angle, angle_setup_s *setup, int *i
   idx_pair[0] = -1;
   idx_pair[1] = -1;
 
+  if(setup->angle_maps[0].input > 0)
+  {
+    if(input_angle < setup->angle_maps[0].input)
+    {
+      idx_pair[0] = (setup->max_idx);
+      idx_pair[1] = 0;
+      return;
+    }
+  }
+
   if( (input_angle >= setup->angle_maps[(setup->max_idx)].input) )
   {
     idx_pair[0] = (setup->max_idx);
@@ -261,7 +238,7 @@ float _angle_lerp(float magnitude, float lower, float upper)
 float _distance_lerp(float magnitude, float lower, float upper) 
 {
   float distance = upper-lower;
-  float new_out = (distance*magnitude) + lower;
+  float new_out = lower+magnitude * (upper-lower);
   return new_out;
 }
 
@@ -316,6 +293,25 @@ void _angle_distance_to_coordinate(float angle, float distance, int *out)
     out[1] = fmaxf(-2048, fminf(2048, out[1]));
 }
 
+void _angle_distance_to_fcoordinate(float angle, float distance, float *out) 
+{    
+    // Normalize angle to 0-360 range
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    
+    // Convert angle to radians
+    float angle_radians = angle * M_PI / 180.0f;
+    
+    // Calculate X and Y coordinates
+    // Limit to -2048 to +2048 range
+    out[0] = (distance * cosf(angle_radians));
+    out[1] = (distance * sinf(angle_radians));
+    
+    // Clamp to prevent exceeding the specified range
+    out[0] = fmaxf(-2048, fminf(2048, out[0]));
+    out[1] = fmaxf(-2048, fminf(2048, out[1]));
+}
+
 float _coordinate_to_angle(int x, int y) 
 {
     // Handle special cases to avoid division by zero
@@ -356,10 +352,34 @@ void _calibrate_axis(int *in, angle_setup_s *setup)
   }
 }
 
+float _closest_distance_to_line(float x1, float y1, float x2, float y2) {
+    // Calculate the line equation coefficients (Ax + By + C = 0)
+    float A = y2 - y1;
+    float B = x1 - x2;
+    float C = x2 * y1 - x1 * y2;
+
+    // Calculate the distance from (0, 0) to the line
+    float distance = fabs(A * 0 + B * 0 + C) / sqrt(A * A + B * B);
+
+    return distance;
+}
+
+void _solve_polygon(float d1, float a1, float d2, float a2, float *mid_distance)
+{
+  float c1[2] = {0};
+  float c2[2] = {0};
+
+  _angle_distance_to_fcoordinate(a1, d1, c1);
+  _angle_distance_to_fcoordinate(a2, d2, c2);
+
+  *mid_distance = _closest_distance_to_line(c1[0], c1[1], c2[0], c2[1]);
+}
+
 void _process_axis(int *in, int *out, angle_setup_s *setup)
 {
   // Get input distance
   float distance = _coordinate_distance(in[0], in[1]);
+
   // Get input angle
   float angle = _coordinate_to_angle(in[0], in[1]);
 
@@ -373,7 +393,6 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
   {
     // Calculate magnitude of current angle between input angles for our angle map
     float magnitude = _angle_magnitude(angle, setup->angle_maps[idx_pair[0]].input, setup->angle_maps[idx_pair[1]].input);
-
     // Calculate new output angle based on magnitudes
     float new_angle = _angle_lerp(magnitude, setup->angle_maps[idx_pair[0]].output, setup->angle_maps[idx_pair[1]].output);
 
@@ -387,15 +406,27 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
     float distance_scale_factor = 1;
     float output_distance       = 0;
 
+    // Determine which polygon half we are in 
+    int polygon_half = (magnitude >= 0.5) ? 1 : 0;
+    float magnitude_expanded = (magnitude >= 0.5) ? (magnitude-0.5)*2 : magnitude*2;
+
     // We will calculate the new distance appropriately according to our scaling mode
     switch(setup->scaling_mode)
     {
       case ANALOG_SCALER_POLYGON:
-        // Calculate our new target distance which is 
-        // interpolated from our angle map distances
-        target_distance       = _distance_lerp(magnitude, 
-          setup->angle_maps[idx_pair[0]].distance, 
+
+        if(polygon_half) // Latter half
+        {
+          target_distance       = _distance_lerp(magnitude, 
+          setup->polygon_mid_distances[idx_pair[0]],
           setup->angle_maps[idx_pair[1]].distance);
+        }
+        else // First half
+        {
+          target_distance       = _distance_lerp(magnitude, 
+          setup->angle_maps[idx_pair[0]].distance, 
+          setup->polygon_mid_distances[idx_pair[0]]);
+        }
 
       default:
       case ANALOG_SCALER_ROUND:
@@ -424,8 +455,15 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
 
     }
 
-    distance_scale_factor = (!calibrated_distance) ? 0 : (target_distance / calibrated_distance);
+    float adjusted_distance = target_distance + 200;
+
+    distance_scale_factor = (!calibrated_distance) ? 0 : (adjusted_distance / calibrated_distance);
     output_distance = distance*distance_scale_factor;
+
+    if(output_distance > target_distance)
+    {
+      output_distance = target_distance;
+    }
 
     _angle_distance_to_coordinate(new_angle, output_distance, out);
   }
@@ -436,9 +474,9 @@ void _unpack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *
   // Set first distance
   setup->round_distances[0] = distances->first_distance;
    
-  for(int i = 1; i<TOTAL_ANGLES; i++)
+  for(int i = 1; i < TOTAL_ANGLES; i++)
   {
-    setup->round_distances[i] = setup->round_distances[i-1]+ (int) distances->offsets[i-1];
+    setup->round_distances[i] = setup->round_distances[i-1] + (int) distances->offsets[i-1];
   }
 }
 
@@ -480,11 +518,14 @@ void _write_to_config_block()
 // Read parameters from config block
 void _read_from_config_block() 
 {
-  memcpy(&(_left_setup.angle_maps),   &(analog_config->l_angle_maps), ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
-  memcpy(&(_right_setup.angle_maps),  &(analog_config->r_angle_maps), ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+  memcpy(_left_setup.angle_maps,   analog_config->l_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+  memcpy(_right_setup.angle_maps,  analog_config->r_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
 
-  _unpack_stick_distances(&(analog_config->l_packed_distances), &_left_setup);
-  _unpack_stick_distances(&(analog_config->r_packed_distances), &_right_setup);
+  analogPackedDistances_s tmp = {0};
+  memcpy(&tmp, &(analog_config->l_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
+  _unpack_stick_distances(&tmp, &_left_setup);
+  memcpy(&tmp, &(analog_config->r_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
+  _unpack_stick_distances(&tmp, &_right_setup);
 
   _left_setup.scaling_mode  = analog_config->l_scaler_type;
   _right_setup.scaling_mode = analog_config->r_scaler_type;
@@ -493,16 +534,48 @@ void _read_from_config_block()
 // Validates a setup
 void _validate_setup(angle_setup_s *setup)
 {
-  // Validate the angles
-  int validation_code = _validate_angle_maps(setup->angle_maps);
-  if(validation_code < 4) // We need 4 valid angles
+  angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
+  int used_size_max = 0;
+
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    if(setup->angle_maps[i].distance<=MINIMUM_REQUIRED_DISTANCE)
+    {
+      continue;
+    }
+
+    filtered_map[used_size_max].distance = setup->angle_maps[i].distance;
+    filtered_map[used_size_max].input    = setup->angle_maps[i].input;
+    filtered_map[used_size_max].output   = setup->angle_maps[i].output;
+    used_size_max++;
+  }
+
+  // Sort our angles by input
+  qsort(filtered_map, used_size_max, ANGLE_MAP_SIZE, _compare_by_input);
+
+  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
+  memcpy(setup->angle_maps, filtered_map, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
+
+  // Set up polygon solves
+  for(int i = 0; i < used_size_max; i++) {
+    _solve_polygon(setup->angle_maps[i].distance, setup->angle_maps[i].output, 
+                   setup->angle_maps[(i+1)%used_size_max].distance, setup->angle_maps[(i+1)%used_size_max].output, 
+                   &setup->polygon_mid_distances[i]);
+  }
+
+  if(used_size_max < 4) // We need 4 valid angles
   {
     _angle_setup_reset_to_defaults(setup);
+  }
+  else 
+  {
+    setup->max_idx = used_size_max-1;
   }
 }
 
 void stick_scaling_calibrate_start(bool start)
 {
+  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
   if(!_sticks_calibrating && start) 
   {
     // Reset all to default
@@ -516,6 +589,7 @@ void stick_scaling_calibrate_start(bool start)
     _write_to_config_block();
     _sticks_calibrating = false;
   }
+  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
 }
 
 void stick_scaling_default_check()
@@ -528,16 +602,7 @@ void stick_scaling_default_check()
     _angle_setup_reset_to_defaults(&_left_setup);
     _angle_setup_reset_to_defaults(&_right_setup);
 
-    memcpy((uint8_t *) &(analog_config->l_angle_maps), (uint8_t *) &(_left_setup.angle_maps), ANGLE_MAP_SIZE*16);
-    memcpy((uint8_t *) &(analog_config->r_angle_maps), (uint8_t *) &(_right_setup.angle_maps), ANGLE_MAP_SIZE*16);
-
-    analogPackedDistances_s tmpPacked = {0};
-
-    _pack_stick_distances(&tmpPacked, &_left_setup);
-    memcpy((uint8_t *) &(analog_config->l_packed_distances), (uint8_t *) &(_left_setup.round_distances), ANALOG_PACKED_DISTANCES_SIZE);
-  
-    _pack_stick_distances(&tmpPacked, &_right_setup);
-    memcpy((uint8_t *) &(analog_config->r_packed_distances), (uint8_t *) &(_right_setup.round_distances), ANALOG_PACKED_DISTANCES_SIZE);
+    _write_to_config_block();
   }
 }
 
@@ -555,8 +620,10 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   {
     _calibrate_axis(in_left, &_left_setup);
     _calibrate_axis(in_right, &_right_setup);
-    memset(out_left,  0, 2);
-    memset(out_right, 0, 2);
+    out_left[0] = 0;
+    out_left[1] = 0;
+    out_right[0] = 0;
+    out_right[1] = 0;
   }
   else 
   {
