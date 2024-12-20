@@ -455,7 +455,7 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
 
     }
 
-    float adjusted_distance = target_distance + 200;
+    float adjusted_distance = target_distance + 125;
 
     distance_scale_factor = (!calibrated_distance) ? 0 : (adjusted_distance / calibrated_distance);
     output_distance = distance*distance_scale_factor;
