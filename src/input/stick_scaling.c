@@ -417,13 +417,13 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
 
         if(polygon_half) // Latter half
         {
-          target_distance       = _distance_lerp(magnitude, 
+          target_distance       = _distance_lerp(magnitude_expanded, 
           setup->polygon_mid_distances[idx_pair[0]],
           setup->angle_maps[idx_pair[1]].distance);
         }
         else // First half
         {
-          target_distance       = _distance_lerp(magnitude, 
+          target_distance       = _distance_lerp(magnitude_expanded, 
           setup->angle_maps[idx_pair[0]].distance, 
           setup->polygon_mid_distances[idx_pair[0]]);
         }
