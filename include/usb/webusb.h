@@ -15,7 +15,7 @@ typedef enum
   WEBUSB_INPUT_RAW = 255, 
 } webusb_report_id_t;
 
-void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd);
+void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, uint8_t *data, uint32_t size);
 void webusb_send_bulk(const uint8_t *data, uint16_t size);
 void webusb_command_handler(uint8_t *data, uint32_t size);
 void webusb_send_rawinput(uint32_t timestamp);

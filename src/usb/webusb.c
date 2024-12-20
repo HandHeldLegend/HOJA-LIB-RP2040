@@ -120,13 +120,17 @@ void webusb_send_rawinput(uint32_t timestamp)
     }
 }
 
-void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd)
+void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, uint8_t *data, uint32_t size)
 {
     uint8_t cmd_confirm_buffer[64] = {0x00};
     cmd_confirm_buffer[0] = WEBUSB_ID_CONFIG_COMMAND;
     cmd_confirm_buffer[1] = config_block;
     cmd_confirm_buffer[2] = cmd;
-    webusb_send_bulk(cmd_confirm_buffer, 3);
+
+    if(data != NULL) 
+        memcpy(&cmd_confirm_buffer[3], data, size);
+
+    webusb_send_bulk(cmd_confirm_buffer, 3+size);
 }
 
 void webusb_command_handler(uint8_t *data, uint32_t size)

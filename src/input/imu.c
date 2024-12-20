@@ -266,7 +266,7 @@ void _imu_calibrate_stop()
 
   if(_calibrate_done_cb != NULL)
   { 
-    _calibrate_done_cb(CFG_BLOCK_IMU, _command);
+    _calibrate_done_cb(CFG_BLOCK_IMU, _command, NULL, 0);
   }
 
   _calibrate_done_cb = NULL;

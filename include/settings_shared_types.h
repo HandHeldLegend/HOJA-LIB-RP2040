@@ -75,7 +75,7 @@ typedef enum
 } trigger_cmd_t;
 
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
-typedef void (*command_confirm_t)(cfg_block_t, uint8_t);
+typedef void (*command_confirm_t)(cfg_block_t, uint8_t, uint8_t*, uint32_t);
 
 #pragma pack(push, 1)
 typedef struct 

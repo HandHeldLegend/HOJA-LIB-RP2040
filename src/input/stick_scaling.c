@@ -312,7 +312,7 @@ void _angle_distance_to_fcoordinate(float angle, float distance, float *out)
     out[1] = fmaxf(-2048, fminf(2048, out[1]));
 }
 
-float _coordinate_to_angle(int x, int y) 
+float stick_scaling_coordinates_to_angle(int x, int y) 
 {
     // Handle special cases to avoid division by zero
     if (x == 0) {
@@ -339,7 +339,7 @@ void _calibrate_axis(int *in, angle_setup_s *setup)
   // Get input distance
   float distance  = _coordinate_distance(in[0], in[1]);
   // Get input angle
-  float angle     = _coordinate_to_angle(in[0], in[1]);
+  float angle     = stick_scaling_coordinates_to_angle(in[0], in[1]);
 
   angle   -= HALF_ANGLE_CHUNK;
   angle   = roundf(angle/ANGLE_CHUNK);
@@ -381,7 +381,7 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
   float distance = _coordinate_distance(in[0], in[1]);
 
   // Get input angle
-  float angle = _coordinate_to_angle(in[0], in[1]);
+  float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
 
   // Get the index pair from our calibrated angles
   // (Which indeces is our angle between?)

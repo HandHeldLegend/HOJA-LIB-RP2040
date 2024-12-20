@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "hal/mutex_hal.h"
 
@@ -241,8 +242,23 @@ void _capture_center_offsets()
     _analog_exit();
 }
 
+void _capture_input_angle(float *left, float *right)
+{
+    _analog_blocking_enter();
+
+    // Extract angles from raw analog data and store them
+    *left   = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
+    *right  = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+
+    _analog_exit();
+}
+
 void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
 {
+    float left = 0.0f;
+    float right = 0.0f;
+    bool do_cb = false;
+
     switch(cmd)
     {
         default:
@@ -252,17 +268,27 @@ void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
             // Capture centers first
             _capture_center_offsets();
             stick_scaling_calibrate_start(true);
+            do_cb = true;
         break;
 
         case ANALOG_CMD_CALIBRATE_STOP:
             stick_scaling_calibrate_start(false);
+            do_cb = true;
         break;
 
         case ANALOG_CMD_CAPTURE_ANGLE:
+            // Capture angles
+            _capture_input_angle(&left, &right);
+            uint8_t buffer[8] = {0};
+            memcpy(buffer, &left, sizeof(float));
+            memcpy(buffer+4, &right, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, buffer, 8);
+            return;
         break;
     }
 
-    cb(CFG_BLOCK_ANALOG, cmd);
+    if(do_cb)
+        cb(CFG_BLOCK_ANALOG, cmd, NULL, 0);
 }
 
 const uint32_t _analog_interval = 500;
