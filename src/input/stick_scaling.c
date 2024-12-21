@@ -29,16 +29,15 @@
 
 typedef struct 
 {
-  float distance_a;
-  float distance_mid;
-  float distance_b;
+  float distance;
+  float midpoint_magnitude;
 } polygon_solved_s;
 
 typedef struct 
 {
   int max_idx; 
   angleMap_s angle_maps[ADJUSTABLE_ANGLES];
-  float polygon_mid_distances[ADJUSTABLE_ANGLES];
+  polygon_solved_s polygon_mid_distances[ADJUSTABLE_ANGLES];
   int round_distances[64];
   analog_scaler_t scaling_mode;
 } angle_setup_s;
@@ -364,7 +363,7 @@ float _closest_distance_to_line(float x1, float y1, float x2, float y2) {
     return distance;
 }
 
-void _solve_polygon(float d1, float a1, float d2, float a2, float *mid_distance)
+void _solve_polygon(float d1, float a1, float d2, float a2, polygon_solved_s *solved)
 {
   float c1[2] = {0};
   float c2[2] = {0};
@@ -372,7 +371,18 @@ void _solve_polygon(float d1, float a1, float d2, float a2, float *mid_distance)
   _angle_distance_to_fcoordinate(a1, d1, c1);
   _angle_distance_to_fcoordinate(a2, d2, c2);
 
-  *mid_distance = _closest_distance_to_line(c1[0], c1[1], c2[0], c2[1]);
+  // Calculate the midpoint
+  float midX = (c1[0] + c2[0]) / 2.0f;
+  float midY = (c1[1] + c2[1]) / 2.0f;
+
+  // Calculate the distance from (0,0) to the midpoint
+  solved->distance = sqrt(midX * midX + midY * midY);
+
+  // Calculate the angle from (0,0) to the midpoint (in radians)
+  float angleRadians = atan2(midY, midX);
+  float angle = _normalize_angle(angleRadians * 180.0f / M_PI);
+
+  solved->midpoint_magnitude = _angle_magnitude(angle, a1, a2);
 }
 
 void _process_axis(int *in, int *out, angle_setup_s *setup)
@@ -407,25 +417,44 @@ void _process_axis(int *in, int *out, angle_setup_s *setup)
     float output_distance       = 0;
 
     // Determine which polygon half we are in 
-    int polygon_half = (magnitude >= 0.5) ? 1 : 0;
-    float magnitude_expanded = (magnitude >= 0.5) ? (magnitude-0.5)*2 : magnitude*2;
+    int polygon_half          = 0;
+    float magnitude_expanded  = 0;
+    float magnitude_polygon   = 0;
+    float scaler_magnitude    = 0;
 
     // We will calculate the new distance appropriately according to our scaling mode
     switch(setup->scaling_mode)
     {
       case ANALOG_SCALER_POLYGON:
+        // Get the magnitude of the halfway point we stored
+        magnitude_polygon = setup->polygon_mid_distances[idx_pair[0]].midpoint_magnitude;
+        // Determine which half of the polygon line we are in
+        polygon_half = (magnitude >= magnitude_polygon) ? 1 : 0;
+        
 
-        if(polygon_half) // Latter half
+        // Scale up the magnitude to a full scale 
+        if(!polygon_half)
         {
-          target_distance       = _distance_lerp(magnitude_expanded, 
-          setup->polygon_mid_distances[idx_pair[0]],
-          setup->angle_maps[idx_pair[1]].distance);
+          scaler_magnitude = 1 / magnitude_polygon;
+          magnitude_expanded = magnitude * scaler_magnitude;
         }
-        else // First half
+        else 
+        {
+          scaler_magnitude = 1 / (1 - magnitude_polygon);
+          magnitude_expanded = (magnitude - magnitude_polygon) * scaler_magnitude;
+        }
+
+        if(!polygon_half) 
         {
           target_distance       = _distance_lerp(magnitude_expanded, 
           setup->angle_maps[idx_pair[0]].distance, 
-          setup->polygon_mid_distances[idx_pair[0]]);
+          setup->polygon_mid_distances[idx_pair[0]].distance);
+        }
+        else 
+        {
+          target_distance       = _distance_lerp(magnitude_expanded, 
+          setup->polygon_mid_distances[idx_pair[0]].distance,
+          setup->angle_maps[idx_pair[1]].distance);
         }
 
       default:
