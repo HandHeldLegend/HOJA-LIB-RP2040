@@ -75,10 +75,8 @@ void _hoja_task_0()
 
   input_digital_task(c0_timestamp);
 
-  // Handle HD rumble
-  //#if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
-  //  hdrumble_hal_task(c0_timestamp);
-  //#endif
+  // Handle haptics
+  haptics_task(c0_timestamp);
 
   // Comms task
   if(_hoja_mode_task_cb!=NULL)
@@ -146,6 +144,8 @@ void hoja_init()
   _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
 
   rgb_init(-1, -1);
+
+  haptics_init();
 
   // Init specific GAMEPAD mode
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

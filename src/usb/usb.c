@@ -25,6 +25,7 @@
 
 #include "switch/switch_commands.h"
 #include "switch/switch_haptics.h"
+#include "devices_shared_types.h"
 
 typedef enum
 {
@@ -350,7 +351,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == SW_OUT_ID_RUMBLE)
       {
-        haptics_rumble_translate(&buffer[2]);
+        switch_haptics_rumble_translate(&buffer[2]);
       }
       else
       {
@@ -364,8 +365,8 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        float amp = (buffer[1] & 0x1) ? HOJA_HAPTIC_BASE_AMP : 0;
-        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
+        float amp = (buffer[1] & 0x1) ? HAPTICS_BASE_AMP : 0;
+        //haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
       }
       else if (buffer[0] == 0x13)
       {
@@ -389,7 +390,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 
         float out = (xrl > xrr) ? xrl : xrr;
 
-        haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, out);
+        //haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, out);
       }
     }
     break;

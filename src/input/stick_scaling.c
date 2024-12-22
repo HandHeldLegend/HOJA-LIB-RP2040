@@ -89,7 +89,7 @@ void _angle_setup_reset_to_defaults(angle_setup_s *setup)
   // Set up distances 
   for(int i = 0; i < 64; i++)
   {
-    setup->round_distances[i] = ANALOG_MAX_DISTANCE;
+    setup->round_distances[i] = 1432;
   }
 
   setup->scaling_mode = ANALOG_SCALER_ROUND;

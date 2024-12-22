@@ -70,11 +70,11 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
 
         case BTCB_SD_RUMBLE:
-            haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, la);
+            //haptics_set_all(0, 0, HAPTICs_BASE_LFREQ, la);
         break;
 
         case BTCB_HD_RUMBLE:
-            haptics_rumble_translate(&(msg->data[0]));
+            switch_haptics_rumble_translate(&(msg->data[0]));
         break;
     }
 }

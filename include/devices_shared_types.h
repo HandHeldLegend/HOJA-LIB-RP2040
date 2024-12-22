@@ -46,6 +46,14 @@ typedef struct
     uint16_t value;
 } hsv_s;
 
+typedef struct 
+{
+    uint32_t hi_amplitude_fixed;
+    uint32_t lo_amplitude_fixed;
+    uint16_t hi_frequency_increment;
+    uint16_t lo_frequency_increment;
+} haptic_processed_s;
+
 #define COLOR_RED    (rgb_s) {.r = 0xFF, .g = 0x00, .b = 0x00}
 #define COLOR_ORANGE (rgb_s) {.r = 0xFF, .g = 0x4d, .b = 0x00}
 #define COLOR_YELLOW (rgb_s) {.r = 0xFF, .g = 0xE6, .b = 0x00}
@@ -58,5 +66,9 @@ typedef struct
 #define COLOR_BLACK  (rgb_s) {.r = 0x00, .g = 0x00, .b = 0x00}
 
 #define COLORS_RAINBOW {COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_CYAN, COLOR_BLUE, COLOR_PURPLE}
+
+#define HAPTICS_BASE_HFREQ 320
+#define HAPTICS_BASE_LFREQ 130
+#define HAPTICS_BASE_AMP 0.55f
 
 #endif

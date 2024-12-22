@@ -26,7 +26,7 @@ uint8_t _switch_imu_mode = 0x00;
 
 uint8_t _switch_command_buffer[64] = {0};
 uint8_t _switch_command_report_id = 0x00;
-// uint8_t _switch_mac_address[6] = {0};
+
 uint8_t _switch_ltk[16] = {0};
 
 void generate_ltk()
@@ -220,7 +220,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
     //}
 
     // Save if we have an updated host address.
-    if (diff_host)
+    // if (diff_host)
       //settings_save_from_core0();
 
     set_ack(0x81);
@@ -385,7 +385,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
       set_num = 8;
       break;
     }
-    rgb_set_player(set_num);
+    //rgb_set_player(set_num);
     break;
 
   default:
@@ -400,7 +400,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
   }
 
   //printf("Sent: ");
-  for (uint8_t i = 0; i < 32; i++)
+  //for (uint8_t i = 0; i < 32; i++)
   {
     //printf("%X, ", _switch_command_buffer[i]);
   }
@@ -416,12 +416,12 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
   {
   // We have command data and possibly rumble
   case SW_OUT_ID_RUMBLE_CMD:
-    haptics_rumble_translate(&data[2]);
+    switch_haptics_rumble_translate(&data[2]);
     command_handler(data[10], data, len);
     break;
 
   case SW_OUT_ID_RUMBLE:
-    haptics_rumble_translate(&data[2]);
+    switch_haptics_rumble_translate(&data[2]);
     break;
 
   case SW_OUT_ID_INFO:

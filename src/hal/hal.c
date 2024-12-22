@@ -18,6 +18,6 @@ bool hal_init()
 
     // HD Rumble
     #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
-    hdrumble_hal_init();
+    //hdrumble_hal_init();
     #endif
 }
