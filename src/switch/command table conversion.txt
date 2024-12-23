@@ -17,17 +17,9 @@ typedef struct {
     float fm_offset;
 } Switch5BitCommand_s;
 
-// Convert float to Q1.15 fixed point
-int32_t _float_to_q115(float value) {
-    return (int32_t)(value * (1 << 15));
-}
 
-int8_t freq_offset_to_shift(float offset) {
-    return (int8_t)(offset / 0.03125f);
-}
-
-int32_t amp_offset_to_fixed(float offset) {
-    return _float_to_q115(offset);
+int16_t _offset_to_shift(float offset) {
+    return (int16_t)(offset / 0.03125f);
 }
 
 void print_converted_command(const Switch5BitCommand_s* cmd) {
@@ -37,8 +29,8 @@ void print_converted_command(const Switch5BitCommand_s* cmd) {
            cmd->am_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
            cmd->fm_action == Switch5BitAction_Default ? "Default" :
            cmd->fm_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
-           amp_offset_to_fixed(cmd->am_offset),
-           freq_offset_to_shift(cmd->fm_offset));
+           _offset_to_shift(cmd->am_offset),
+           _offset_to_shift(cmd->fm_offset));
 }
 
 int main() {

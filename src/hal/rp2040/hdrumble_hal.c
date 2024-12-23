@@ -17,6 +17,7 @@
 #include "hardware/dma.h"
 
 #include "devices/haptics.h"
+#include "switch/switch_haptics.h"
 
 #include "utilities/pcm.h"
 
@@ -69,7 +70,7 @@ static void __isr __time_critical_func(_dma_handler)()
 
 bool hdrumble_hal_init()
 {
-    pcm_sine_table_init();
+    switch_haptics_init(200);
 
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
     float clock_div = ( (float) f_clk_sys * 1000.0f) / 254.0f / (float) SAMPLE_RATE / (float) REPETITION_RATE;
@@ -204,7 +205,7 @@ void hdrumble_hal_task(uint32_t timestamp)
     {
         ready_next_sine = false;
         uint8_t available_buffer = 1 - audio_buffer_idx;
-        pcm_generate_sine_wave(audio_buffers[available_buffer]);
+        //pcm_generate_sine_wave(audio_buffers[available_buffer]);
     }
 }
 

@@ -30,21 +30,13 @@ int16_t float_to_q1_15(float input) {
    return (int16_t)(input * (1 << 15));
 }
 
-int16_t float_to_q5_11(float input) {
-   return (int16_t)(input * 2048.0f);
-}
-
-float q5_11_to_float(int16_t input) {
-   return (float)input / 2048.0f;
-}
-
 /* We used to use this ExpBase lookup table made with this data
     #define EXP_BASE2_RANGE_START (-8.0f)
     #define EXP_BASE2_RANGE_END (2.0f)
     #define EXP_BASE2_LOOKUP_RESOLUTION (1 / 32.0f)
     #define EXP_BASE2_LOOKUP_LENGTH 320 //((size_t)(((EXP_BASE2_RANGE_END - EXP_BASE2_RANGE_START) + EXP_BASE2_LOOKUP_RESOLUTION) / EXP_BASE2_LOOKUP_RESOLUTION))
 
-    static float ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
+    static float _ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
     static float RumbleAmpLookup[128];
     static float RumbleFreqLookup[128];
 
@@ -55,11 +47,11 @@ float q5_11_to_float(int16_t input) {
             float f = EXP_BASE2_RANGE_START + i * EXP_BASE2_LOOKUP_RESOLUTION;
             if (f >= StartingAmplitude)
             {
-                ExpBase2Lookup[i] = exp2f(f);
+                _ExpBase2Lookup[i] = exp2f(f);
             }
             else
             {
-                ExpBase2Lookup[i] = 0.0f;
+                _ExpBase2Lookup[i] = 0.0f;
             }
         }
     }
@@ -71,7 +63,7 @@ float q5_11_to_float(int16_t input) {
 #define EXP_BASE2_LOOKUP_LENGTH     256
 
 // Q1.15 fixed-point amplitude lookup table (Post-exp2f)
-static int16_t ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
+static int16_t _ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
 
 void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 
@@ -80,9 +72,9 @@ void _initialize_exp_base2_lookup(uint8_t user_intensity) {
     for (size_t i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            ExpBase2Lookup[i] = float_to_q1_15(exp2f(f)*intensity);
+            _ExpBase2Lookup[i] = float_to_q1_15(exp2f(f)*intensity);
         } else {
-            ExpBase2Lookup[i] = 0;
+            _ExpBase2Lookup[i] = 0;
         }
     }
 }
@@ -155,7 +147,7 @@ void _init_frequency_phase_increment_tables(void) {
 
 // Amplitude lookup table
 // Each entry is an index representing a value in our 
-// ExpBase2Lookup table
+// _ExpBase2Lookup table
 static uint8_t _haptics_amplitude_index[128];
 
 // Initialize fixed point amplitude lookup table
@@ -233,42 +225,40 @@ void _init_amp_idx_lookup()
 */
 
 // Here's the command table we use with fixed point values
-// The fm action does an index offset to access the correct phase increment value
-// The am action does a fixed point amplitude offset. We ran the old values through the conversion function
-// to get the fixed point values we need
+// The fm action and am action does an index offset to access the correct phase increment value
 const Switch5BitCommand_s CommandTable[] = {
     {.am_action = Action_Default, .fm_action = Action_Default, .am_offset = 0, .fm_offset = 0},
     {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -16384, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -32768, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -49152, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -65536, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -81920, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -98304, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -114688, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -131072, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -147456, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -163840, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -16, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -32, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -48, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -64, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -80, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -96, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -112, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -128, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -144, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -160, .fm_offset = 0},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = -12},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = -6},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 0},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 6},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 12},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4096, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4096, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4096, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1024, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1024, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1024, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 0},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = 1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = 0},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = -1},
     {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 1},
     {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 0},
     {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1024, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1024, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1024, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4096, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4096, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4096, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = 1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = 0},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = 1},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = 0},
+    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = -1},
 };
 
 // For amplitude
@@ -540,11 +530,11 @@ void _haptics_decode_type_4(const SwitchHapticPacket_s *encoded, haptic_raw_stat
 
 haptic_raw_state_s _raw_state = {0};
 
-void switch_haptics_init() 
+void switch_haptics_init(uint8_t user_intensity) 
 {
-    _init_fp_amp_lookup();
+    _init_amp_idx_lookup();
     _init_frequency_phase_increment_tables();
-    _initialize_exp_base2_lookup(200);
+    _initialize_exp_base2_lookup(user_intensity);
 
     _raw_state.state.hi_amplitude_idx  = _haptic_defaults.starting_amplitude;
     _raw_state.state.lo_amplitude_idx  = _haptic_defaults.starting_amplitude;
@@ -610,8 +600,8 @@ void switch_haptics_rumble_translate(const uint8_t *data)
     {
         for(int i = 0; i < _raw_state.sample_count; i++) 
         {
-            processed.hi_amplitude_fixed        = ExpBase2Lookup[_raw_state.samples[i].hi_amplitude_idx];
-            processed.lo_amplitude_fixed        = ExpBase2Lookup[_raw_state.samples[i].lo_amplitude_idx];
+            processed.hi_amplitude_fixed        = _ExpBase2Lookup[_raw_state.samples[i].hi_amplitude_idx];
+            processed.lo_amplitude_fixed        = _ExpBase2Lookup[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
 

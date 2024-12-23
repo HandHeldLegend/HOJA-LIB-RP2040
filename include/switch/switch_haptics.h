@@ -109,6 +109,7 @@ typedef struct
     haptic_raw_s samples[3];
 } haptic_raw_state_s;
 
+void switch_haptics_init(uint8_t user_intensity);
 void switch_haptics_rumble_translate(const uint8_t *data);
 
 #endif
