@@ -1,0 +1,87 @@
+This is the code I wrote to convert our old table data to the new
+
+#include <stdio.h>
+#include <stdint.h>
+
+typedef enum {
+    Switch5BitAction_Default,
+    Switch5BitAction_Substitute,
+    Switch5BitAction_Ignore,
+    Switch5BitAction_Sum
+} Switch5BitAction_e;
+
+typedef struct {
+    Switch5BitAction_e am_action;
+    Switch5BitAction_e fm_action;
+    float am_offset;
+    float fm_offset;
+} Switch5BitCommand_s;
+
+// Convert float to Q1.15 fixed point
+int32_t _float_to_q115(float value) {
+    return (int32_t)(value * (1 << 15));
+}
+
+int8_t freq_offset_to_shift(float offset) {
+    return (int8_t)(offset / 0.03125f);
+}
+
+int32_t amp_offset_to_fixed(float offset) {
+    return _float_to_q115(offset);
+}
+
+void print_converted_command(const Switch5BitCommand_s* cmd) {
+    printf("    {.am_action = Action_%s, .fm_action = Action_%s, "
+           ".am_offset = %d, .fm_offset = %d},\n",
+           cmd->am_action == Switch5BitAction_Default ? "Default" :
+           cmd->am_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
+           cmd->fm_action == Switch5BitAction_Default ? "Default" :
+           cmd->fm_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
+           amp_offset_to_fixed(cmd->am_offset),
+           freq_offset_to_shift(cmd->fm_offset));
+}
+
+int main() {
+    const Switch5BitCommand_s CommandTable[] = {
+            {.am_action = Switch5BitAction_Default,     .fm_action = Switch5BitAction_Default, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -0.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -1.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -1.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -2.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -2.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -3.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -3.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -4.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -4.5f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Substitute,  .fm_action = Switch5BitAction_Ignore, .am_offset = -5.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.375f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = -0.1875f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.1875f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Substitute, .am_offset = 0.0f, .fm_offset = 0.375f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Ignore, .am_offset = 0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = 0.125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Ignore, .am_offset = 0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = 0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Ignore, .am_offset = 0.0f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Ignore,      .fm_action = Switch5BitAction_Sum, .am_offset = 0.0f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Ignore, .am_offset = -0.03125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = -0.03125f, .fm_offset = -0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = 0.03125f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Ignore, .am_offset = -0.125f, .fm_offset = 0.0f},
+            {.am_action = Switch5BitAction_Sum,         .fm_action = Switch5BitAction_Sum, .am_offset = -0.125f, .fm_offset = -0.03125f}
+        };
+
+    printf("const Switch5BitCommand_s CommandTable[] = {\n");
+    for (size_t i = 0; i < sizeof(CommandTable)/sizeof(CommandTable[0]); i++) {
+        print_converted_command(&CommandTable[i]);
+    }
+    printf("};\n");
+
+    return 0;
+}

@@ -12,7 +12,7 @@
     #include "pico/float.h"
 #endif
 
-int16_t _pcm_sine_table[256];
+int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
 
 // Initialize the sine table
 void _generate_sine_table() {
@@ -20,10 +20,10 @@ void _generate_sine_table() {
     const int16_t MAX_AMPLITUDE = 32767;
     
     // Generate 256 entries to cover a full sine wave cycle
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < PCM_SINE_TABLE_SIZE; i++) {
         // Convert index to angle in radians
         // We use 2π to cover a full cycle in 256 steps
-        double angle = (2.0 * M_PI * i) / 256.0;
+        double angle = (2.0 * M_PI * i) / PCM_SINE_TABLE_SIZE;
         
         // Calculate sine value and scale to int16_t range
         // sin() returns values between -1 and 1
@@ -128,8 +128,8 @@ void pcm_generate_buffer(
             }
         }
 
-        int16_t sine_hi = sine_table[phase_hi >> 8];
-        int16_t sine_lo = sine_table[phase_lo >> 8];
+        int16_t sine_hi = _pcm_sine_table[phase_hi >> PCM_FIXED_POINT_SCALE_BITS] & PCM_SINE_TABLE_IDX_MAX;
+        int16_t sine_lo = _pcm_sine_table[phase_lo >> PCM_FIXED_POINT_SCALE_BITS] & PCM_SINE_TABLE_IDX_MAX;
         
         // Process only positive half of sine wave
         // Scale amplitude and map to 0-255 range

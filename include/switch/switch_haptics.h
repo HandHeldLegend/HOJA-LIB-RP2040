@@ -26,8 +26,8 @@ typedef struct
 {
     Action_t am_action : 8;
     Action_t fm_action : 8;
-    int32_t  am_offset;
-    int16_t  fm_offset;
+    int16_t  am_offset; // AM Index offset
+    int16_t  fm_offset; // FM Index offset
 } Switch5BitCommand_s;
 
 // This represents the 4 uint8_t bytes of data for a single side or controller
@@ -96,10 +96,10 @@ typedef struct
 
 typedef struct 
 {
-    uint8_t hi_amplitude_idx; 
-    uint8_t lo_amplitude_idx;
-    uint8_t hi_frequency_idx;
-    uint8_t lo_frequency_idx;
+    uint8_t hi_amplitude_idx; // Hi amplitude index
+    uint8_t lo_amplitude_idx; // Lo amplitude index
+    uint8_t hi_frequency_idx; // Hi frequency index
+    uint8_t lo_frequency_idx; // Lo frequency index
 } haptic_raw_s;
 
 typedef struct 
