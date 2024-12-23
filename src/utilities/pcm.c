@@ -1,8 +1,6 @@
 #include "utilities/pcm.h"
 #include "hal/mutex_hal.h"
 
-#include "switch/switch_fp_haptics.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -125,8 +123,8 @@ void pcm_generate_buffer(
         }
 
         if(!current_sample_idx) {
-            if(!pcm_amfm_is_empty(&_pcm_amfm_queue)) {
-                pcm_amfm_pop(&_pcm_amfm_queue, &current_values);
+            if(!pcm_amfm_is_empty()) {
+                pcm_amfm_pop(&current_values);
             }
         }
 

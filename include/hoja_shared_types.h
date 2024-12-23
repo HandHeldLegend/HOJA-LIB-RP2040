@@ -23,13 +23,4 @@ typedef enum
     GAMEPAD_METHOD_BLUETOOTH = 2, // Wireless Bluetooth modes
 } gamepad_method_t;
 
-typedef struct 
-{
-    float f_hi;
-    float a_hi;
-    float f_lo;
-    float a_lo;
-} amfm_s;
-
-
 #endif

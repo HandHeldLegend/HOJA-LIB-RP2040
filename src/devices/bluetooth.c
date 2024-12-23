@@ -52,8 +52,8 @@ void bluetooth_task(uint32_t timestamp)
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
 {
     static uint8_t connection_status = 0;
-    hoja_rumble_msg_s rumble_msg_left = {0};
-    hoja_rumble_msg_s rumble_msg_right = {0};
+    //hoja_rumble_msg_s rumble_msg_left = {0};
+    //hoja_rumble_msg_s rumble_msg_right = {0};
 
     uint8_t l = msg->data[0];
     uint8_t r = msg->data[1];

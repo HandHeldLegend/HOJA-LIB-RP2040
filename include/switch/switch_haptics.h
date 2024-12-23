@@ -6,7 +6,6 @@
 
 #define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-
 typedef enum
 {
     Action_Ignore = 0x0,
@@ -97,8 +96,8 @@ typedef struct
 
 typedef struct 
 {
-    int32_t hi_amplitude_fixed; 
-    int32_t lo_amplitude_fixed;
+    uint8_t hi_amplitude_idx; 
+    uint8_t lo_amplitude_idx;
     uint8_t hi_frequency_idx;
     uint8_t lo_frequency_idx;
 } haptic_raw_s;
