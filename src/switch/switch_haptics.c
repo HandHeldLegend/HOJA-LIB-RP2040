@@ -383,12 +383,12 @@ void _haptics_decode_type_1(const SwitchHapticPacket_s *encoded, haptic_raw_stat
         // Get the command from the table
         hi_cmd = CommandTable[encoded->type1.cmd_hi_2];
 
-        out->state.hi_frequency_idx     = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
+        out->state.hi_frequency_idx   = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
         out->state.hi_amplitude_idx   = _apply_command_amp(hi_cmd.am_action, hi_cmd.am_offset, out->state.hi_amplitude_idx);
 
         low_cmd = CommandTable[encoded->type1.cmd_lo_2];
 
-        out->state.lo_frequency_idx     = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
+        out->state.lo_frequency_idx   = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
         out->state.lo_amplitude_idx   = _apply_command_amp(low_cmd.am_action, low_cmd.am_offset, out->state.lo_amplitude_idx);
 
         // Apply the values to the data
@@ -431,7 +431,7 @@ void _haptics_decode_type_3(const SwitchHapticPacket_s *encoded, haptic_raw_stat
             // Get the command from the table
             low_cmd = CommandTable[encoded->type3.cmd_xx_0];
 
-            out->state.lo_frequency_idx     = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
+            out->state.lo_frequency_idx   = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
             out->state.lo_amplitude_idx   = _apply_command_amp(low_cmd.am_action, low_cmd.am_offset, out->state.lo_amplitude_idx);
         }
         else
@@ -442,7 +442,7 @@ void _haptics_decode_type_3(const SwitchHapticPacket_s *encoded, haptic_raw_stat
             // Get the command from the table
             hi_cmd = CommandTable[encoded->type3.cmd_xx_0];
 
-            out->state.hi_frequency_idx     = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
+            out->state.hi_frequency_idx   = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
             out->state.hi_amplitude_idx   = _apply_command_amp(hi_cmd.am_action, hi_cmd.am_offset, out->state.hi_amplitude_idx);
         }
         
@@ -456,13 +456,13 @@ void _haptics_decode_type_3(const SwitchHapticPacket_s *encoded, haptic_raw_stat
         // Get the command from the table
         hi_cmd = CommandTable[encoded->type3.cmd_hi_1];
 
-        out->state.hi_frequency_idx     = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
+        out->state.hi_frequency_idx   = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
         out->state.hi_amplitude_idx   = _apply_command_amp(hi_cmd.am_action, hi_cmd.am_offset, out->state.hi_amplitude_idx);
 
         // Get the command from the table
         low_cmd = CommandTable[encoded->type3.cmd_lo_1];
 
-        out->state.lo_frequency_idx     = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
+        out->state.lo_frequency_idx   = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
         out->state.lo_amplitude_idx   = _apply_command_amp(low_cmd.am_action, low_cmd.am_offset, out->state.lo_amplitude_idx);
 
         // Apply the values to the data
@@ -514,13 +514,13 @@ void _haptics_decode_type_4(const SwitchHapticPacket_s *encoded, haptic_raw_stat
         // Get the command from the table
         hi_cmd = CommandTable[encoded->type4.cmd_hi_1];
 
-        out->state.hi_frequency_idx     = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
+        out->state.hi_frequency_idx   = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
         out->state.hi_amplitude_idx   = _apply_command_amp(hi_cmd.am_action, hi_cmd.am_offset, out->state.hi_amplitude_idx);
 
         // Get the command from the table
         low_cmd = CommandTable[encoded->type4.cmd_lo_1];
 
-        out->state.lo_frequency_idx     = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
+        out->state.lo_frequency_idx   = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
         out->state.lo_amplitude_idx   = _apply_command_amp(low_cmd.am_action, low_cmd.am_offset, out->state.lo_amplitude_idx);
 
         // Apply the values to the data
@@ -534,13 +534,13 @@ void _haptics_decode_type_4(const SwitchHapticPacket_s *encoded, haptic_raw_stat
         hi_cmd = CommandTable[encoded->type4.cmd_hi_2];
 
 
-        out->state.hi_frequency_idx     = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
+        out->state.hi_frequency_idx   = _apply_command_freq(hi_cmd.fm_action, hi_cmd.fm_offset, out->state.hi_frequency_idx);
         out->state.hi_amplitude_idx   = _apply_command_amp(hi_cmd.am_action, hi_cmd.am_offset, out->state.hi_amplitude_idx);
 
         // Get the command from the table
         low_cmd = CommandTable[encoded->type4.cmd_lo_2];
 
-        out->state.lo_frequency_idx     = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
+        out->state.lo_frequency_idx   = _apply_command_freq(low_cmd.fm_action, low_cmd.fm_offset, out->state.lo_frequency_idx);
         out->state.lo_amplitude_idx   = _apply_command_amp(low_cmd.am_action, low_cmd.am_offset, out->state.lo_amplitude_idx);
 
         // Apply the values to the data
