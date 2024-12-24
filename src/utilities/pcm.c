@@ -13,40 +13,39 @@
 #endif
 
 int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
+#define TWO_PI 2.0f * M_PI
 
 // Initialize the sine table
 void _generate_sine_table()
 {
-    // Maximum amplitude for 16-bit signed integer
-    const int16_t MAX_AMPLITUDE = 32767;
+    float inc = TWO_PI / PCM_SINE_TABLE_SIZE;
+    float fi = 0;
 
     // Generate 256 entries to cover a full sine wave cycle
     for (int i = 0; i < PCM_SINE_TABLE_SIZE; i++)
     {
-        // Convert index to angle in radians
-        // We use 2π to cover a full cycle in 256 steps
-        double angle = (2.0 * M_PI * i) / PCM_SINE_TABLE_SIZE;
-
-        // Calculate sine value and scale to int16_t range
-        // sin() returns values between -1 and 1
-        double scaled_sine = sin(angle) * MAX_AMPLITUDE;
+        float sample = sinf(fi);
 
         // Convert to int16_t, rounding to nearest value
-        _pcm_sine_table[i] = (int16_t)round(scaled_sine);
+        _pcm_sine_table[i] = (int16_t)(sample * PCM_SIN_RANGE_MAX);
+
+        fi += inc;
+        fi = fmodf(fi, TWO_PI);  
     }
 }
 
-#define PCM_AMFM_QUEUE_SIZE 16 // Adjust size as needed
+#define PCM_AMFM_QUEUE_SIZE 128 // Adjust size as needed
 
 typedef struct
 {
     haptic_processed_s buffer[PCM_AMFM_QUEUE_SIZE];
+    uint8_t sample_count[PCM_AMFM_QUEUE_SIZE];
     uint8_t head;
     uint8_t tail;
     uint8_t count;
 } pcm_amfm_queue_t;
 
-pcm_amfm_queue_t _pcm_amfm_queue;
+pcm_amfm_queue_t _pcm_amfm_queue = {0};
 
 // Initialize the queue
 void pcm_amfm_queue_init()
@@ -56,35 +55,35 @@ void pcm_amfm_queue_init()
     _pcm_amfm_queue.count = 0;
 }
 
+MUTEX_HAL_INIT(_pcm_amfm_mutex);
+
 // Push new values to queue
 // Returns true if successful, false if queue is full
-bool pcm_amfm_push(haptic_processed_s *values)
+bool pcm_amfm_push(haptic_processed_s *value)
 {
     if (_pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE)
     {
         return false; // Queue is full
     }
-
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail] = *values;
+    // Always 3 samples
+    memcpy(&_pcm_amfm_queue.buffer[_pcm_amfm_queue.tail], value, sizeof(haptic_processed_s));
     _pcm_amfm_queue.tail = (_pcm_amfm_queue.tail + 1) % PCM_AMFM_QUEUE_SIZE;
     _pcm_amfm_queue.count++;
-
     return true;
 }
 
 // Pop values from queue
-// Returns true if successful, false if queue is empty
-bool pcm_amfm_pop(haptic_processed_s *values)
+// Returns sample count if successful, false if queue is empty
+bool pcm_amfm_pop(haptic_processed_s *out)
 {
     if (_pcm_amfm_queue.count == 0)
     {
         return false; // Queue is empty
     }
 
-    *values = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head];
+    memcpy(out, &_pcm_amfm_queue.buffer[_pcm_amfm_queue.head], sizeof(haptic_processed_s));
     _pcm_amfm_queue.head = (_pcm_amfm_queue.head + 1) % PCM_AMFM_QUEUE_SIZE;
     _pcm_amfm_queue.count--;
-
     return true;
 }
 
@@ -100,63 +99,98 @@ bool pcm_amfm_is_full()
     return _pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE;
 }
 
-// For phase increments (Q8.8 format)
-static inline uint16_t _lerp_phase_increment(uint16_t start, uint16_t end, uint8_t t)
+void pcm_init() 
 {
-    uint32_t diff = end - start;
-    return start + ((diff * t) >> 8);
+    _generate_sine_table();
+    pcm_amfm_queue_init();
 }
 
-// For amplitudes (8-bit values)
-static inline uint8_t _lerp_amplitude(uint8_t start, uint8_t end, uint8_t t)
+static inline int16_t lerp_fixed_signed(int16_t start, int16_t end, uint8_t t)
 {
-    int16_t diff = end - start; // Signed for negative differences
-    return start + ((diff * t) >> 8);
+    int32_t diff = (int32_t)end - (int32_t)start;  // Promote to int32_t to handle full range
+    return (int16_t)(start + ((diff * t) >> 8));
 }
+
+static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t t)
+{
+    int32_t diff = (int32_t)end - (int32_t)start;  // Use int32_t for diff to handle underflow
+    return (uint16_t)(start + ((diff * t) >> 8));
+}
+
+#define CAPPED_VALUE 255
 
 // Generate 255 samples of PCM data
 void pcm_generate_buffer(
-    uint8_t *buffer // Output buffer
+    uint32_t *buffer // Output buffer
 )
 {
     // Local variables for phase accumulators
     static uint16_t phase_hi = 0;
     static uint16_t phase_lo = 0;
-    static uint8_t current_sample_idx = 0;
-    static haptic_processed_s current_values = {0};
+    static uint16_t current_sample_idx = 0;
+    static haptic_processed_s   last_values     = {0};
+    static haptic_processed_s   current_values  = {0};
 
-    for (size_t i = 0; i < PCM_BUFFER_SIZE; i++)
+    // Interpolation factor (t) goes from 0 to 255
+    static uint8_t lerp_factor = 0; 
+    const  uint16_t lerp_inc = 255 / PCM_SAMPLES_PER_PAIR;
+
+    for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
 
-        if (current_sample_idx >= PCM_SAMPLES_PER_PAIR)
+        if(!current_sample_idx || (current_sample_idx >= PCM_SAMPLES_PER_PAIR)) 
         {
-            current_sample_idx = 0;
-        }
-
-        if (!current_sample_idx)
-        {
+            // Get new values from queue
             if (!pcm_amfm_is_empty())
             {
+                current_sample_idx = 0;
+
+                // Copy current values to last values
+                last_values = current_values;
+                lerp_factor = 0;
+
                 pcm_amfm_pop(&current_values);
             }
         }
 
-        int16_t sine_hi = _pcm_sine_table[phase_hi >> PCM_FIXED_POINT_SCALE_BITS] & PCM_SINE_TABLE_IDX_MAX;
-        int16_t sine_lo = _pcm_sine_table[phase_lo >> PCM_FIXED_POINT_SCALE_BITS] & PCM_SINE_TABLE_IDX_MAX;
+        // Lerp between current and last values for frequency increments and amplitudes
+        uint16_t hi_frequency_increment = 
+            (lerp_factor < 255) ? lerp_fixed_unsigned(last_values.hi_frequency_increment, current_values.hi_frequency_increment, lerp_factor) : current_values.hi_frequency_increment;
+        uint16_t lo_frequency_increment = 
+            (lerp_factor < 255) ? lerp_fixed_unsigned(last_values.lo_frequency_increment, current_values.lo_frequency_increment, lerp_factor) : current_values.lo_frequency_increment;
+        int16_t hi_amplitude_fixed = 
+            (lerp_factor < 255) ? lerp_fixed_signed(last_values.hi_amplitude_fixed, current_values.hi_amplitude_fixed, lerp_factor) : current_values.hi_amplitude_fixed;
+        int16_t lo_amplitude_fixed = 
+            (lerp_factor < 255) ? lerp_fixed_signed(last_values.lo_amplitude_fixed, current_values.lo_amplitude_fixed, lerp_factor) : current_values.lo_amplitude_fixed;
+
+        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) & PCM_SINE_TABLE_IDX_MAX;
+        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) & PCM_SINE_TABLE_IDX_MAX;
+
+        int16_t sine_hi = _pcm_sine_table[idx_hi];
+        int16_t sine_lo = _pcm_sine_table[idx_lo];
 
         // Using only positive half of sine wave
-        uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * current_values.hi_amplitude_fixed) >> 15 : 0;
-        uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * current_values.lo_amplitude_fixed) >> 15 : 0;
+        uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
+        uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
 
         // Mix the two channels
-        uint32_t mixed = (scaled_hi + scaled_lo) >> 1;
-        buffer[i] = (uint8_t)(mixed > 255 ? 255 : mixed);
+        uint32_t    mixed = (scaled_hi + scaled_lo) >> 1;
+        uint8_t     sample = (uint8_t)(mixed > CAPPED_VALUE ? CAPPED_VALUE : mixed);
 
-        buffer[i] = (uint8_t)mixed;
+        uint32_t outsample = ((uint32_t) sample << 16) | (uint8_t) sample;
+        buffer[i] = outsample;
 
-        phase_hi += current_values.hi_frequency_increment;
-        phase_lo += current_values.lo_frequency_increment;
+        phase_hi = (phase_hi + hi_frequency_increment);
+        phase_lo = (phase_lo + lo_frequency_increment);
 
         current_sample_idx++;
+
+        if(lerp_factor < 255)
+            lerp_factor += lerp_inc;
+
+        if(lerp_factor > 255) 
+        {
+            lerp_factor = 255;
+        }
     }
 }

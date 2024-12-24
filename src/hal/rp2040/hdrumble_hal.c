@@ -66,12 +66,24 @@ static void __isr __time_critical_func(_dma_handler)()
     dma_start_channel_mask(dma_trigger_start_mask);
     ready_next_sine = true;
     dma_hw->ints1 = 1u << dma_trigger_l;
+
+    uint8_t available_buffer = 1 - audio_buffer_idx;
+    pcm_generate_buffer(audio_buffers[available_buffer]);
 }
 
 bool hdrumble_hal_init()
 {
-    switch_haptics_init(200);
+    static bool hal_init = false;
+    // Initialize the haptics
+    switch_haptics_init(255);
 
+    // Initialize the PCM
+    pcm_init();
+
+    if(hal_init) return true;
+    hal_init = true;
+
+    // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
     float clock_div = ( (float) f_clk_sys * 1000.0f) / 254.0f / (float) SAMPLE_RATE / (float) REPETITION_RATE;
 
@@ -205,7 +217,7 @@ void hdrumble_hal_task(uint32_t timestamp)
     {
         ready_next_sine = false;
         uint8_t available_buffer = 1 - audio_buffer_idx;
-        //pcm_generate_sine_wave(audio_buffers[available_buffer]);
+        
     }
 }
 

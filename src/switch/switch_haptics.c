@@ -25,9 +25,9 @@ haptic_defaults_s _haptic_defaults = {
     .max_frequency      = 127
 };
 
-// Convert float to Q1.15
-int16_t float_to_q1_15(float input) {
-   return (int16_t)(input * (1 << 15));
+
+int16_t float_to_fixed(float input) {
+   return (int16_t)(input * (1 << PCM_AMPLITUDE_BIT_SCALE));
 }
 
 /* We used to use this ExpBase lookup table made with this data
@@ -69,10 +69,10 @@ void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 
     float intensity = (float) user_intensity / 255.0f;
 
-    for (size_t i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
+    for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            _ExpBase2Lookup[i] = float_to_q1_15(exp2f(f)*intensity);
+            _ExpBase2Lookup[i] = float_to_fixed(exp2f(f));
         } else {
             _ExpBase2Lookup[i] = 0;
         }
@@ -104,19 +104,31 @@ void _init_frequency_phase_increment_tables(void) {
         // Calculate actual frequency
         double freq = 160.0 * exp2f(linear);
         
-        // Calculate phase increment in fixed point
-        double increment = (freq * PCM_SINE_TABLE_SIZE * PCM_FIXED_POINT_SCALE_FREQ) / PCM_SAMPLE_RATE;
+        // Calculate phase increment float
+        float increment = (freq * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE; 
+
+        // Scale to fixed point
+        uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5);
         
         // Store as fixed point
-        _haptics_hi_freq_increment[i] = (uint16_t)(increment + 0.5);
+        _haptics_hi_freq_increment[i] = fixed_increment;
     }
     
     // Initialize high frequency table (320Hz center)
     for(int i = 0; i < 128; i++) {
+        // Calculate the linear exponent
         double linear = 0.03125 * i - 2.0;
+
+        // Calculate actual frequency
         double freq = 320.0 * exp2f(linear);
-        double increment = (freq * PCM_SINE_TABLE_SIZE * PCM_FIXED_POINT_SCALE_FREQ) / PCM_SAMPLE_RATE;
-        _haptics_lo_freq_increment[i] = (uint16_t)(increment + 0.5);
+
+        // Calculate phase increment float
+        float increment = (freq * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE; 
+
+        // Scale to fixed point
+        uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5);
+
+        _haptics_lo_freq_increment[i] = fixed_increment;
     }
 }
 
@@ -153,7 +165,7 @@ static uint8_t _haptics_amplitude_index[128];
 // Initialize fixed point amplitude lookup table
 void _init_amp_idx_lookup()
 {
-    for (size_t i = 0; i < 128; ++i)
+    for (int i = 0; i < 128; ++i)
     {
         float tmp = 0;
 
@@ -174,11 +186,15 @@ void _init_amp_idx_lookup()
             tmp = 0.03125f * i - 3.96875f;
         }
 
-        // Normalize to positive
-        tmp += 8.0f;
-
         // Get our final output index 
-        uint8_t idx = (uint8_t) (tmp/AMPLITUDE_INTERVAL);
+        float fidx = (tmp/AMPLITUDE_INTERVAL);
+
+        int16_t idx = 255 + fidx;
+
+        // Normalize to positive
+        if(!i) idx = 0;
+        if(idx > 255) idx = 255;
+        if(idx < 0) idx = 0;
 
         _haptics_amplitude_index[i] = idx;
     }
@@ -244,21 +260,21 @@ const Switch5BitCommand_s CommandTable[] = {
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 0},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 6},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 12},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 1},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 4, .fm_offset = 1},
+    {.am_action = Action_Sum, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 0},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 4, .fm_offset = -1},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 1, .fm_offset = 1},
+    {.am_action = Action_Sum, .fm_action = Action_Ignore, .am_offset = 1, .fm_offset = 0},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 1, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Sum, .am_offset = 0, .fm_offset = 1},
     {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = -1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = 1},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = -1},
+    {.am_action = Action_Ignore, .fm_action = Action_Sum, .am_offset = 0, .fm_offset = -1},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = -1, .fm_offset = 1},
+    {.am_action = Action_Sum, .fm_action = Action_Ignore, .am_offset = -1, .fm_offset = 0},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = -1, .fm_offset = -1},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = -4, .fm_offset = 1},
+    {.am_action = Action_Sum, .fm_action = Action_Ignore, .am_offset = -4, .fm_offset = 0},
+    {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = -4, .fm_offset = -1},
 };
 
 // For amplitude
@@ -287,7 +303,7 @@ static inline uint8_t _apply_command_amp(Action_t action,
 // For frequency
 static inline uint8_t _apply_command_freq(Action_t action, 
                                         int16_t offset, 
-                                        int16_t current) {
+                                        uint8_t current) {
     int16_t result;
     
     switch (action) {
@@ -604,11 +620,9 @@ void switch_haptics_rumble_translate(const uint8_t *data)
             processed.lo_amplitude_fixed        = _ExpBase2Lookup[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
-
             pcm_amfm_push(&processed);
         }
     }
-
 }
 
 
