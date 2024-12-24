@@ -117,20 +117,6 @@ static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t
     return (uint16_t)(start + ((diff * t) >> 8));
 }
 
-#define CAPPED_VALUE 100
-
-#define LO_FREQUENCY_MINIMUM 0.5f
-#define HI_FREQUENCY_MINIMUM 0.5f
-
-#define LO_FULL_RANGE (1.0f - LO_FREQUENCY_MINIMUM)
-#define HI_FULL_RANGE (1.0f - HI_FREQUENCY_MINIMUM)
-
-#define LO_FIXED_RANGE_MULT (uint16_t)(LO_FULL_RANGE * PCM_AMPLITUDE_SHIFT_FIXED)
-#define HI_FIXED_RANGE_MULT (uint16_t)(HI_FULL_RANGE * PCM_AMPLITUDE_SHIFT_FIXED)
-
-#define LO_MINIMUM_FIXED (uint16_t)(LO_FREQUENCY_MINIMUM * PCM_AMPLITUDE_SHIFT_FIXED)
-#define HI_MINIMUM_FIXED (uint16_t)(HI_FREQUENCY_MINIMUM * PCM_AMPLITUDE_SHIFT_FIXED)
-
 // Generate 255 samples of PCM data
 void pcm_generate_buffer(
     uint32_t *buffer // Output buffer
@@ -149,7 +135,7 @@ void pcm_generate_buffer(
 
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
-        if(!current_sample_idx || (current_sample_idx >= (PCM_SAMPLES_PER_PAIR+PCM_SAMPLES_LERP_TIME))) 
+        if(!current_sample_idx || (current_sample_idx >= PCM_SAMPLES_PER_PAIR)) 
         {
             // Get new values from queue
             if (!pcm_amfm_is_empty())
@@ -201,10 +187,10 @@ void pcm_generate_buffer(
 
         #define RATIO_SHIFT (14)
         #define RATIO_MULT  (1 << RATIO_SHIFT)
-        #define RATIO_FACTOR (RATIO_MULT * CAPPED_VALUE)
+        #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
         // Check if scaling is required
-        if (mixed > CAPPED_VALUE)
+        if (mixed > PCM_MAX_SAFE_VALUE)
         {
             // Compute the scaling factor as a fixed-point ratio
             uint32_t new_ratio = RATIO_FACTOR / mixed;
@@ -217,7 +203,7 @@ void pcm_generate_buffer(
             mixed = scaled_hi + scaled_lo;
         }
 
-        uint8_t sample = (uint8_t)(mixed > CAPPED_VALUE ? CAPPED_VALUE : mixed);
+        uint8_t sample = (uint8_t)(mixed > PCM_MAX_SAFE_VALUE ? PCM_MAX_SAFE_VALUE : mixed);
 
         uint32_t outsample = ((uint32_t) sample << 16) | (uint8_t) sample;
         buffer[i] = outsample;

@@ -63,7 +63,7 @@ int16_t float_to_fixed(float input) {
 #define EXP_BASE2_LOOKUP_LENGTH     256
 
 #define LO_FREQUENCY_MINIMUM 0.15f
-#define HI_FREQUENCY_MINIMUM 0.25f
+#define HI_FREQUENCY_MINIMUM 0.20f
 #define LO_FREQUENCY_RANGE (1.0f - LO_FREQUENCY_MINIMUM)
 #define HI_FREQUENCY_RANGE (1.0f - HI_FREQUENCY_MINIMUM)
 
@@ -73,13 +73,14 @@ static int16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH];
 
 void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 
+    float subIntensity = PCM_MAX_SAFE_VALUE / 255.0f;
     float intensity = (float) user_intensity / 255.0f;
 
     for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            _ExpBase2LookupHi[i] = float_to_fixed(exp2f(f) * intensity * HI_FREQUENCY_RANGE + HI_FREQUENCY_MINIMUM);
-            _ExpBase2LookupLo[i] = float_to_fixed(exp2f(f) * intensity * LO_FREQUENCY_RANGE + LO_FREQUENCY_MINIMUM);
+            _ExpBase2LookupHi[i] = float_to_fixed(subIntensity * exp2f(f) * intensity * HI_FREQUENCY_RANGE + HI_FREQUENCY_MINIMUM);
+            _ExpBase2LookupLo[i] = float_to_fixed(subIntensity * exp2f(f) * intensity * LO_FREQUENCY_RANGE + LO_FREQUENCY_MINIMUM);
         } else {
             _ExpBase2LookupHi[i] = 0;
             _ExpBase2LookupLo[i] = 0;
