@@ -179,8 +179,23 @@ void pcm_generate_buffer(
         uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * (uint32_t)hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
         uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * (uint32_t)lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
 
+        /*
+           High frequency is used for Special hit effects, tilt attack hit, tilt whiff,
+           Smash attack chargeup, enemy death confirmation, Shield, Landing
+        */
         scaled_hi >>= 7; // Scale down to 8-bit
+
+        /*
+           Low frequency is used for Jump, Smash attack, 
+           Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
+        */
         scaled_lo >>= 7; // Scale down to 8-bit
+
+        // Debug disable lo 
+        //scaled_lo = 0;
+
+        // Debug disable hi
+        //scaled_hi = 0;
 
         // Mix the two channels
         uint32_t    mixed = (scaled_hi + scaled_lo);
