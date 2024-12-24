@@ -27,7 +27,7 @@ haptic_defaults_s _haptic_defaults = {
 
 
 int16_t float_to_fixed(float input) {
-   return (int16_t)(input * (1 << PCM_AMPLITUDE_BIT_SCALE));
+   return (int16_t)(input * PCM_AMPLITUDE_SHIFT_FIXED);
 }
 
 /* We used to use this ExpBase lookup table made with this data
@@ -62,8 +62,14 @@ int16_t float_to_fixed(float input) {
 #define STARTING_AMPLITUDE_FLOAT    -7.9375f
 #define EXP_BASE2_LOOKUP_LENGTH     256
 
+#define LO_FREQUENCY_MINIMUM 0.15f
+#define HI_FREQUENCY_MINIMUM 0.25f
+#define LO_FREQUENCY_RANGE (1.0f - LO_FREQUENCY_MINIMUM)
+#define HI_FREQUENCY_RANGE (1.0f - HI_FREQUENCY_MINIMUM)
+
 // Q1.15 fixed-point amplitude lookup table (Post-exp2f)
-static int16_t _ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
+static int16_t _ExpBase2LookupHi[EXP_BASE2_LOOKUP_LENGTH];
+static int16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH];
 
 void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 
@@ -72,9 +78,11 @@ void _initialize_exp_base2_lookup(uint8_t user_intensity) {
     for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            _ExpBase2Lookup[i] = float_to_fixed(exp2f(f));
+            _ExpBase2LookupHi[i] = float_to_fixed(exp2f(f) * intensity * HI_FREQUENCY_RANGE + HI_FREQUENCY_MINIMUM);
+            _ExpBase2LookupLo[i] = float_to_fixed(exp2f(f) * intensity * LO_FREQUENCY_RANGE + LO_FREQUENCY_MINIMUM);
         } else {
-            _ExpBase2Lookup[i] = 0;
+            _ExpBase2LookupHi[i] = 0;
+            _ExpBase2LookupLo[i] = 0;
         }
     }
 }
@@ -189,7 +197,7 @@ void _init_amp_idx_lookup()
         // Get our final output index 
         float fidx = (tmp/AMPLITUDE_INTERVAL);
 
-        int16_t idx = 255 + fidx;
+        int16_t idx = 255 + (int16_t) fidx;
 
         // Normalize to positive
         if(!i) idx = 0;
@@ -245,21 +253,21 @@ void _init_amp_idx_lookup()
 const Switch5BitCommand_s CommandTable[] = {
     {.am_action = Action_Default, .fm_action = Action_Default, .am_offset = 0, .fm_offset = 0},
     {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 0, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -16, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -32, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -48, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -64, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -80, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -96, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -112, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -128, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -144, .fm_offset = 0},
-    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = -160, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = -12},
-    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = -6},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 240, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 224, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 208, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 192, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 176, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 160, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 144, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 128, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 112, .fm_offset = 0},
+    {.am_action = Action_Substitute, .fm_action = Action_Ignore, .am_offset = 96, .fm_offset = 0},
+    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 5},
+    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 5},
     {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 0},
-    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 6},
-    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 12},
+    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 7},
+    {.am_action = Action_Ignore, .fm_action = Action_Substitute, .am_offset = 0, .fm_offset = 7},
     {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 4, .fm_offset = 1},
     {.am_action = Action_Sum, .fm_action = Action_Ignore, .am_offset = 4, .fm_offset = 0},
     {.am_action = Action_Sum, .fm_action = Action_Sum, .am_offset = 4, .fm_offset = -1},
@@ -285,10 +293,10 @@ static inline uint8_t _apply_command_amp(Action_t action,
     
     switch (action) {
         case Action_Ignore:
-            return current;
+            return (uint8_t) current;
             
         case Action_Substitute:
-            return offset;
+            return (uint8_t) offset;
             
         case Action_Sum:
             result = (int32_t) current + offset;
@@ -296,7 +304,7 @@ static inline uint8_t _apply_command_amp(Action_t action,
             return (uint8_t) result;
             
         default: // Action_Default
-            return _haptic_defaults.default_amplitude;
+            return (uint8_t) _haptic_defaults.default_amplitude;
     }
 }
 
@@ -304,7 +312,7 @@ static inline uint8_t _apply_command_amp(Action_t action,
 static inline uint8_t _apply_command_freq(Action_t action, 
                                         int16_t offset, 
                                         uint8_t current) {
-    int16_t result;
+    int32_t result;
     
     switch (action) {
         case Action_Ignore:
@@ -314,13 +322,12 @@ static inline uint8_t _apply_command_freq(Action_t action,
             return (uint8_t) offset;
             
         case Action_Sum:
-            // For multiplication in Q8.8
-            result = current + offset;
+            result = (int32_t) current + offset;
             result = CLAMP(result, _haptic_defaults.min_frequency, _haptic_defaults.max_frequency);
             return (uint8_t) result;
             
         default: // Action_Default
-            return _haptic_defaults.default_frequency;
+            return (uint8_t) _haptic_defaults.default_frequency;
     }
 }
 
@@ -552,8 +559,8 @@ void switch_haptics_init(uint8_t user_intensity)
     _init_frequency_phase_increment_tables();
     _initialize_exp_base2_lookup(user_intensity);
 
-    _raw_state.state.hi_amplitude_idx  = _haptic_defaults.starting_amplitude;
-    _raw_state.state.lo_amplitude_idx  = _haptic_defaults.starting_amplitude;
+    _raw_state.state.hi_amplitude_idx   = _haptic_defaults.starting_amplitude;
+    _raw_state.state.lo_amplitude_idx   = _haptic_defaults.starting_amplitude;
     _raw_state.state.hi_frequency_idx   = _haptic_defaults.default_frequency;
     _raw_state.state.lo_frequency_idx   = _haptic_defaults.default_frequency;
 
@@ -616,8 +623,8 @@ void switch_haptics_rumble_translate(const uint8_t *data)
     {
         for(int i = 0; i < _raw_state.sample_count; i++) 
         {
-            processed.hi_amplitude_fixed        = _ExpBase2Lookup[_raw_state.samples[i].hi_amplitude_idx];
-            processed.lo_amplitude_fixed        = _ExpBase2Lookup[_raw_state.samples[i].lo_amplitude_idx];
+            processed.hi_amplitude_fixed        = _ExpBase2LookupHi[_raw_state.samples[i].hi_amplitude_idx];
+            processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
             pcm_amfm_push(&processed);

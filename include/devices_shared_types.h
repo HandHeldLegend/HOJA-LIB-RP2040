@@ -48,8 +48,8 @@ typedef struct
 
 typedef struct 
 {
-    int16_t hi_amplitude_fixed; // Q1.15
-    int16_t lo_amplitude_fixed; // Q1.15
+    int16_t hi_amplitude_fixed;
+    int16_t lo_amplitude_fixed;
     uint16_t hi_frequency_increment;
     uint16_t lo_frequency_increment;
 } haptic_processed_s;

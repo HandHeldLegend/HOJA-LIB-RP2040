@@ -68,14 +68,13 @@ static void __isr __time_critical_func(_dma_handler)()
     dma_hw->ints1 = 1u << dma_trigger_l;
 
     uint8_t available_buffer = 1 - audio_buffer_idx;
-    pcm_generate_buffer(audio_buffers[available_buffer]);
 }
 
 bool hdrumble_hal_init()
 {
     static bool hal_init = false;
     // Initialize the haptics
-    switch_haptics_init(255);
+    switch_haptics_init(100);
 
     // Initialize the PCM
     pcm_init();
@@ -217,7 +216,7 @@ void hdrumble_hal_task(uint32_t timestamp)
     {
         ready_next_sine = false;
         uint8_t available_buffer = 1 - audio_buffer_idx;
-        
+        pcm_generate_buffer(audio_buffers[available_buffer]);
     }
 }
 

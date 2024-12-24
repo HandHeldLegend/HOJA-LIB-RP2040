@@ -1,7 +1,48 @@
-This is the code I wrote to convert our old table data to the new
+// This is the code I wrote to convert our old table data to the new
 
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
+
+#define AMPLITUDE_RANGE_START       -8.0f
+#define AMPLITUDE_INTERVAL          0.03125f
+#define STARTING_AMPLITUDE_FLOAT    -7.9375f
+#define EXP_BASE2_LOOKUP_LENGTH     256
+
+// Q1.15 fixed-point amplitude lookup table (Post-exp2f)
+static float _ExpBase2Lookup[EXP_BASE2_LOOKUP_LENGTH];
+
+void _initialize_exp_base2_lookup() {
+    for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
+        float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
+        if (f >= STARTING_AMPLITUDE_FLOAT) {
+            _ExpBase2Lookup[i] = exp2f(f);
+        } else {
+            _ExpBase2Lookup[i] = 0;
+        }
+    }
+}
+
+int _get_divided_value(float input) {
+    float v = input/0.03125;
+    return v;
+}
+
+int _get_frequency_subs_idx(float input) {
+    float mid = input+2;
+    mid /= 0.3125;
+
+    return (int) mid;
+}
+
+int _get_amplitude_subs_idx(float input) {
+    float exp = exp2f(input);
+    for(int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; i++)
+    {
+        if(exp==_ExpBase2Lookup[i]) return i;
+    }
+    return -1;
+}
 
 typedef enum {
     Switch5BitAction_Default,
@@ -23,14 +64,62 @@ int16_t _offset_to_shift(float offset) {
 }
 
 void print_converted_command(const Switch5BitCommand_s* cmd) {
+    _initialize_exp_base2_lookup();
+
+    float am_pre = cmd->am_offset;
+    int16_t am_value = 0;
+
+    float fm_pre = cmd->fm_offset;
+    int16_t fm_value = 0;
+
+    switch(cmd->am_action)
+    {
+        case Switch5BitAction_Default:
+            // Nothing
+        break;
+
+        case Switch5BitAction_Substitute:
+            am_value = (!am_pre) ? 0 :_get_amplitude_subs_idx(am_pre);
+        break;
+
+        case Switch5BitAction_Sum:
+            am_value = (!am_pre) ? 0 : _get_divided_value(am_pre);
+        break;
+
+        // Ignore
+        default:
+        break;
+    }
+
+    switch(cmd->fm_action)
+    {
+        case Switch5BitAction_Default:
+        break;
+
+        case Switch5BitAction_Substitute:
+            fm_value = (!fm_pre) ? 0 : _get_frequency_subs_idx(fm_pre);
+        break;
+
+        case Switch5BitAction_Sum:
+            fm_value = (!fm_pre) ? 0 : _get_divided_value(fm_pre);
+        break;
+
+        default:
+        break;
+    }
+
     printf("    {.am_action = Action_%s, .fm_action = Action_%s, "
            ".am_offset = %d, .fm_offset = %d},\n",
            cmd->am_action == Switch5BitAction_Default ? "Default" :
-           cmd->am_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
+           cmd->am_action == Switch5BitAction_Substitute ? "Substitute" :
+           cmd->am_action == Switch5BitAction_Sum ? "Sum" : "Ignore",
+
            cmd->fm_action == Switch5BitAction_Default ? "Default" :
-           cmd->fm_action == Switch5BitAction_Substitute ? "Substitute" : "Ignore",
-           _offset_to_shift(cmd->am_offset),
-           _offset_to_shift(cmd->fm_offset));
+           cmd->fm_action == Switch5BitAction_Substitute ? "Substitute" :
+           cmd->fm_action == Switch5BitAction_Sum ? "Sum" : "Ignore",
+
+           am_value,
+           fm_value);
 }
 
 int main() {

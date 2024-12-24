@@ -27,7 +27,7 @@ void _generate_sine_table()
         float sample = sinf(fi);
 
         // Convert to int16_t, rounding to nearest value
-        _pcm_sine_table[i] = (int16_t)(sample * PCM_SIN_RANGE_MAX);
+        _pcm_sine_table[i] = (int16_t)(sample * (float) PCM_SIN_RANGE_MAX);
 
         fi += inc;
         fi = fmodf(fi, TWO_PI);  
@@ -117,7 +117,19 @@ static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t
     return (uint16_t)(start + ((diff * t) >> 8));
 }
 
-#define CAPPED_VALUE 255
+#define CAPPED_VALUE 100
+
+#define LO_FREQUENCY_MINIMUM 0.5f
+#define HI_FREQUENCY_MINIMUM 0.5f
+
+#define LO_FULL_RANGE (1.0f - LO_FREQUENCY_MINIMUM)
+#define HI_FULL_RANGE (1.0f - HI_FREQUENCY_MINIMUM)
+
+#define LO_FIXED_RANGE_MULT (uint16_t)(LO_FULL_RANGE * PCM_AMPLITUDE_SHIFT_FIXED)
+#define HI_FIXED_RANGE_MULT (uint16_t)(HI_FULL_RANGE * PCM_AMPLITUDE_SHIFT_FIXED)
+
+#define LO_MINIMUM_FIXED (uint16_t)(LO_FREQUENCY_MINIMUM * PCM_AMPLITUDE_SHIFT_FIXED)
+#define HI_MINIMUM_FIXED (uint16_t)(HI_FREQUENCY_MINIMUM * PCM_AMPLITUDE_SHIFT_FIXED)
 
 // Generate 255 samples of PCM data
 void pcm_generate_buffer(
@@ -125,72 +137,95 @@ void pcm_generate_buffer(
 )
 {
     // Local variables for phase accumulators
-    static uint16_t phase_hi = 0;
-    static uint16_t phase_lo = 0;
+    static uint32_t phase_hi = 0;
+    static uint32_t phase_lo = 0;
     static uint16_t current_sample_idx = 0;
     static haptic_processed_s   last_values     = {0};
     static haptic_processed_s   current_values  = {0};
 
     // Interpolation factor (t) goes from 0 to 255
     static uint8_t lerp_factor = 0; 
-    const  uint16_t lerp_inc = 255 / PCM_SAMPLES_PER_PAIR;
+    const  uint16_t lerp_inc = 225 / PCM_SAMPLES_LERP_TIME;
 
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
-
-        if(!current_sample_idx || (current_sample_idx >= PCM_SAMPLES_PER_PAIR)) 
+        if(!current_sample_idx || (current_sample_idx >= (PCM_SAMPLES_PER_PAIR+PCM_SAMPLES_LERP_TIME))) 
         {
             // Get new values from queue
             if (!pcm_amfm_is_empty())
             {
-                current_sample_idx = 0;
-
-                // Copy current values to last values
                 last_values = current_values;
                 lerp_factor = 0;
-
+                current_sample_idx = 0;
                 pcm_amfm_pop(&current_values);
             }
         }
 
-        // Lerp between current and last values for frequency increments and amplitudes
-        uint16_t hi_frequency_increment = 
-            (lerp_factor < 255) ? lerp_fixed_unsigned(last_values.hi_frequency_increment, current_values.hi_frequency_increment, lerp_factor) : current_values.hi_frequency_increment;
-        uint16_t lo_frequency_increment = 
-            (lerp_factor < 255) ? lerp_fixed_unsigned(last_values.lo_frequency_increment, current_values.lo_frequency_increment, lerp_factor) : current_values.lo_frequency_increment;
-        int16_t hi_amplitude_fixed = 
-            (lerp_factor < 255) ? lerp_fixed_signed(last_values.hi_amplitude_fixed, current_values.hi_amplitude_fixed, lerp_factor) : current_values.hi_amplitude_fixed;
-        int16_t lo_amplitude_fixed = 
-            (lerp_factor < 255) ? lerp_fixed_signed(last_values.lo_amplitude_fixed, current_values.lo_amplitude_fixed, lerp_factor) : current_values.lo_amplitude_fixed;
+        int16_t hi_amplitude_fixed = 0;
+        int16_t lo_amplitude_fixed = 0;
+        uint16_t hi_frequency_increment = 0;
+        uint16_t lo_frequency_increment = 0;
 
-        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) & PCM_SINE_TABLE_IDX_MAX;
-        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) & PCM_SINE_TABLE_IDX_MAX;
+        // Lerp between last and current values
+        if (current_sample_idx < PCM_SAMPLES_LERP_TIME)
+        {
+            lerp_factor += lerp_inc;
+            hi_amplitude_fixed = lerp_fixed_signed(last_values.hi_amplitude_fixed, current_values.hi_amplitude_fixed, lerp_factor);
+            lo_amplitude_fixed = lerp_fixed_signed(last_values.lo_amplitude_fixed, current_values.lo_amplitude_fixed, lerp_factor);
+            hi_frequency_increment = lerp_fixed_unsigned(last_values.hi_frequency_increment, current_values.hi_frequency_increment, lerp_factor);
+            lo_frequency_increment = lerp_fixed_unsigned(last_values.lo_frequency_increment, current_values.lo_frequency_increment, lerp_factor);
+        }
+        else 
+        {
+            hi_amplitude_fixed = current_values.hi_amplitude_fixed;
+            lo_amplitude_fixed = current_values.lo_amplitude_fixed;
+            hi_frequency_increment = current_values.hi_frequency_increment;
+            lo_frequency_increment = current_values.lo_frequency_increment;
+        }
+
+        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
+        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
 
         // Using only positive half of sine wave
-        uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
-        uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
+        uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * (uint32_t)hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
+        uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * (uint32_t)lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
+
+        scaled_hi >>= 7; // Scale down to 8-bit
+        scaled_lo >>= 7; // Scale down to 8-bit
 
         // Mix the two channels
-        uint32_t    mixed = (scaled_hi + scaled_lo) >> 1;
-        uint8_t     sample = (uint8_t)(mixed > CAPPED_VALUE ? CAPPED_VALUE : mixed);
+        uint32_t    mixed = (scaled_hi + scaled_lo);
+
+        #define RATIO_SHIFT (14)
+        #define RATIO_MULT  (1 << RATIO_SHIFT)
+        #define RATIO_FACTOR (RATIO_MULT * CAPPED_VALUE)
+
+        // Check if scaling is required
+        if (mixed > CAPPED_VALUE)
+        {
+            // Compute the scaling factor as a fixed-point ratio
+            uint32_t new_ratio = RATIO_FACTOR / mixed;
+
+            // Scale the components proportionally
+            scaled_hi = (scaled_hi * new_ratio) >> RATIO_SHIFT;
+            scaled_lo = (scaled_lo * new_ratio) >> RATIO_SHIFT;
+
+            // Recalculate the mixed value (optional for verification)
+            mixed = scaled_hi + scaled_lo;
+        }
+
+        uint8_t sample = (uint8_t)(mixed > CAPPED_VALUE ? CAPPED_VALUE : mixed);
 
         uint32_t outsample = ((uint32_t) sample << 16) | (uint8_t) sample;
         buffer[i] = outsample;
 
-        phase_hi = (phase_hi + hi_frequency_increment);
-        phase_lo = (phase_lo + lo_frequency_increment);
+        phase_hi = (phase_hi + hi_frequency_increment) % PCM_SINE_WRAPAROUND;
+        phase_lo = (phase_lo + lo_frequency_increment) % PCM_SINE_WRAPAROUND;
 
         current_sample_idx++;
-
-        if(lerp_factor < 255)
-            lerp_factor += lerp_inc;
-
-        if(lerp_factor > 255) 
-        {
-            lerp_factor = 255;
-        }
+        if(lerp_factor<255) lerp_factor++;
     }
 }
