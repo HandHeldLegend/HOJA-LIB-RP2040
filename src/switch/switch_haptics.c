@@ -618,7 +618,6 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
-    return;
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
     haptic_processed_s processed = {0};
