@@ -62,10 +62,10 @@ int16_t float_to_fixed(float input) {
 #define STARTING_AMPLITUDE_FLOAT    -7.9375f
 #define EXP_BASE2_LOOKUP_LENGTH     256
 
-#define LO_FREQUENCY_MINIMUM 0.15f
-#define HI_FREQUENCY_MINIMUM 0.1585f
-#define LO_FREQUENCY_RANGE (1 - LO_FREQUENCY_MINIMUM)
-#define HI_FREQUENCY_RANGE (1 - HI_FREQUENCY_MINIMUM)
+#define LO_FREQUENCY_MINIMUM    PCM_LO_FREQUENCY_MIN
+#define HI_FREQUENCY_MINIMUM    PCM_HI_FREQUENCY_MIN
+#define LO_FREQUENCY_RANGE      PCM_LO_FREQUENCY_RANGE
+#define HI_FREQUENCY_RANGE      PCM_HI_FREQUENCY_RANGE
 
 // Q1.15 fixed-point amplitude lookup table (Post-exp2f)
 static int16_t _ExpBase2LookupHi[EXP_BASE2_LOOKUP_LENGTH];
@@ -618,6 +618,7 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
+    return;
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
     haptic_processed_s processed = {0};

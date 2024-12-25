@@ -47,6 +47,36 @@ typedef struct
 
 pcm_amfm_queue_t _pcm_amfm_queue = {0};
 
+void xpcm_set_frequency_amplitude(float frequency, float amplitude) 
+{
+    if(amplitude < 0) amplitude = 0;
+    if(amplitude > 1) amplitude = 1;
+
+    // Calculate phase increment float
+    float increment = (frequency * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE; 
+    uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5); 
+    float scaled_amplitude = 0;
+
+    if(amplitude > 0)
+        scaled_amplitude = (amplitude * PCM_LO_FREQUENCY_RANGE) + PCM_LO_FREQUENCY_MIN;
+
+    // Scale to fixed point
+    int16_t  fixed_amplitude = (int16_t)(amplitude * PCM_AMPLITUDE_SHIFT_FIXED + 0.5);
+
+}
+
+void pcm_set_frequency_amplitude(uint16_t frequency_step_value, int16_t amplitude_fixed) 
+{
+    haptic_processed_s value = {
+        .lo_amplitude_fixed = amplitude_fixed, 
+        .hi_amplitude_fixed = 0, 
+        .lo_frequency_increment = frequency_step_value, 
+        .hi_frequency_increment = 0
+        };
+
+    pcm_amfm_push(&value);
+}
+
 // Initialize the queue
 void pcm_amfm_queue_init()
 {

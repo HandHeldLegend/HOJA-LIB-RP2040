@@ -106,6 +106,8 @@ bool button_init()
 
 #define BUTTON_READ_RATE_US 500 // 500us read rate. Double the 1khz maximum USB input rate.
 
+#include "utilities/erm_simulator.h"
+
 void button_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
@@ -117,6 +119,15 @@ void button_task(uint32_t timestamp)
         cb_hoja_read_buttons(&_raw_button_data);
         // Process button remaps
         //--
+
+        if(_raw_button_data.button_b) 
+        {
+            erm_simulator_set_intensity(255);
+        }
+        else
+        {
+            erm_simulator_set_intensity(0);
+        }
 
         // Debug paste remapped buttons
         memcpy(&_remapped_button_data, &_raw_button_data, sizeof(button_data_s));
