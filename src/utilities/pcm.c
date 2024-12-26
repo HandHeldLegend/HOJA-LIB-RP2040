@@ -96,8 +96,8 @@ void pcm_send_pulse()
     switch_haptics_rumble_translate(pulse_data);
 }
 
-#define DEFAULT_HI (uint16_t)(((160.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
-#define DEFAULT_LO (uint16_t)(((40.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
+#define DEFAULT_HI (uint16_t)(((75.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
+#define DEFAULT_LO (uint16_t)(((35.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
 
 // Push new values to queue
 // Returns true if successful, false if queue is full
@@ -108,12 +108,12 @@ bool pcm_amfm_push(haptic_processed_s *value)
         return false; // Queue is full
     }
 
-    const uint16_t default_hi = DEFAULT_HI; // 160Hz
-    const uint16_t default_lo = DEFAULT_LO; // 40Hz 
+    const uint16_t default_hi = DEFAULT_HI; // 75Hz
+    const uint16_t default_lo = DEFAULT_LO; // 35Hz 
 
     // Set default frequency increment values so we're always incrementing
     if(value->hi_frequency_increment < default_hi) value->hi_frequency_increment = default_hi; 
-    if(value->hi_frequency_increment < default_lo) value->lo_frequency_increment = default_lo; 
+    if(value->lo_frequency_increment < default_lo) value->lo_frequency_increment = default_lo; 
 
     // Always 3 samples
     memcpy(&_pcm_amfm_queue.buffer[_pcm_amfm_queue.tail], value, sizeof(haptic_processed_s));
@@ -184,7 +184,6 @@ void pcm_generate_buffer(
 
     // Interpolation factor (t) goes from 0 to 255
     static uint8_t lerp_factor = 0; 
-    const  uint16_t lerp_inc = 225 / PCM_SAMPLES_LERP_TIME;
 
     static int load_sample = -1;
 
@@ -210,22 +209,10 @@ void pcm_generate_buffer(
         uint16_t hi_frequency_increment = 200;
         uint16_t lo_frequency_increment = 200;
 
-        // Lerp between last and current values
-        if (current_sample_idx < PCM_SAMPLES_LERP_TIME)
-        {
-            lerp_factor += lerp_inc;
-            hi_amplitude_fixed = lerp_fixed_signed(last_values.hi_amplitude_fixed, current_values.hi_amplitude_fixed, lerp_factor);
-            lo_amplitude_fixed = lerp_fixed_signed(last_values.lo_amplitude_fixed, current_values.lo_amplitude_fixed, lerp_factor);
-            hi_frequency_increment = lerp_fixed_unsigned(last_values.hi_frequency_increment, current_values.hi_frequency_increment, lerp_factor);
-            lo_frequency_increment = lerp_fixed_unsigned(last_values.lo_frequency_increment, current_values.lo_frequency_increment, lerp_factor);
-        }
-        else 
-        {
-            hi_amplitude_fixed = current_values.hi_amplitude_fixed;
-            lo_amplitude_fixed = current_values.lo_amplitude_fixed;
-            hi_frequency_increment = current_values.hi_frequency_increment;
-            lo_frequency_increment = current_values.lo_frequency_increment;
-        }
+        hi_amplitude_fixed = current_values.hi_amplitude_fixed;
+        lo_amplitude_fixed = current_values.lo_amplitude_fixed;
+        hi_frequency_increment = current_values.hi_frequency_increment;
+        lo_frequency_increment = current_values.lo_frequency_increment;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
@@ -282,6 +269,5 @@ void pcm_generate_buffer(
         phase_lo = (phase_lo + lo_frequency_increment) % PCM_SINE_WRAPAROUND;
 
         current_sample_idx++;
-        if(lerp_factor<255) lerp_factor++;
     }
 }

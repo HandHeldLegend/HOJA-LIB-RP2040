@@ -640,7 +640,7 @@ void switch_haptics_rumble_translate(const uint8_t *data)
 
     if(_raw_state.sample_count > 0) 
     {
-        for(int i = 0; i < _raw_state.sample_count; i++) 
+        for(int i = 0; i < 1; i++) 
         {
             processed.hi_amplitude_fixed        = _ExpBase2LookupHi[_raw_state.samples[i].hi_amplitude_idx];
             processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
