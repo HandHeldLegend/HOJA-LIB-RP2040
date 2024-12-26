@@ -59,8 +59,8 @@ typedef struct
         uint8_t buttons_system;
     };
 
-    int zl_analog;
-    int zr_analog;
+    int16_t zl_analog;
+    int16_t zr_analog;
 } button_data_s;
 
 // Analog input data structure

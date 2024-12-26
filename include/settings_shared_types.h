@@ -38,8 +38,7 @@ typedef enum
 
 typedef enum 
 {
-    REMAP_CMD_SET_REMAP,
-    REMAP_CMD_SET_UNSET,
+    REMAP_CMD_REFRESH, 
 } remap_cmd_t;
 
 typedef enum 
@@ -111,11 +110,23 @@ typedef struct
 typedef struct 
 {
     uint8_t     trigger_config_version;
-    uint32_t    left_config;
-    uint32_t    right_config;
-    uint8_t     left_static_output_value;
-    uint8_t     right_static_output_value;
-    uint8_t     reserved[21];
+    uint8_t     trigger_mode_gamecube; // Trigger mode for gamecube only
+
+    uint16_t    left_min;
+    uint16_t    left_max;
+    uint16_t    left_deadzone : 15;
+    uint16_t    left_disabled : 1;
+    uint16_t    left_hairpin_value;
+    uint16_t    left_static_output_value;
+
+    uint16_t    right_min;
+    uint16_t    right_max;
+    uint16_t    right_deadzone : 15;
+    uint16_t    right_disabled : 1;
+    uint16_t    right_hairpin_value;
+    uint16_t    right_static_output_value;
+
+    uint8_t     reserved[42];
 } triggerConfig_s;
 
 typedef struct 
@@ -182,9 +193,10 @@ typedef struct
     uint8_t remap_config_version : 4;
     uint8_t remap_config_setting : 4;
     // SNES, N64, GameCube, Switch, XInput
-    uint16_t profiles[12]; // Reserve space for 12 profiles
+    uint32_t profiles_lower[12]; // Reserve space for 12 profiles
+    uint32_t profiles_upper[12]; // Profile = lower + upper as a uint64_t technically
     uint16_t disabled[12]; // 12 disabled options (tells remap which buttons to disable)
-    uint8_t  reserved[15];
+    uint8_t  reserved[135];
 } remapConfig_s; 
 #pragma pack(pop)
 
