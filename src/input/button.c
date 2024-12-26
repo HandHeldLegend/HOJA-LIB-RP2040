@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "utilities/interval.h"
+#include "utilities/pcm.h"
 
 #include "hal/mutex_hal.h"
 #include "hal/sys_hal.h"
@@ -119,15 +120,6 @@ void button_task(uint32_t timestamp)
         cb_hoja_read_buttons(&_raw_button_data);
         // Process button remaps
         //--
-
-        if(_raw_button_data.button_b) 
-        {
-            erm_simulator_set_intensity(255);
-        }
-        else
-        {
-            erm_simulator_set_intensity(0);
-        }
 
         // Debug paste remapped buttons
         memcpy(&_remapped_button_data, &_raw_button_data, sizeof(button_data_s));

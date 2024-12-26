@@ -48,10 +48,10 @@ typedef struct
 
 typedef struct 
 {
-    int16_t hi_amplitude_fixed;
-    int16_t lo_amplitude_fixed;
-    uint16_t hi_frequency_increment;
-    uint16_t lo_frequency_increment;
+    int16_t     hi_amplitude_fixed;
+    int16_t     lo_amplitude_fixed;
+    uint16_t    hi_frequency_increment;
+    uint16_t    lo_frequency_increment;
 } haptic_processed_s;
 
 #define COLOR_RED    (rgb_s) {.r = 0xFF, .g = 0x00, .b = 0x00}

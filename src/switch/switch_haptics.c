@@ -1,8 +1,14 @@
 #include "switch/switch_haptics.h"
-#include "utilities/pcm.h"
 #include <string.h>
 #include "devices_shared_types.h"
 #include <math.h>
+#include "utilities/pcm.h"
+
+#if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
+#include "hal/hdrumble_hal.h"
+#elif defined(HOJA_CONFIG_SDRUMBLE) && (HOJA_CONFIG_SDRUMBLE==1)
+#include "hal/sdrumble_hal.h"
+#endif
 
 typedef struct 
 {
@@ -73,7 +79,7 @@ static int16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH];
 
 void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 
-    float intensity = 1; //(float) user_intensity / 255.0f;
+    float intensity = user_intensity / 255.0f;
     float scaledRangeHi = intensity * HI_FREQUENCY_RANGE;
     float scaledRangeLo = intensity * LO_FREQUENCY_RANGE;
 
@@ -580,6 +586,11 @@ void switch_haptics_init(uint8_t user_intensity)
 // This will detect and call the appropriate decoding schema
 void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 {
+    static SwitchHapticPacket_s last_packet = {0};
+
+    if(encoded->data == last_packet.data) return;
+    last_packet.data = encoded->data;
+
     switch (encoded->frame_count)
     {
         case 0:
@@ -618,6 +629,11 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
+    // Avoid doing anything if we don't have this defined
+    #if !defined(HOJA_HAPTICS_PUSH_AMFM)
+    return;
+    #endif
+
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
     haptic_processed_s processed = {0};
@@ -630,7 +646,10 @@ void switch_haptics_rumble_translate(const uint8_t *data)
             processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
-            pcm_amfm_push(&processed);
+            
+            #if defined(HOJA_HAPTICS_PUSH_AMFM)
+            HOJA_HAPTICS_PUSH_AMFM(&processed);
+            #endif
         }
     }
 }

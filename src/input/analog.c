@@ -1,6 +1,7 @@
 #include "input/analog.h"
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
+#include "input/stick_deadzone.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -253,6 +254,26 @@ void _capture_input_angle(float *left, float *right)
     _analog_exit();
 }
 
+// Helper function to convert angle/distance to coordinate pair
+void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out) 
+{    
+    // Normalize angle to 0-360 range
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    
+    // Convert angle to radians
+    float angle_radians = angle * M_PI / 180.0f;
+    
+    // Calculate X and Y coordinates
+    // Limit to -2048 to +2048 range
+    out[0] = (int)(distance * cosf(angle_radians));
+    out[1] = (int)(distance * sinf(angle_radians));
+    
+    // Clamp to prevent exceeding the specified range
+    out[0] = fmaxf(-2048, fminf(2047, out[0]));
+    out[1] = fmaxf(-2048, fminf(2047, out[1]));
+}
+
 void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
 {
     float left = 0.0f;
@@ -318,15 +339,16 @@ void analog_task(uint32_t timestamp)
 
         stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
 
-        // Rebase analog data to full non-negative scale
-        _scaled_analog_data.lx = CAP_ANALOG(_scaled_analog_data.lx+ANALOG_HALF_DISTANCE);
-        _scaled_analog_data.ly = CAP_ANALOG(_scaled_analog_data.ly+ANALOG_HALF_DISTANCE);
-        _scaled_analog_data.rx = CAP_ANALOG(_scaled_analog_data.rx+ANALOG_HALF_DISTANCE);
-        _scaled_analog_data.ry = CAP_ANALOG(_scaled_analog_data.ry+ANALOG_HALF_DISTANCE);
-
         // Temp debug
         //memcpy(&_snapback_analog_data, &_raw_analog_data, sizeof(analog_data_s));
-        memcpy(&_deadzone_analog_data, &_scaled_analog_data, sizeof(analog_data_s));
+        // memcpy(&_deadzone_analog_data, &_scaled_analog_data, sizeof(analog_data_s));
+        stick_deadzone_process(&_scaled_analog_data, &_deadzone_analog_data);
+
+        // Rebase analog data to full non-negative scale
+        _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx+ANALOG_HALF_DISTANCE);
+        _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly+ANALOG_HALF_DISTANCE);
+        _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx+ANALOG_HALF_DISTANCE);
+        _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry+ANALOG_HALF_DISTANCE);
 
         _analog_exit();
     }

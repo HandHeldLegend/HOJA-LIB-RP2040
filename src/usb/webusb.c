@@ -84,7 +84,7 @@ void webusb_send_rawinput(uint32_t timestamp)
     {
         uint8_t webusb_input_report[64] = {0};
 
-        analog_access_try(&analog, ANALOG_ACCESS_SCALED_DATA);
+        analog_access_try(&analog, ANALOG_ACCESS_DEADZONE_DATA);
         //button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;

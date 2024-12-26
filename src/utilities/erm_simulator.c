@@ -26,18 +26,10 @@ int32_t _current_intensity = 0;
 int32_t _highest_target_current = 0;
 bool _highest_target_set = false;
 
-// Lookup tables for motor response curves
-static uint16_t frequency_lut[FREQUENCY_LUT_SIZE] = {
-    // Will be initialized with precalculated values
-    // Maps intensity (0-255) to frequency values
-    // Format: fixed_increment values ready for PCM generation
-};
-
-static int16_t amplitude_lut[AMPLITUDE_LUT_SIZE] = {
-    // Will be initialized with precalculated values
-    // Maps intensity (0-255) to amplitude values
-    // Format: fixed_amplitude values ready for PCM generation
-};
+// Step values
+static uint16_t _frequency_min = 0;
+static uint16_t _frequency_step = 0;
+static int16_t  _amplitude_step = 0;
 
 // Set desired motor intensity
 void erm_simulator_set_intensity(uint8_t intensity) {
@@ -86,8 +78,8 @@ bool _motor_sim_update(uint16_t *out_freq, int16_t *out_amp) {
     _current_intensity = (_current_intensity > 255) ? 255 : _current_intensity;
         
     // Look up frequency and amplitude from tables
-    freq    = frequency_lut[_current_intensity];
-    amp     = amplitude_lut[_current_intensity];
+    freq    = (_frequency_step * _current_intensity) + _frequency_min;
+    amp     = _amplitude_step * _current_intensity;
     
     *out_freq   = freq;
     *out_amp    = amp;
@@ -96,40 +88,19 @@ bool _motor_sim_update(uint16_t *out_freq, int16_t *out_amp) {
 }
 
 // Utility function to generate lookup tables
-void _generate_motor_lookup_tables(void) {
-    float freq, amp;
-    uint16_t fixed_freq;
-    int16_t fixed_amp;
-
+void _erm_simulator_init(void) {
     // Frequency step size 
     float f_step = (MOTOR_MAX_FREQUENCY - MOTOR_MIN_FREQUENCY) / (FREQUENCY_LUT_SIZE - 1);
-    freq = MOTOR_MIN_FREQUENCY;
+    float f_min = MOTOR_MIN_FREQUENCY;
 
-    float a_step = 1.0f / (AMPLITUDE_LUT_SIZE - 1);
-    amp = 0.0f;
-    
-    for(int i = 0; i < FREQUENCY_LUT_SIZE; i++) {
-        // Convert to PCM increment value
-        freq = MOTOR_MIN_FREQUENCY + (i * f_step);
-        fixed_freq = (uint16_t)((freq * PCM_SINE_TABLE_SIZE / PCM_SAMPLE_RATE) * 
+    _frequency_step = (uint16_t)((f_step * PCM_SINE_TABLE_SIZE / PCM_SAMPLE_RATE) * 
                                PCM_FREQUENCY_SHIFT_FIXED + 0.5f);
-                               
-        frequency_lut[i] = fixed_freq;
-        
-        // Convert to PCM amplitude value
-        if(i > 0) {
-            amp = i * a_step;
-            fixed_amp = (int16_t)(amp * PCM_AMPLITUDE_SHIFT_FIXED + 0.5f);
-        }
-        else {
-            amp = 0.0f;
-            fixed_amp = 0;
-        }
+    _frequency_min = (uint16_t)((f_min * PCM_SINE_TABLE_SIZE / PCM_SAMPLE_RATE) * 
+                               PCM_FREQUENCY_SHIFT_FIXED + 0.5f);
 
-        amplitude_lut[i] = fixed_amp;
-    }
-
-    amplitude_lut[0] = 0;
+    // Amplitude step size
+    float a_step = 1.0f / (AMPLITUDE_LUT_SIZE - 1);
+    _amplitude_step = (int16_t)(a_step * PCM_AMPLITUDE_SHIFT_FIXED + 0.5f);
 }
 
 bool _erm_ready = false;
@@ -144,7 +115,7 @@ void erm_simulator_task(uint32_t timestamp)
 
     if(!_erm_ready)
     {
-        _generate_motor_lookup_tables();
+        _erm_simulator_init();
         _erm_ready = true;
     }
 

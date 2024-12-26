@@ -6,6 +6,8 @@
 #include <string.h>
 #include <math.h>
 
+#include "switch/switch_haptics.h"
+
 #include "hoja_bsp.h"
 #if HOJA_BSP_CHIPSET == CHIPSET_RP2040
 // Special float functions for RP2040
@@ -85,7 +87,17 @@ void pcm_amfm_queue_init()
     _pcm_amfm_queue.count = 0;
 }
 
-MUTEX_HAL_INIT(_pcm_amfm_mutex);
+void pcm_send_pulse()
+{
+    uint8_t pulse_data[4] = {0x00, 0x00, 0x05, 0xC0};
+    switch_haptics_rumble_translate(pulse_data);
+    switch_haptics_rumble_translate(pulse_data);
+    switch_haptics_rumble_translate(pulse_data);
+    switch_haptics_rumble_translate(pulse_data);
+}
+
+#define DEFAULT_HI (uint16_t)(((160.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
+#define DEFAULT_LO (uint16_t)(((40.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
 
 // Push new values to queue
 // Returns true if successful, false if queue is full
@@ -95,6 +107,14 @@ bool pcm_amfm_push(haptic_processed_s *value)
     {
         return false; // Queue is full
     }
+
+    const uint16_t default_hi = DEFAULT_HI; // 160Hz
+    const uint16_t default_lo = DEFAULT_LO; // 40Hz 
+
+    // Set default frequency increment values so we're always incrementing
+    if(value->hi_frequency_increment < default_hi) value->hi_frequency_increment = default_hi; 
+    if(value->hi_frequency_increment < default_lo) value->lo_frequency_increment = default_lo; 
+
     // Always 3 samples
     memcpy(&_pcm_amfm_queue.buffer[_pcm_amfm_queue.tail], value, sizeof(haptic_processed_s));
     _pcm_amfm_queue.tail = (_pcm_amfm_queue.tail + 1) % PCM_AMFM_QUEUE_SIZE;
@@ -112,6 +132,9 @@ bool pcm_amfm_pop(haptic_processed_s *out)
     }
 
     memcpy(out, &_pcm_amfm_queue.buffer[_pcm_amfm_queue.head], sizeof(haptic_processed_s));
+    _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].hi_amplitude_fixed = 0;
+    _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].lo_amplitude_fixed = 0;
+
     _pcm_amfm_queue.head = (_pcm_amfm_queue.head + 1) % PCM_AMFM_QUEUE_SIZE;
     _pcm_amfm_queue.count--;
     return true;
@@ -163,8 +186,13 @@ void pcm_generate_buffer(
     static uint8_t lerp_factor = 0; 
     const  uint16_t lerp_inc = 225 / PCM_SAMPLES_LERP_TIME;
 
+    static int load_sample = -1;
+
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
+        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
+        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
+
         if(!current_sample_idx || (current_sample_idx >= PCM_SAMPLES_PER_PAIR)) 
         {
             // Get new values from queue
@@ -179,8 +207,8 @@ void pcm_generate_buffer(
 
         int16_t hi_amplitude_fixed = 0;
         int16_t lo_amplitude_fixed = 0;
-        uint16_t hi_frequency_increment = 0;
-        uint16_t lo_frequency_increment = 0;
+        uint16_t hi_frequency_increment = 200;
+        uint16_t lo_frequency_increment = 200;
 
         // Lerp between last and current values
         if (current_sample_idx < PCM_SAMPLES_LERP_TIME)
@@ -198,9 +226,6 @@ void pcm_generate_buffer(
             hi_frequency_increment = current_values.hi_frequency_increment;
             lo_frequency_increment = current_values.lo_frequency_increment;
         }
-
-        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
-        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];

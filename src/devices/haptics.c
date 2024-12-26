@@ -7,6 +7,7 @@
 #include "utilities/erm_simulator.h"
 
 float _rumble_intensity = 1.0f;
+bool _erm_simulation = false;
 
 void haptics_set_intensity(float intensity)
 {
@@ -18,7 +19,7 @@ float haptics_get_intensity()
     return _rumble_intensity;
 }
 
-void haptics_set_basic(float amplitude) 
+void haptics_set(uint8_t amplitude) 
 {
 
 }
@@ -37,5 +38,5 @@ void haptics_task(uint32_t timestamp)
     hdrumble_hal_task(timestamp);
     #endif
 
-    erm_simulator_task(timestamp);
+    //erm_simulator_task(timestamp);
 }

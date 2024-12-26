@@ -66,11 +66,27 @@ typedef struct
 // Analog input data structure
 typedef struct
 {
-    int lx;
-    int ly;
-    int rx;
-    int ry;
+    int16_t lx;
+    int16_t ly;
+    int16_t rx;
+    int16_t ry;
+    float langle;       // Current value angle
+    uint16_t ldistance;    // Current value distance
+    uint16_t ltarget;      // Current value target distance (scaling)
+    bool lcrossover; // dot product bool indicates crossover
+    float rangle;
+    uint16_t rdistance;
+    uint16_t rtarget;
+    bool rcrossover;  
 } analog_data_s;
+
+typedef struct 
+{
+    float    angle;
+    bool     crossover;
+    uint16_t distance;
+    uint16_t target;
+} analog_meta_s;
 
 typedef enum
 {

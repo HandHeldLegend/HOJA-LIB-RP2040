@@ -2,6 +2,7 @@
 #include "utilities/interval.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 // How many measurements we need to
 // 'fall' before we activate
@@ -17,19 +18,6 @@
 #define DECAY_TOLERANCE 4
 
 #define OUTBUFFER_SIZE 64
-
-int _is_opposite_direction(int x1, int y1, int x2, int y2)
-{
-    // Opposite directions if dot product is negative.
-    return (x1 - CENTERVAL) * (x2 - CENTERVAL) + (y1 - CENTERVAL) * (y2 - CENTERVAL) < 0;
-}
-
-float _get_2d_distance(int x, int y)
-{
-  float dx = (float)x - (float)CENTERVAL;
-  float dy = (float)y - (float)CENTERVAL;
-  return sqrtf(dx * dx + dy * dy);
-}
 
 bool _is_distance_falling(float last_distance, float current_distance)
 {
@@ -52,57 +40,23 @@ typedef struct
     bool    decaying; // If we are actively decaying
 } axis_s;
 
-bool _center_trigger_detect(axis_s *axis, int x, int y)
+int8_t _get_direction(int currentDistance, int lastDistance)
 {
-    if(axis->stored_x < 0)
-    return false;
+    if(currentDistance==lastDistance) return 0;
 
-    if(_is_opposite_direction(axis->stored_x, axis->stored_y, x, y))
-    {
-        axis->stored_x = -1;
-        axis->stored_y = -1;
-        return true;
-    }
-}
-
-bool _is_between(int centerValue, int lastPosition, int currentPosition) 
-{
-    // Check if the current position and last position are on different sides of the center
-    if ((currentPosition >= centerValue && lastPosition < centerValue) ||
-        (currentPosition < centerValue && lastPosition >= centerValue)) {
-        return true;  // Sensor has crossed the center point
-    } else {
-        return false; // Sensor has not crossed the center point
-    }
-}
-
-int _get_distance(int A, int B)
-{
-    return abs(A-B);
-}
-
-int8_t _get_direction(int currentPosition, int lastPosition)
-{
-    if(currentPosition==lastPosition) return 0;
-
-    if(currentPosition > lastPosition) return 1;
+    if(currentDistance > lastDistance) return 1;
     else return -1;
 }
 
 /**
  * Adds value to axis_s and returns the latest value
  */
-void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
+void _add_axis(bool crossover, uint16_t distance, uint16_t *out_distance, axis_s *a)
 {   
-    int return_x = x;
-    int return_y = y;
-
-    float distance = _get_2d_distance(x, y);
+    int return_distance = distance;
 
     if(distance >= SNAPBACK_STORE_HEIGHT)
     {
-        a->stored_x = x;
-        a->stored_y = y;
         a->crossover_expiration = CROSSOVER_EXPIRATION;
     }
     else
@@ -110,11 +64,10 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
         a->crossover_expiration = (!a->crossover_expiration) ? 0 : a->crossover_expiration-1;
     }
 
-    if(_center_trigger_detect(a, x, y) && (a->crossover_expiration>0))
+    if(crossover && (a->crossover_expiration>0))
     {
         // reset rising
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
+        return_distance = 0;
 
         a->triggered = false;
         a->rising = true;
@@ -125,8 +78,7 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
     // Valid snapback wave potentially happening
     else if(a->rising)
     {
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
+        return_distance = 0;
 
         a->trigger_width += 1;
 
@@ -143,8 +95,7 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
             //release
             a->rising = false;
 
-            return_x = x;
-            return_y = y;
+            return_distance = distance;
 
             a->decaying = false;
         }
@@ -157,16 +108,15 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
             a->decay_timer = a->trigger_width+DECAY_TOLERANCE;
 
             // Set new stored X and Y
-            a->stored_x = x;
-            a->stored_y = y;
+            //a->stored_x = x;
+            //a->stored_y = y;
             // Reset expiration
             a->crossover_expiration = CROSSOVER_EXPIRATION;
         }
     }
     else if(a->decaying)
     {
-        return_x = CENTERVAL;
-        return_y = CENTERVAL;
+        return_distance = 0;
 
         a->decay_timer -= 1;
         if(!a->decay_timer)
@@ -178,8 +128,8 @@ void _add_axis(int x, int y, int *out_x, int *out_y, axis_s *a)
     }
 
     a->last_distance = distance;
-    *out_x = return_x;
-    *out_y = return_y;
+
+    *out_distance = return_distance;
 }
 
 void snapback_process(analog_data_s *input, analog_data_s *output)
@@ -187,23 +137,10 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
     static axis_s l = {0};
     static axis_s r = {0};
 
-    #if(HOJA_CAPABILITY_ANALOG_STICK_L)
+    memcpy(output, input, sizeof(analog_data_s));
 
-    _add_axis(input->lx, input->ly, &(output->lx), &(output->ly), &l);
-
-    #else
-    output->lx = CENTERVAL;
-    output->ly = CENTERVAL;
-    #endif
-
-    #if(HOJA_CAPABILITY_ANALOG_STICK_R)
-    
-    _add_axis(input->rx, input->ry, &(output->rx), &(output->ry), &r);
-
-    #else
-    output->rx = CENTERVAL;
-    output->ry = CENTERVAL;
-    #endif
+    _add_axis(input->lcrossover, input->ldistance, &(output->ldistance), &l);
+    _add_axis(input->rcrossover, input->rdistance, &(output->rdistance), &r);
 }
 
 uint8_t _snapback_report[64] = {0};

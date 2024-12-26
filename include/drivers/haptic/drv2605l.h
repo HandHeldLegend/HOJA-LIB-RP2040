@@ -17,7 +17,7 @@
     #error "Define HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE in board_config.h" 
 #endif 
 
-#define HAPTIC_DRIVER_DRV2605L_INIT() drv2605l_init(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
+#define HOJA_HAPTIC_HELPER_DRIVER_INIT() drv2605l_init(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
 
 bool drv2605l_init(uint8_t i2c_instance);
 

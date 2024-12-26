@@ -22,6 +22,7 @@ typedef enum
     ANALOG_ACCESS_DEADZONE_DATA, // Access analog data post-deadzone application
 } analog_access_t;
 
+void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out);
 void analog_init();
 void analog_access_blocking(analog_data_s *out, analog_access_t type);
 bool analog_access_try(analog_data_s *out, analog_access_t type);

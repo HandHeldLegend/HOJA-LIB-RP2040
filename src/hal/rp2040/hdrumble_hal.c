@@ -11,6 +11,8 @@
 // We are in Pico land, use native APIs here :)
 #include "pico/stdlib.h"
 
+#include "utilities/settings.h"
+
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
@@ -20,6 +22,7 @@
 #include "switch/switch_haptics.h"
 
 #include "utilities/pcm.h"
+#include "utilities/erm_simulator.h"
 
 #define SAMPLE_RATE         PCM_SAMPLE_RATE
 #define REPETITION_RATE     4
@@ -73,14 +76,22 @@ static void __isr __time_critical_func(_dma_handler)()
 bool hdrumble_hal_init()
 {
     static bool hal_init = false;
+
     // Initialize the haptics
-    switch_haptics_init(100);
+    switch_haptics_init(haptic_config->haptic_strength);
 
     // Initialize the PCM
     pcm_init();
 
     if(hal_init) return true;
     hal_init = true;
+
+    // Optional init driver
+    #if defined(HOJA_HAPTIC_HELPER_DRIVER_INIT)
+    HOJA_HAPTIC_HELPER_DRIVER_INIT()
+    #else 
+        #warning "No HD haptics helper driver defined. Using HAL only."
+    #endif
 
     // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
@@ -210,6 +221,7 @@ bool hdrumble_hal_init()
     return true;
 }
 
+bool _erm_simulation_enabled = false;
 void hdrumble_hal_task(uint32_t timestamp)
 {
     if (ready_next_sine)
@@ -218,11 +230,21 @@ void hdrumble_hal_task(uint32_t timestamp)
         uint8_t available_buffer = 1 - audio_buffer_idx;
         pcm_generate_buffer(audio_buffers[available_buffer]);
     }
+
+    if(_erm_simulation_enabled)
+        erm_simulator_task(timestamp);
 }
 
-void hdrumble_hal_test()
+void hdrumble_hal_push_amfm(haptic_processed_s *input)
 {
+    _erm_simulation_enabled = false; // Unset our ERM simulation mode
+    pcm_amfm_push(input);
+}
 
+void hdrumble_hal_set_standard(uint8_t intensity)
+{
+    _erm_simulation_enabled = true; // Enable ERM simulation mode
+    erm_simulator_set_intensity(intensity);
 }
 
 #endif

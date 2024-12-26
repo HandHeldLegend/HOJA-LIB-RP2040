@@ -8,14 +8,14 @@
 
 #define PCM_BUFFER_SIZE 255
 #define PCM_SAMPLES_PER_PAIR 64
-#define PCM_SAMPLES_LERP_TIME 32
+#define PCM_SAMPLES_LERP_TIME 0
 #define PCM_TOTAL_SIZE (PCM_BUFFER_SIZE * PCM_CHUNKS)
 #define PCM_SAMPLE_RATE 16000
 #define PCM_SINE_TABLE_SIZE 4096
-#define PCM_MAX_SAFE_VALUE 60
+#define PCM_MAX_SAFE_VALUE 75 // 60 maybe felt closest to OEM?
 
 #define PCM_LO_FREQUENCY_MIN 0.15f
-#define PCM_HI_FREQUENCY_MIN 0.1585f
+#define PCM_HI_FREQUENCY_MIN 0.15f
 #define PCM_LO_FREQUENCY_RANGE (1 - PCM_LO_FREQUENCY_MIN)
 #define PCM_HI_FREQUENCY_RANGE (1 - PCM_HI_FREQUENCY_MIN)
 
@@ -30,6 +30,7 @@
 #define PCM_SINE_WRAPAROUND (PCM_SINE_TABLE_SIZE << PCM_FREQUENCY_SHIFT_BITS)
 
 void pcm_init();
+void pcm_send_pulse();
 bool pcm_amfm_push(haptic_processed_s *value);
 void pcm_generate_buffer(uint32_t *buffer);
 
