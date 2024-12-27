@@ -19,10 +19,26 @@
     #define DEVICE_MAKER HOJA_DEVICE_MAKER 
 #endif
 
+#if !defined(HOJA_DEVICE_SNES_SUPPORTED)
+ #warning "HOJA_DEVICE_SNES_SUPPORTED undefined. SNES/NES disabled."
+ #define SNES_SUPPORT 0
+#else 
+ #define SNES_SUPPORT HOJA_DEVICE_SNES_SUPPORTED
+#endif
+
+#if !defined(HOJA_DEVICE_JOYBUS_SUPPORTED)
+ #warning "HOJA_DEVICE_JOYBUS_SUPPORTED undefined. N64/GameCube disabled."
+ #define JOYBUS_SUPPORT 0
+#else 
+ #define JOYBUS_SUPPORT HOJA_DEVICE_JOYBUS_SUPPORTED
+#endif
+
 const deviceInfoStatic_s    device_static = {
     .fw_version = HOJA_FW_VERSION,
     .maker      = DEVICE_MAKER, 
-    .name       = DEVICE_NAME
+    .name       = DEVICE_NAME,
+    .snes_supported = SNES_SUPPORT,
+    .joybus_supported = JOYBUS_SUPPORT
 };
 
 #if !defined(HOJA_BUTTONS_SUPPORTED_MAIN)

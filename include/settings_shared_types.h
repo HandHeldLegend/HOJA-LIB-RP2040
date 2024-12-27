@@ -111,21 +111,18 @@ typedef struct
 {
     uint8_t     trigger_config_version;
     uint8_t     trigger_mode_gamecube; // Trigger mode for gamecube only
-
     uint16_t    left_min;
     uint16_t    left_max;
     uint16_t    left_deadzone : 15;
     uint16_t    left_disabled : 1;
     uint16_t    left_hairpin_value;
     uint16_t    left_static_output_value;
-
     uint16_t    right_min;
     uint16_t    right_max;
     uint16_t    right_deadzone : 15;
     uint16_t    right_disabled : 1;
     uint16_t    right_hairpin_value;
     uint16_t    right_static_output_value;
-
     uint8_t     reserved[42];
 } triggerConfig_s;
 
@@ -188,13 +185,36 @@ typedef struct
     uint8_t reserved[22];
 } gamepadConfig_s;
 
+// Remapping struct used to determine
+// remapping parameters
+typedef struct
+{
+    uint8_t dpad_up     : 4; // Default 0
+    uint8_t dpad_down   : 4; // Default 1
+    uint8_t dpad_left   : 4; // Default 2
+    uint8_t dpad_right  : 4; // Default 3...
+    uint8_t button_a      : 4;
+    uint8_t button_b      : 4;
+    uint8_t button_x      : 4;
+    uint8_t button_y      : 4;
+    uint8_t trigger_l       : 4;
+    uint8_t trigger_zl      : 4;
+    uint8_t trigger_r       : 4;
+    uint8_t trigger_zr      : 4;
+    uint8_t button_plus   : 4;
+    uint8_t button_minus  : 4;
+    uint8_t button_stick_left     : 4;
+    uint8_t button_stick_right    : 4;
+} buttonRemap_s;
+
+#define BUTTON_REMAP_SIZE sizeof(buttonRemap_s)
+
 typedef struct
 {
     uint8_t remap_config_version : 4;
     uint8_t remap_config_setting : 4;
-    // SNES, N64, GameCube, Switch, XInput
-    uint32_t profiles_lower[12]; // Reserve space for 12 profiles
-    uint32_t profiles_upper[12]; // Profile = lower + upper as a uint64_t technically
+    // Switch, XInput, SNES, N64, GameCube
+    buttonRemap_s profiles[12]; // SIZE=8
     uint16_t disabled[12]; // 12 disabled options (tells remap which buttons to disable)
     uint8_t  reserved[135];
 } remapConfig_s; 

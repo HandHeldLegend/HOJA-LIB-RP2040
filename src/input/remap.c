@@ -110,19 +110,19 @@ void _remap_unpack_remap(uint8_t profile_idx, button_remap_s *remap)
 void _remap_load_remap()
 {
   uint8_t profile_idx = 0;
-  switch(hoja_gamepad_mode_get())
+  uint8_t mode = hoja_gamepad_mode_get();
+  switch(mode)
   {
     default:
     case GAMEPAD_MODE_SWPRO:
       // Profile 0
       break;
 
-    case GAMEPAD_MODE_GCUSB:
-    case GAMEPAD_MODE_GAMECUBE:
+    case GAMEPAD_MODE_XINPUT:
       profile_idx = 1;
       break;
 
-    case GAMEPAD_MODE_XINPUT:
+    case GAMEPAD_MODE_SNES:
       profile_idx = 2;
       break;
 
@@ -130,7 +130,8 @@ void _remap_load_remap()
       profile_idx = 3;
       break;
 
-    case GAMEPAD_MODE_SNES:
+    case GAMEPAD_MODE_GCUSB:
+    case GAMEPAD_MODE_GAMECUBE:
       profile_idx = 4;
       break;
   }
@@ -146,6 +147,17 @@ void _remap_load_remap()
   if(_remap_profile.trigger_zl == MAPCODE_T_ZR)
     _rtrigger_processing_mode = 0;
   else _rtrigger_processing_mode = 1;
+
+  // Custom mode for GameCube modes
+  // But only if we are mapped to original outputs
+  switch(mode)
+  {
+    case GAMEPAD_MODE_GAMECUBE:
+    case GAMEPAD_MODE_GCUSB:
+      _rtrigger_processing_mode = (!_ltrigger_processing_mode) ? 2 : 0;
+      _ltrigger_processing_mode = (!_rtrigger_processing_mode) ? 2 : 0;
+    break;
+  }
   
 }
 

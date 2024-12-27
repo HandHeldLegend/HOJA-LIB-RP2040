@@ -45,30 +45,23 @@ typedef enum
 // remapping parameters
 typedef struct
 {
-    union
-    {
-        struct
-        {
-            mapcode_t dpad_up     : 4; // Default 0
-            mapcode_t dpad_down   : 4; // Default 1
-            mapcode_t dpad_left   : 4; // Default 2
-            mapcode_t dpad_right  : 4; // Default 3...
-            mapcode_t button_a      : 4;
-            mapcode_t button_b      : 4;
-            mapcode_t button_x      : 4;
-            mapcode_t button_y      : 4;
-            mapcode_t trigger_l       : 4;
-            mapcode_t trigger_zl      : 4;
-            mapcode_t trigger_r       : 4;
-            mapcode_t trigger_zr      : 4;
-            mapcode_t button_plus   : 4;
-            mapcode_t button_minus  : 4;
-            mapcode_t button_stick_left     : 4;
-            mapcode_t button_stick_right    : 4;
-        };
-        uint64_t val;
-    };
-} button_remap_s;
+    uint8_t dpad_up     : 4; // Default 0
+    uint8_t dpad_down   : 4; // Default 1
+    uint8_t dpad_left   : 4; // Default 2
+    uint8_t dpad_right  : 4; // Default 3...
+    uint8_t button_a      : 4;
+    uint8_t button_b      : 4;
+    uint8_t button_x      : 4;
+    uint8_t button_y      : 4;
+    uint8_t trigger_l       : 4;
+    uint8_t trigger_zl      : 4;
+    uint8_t trigger_r       : 4;
+    uint8_t trigger_zr      : 4;
+    uint8_t button_plus   : 4;
+    uint8_t button_minus  : 4;
+    uint8_t button_stick_left     : 4;
+    uint8_t button_stick_right    : 4;
+} buttonRemap_s;
 
 typedef struct
 {

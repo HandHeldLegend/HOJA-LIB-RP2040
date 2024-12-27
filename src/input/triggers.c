@@ -60,7 +60,7 @@ the L trigger (L1, LB) is used for our special function
 // Everything is default
 void _gc_mode_0()
 {
-
+    // UNUSED :)
 }
 
 // Left trigger function is split
@@ -74,27 +74,44 @@ void _gc_mode_1(button_data_s *safe)
     }
     else 
     {
+        // Trigger L is our 'SP' button in gamecube modes
         if(safe->trigger_l)
             safe->zl_analog = trigger_config->left_static_output_value;
+        else 
+            safe->zl_analog = 0;
     }
+    // Nothing else modified? I think...
 }
 
 // Right trigger function is split
 void _gc_mode_2(button_data_s *safe)
 {
-
+    // Use ZR digital as our override
+    if(safe->trigger_zr)
+    {
+        safe->zr_analog = MAX_ANALOG_OUT;
+        return;
+    }
+    else 
+    {
+        if(safe->trigger_l)
+            safe->zr_analog = trigger_config->right_static_output_value;
+        else 
+            safe->zr_analog = 0;
+    }
 }
 
 // Dual Z
 void _gc_mode_3(button_data_s *safe)
 {
-
+    if(safe->trigger_l)
+        safe->trigger_r |= 1;
 }
 
 // Let's say our analog trigger is bound to another
 // button such as ABXY (digital only)
 // We can have our hairtrigger function
-void _trigger_preprocess_rebound_l(button_data_s *safe)
+void _trigger_preprocess_rebound_l(button_data_s *safe, bool hairpin)
 {
     // We only care if analog function is NOT disabled
     // The remap function will handle the digital press
@@ -107,7 +124,10 @@ void _trigger_preprocess_rebound_l(button_data_s *safe)
         if(new_l > MAX_ANALOG_OUT) new_l = MAX_ANALOG_OUT;
         
         // Apply our hairpin for the digital press
-        if(trigger_config->left_hairpin_value && (new_l >= trigger_config->left_hairpin_value))
+        if( hairpin
+            && trigger_config->left_hairpin_value 
+            && (new_l >= trigger_config->left_hairpin_value))
+
             safe->trigger_zl |= 1;
 
         // Output analog trigger here is always
@@ -165,14 +185,17 @@ void _trigger_postprocess_matching_l(button_data_s *safe)
     }
 }
 
-void _trigger_preprocess_rebound_r(button_data_s *safe)
+void _trigger_preprocess_rebound_r(button_data_s *safe, bool hairpin)
 {
     if(!trigger_config->right_disabled)
     {   
         int16_t new_r = _trigger_scale_input(safe->zr_analog, _rt_deadzone, _rt_scaler);
         if(new_r > MAX_ANALOG_OUT) new_r = MAX_ANALOG_OUT;
         
-        if(trigger_config->right_hairpin_value && (new_r >= trigger_config->right_hairpin_value))
+        if( hairpin
+            && trigger_config->right_hairpin_value 
+            && (new_r >= trigger_config->right_hairpin_value))
+
             safe->trigger_zr |= 1;
 
         safe->zr_analog = 0;
@@ -214,20 +237,22 @@ void _trigger_postprocess_matching_r(button_data_s *safe)
 // Handle hair triggers basically
 void triggers_process_pre(int l_type, int r_type, button_data_s *safe)
 {
+    // These functions are taking in the button data before remapping is done.
     if(l_type)
     {
-        _trigger_preprocess_rebound_l(safe);
+        _trigger_preprocess_rebound_l(safe, (l_type < 2));
     }
 
     if(r_type)
     {
-        _trigger_preprocess_rebound_r(safe);
+        _trigger_preprocess_rebound_r(safe, (r_type < 2));
     }
 }
 
 // Handle digital to analog mappings
 void triggers_process_post(int l_type, int r_type, button_data_s *safe)
 {
+    // These functions are taking in the button data after remapping was done.
     if(l_type)
     {
         _trigger_postprocess_rebound_l(safe);
