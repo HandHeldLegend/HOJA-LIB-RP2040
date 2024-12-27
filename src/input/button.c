@@ -102,6 +102,9 @@ bool button_init()
     
     _button_exit();
 
+    // Init remap
+    remap_init();
+
     return true;
 }
 

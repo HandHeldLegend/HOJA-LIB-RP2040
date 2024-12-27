@@ -9,7 +9,7 @@
 
 #define REMAP_SET(button, shift, unset) ( (unset) ? 0 : ((button) << shift))
 
-button_remap_s  _remap_profile;
+buttonRemap_s  _remap_profile;
 buttons_unset_s _unset_profile;
 
 int _ltrigger_processing_mode = 0;
@@ -36,14 +36,14 @@ int _rtrigger_processing_mode = 0;
 
 #define DEFAULT_UNSET {.val=0x00}
 
-const button_remap_s  _default_remap = DEFAULT_REMAP;
+const buttonRemap_s   _default_remap = DEFAULT_REMAP;
 const buttons_unset_s _default_unset = DEFAULT_UNSET;
 
 const buttons_unset_s _default_n64_unset       = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR)};
 const buttons_unset_s _default_gamecube_unset  = {.val = (1<<MAPCODE_B_MINUS) | (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_L)};
 const buttons_unset_s _default_snes_unset      = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_ZL) | (1<<MAPCODE_T_ZR)};
 
-button_remap_s  _remap_profile = DEFAULT_REMAP;
+buttonRemap_s  _remap_profile = DEFAULT_REMAP;
 buttons_unset_s _unset_profile = DEFAULT_UNSET;
 
 void remap_process(button_data_s *in, button_data_s *out)
@@ -92,19 +92,14 @@ void remap_process(button_data_s *in, button_data_s *out)
   memcpy(out, &in_copy, sizeof(button_data_s));
 }
 
-void _remap_pack_remap(button_remap_s *remap, uint8_t profile_idx)
+void _remap_pack_remap(buttonRemap_s *remap, uint8_t profile_idx)
 {
-  uint32_t val_lower = (uint32_t) (remap->val & 0xFFFFFFFF);
-  uint32_t val_upper = (uint32_t) ((remap->val & 0xFFFFFFFF00000000) >> 32);
-
-  remap_config->profiles_lower[profile_idx] = val_lower;
-  remap_config->profiles_upper[profile_idx] = val_upper;
+  memcpy(&remap_config->profiles[profile_idx], remap, BUTTON_REMAP_SIZE);
 }
 
-void _remap_unpack_remap(uint8_t profile_idx, button_remap_s *remap)
+void _remap_unpack_remap(uint8_t profile_idx, buttonRemap_s *remap)
 {
-  remap->val = ((uint64_t) remap_config->profiles_upper[profile_idx] << 32) | 
-               ((uint64_t) remap_config->profiles_lower[profile_idx]);
+  memcpy(remap, &remap_config->profiles[profile_idx], BUTTON_REMAP_SIZE);
 }
 
 void _remap_load_remap()
@@ -187,6 +182,14 @@ void remap_reset_default(gamepad_mode_t mode)
 
 void remap_init()
 {
-
+  if(remap_config->remap_config_version != CFG_BLOCK_REMAP_VERSION)
+  {
+    remap_config->remap_config_version = CFG_BLOCK_REMAP_VERSION;
+    for(int i = 0; i < 12; i++)
+    {
+      remap_config->profiles[i] = _default_remap;
+      remap_config->disabled[i] = _default_unset.val;
+    }
+  }
 }
 

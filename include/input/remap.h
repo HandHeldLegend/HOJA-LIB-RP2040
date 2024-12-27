@@ -41,28 +41,6 @@ typedef enum
     MAPCODE_B_STICKR    = 15,
 } mapcode_t;
 
-// Remapping struct used to determine
-// remapping parameters
-typedef struct
-{
-    uint8_t dpad_up     : 4; // Default 0
-    uint8_t dpad_down   : 4; // Default 1
-    uint8_t dpad_left   : 4; // Default 2
-    uint8_t dpad_right  : 4; // Default 3...
-    uint8_t button_a      : 4;
-    uint8_t button_b      : 4;
-    uint8_t button_x      : 4;
-    uint8_t button_y      : 4;
-    uint8_t trigger_l       : 4;
-    uint8_t trigger_zl      : 4;
-    uint8_t trigger_r       : 4;
-    uint8_t trigger_zr      : 4;
-    uint8_t button_plus   : 4;
-    uint8_t button_minus  : 4;
-    uint8_t button_stick_left     : 4;
-    uint8_t button_stick_right    : 4;
-} buttonRemap_s;
-
 typedef struct
 {
     union
@@ -90,13 +68,8 @@ typedef struct
     };
 } buttons_unset_s;
 
-typedef struct
-{
-    button_remap_s  remap;
-    buttons_unset_s disabled;
-} remap_profile_s;
-
 void remap_config_cmd(remap_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
 void remap_process(button_data_s *in, button_data_s *out);
+void remap_init();
 
 #endif
