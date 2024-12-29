@@ -85,7 +85,7 @@ void webusb_send_rawinput(uint32_t timestamp)
         uint8_t webusb_input_report[64] = {0};
 
         analog_access_try(&analog, ANALOG_ACCESS_DEADZONE_DATA);
-        //button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+        button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
@@ -98,9 +98,8 @@ void webusb_send_rawinput(uint32_t timestamp)
         webusb_input_report[6] = (analog.rx & 0xFF);       
         webusb_input_report[7] = (analog.ry & 0xFF00) >> 8;
         webusb_input_report[8] = (analog.ry & 0xFF);       
-
-        webusb_input_report[9] = buttons.buttons_all & 0xFF;
-        webusb_input_report[10] = (buttons.buttons_all >> 8) & 0xFF;
+        webusb_input_report[9] = (buttons.buttons_all >> 8) & 0xFF;
+        webusb_input_report[10] = buttons.buttons_all & 0xFF;
         webusb_input_report[11] = buttons.buttons_system;
         webusb_input_report[12] = CLAMP_0_255(buttons.zl_analog >> 4);
         webusb_input_report[13] = CLAMP_0_255(buttons.zr_analog >> 4);

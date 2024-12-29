@@ -7,10 +7,9 @@
 
 #include <string.h>
 
-#define REMAP_SET(button, shift, unset) ( (unset) ? 0 : ((button) << shift))
+#define REMAP_SET(inputButton, outputButton) ( (outputButton < 0) ? 0 : (inputButton << outputButton) )
 
-buttonRemap_s  _remap_profile;
-buttons_unset_s _unset_profile;
+buttonRemap_s   _remap_profile;
 
 int _ltrigger_processing_mode = 0;
 int _rtrigger_processing_mode = 0;
@@ -37,14 +36,8 @@ int _rtrigger_processing_mode = 0;
 #define DEFAULT_UNSET {.val=0x00}
 
 const buttonRemap_s   _default_remap = DEFAULT_REMAP;
-const buttons_unset_s _default_unset = DEFAULT_UNSET;
-
-const buttons_unset_s _default_n64_unset       = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR)};
-const buttons_unset_s _default_gamecube_unset  = {.val = (1<<MAPCODE_B_MINUS) | (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_L)};
-const buttons_unset_s _default_snes_unset      = {.val = (1<<MAPCODE_B_STICKL) | (1<<MAPCODE_B_STICKR) | (1<<MAPCODE_T_ZL) | (1<<MAPCODE_T_ZR)};
 
 buttonRemap_s  _remap_profile = DEFAULT_REMAP;
-buttons_unset_s _unset_profile = DEFAULT_UNSET;
 
 void remap_process(button_data_s *in, button_data_s *out)
 {
@@ -60,24 +53,24 @@ void remap_process(button_data_s *in, button_data_s *out)
 
   uint16_t output = 0;
 
-  output |= REMAP_SET(in_copy.button_a, _remap_profile.button_a, _unset_profile.button_a);
-  output |= REMAP_SET(in_copy.button_b, _remap_profile.button_b, _unset_profile.button_b);
-  output |= REMAP_SET(in_copy.button_x, _remap_profile.button_x, _unset_profile.button_x);
-  output |= REMAP_SET(in_copy.button_y, _remap_profile.button_y, _unset_profile.button_y);
+  output |= REMAP_SET(in_copy.button_a, _remap_profile.button_a);
+  output |= REMAP_SET(in_copy.button_b, _remap_profile.button_b);
+  output |= REMAP_SET(in_copy.button_x, _remap_profile.button_x);
+  output |= REMAP_SET(in_copy.button_y, _remap_profile.button_y);
 
-  output |= REMAP_SET(in_copy.dpad_up,    _remap_profile.dpad_up,     _unset_profile.dpad_up);
-  output |= REMAP_SET(in_copy.dpad_left,  _remap_profile.dpad_left,   _unset_profile.dpad_left);
-  output |= REMAP_SET(in_copy.dpad_down,  _remap_profile.dpad_down,   _unset_profile.dpad_down);
-  output |= REMAP_SET(in_copy.dpad_right, _remap_profile.dpad_right,  _unset_profile.dpad_right);
+  output |= REMAP_SET(in_copy.dpad_up,    _remap_profile.dpad_up);
+  output |= REMAP_SET(in_copy.dpad_left,  _remap_profile.dpad_left);
+  output |= REMAP_SET(in_copy.dpad_down,  _remap_profile.dpad_down);
+  output |= REMAP_SET(in_copy.dpad_right, _remap_profile.dpad_right);
 
-  output |= REMAP_SET(in_copy.trigger_l,  _remap_profile.trigger_l,   _unset_profile.trigger_l);
-  output |= REMAP_SET(in_copy.trigger_r,  _remap_profile.trigger_r,   _unset_profile.trigger_r);
+  output |= REMAP_SET(in_copy.trigger_l,  _remap_profile.trigger_l);
+  output |= REMAP_SET(in_copy.trigger_r,  _remap_profile.trigger_r);
 
-  output |= REMAP_SET(in_copy.trigger_zl, _remap_profile.trigger_zl,  _unset_profile.trigger_zl);
-  output |= REMAP_SET(in_copy.trigger_zr, _remap_profile.trigger_zr,  _unset_profile.trigger_zr);
+  output |= REMAP_SET(in_copy.trigger_zl, _remap_profile.trigger_zl);
+  output |= REMAP_SET(in_copy.trigger_zr, _remap_profile.trigger_zr);
 
-  output |= REMAP_SET(in_copy.button_stick_left,  _remap_profile.button_stick_left,   _unset_profile.button_stick_left);
-  output |= REMAP_SET(in_copy.button_stick_right, _remap_profile.button_stick_right,  _unset_profile.button_stick_right);
+  output |= REMAP_SET(in_copy.button_stick_left,  _remap_profile.button_stick_left);
+  output |= REMAP_SET(in_copy.button_stick_right, _remap_profile.button_stick_right);
 
   // Set all output (remappable buttons only) in a single operation
   in_copy.buttons_all = output;
@@ -132,7 +125,6 @@ void _remap_load_remap()
   }
 
   _remap_unpack_remap(profile_idx, &_remap_profile);
-  _unset_profile.val = remap_config->disabled[profile_idx];
 
   // Does our ZL mapping match ZL?
   if(_remap_profile.trigger_zl == MAPCODE_T_ZL)
@@ -188,7 +180,6 @@ void remap_init()
     for(int i = 0; i < 12; i++)
     {
       remap_config->profiles[i] = _default_remap;
-      remap_config->disabled[i] = _default_unset.val;
     }
   }
 }
