@@ -5,8 +5,11 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
-// Include all RGB drivers
-#include "hal/rgb_hal.h"
+#include "board_config.h"
+
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER==RGB_DRIVER_HAL)
+    #include "hal/rgb_hal.h"
+#endif
 
 #include "devices/animations/anm_handler.h"
 
@@ -110,18 +113,10 @@ void rgb_set_player(uint8_t player)
     (void) player;
 }
 
-// This function will start a shutdown
-// that includes an LED fade-out animation
-// This ensures the LEDs properly turn off before power off.
-// Pass in a callback function which will be called when it's done.
-void rgb_shutdown_init(bool restart, callback_t cb)
+// Perform a fade animation to black, then call our callback
+void rgb_deinit(callback_t cb)
 {
-
-    /*_rgb_shutdown_restart = restart;
-    _rgb_anim_cb = NULL;
-    _rgb_shutdown_cb = cb;
-
-    rgb_set_override(_rgb_shutdown_start_override_do, 25);*/
+    anm_handler_shutdown(cb);
 }
 
 const rgb_s _rainbow[] = COLORS_RAINBOW;
@@ -146,7 +141,7 @@ float _exponentialRamp(float input) {
 
 void rgb_init(int mode, int brightness)
 {
-    #if defined(RGB_DRIVER_INIT)
+    #if defined(HOJA_RGB_DRIVER)
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
     uint16_t loaded_brightness = 0;
@@ -211,7 +206,7 @@ void rgb_init(int mode, int brightness)
 // only performs actions if necessary
 void rgb_task(uint32_t timestamp)
 {
-    #if (RGB_DEVICE_ENABLED == 1)
+    #if defined(HOJA_RGB_DRIVER)
     static interval_s interval = {0};
 
     if (interval_run(timestamp, RGB_TASK_INTERVAL, &interval))

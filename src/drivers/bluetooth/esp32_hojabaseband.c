@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "drivers/drivers.h"
 #include "hal/gpio_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
@@ -13,7 +12,11 @@
 #include "input/analog.h"
 #include "input/imu.h"
 
-#include "drivers/mux/pi3usb4000a.h"
+#if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
+    #include "drivers/mux/pi3usb4000a.h"
+#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+    #error "HOJA_USB_MUX_DRIVER must be defined for the ESP32 driver" 
+#endif
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32

@@ -6,8 +6,6 @@
 #include <math.h>
 #include <float.h>
 
-#if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE == 1)
-
 // We are in Pico land, use native APIs here :)
 #include "pico/stdlib.h"
 
@@ -23,6 +21,11 @@
 
 #include "utilities/pcm.h"
 #include "utilities/erm_simulator.h"
+
+// Helper driver is specific to this HAL
+#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
+    #include "drivers/haptic/drv2605l.h"
+#endif
 
 #define SAMPLE_RATE         PCM_SAMPLE_RATE
 #define REPETITION_RATE     4
@@ -58,18 +61,20 @@ static volatile bool ready_next_sine = false;
 static void __isr __time_critical_func(_dma_handler)()
 {
     audio_buffer_idx = 1-audio_buffer_idx;
-    dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
-    dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
-
-    // Trigger right channel if we have one
-    #ifdef HOJA_HDRUMBLE_CHAN_B_PIN
-        dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
-    #endif
+    #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
+        dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
+        dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
     
-    dma_start_channel_mask(dma_trigger_start_mask);
-    ready_next_sine = true;
-    dma_hw->ints1 = 1u << dma_trigger_l;
 
+        // Trigger right channel if we have one
+        #ifdef HOJA_HDRUMBLE_CHAN_B_PIN
+            dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
+        #endif
+    
+        dma_start_channel_mask(dma_trigger_start_mask);
+        ready_next_sine = true;
+        dma_hw->ints1 = 1u << dma_trigger_l;
+    #endif
     uint8_t available_buffer = 1 - audio_buffer_idx;
 }
 
@@ -88,7 +93,7 @@ bool hdrumble_hal_init()
 
     // Optional init driver
     #if defined(HOJA_HAPTIC_HELPER_DRIVER_INIT)
-    HOJA_HAPTIC_HELPER_DRIVER_INIT()
+    HOJA_HAPTIC_HELPER_DRIVER_INIT();
     #else 
         #warning "No HD haptics helper driver defined. Using HAL only."
     #endif
@@ -103,9 +108,8 @@ bool hdrumble_hal_init()
 
     uint32_t pwm_enable_mask = 0;
 
-    dma_sample = dma_claim_unused_channel(true);
-
     #ifdef HOJA_HDRUMBLE_CHAN_A_PIN
+        dma_sample = dma_claim_unused_channel(true);
         gpio_set_function(HOJA_HDRUMBLE_CHAN_A_PIN, GPIO_FUNC_PWM);
 
         pwm_slice_l = pwm_gpio_to_slice_num(HOJA_HDRUMBLE_CHAN_A_PIN);
@@ -246,5 +250,3 @@ void hdrumble_hal_set_standard(uint8_t intensity)
     _erm_simulation_enabled = true; // Enable ERM simulation mode
     erm_simulator_set_intensity(intensity);
 }
-
-#endif

@@ -47,20 +47,34 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
     for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
     {
-        // First apply gamma
-        //out[i].r = gamma8[in[i].r];
-        //out[i].g = gamma8[in[i].g];
-        //out[i].b = gamma8[in[i].b];
-        
-        // Apply brightness u8
-        out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
-        out[i].g = (in[i].g * brightness_u8 + 127) >> 8;
-        out[i].b = (in[i].b * brightness_u8 + 127) >> 8;
+        if(in[i].r)
+        {
+            // First apply gamma
+            //out[i].r = gamma8[in[i].r];
 
-        // Apply dither
-        out[i].r += dither_amt;
-        out[i].g += dither_amt;
-        out[i].b += dither_amt;
+            // Apply brightness u8
+            out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
+
+            // Apply dither
+            out[i].r += dither_amt;
+        }
+        else out[i].r = 0;
+        
+        if(in[i].g)
+        {
+            //out[i].g = gamma8[in[i].g];
+            out[i].g = (in[i].g * brightness_u8 + 127) >> 8;
+            out[i].g += dither_amt;
+        }
+        else out[i].g = 0;
+
+        if(in[i].b)
+        {
+            //out[i].b = gamma8[in[i].b];
+            out[i].b = (in[i].b * brightness_u8 + 127) >> 8;
+            out[i].b += dither_amt;
+        }
+        else out[i].b = 0;
     }
 
     repeating = (repeating+1)%DITHER_MAX_LOOP;

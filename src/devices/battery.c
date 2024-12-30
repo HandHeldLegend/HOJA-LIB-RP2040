@@ -2,7 +2,7 @@
 #include "utilities/interval.h"
 #include "board_config.h"
 
-#if HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25810
+#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
     #include "drivers/battery/bq25180.h"
 #endif
 
@@ -74,19 +74,31 @@ bool battery_set_source(battery_source_t source)
 // Get the PMIC plugged status.
 battery_plug_t battery_get_plug()
 {
-    return _battery_status.plug_status;
+    #if defined(HOJA_BATTERY_GET_STATUS)
+        return _battery_status.plug_status;
+    #else
+        return BATTERY_PLUG_UNAVAILABLE;
+    #endif
 }
 
 // Get the PMIC charging status.
 battery_charge_t battery_get_charge()
 {
-    return _battery_status.charge_status;
+    #if defined(HOJA_BATTERY_GET_STATUS)
+        return _battery_status.charge_status;
+    #else 
+        return BATTERY_CHARGE_UNAVAILABLE;
+    #endif
 }
 
 // Get the PMIC battery status.
 battery_status_t battery_get_battery()
 {
-    return _battery_status.battery_status;
+    #if defined(HOJA_BATTERY_GET_STATUS)
+        return _battery_status.battery_status;
+    #else 
+        return BATTERY_STATUS_UNAVAILABLE;
+    #endif
 }
 
 #define BATTERY_TASK_INTERVAL 1 * 1000 * 1000 // 1 second (1000ms)

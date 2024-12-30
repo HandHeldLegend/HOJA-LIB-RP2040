@@ -94,6 +94,13 @@ typedef enum
     ANALOG_SCALER_POLYGON,
 } analog_scaler_t;
 
+typedef enum
+{
+    CALIBRATE_START,
+    CALIBRATE_CANCEL,
+    CALIBRATE_SAVE,
+} calibrate_set_t;
+
 typedef enum 
 {
     SNAPBACK_TYPE_DISABLED,

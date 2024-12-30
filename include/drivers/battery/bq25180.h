@@ -14,7 +14,7 @@
     #error "BQ25180 driver requires I2C." 
 #endif
 
-#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25810)
+#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
     #ifndef HOJA_BATTERY_I2C_INSTANCE
         #error "HOJA_BATTERY_I2C_INSTANCE undefined in board_config.h" 
     #endif

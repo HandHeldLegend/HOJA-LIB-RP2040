@@ -9,13 +9,6 @@
 
 typedef enum
 {
-    CALIBRATE_START,
-    CALIBRATE_CANCEL,
-    CALIBRATE_SAVE,
-} calibrate_set_t;
-
-typedef enum
-{
     ANALOG_ACCESS_RAW_DATA,     // Access raw analog data
     ANALOG_ACCESS_SCALED_DATA,  // Access scaled analog data
     ANALOG_ACCESS_SNAPBACK_DATA, // Access analog data post-snapback filter

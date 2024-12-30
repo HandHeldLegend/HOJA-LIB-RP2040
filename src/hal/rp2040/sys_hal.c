@@ -1,5 +1,6 @@
 #include "hal/sys_hal.h"
 #include "pico/stdlib.h"
+#include <stdint.h>
 
 #include "hal/mutex_hal.h"
 #include "hal/flash_hal.h"
@@ -79,4 +80,27 @@ uint32_t sys_hal_time_us()
 uint32_t sys_hal_random()
 {
     return get_rand_32();
+}
+
+#define SCRATCH_OFFSET 0xC
+#define MAX_INDEX     7
+#define WD_READOUT_IDX 5
+
+uint32_t sys_hal_get_bootmemory()
+{
+    if (WD_READOUT_IDX > MAX_INDEX) {
+        // Handle the error, maybe by returning an error code or logging a message.
+        // Here we just return 0 as a simple example.
+        return 0;
+    }
+    return *((volatile uint32_t *) (WATCHDOG_BASE + SCRATCH_OFFSET + (WD_READOUT_IDX * 4)));
+}
+
+void sys_hal_set_bootmemory(uint32_t in)
+{
+    if (WD_READOUT_IDX > MAX_INDEX) {
+        // Handle the error here. For simplicity, we'll just return in this example.
+        return;
+    }
+    *((volatile uint32_t *) (WATCHDOG_BASE + SCRATCH_OFFSET + (WD_READOUT_IDX * 4))) = in;
 }

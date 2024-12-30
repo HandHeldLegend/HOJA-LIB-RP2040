@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include "hoja.h"
 #include "hoja_system.h"
 #include "devices/rgb.h"
 #include "hal/rgb_hal.h"
@@ -96,13 +97,21 @@ bool _ani_queue_fade_handler()
     return false;
 }
 
+void anm_handler_shutdown(callback_t cb)
+{
+    anm_shutdown_set_cb(cb);
+    _ani_main_fn = anm_shutdown_handler;
+    _ani_fn_get_state = anm_shutdown_get_state;
+    _ani_queue_fade_start();
+}
+
 void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness)
 {
     _anim_brightness = brightness;
 
     _current_mode = rgb_mode;
     switch(rgb_mode)
-    {
+    {        
         // RGB_ANIM_NONE
         default:
         case 0:

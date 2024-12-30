@@ -29,6 +29,8 @@ int16_t _trigger_scale_input(int16_t input, uint16_t deadzone, uint32_t scaler) 
 
 void triggers_config_cmd(trigger_cmd_t cmd, command_confirm_t cb)
 {
+    bool do_cb = false;
+
     switch(cmd)
     {
         default:
@@ -36,7 +38,18 @@ void triggers_config_cmd(trigger_cmd_t cmd, command_confirm_t cb)
 
         case TRIGGER_CMD_REFRESH:
         break;
+
+        case TRIGGER_CMD_CALIBRATE_START:
+            do_cb = true;
+        break;
+
+        case TRIGGER_CMD_CALIBRATE_STOP:
+            do_cb = true;
+        break;
     }
+
+    if(do_cb)
+        cb(CFG_BLOCK_TRIGGER, cmd, NULL, 0);
 }
 
 bool triggers_init()

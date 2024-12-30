@@ -4,7 +4,7 @@
 typedef enum
 {
     GAMEPAD_MODE_UNDEFINED = -2,
-    GAMEPAD_MODE_LOAD     = -1,
+    GAMEPAD_MODE_LOAD     = -1, // Firmware load (bluetooth)
     GAMEPAD_MODE_SWPRO    = 0,
     GAMEPAD_MODE_XINPUT   = 1,
     GAMEPAD_MODE_GCUSB    = 2,

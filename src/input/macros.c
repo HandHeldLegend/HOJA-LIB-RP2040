@@ -1,34 +1,18 @@
+#include "input/button.h"
 #include "input/macros.h"
-#include "utilities/interval.h"
-#include "input_shared_types.h"
-#include "hoja_shared_types.h"
-#include "utilities/callback.h"
 
-typedef enum
+#include "input/macros/macro_shutdown.h"
+#include "devices/battery.h"
+
+#include "board_config.h"
+
+void macros_task(uint32_t timestamp)
 {
-    MACRO_IDLE = 0,
-    MACRO_HELD = 1,
-} macro_press_t;
+    static button_data_s buttons = {0};
 
-macro_press_t _safe_mode = MACRO_IDLE;
-bool _safe_mode_state = false;
-macro_press_t _ship_mode = MACRO_IDLE;
+    button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
 
-macro_press_t _sync_mode = MACRO_IDLE;
-
-callback_t macro_deinit_cb;
-volatile bool macro_deinit_done = false;
-void macro_deinit_complete()
-{
-    macro_deinit_done = true;
-}
-
-void macro_handler_task(uint32_t timestamp, button_data_s *in)
-{
-
-}
-
-bool macro_safe_mode_check()
-{
-    return _safe_mode_state;
+    #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
+    macro_shutdown(timestamp, &buttons);
+    #endif
 }

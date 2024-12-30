@@ -33,10 +33,43 @@
  #define JOYBUS_SUPPORT HOJA_DEVICE_JOYBUS_SUPPORTED
 #endif
 
+#if !defined(HOJA_DEVICE_MANIFEST_URL) 
+ #warning "HOJA_DEVICE_MANIFEST_URL undefined. Update notifications disabled."
+ #define MANIFEST_URL "~"
+#else 
+ #define MANIFEST_URL HOJA_DEVICE_MANIFEST_URL
+#endif
+
+#if defined(HOJA_DEVICE_MANIFEST_URL)
+    #if !defined(HOJA_DEVICE_FIRMWARE_URL) 
+        #error "HOJA_DEVICE_FIRMWARE_URL must be defined for firmware update notifications." 
+    #else 
+        #define FIRMWARE_URL HOJA_DEVICE_FIRMWARE_URL
+    #endif
+#else 
+    #define FIRMWARE_URL "~"
+#endif
+
+#if !defined(HOJA_DEVICE_FCC_ELABEL) 
+    #define FCC_ELABEL "~"
+#else 
+    #define FCC_ELABEL HOJA_DEVICE_FCC_ELABEL
+#endif
+
+#if defined(HOJA_DEVICE_MANUAL_URL)
+    #define MANUAL_URL HOJA_DEVICE_MANUAL_URL
+#else 
+    #warning "HOJA_DEVICE_MANUAL_URL undefined. Include to enable documentation URL in app."
+#endif
+
 const deviceInfoStatic_s    device_static = {
     .fw_version = HOJA_FW_VERSION,
     .maker      = DEVICE_MAKER, 
     .name       = DEVICE_NAME,
+    .firmware_url = FIRMWARE_URL,
+    .manifest_url = MANIFEST_URL,
+    .fcc_elabel = FCC_ELABEL,
+    .manual_url = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT
 };
@@ -129,21 +162,14 @@ const batteryInfoStatic_s   battery_static = {
     .part_number  = HOJA_BATTERY_PART_CODE,
 };
 
-#if defined(HOJA_CONFIG_HDRUMBLE)
-    #define HDRUMBLE 1 
-#else 
+#if !defined(HOJA_HD_HAPTICS_DRIVER)
+    #warning "HOJA_HD_HAPTICS_DRIVER is not defined in board_config.h. Rumble features will be disabled."
     #define HDRUMBLE 0
-#endif 
-
-#if defined(HOJA_CONFIG_SDRUMBLE)
-    #define SDRUMBLE 1 
+    #define SDRUMBLE 0
 #else 
-    #define SDRUMBLE 0 
-#endif 
-
-#if !defined(HOJA_CONFIG_HDRUMBLE) && !defined(HOJA_CONFIG_SDRUMBLE)
- #warning "Neither HOJA_CONFIG_HDRUMBLE or HOJA_CONFIG_SDRUMBLE defined in board_config.h. Rumble features will be disabled."
-#endif 
+    #define HDRUMBLE 1
+    #define SDRUMBLE 1
+#endif
 
 #define RUMBLE_SUPPORT (HDRUMBLE | SDRUMBLE)
 

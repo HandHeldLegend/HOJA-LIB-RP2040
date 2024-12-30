@@ -7,17 +7,17 @@
 #include "hardware/clocks.h"
 #include "hoja_system.h"
 
-#if defined(HOJA_HAPTIC_DRIVER) && (HOJA_HAPTIC_DRIVER==HAPTIC_DRIVER_DRV2605L)
+#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
 
 #if (HOJA_BSP_HAS_I2C==0)
-    #error "DRV2605L driver requires I2C." 
+    #error "DRV2605L helper driver requires I2C." 
 #endif
 
-#if !defined(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
-    #error "Define HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE in board_config.h" 
+#if !defined(HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE)
+    #error "Define HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE in board_config.h" 
 #endif 
 
-#define HOJA_HAPTIC_HELPER_DRIVER_INIT() drv2605l_init(HAPTIC_DRIVER_DRV2605L_I2C_INSTANCE)
+#define HOJA_HAPTIC_HELPER_DRIVER_INIT() drv2605l_init(HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE)
 
 bool drv2605l_init(uint8_t i2c_instance);
 

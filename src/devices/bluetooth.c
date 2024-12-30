@@ -1,6 +1,5 @@
 #include "devices/bluetooth.h"
 #include "devices/rgb.h"
-#include "drivers/drivers.h"
 #include "devices/haptics.h"
 
 #include "devices_shared_types.h"

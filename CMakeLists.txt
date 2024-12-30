@@ -3,6 +3,7 @@ add_library(hoja_lib INTERFACE)
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
 file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
+file(GLOB_RECURSE MACROS_C "${CMAKE_CURRENT_LIST_DIR}/src/input/macros/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
@@ -37,7 +38,7 @@ target_link_libraries(hoja_lib INTERFACE
 target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c
   
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/reboot.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/boot.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c 
@@ -45,22 +46,16 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c
 
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/devices.c 
-
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
 
-  
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_spi.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_motion.c 
-
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/input.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/button.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
@@ -86,6 +81,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
+
   
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
 
@@ -93,8 +89,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/n64.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/nspi.c 
 
-  ${CMAKE_CURRENT_LIST_DIR}/src/hal/hal.c
-
+  ${MACROS_C} 
   ${DRIVERS_C}
   ${HAL_C}
   ${RGB_C}

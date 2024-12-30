@@ -24,4 +24,7 @@ void sys_hal_sleep_ms(uint32_t ms);
 
 void sys_hal_sleep_us(uint32_t us);
 
+uint32_t    sys_hal_get_bootmemory();
+void        sys_hal_set_bootmemory(uint32_t in);
+
 #endif

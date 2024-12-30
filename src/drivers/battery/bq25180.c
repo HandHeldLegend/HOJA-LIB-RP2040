@@ -149,7 +149,6 @@ battery_status_s bq25180_get_status()
 // Battery level isn't supported with this PMIC. Returns -1
 int  bq25180_get_level()
 {
-    
     return -1;
 }
 
@@ -190,12 +189,13 @@ bool bq25180_set_source(battery_source_t source)
 
 bool bq25180_set_ship_mode()
 {
-    // Save battery status
-    // TODO
-    // 
+    static bool shipping_lockout = false;
+
+    if(shipping_lockout) return true;
+    shipping_lockout = true;
 
     sys_hal_sleep_ms(150);
-    uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b0100000}; // Ship mode with wake on button press/adapter insert
+    uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b11000001}; // Ship mode with wake on button press/adapter insert
 
     int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
 
