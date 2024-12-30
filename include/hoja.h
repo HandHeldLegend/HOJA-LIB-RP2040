@@ -1,7 +1,7 @@
 #ifndef HOJA_H
 #define HOJA_H
 
-#define HOJA_SETTINGS_VERSION 0xA002
+#define HOJA_SETTINGS_VERSION 0xA003
 
 #include <stdbool.h>
 #include <stdint.h>

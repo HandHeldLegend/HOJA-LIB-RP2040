@@ -89,6 +89,9 @@ void _hoja_task_0()
   // RGB task
   rgb_task(c0_timestamp);
 
+  // Flash task
+  //flash_hal_task();
+
   sys_hal_tick();
 }
 
@@ -98,13 +101,16 @@ void _hoja_task_1()
   static uint32_t c1_timestamp = 0;
 
   // Init settings hal
-  flash_hal_init();
+  //flash_hal_init();
 
   for (;;)
   {
     c1_timestamp = sys_hal_time_us();
 
     input_analog_task(c1_timestamp);
+
+    // Flash task
+    flash_hal_task();
   }
 }
 
@@ -141,6 +147,7 @@ void hoja_init()
   settings_init();
   hal_init();
   input_init();
+
   _gamepad_mode_init(GAMEPAD_MODE_SWPRO, GAMEPAD_METHOD_USB);
 
   rgb_init(-1, -1);

@@ -1,5 +1,7 @@
 #include "devices/rgb.h"
 
+#include <math.h>
+
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
@@ -132,15 +134,50 @@ uint32_t rgb_pack_local_color(rgb_s color)
     (color.b);
 }
 
+// Function to compute an exponential ramp
+float _exponentialRamp(float input) {
+    if (input < 0.0f) input = 0.0f;
+    if (input > 1.0f) input = 1.0f;
+
+    // Exponential curve factor, adjust for steepness
+    const float exponent = 1.5f; // Higher values increase steepness
+    return powf(input, exponent);
+}
+
 void rgb_init(int mode, int brightness)
 {
     #if defined(RGB_DRIVER_INIT)
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
+    uint16_t loaded_brightness = 0;
+
+    if(mode<0)
+    {
+        set_mode = rgb_config->rgb_mode;
+    }
+    else {
+        set_mode = mode;
+    }
+
+    if(brightness<0)
+    {
+        loaded_brightness = rgb_config->rgb_brightness;
+    }
+    else {
+        loaded_brightness = brightness;
+    }
 
     // Handle defaulting if we don't have colors
-    if(!rgb_config->rgb_config_version)
+    if(rgb_config->rgb_config_version != CFG_BLOCK_RGB_VERSION)
     {
+        rgb_config->rgb_config_version = CFG_BLOCK_RGB_VERSION;
+
+        rgb_config->rgb_brightness = 4000;
+        loaded_brightness = rgb_config->rgb_brightness;
+
+        rgb_config->rgb_mode = 0;
+        set_mode = 0;
+
         uint8_t col = 0;
         const uint8_t color_count = 7;
         for(int i = 0; i < 32; i++)
@@ -148,29 +185,21 @@ void rgb_init(int mode, int brightness)
             rgb_config->rgb_colors[i] = rgb_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
         }
-        
-        mode = 0;
-        brightness = 0;
-
-        set_mode = 0;
-        set_brightness = 1000;
     }
+
+    // Clamp our stored brightness
+    float cbright = (float) loaded_brightness;
+    cbright = cbright > 4096 ? 4096 : cbright;
+
+    float cbrightratio = cbright/4096.0f;
+    float nratio = _exponentialRamp(cbrightratio);
+    set_brightness = (uint16_t) (1530.0f * nratio);
     
     static bool _rgb_ll_init = false;
     if(!_rgb_ll_init)
     {
         RGB_DRIVER_INIT();
         _rgb_ll_init = true;
-    }
-
-    if(mode<0)
-    {
-        set_mode = rgb_config->rgb_mode;
-    }
-
-    if(brightness<0)
-    {
-        set_brightness = rgb_config->rgb_brightness;
     }
 
     anm_handler_setup_mode(set_mode, set_brightness);

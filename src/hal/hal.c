@@ -4,6 +4,7 @@
 
 bool hal_init()
 {
+    // System hal init
     sys_hal_init();
 
     // SPI 0
@@ -18,6 +19,6 @@ bool hal_init()
 
     // HD Rumble
     #if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
-    //hdrumble_hal_init();
+    hdrumble_hal_init();
     #endif
 }

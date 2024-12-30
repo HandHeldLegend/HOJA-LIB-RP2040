@@ -2,6 +2,8 @@
 #include "pico/stdlib.h"
 
 #include "hal/mutex_hal.h"
+#include "hal/flash_hal.h"
+
 #include "pico/time.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
@@ -49,13 +51,10 @@ bool sys_hal_init()
 
 void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void))
 {
-    // Enable lockout victimhood :,)
-    // multicore_lockout_victim_init();
+    flash_hal_init();
 
     if(task_core_1!=NULL)
         multicore_launch_core1(task_core_1);
-    
-    //
 
     for(;;)
     {

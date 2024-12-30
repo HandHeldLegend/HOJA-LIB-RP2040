@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "utilities/static_config.h"
+#include "hal/flash_hal.h"
 
 #include "input/stick_scaling.h"
 #include "input/imu.h"
@@ -39,6 +40,8 @@ batteryConfig_s     *battery_config    = NULL;
 
 void settings_init()
 {
+    flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
+
     gamepad_config     = (gamepadConfig_s *)  &live_settings.gamepad_configuration_block;
     remap_config       = (remapConfig_s *)    &live_settings.remap_configuration_block;
     rgb_config         = (rgbConfig_s *)      &live_settings.rgb_configuration_block;
@@ -62,28 +65,22 @@ void settings_init()
 }
 
 MUTEX_HAL_INIT(_settings_mutex);
-volatile bool _save_go = false;
 
-void settings_commit_blocks()
+void settings_commit_blocks(setting_callback_t cb)
 {
     // Check which core we're on
     // Get mutex
     MUTEX_HAL_ENTER_BLOCKING(&_settings_mutex);
-    _save_go = true;
+    
+    flash_hal_write((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
     
     MUTEX_HAL_EXIT(&_settings_mutex);
-}
 
-void settings_commit_task()
-{
-    if(_save_go)
-    {
-        // Checks if we must commit our save settings
-        MUTEX_HAL_ENTER_BLOCKING(&_settings_mutex);
-
-        MUTEX_HAL_EXIT(&_settings_mutex);
-        _save_go = false;
-    }
+    //if(cb)
+    //{
+    //    uint8_t save_confirm_data[1] = {WEBUSB_ID_SAVE_SETTINGS};
+    //    cb(save_confirm_data, 1);
+    //}
 }
 
 // Input only commands that don't involve writing data

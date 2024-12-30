@@ -617,6 +617,11 @@ void stick_scaling_default_check()
     analog_config->l_deadzone = 350;
     analog_config->r_deadzone = 350;
 
+    analog_config->lx_center = 0;
+    analog_config->ly_center = 0;
+    analog_config->rx_center = 0;
+    analog_config->ry_center = 0;
+
     // Set to default left setup
     _angle_setup_reset_to_defaults(&_left_setup);
     _angle_setup_reset_to_defaults(&_right_setup);
