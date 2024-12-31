@@ -51,6 +51,8 @@ do_end:
 .wrap
 
 % c-sdk {
+#include "hardware/clocks.h"
+
 static inline void joybus_set_in(bool in, PIO pio, uint sm, uint offset, pio_sm_config *c, uint pin)
 {
     // Disable SM

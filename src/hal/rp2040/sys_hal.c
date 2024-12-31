@@ -10,7 +10,7 @@
 #include "pico/bootrom.h"
 #include "pico/rand.h"
 
-#define SYS_CLK_HZ 200000000
+#include "hoja_bsp.h"
 
 void sys_hal_reboot()
 {
@@ -46,7 +46,7 @@ bool sys_hal_init()
 {
     watchdog_enable(16000, false);
     // Test overclock
-    set_sys_clock_khz(SYS_CLK_HZ / 1000, true);
+    set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true);
     return true;
 }
 

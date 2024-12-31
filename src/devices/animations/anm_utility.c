@@ -1,5 +1,6 @@
 #include "devices/animations/anm_utility.h"
 #include "devices/animations/anm_handler.h"
+#include "devices/rgb.h"
 
 #define CAPUINT8(value) ((value > 255) ? 255 : value)
 
@@ -51,7 +52,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         if(in[i].r)
         {
             // First apply gamma
-            //out[i].r = gamma8[in[i].r];
+            out[i].r = gamma8[in[i].r];
 
             // Apply brightness u8
             out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
@@ -63,7 +64,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         
         if(in[i].g)
         {
-            //out[i].g = gamma8[in[i].g];
+            out[i].g = gamma8[in[i].g];
             out[i].g = (in[i].g * brightness_u8 + 127) >> 8;
             out[i].g += dither_amt;
         }
@@ -71,7 +72,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
         if(in[i].b)
         {
-            //out[i].b = gamma8[in[i].b];
+            out[i].b = gamma8[in[i].b];
             out[i].b = (in[i].b * brightness_u8 + 127) >> 8;
             out[i].b += dither_amt;
         }

@@ -35,4 +35,12 @@
 
     #define SD_HAPTICS_DRIVER_HAL 1
 
+    // NESBus Drivers
+    #define NESBUS_DRIVER_HAL 1
+
+    // Joybus Drivers
+    #define JOYBUS_N64_DRIVER_HAL 1
+
+    #define JOYBUS_GC_DRIVER_HAL 1
+
 #endif

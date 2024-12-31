@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "hoja_bsp.h"
-#include "hoja_system.h"
+#include "board_config.h"
 #include "devices_shared_types.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER == RGB_DRIVER_HAL)

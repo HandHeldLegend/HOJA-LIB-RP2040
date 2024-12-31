@@ -9,12 +9,12 @@
 #include "hoja_bsp.h"
 #include "board_config.h"
 
-// Requires SPI to function
-#if (HOJA_BSP_HAS_I2C==0)
-    #error "BQ25180 driver requires I2C." 
-#endif
-
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
+    // Requires SPI to function
+    #if (HOJA_BSP_HAS_I2C==0)
+        #error "BQ25180 driver requires I2C." 
+    #endif
+
     #ifndef HOJA_BATTERY_I2C_INSTANCE
         #error "HOJA_BATTERY_I2C_INSTANCE undefined in board_config.h" 
     #endif

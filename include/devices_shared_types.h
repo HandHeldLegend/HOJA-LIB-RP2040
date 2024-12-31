@@ -2,10 +2,10 @@
 #define DEVICES_SHARED_TYTPES_H
 
 #include <stdint.h>
-#include "hoja_system.h"
+#include "board_config.h"
 
 // Handle RGB mode choosing compiler side
-#if (RGB_DEVICE_ENABLED==1)
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER>0)
 #if (RGB_DRIVER_ORDER == RGB_ORDER_GRB)
 typedef struct
 {

@@ -3,8 +3,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "hoja_system.h"
 #include "utilities/callback.h"
+#include "board_config.h"
+
+#define RGB_TASK_INTERVAL (1000000/RGB_DRIVER_REFRESHRATE)
 
 void rgb_set_player(uint8_t player);
 

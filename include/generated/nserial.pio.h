@@ -49,41 +49,42 @@ static inline pio_sm_config nserial_program_get_default_config(uint offset) {
     return c;
 }
 
-static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint pin) {
+#include "hardware/clocks.h"
+static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint data_pin, uint clock_pin) {
     pio_sm_config c = nserial_program_get_default_config(offset);
-    gpio_init(pin);
-    gpio_init(pin+1);
+    gpio_init(data_pin);
+    gpio_init(clock_pin);
     // Set this pin's GPIO function (connect PIO to the pad)
-    pio_gpio_init(pio, pin);
-    pio_gpio_init(pio, pin+1);
+    pio_gpio_init(pio, data_pin);
+    pio_gpio_init(pio, clock_pin);
     // Map the state machine's OUT pin group to one pin, namely the `pin`
     // parameter to this function.
     // Use 1 out pin for data
-    sm_config_set_out_pins(&c, pin, 1);
+    sm_config_set_out_pins(&c, data_pin, 1);
     // Set IN pin group (CLOCK)
-    sm_config_set_in_pins(&c, pin+1);
+    sm_config_set_in_pins(&c, clock_pin);
     float div = clock_get_hz(clk_sys) / (2000000);
     sm_config_set_clkdiv(&c, div);
     // Set the pin direction to output at the PIO
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
     // Set input pins
-    pio_sm_set_consecutive_pindirs(pio, sm, pin+1, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, clock_pin, 1, false);
     sm_config_set_out_shift(&c, false, false, 16);
     // Load our configuration, and jump to the start of the program
     pio_sm_init(pio, sm, offset, &c);
     // Set the state machine running
     pio_sm_set_enabled(pio, sm, true);
 }
-static inline void nserial_program_latch_init(PIO pio, uint sm, uint offset, uint pin) {
+static inline void nserial_program_latch_init(PIO pio, uint sm, uint offset, uint latch_pin) {
     pio_sm_config c = nserial_program_get_default_config(offset);
-    gpio_init(pin);
+    gpio_init(latch_pin);
     // Set this pin's GPIO function (connect PIO to the pad)
-    pio_gpio_init(pio, pin);
-    sm_config_set_in_pins(&c, pin);
+    pio_gpio_init(pio, latch_pin);
+    sm_config_set_in_pins(&c, latch_pin);
     float div = clock_get_hz(clk_sys) / (2000000);
     sm_config_set_clkdiv(&c, div);
     // Set input pins
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, latch_pin, 1, false);
     // Load our configuration, and jump to the start of the program
     pio_sm_init(pio, sm, offset+nserial_offset_latchstart, &c);
     // Set the state machine running

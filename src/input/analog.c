@@ -17,9 +17,23 @@
 
 #include "utilities/settings.h"
 
+#include "board_config.h"
+
 // Include all ADC drivers
 #include "hal/adc_hal.h"
 #include "drivers/adc/mcp3002.h"
+
+// Analog smoothing
+#ifdef ADC_SMOOTHING_STRENGTH
+  #if (ADC_SMOOTHING_STRENGTH > 1)
+    #define ADC_SMOOTHING_ENABLED 1
+  #else
+    #define ADC_SMOOTHING_ENABLED 0
+  #endif
+#else
+  #warning "ADC_SMOOTHING_STRENGTH isn't defined. It's optional to smooth out analog input. Typically not recommended." 
+  #define ADC_SMOOTHING_ENABLED 0
+#endif
 
 #define ANALOG_MAX_DISTANCE 4095
 #define ANALOG_HALF_DISTANCE 2048

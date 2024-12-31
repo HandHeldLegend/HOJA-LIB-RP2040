@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "utilities/settings.h"
-#include "hoja_system.h"
+#include "board_config.h"
 
 uint8_t _rgb_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 rgb_s _rgb_groups[HOJA_RGB_GROUPS_NUM];

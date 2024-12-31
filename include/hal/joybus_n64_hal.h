@@ -4,12 +4,21 @@
 #include "input/button.h"
 #include "input/analog.h"
 
-void joybus_n64_hal_update_input(button_data_s *buttons, analog_data_s *analog);
+#include "hoja_bsp.h"
+#include "board_config.h"
 
-void joybus_n64_hal_task();
+#include <stdint.h>
 
-void joybus_n64_hal_init();
+#if defined(HOJA_JOYBUS_N64_DRIVER) && (HOJA_JOYBUS_N64_DRIVER == JOYBUS_N64_DRIVER_HAL)
 
-void joybus_n64_hal_deinit();
+#if (HOJA_BSP_HAS_JOYBUS_N64==0)
+    #error "JOYBUS hal driver unsupported on this board" 
+#endif 
+
+void joybus_n64_hal_stop();
+bool joybus_n64_hal_init();
+void joybus_n64_hal_task(uint32_t timestamp);
+
+#endif
 
 #endif

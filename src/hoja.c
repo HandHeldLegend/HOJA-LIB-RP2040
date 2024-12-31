@@ -4,8 +4,6 @@
 #include "usb/webusb.h"
 #include "wired/wired.h"
 
-#include "hoja_system.h"
-
 #include "hal/sys_hal.h"
 #include "hal/flash_hal.h"
 #include "hal/i2c_hal.h"

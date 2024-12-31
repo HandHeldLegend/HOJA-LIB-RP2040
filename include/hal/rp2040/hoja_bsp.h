@@ -4,6 +4,7 @@
 #define CHIPSET_RP2040 0xF001
 
 #define HOJA_BSP_CHIPSET CHIPSET_RP2040
+#define HOJA_BSP_CLOCK_SPEED_HZ 200000000 // 200 Mhz
 
 // How many I2C peripheral channels there are
 #define HOJA_BSP_HAS_I2C 2
@@ -24,8 +25,8 @@
 #define HOJA_BSP_HAS_RGB 1
 
 // How many native/software Joybus GC drivers are available
-#define HOJA_BSP_HAS_GCJOYBUS 1
-#define HOJA_BSP_HAS_N64JOYBUS 1
+#define HOJA_BSP_HAS_JOYBUS_GC 1
+#define HOJA_BSP_HAS_JOYBUS_N64 1
 #define HOJA_BSP_HAS_NESBUS 1
 
 #define HOJA_BSP_HAS_HDRUMBLE 1

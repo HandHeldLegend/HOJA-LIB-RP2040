@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hardware/clocks.h"
-#include "hoja_system.h"
+#include "board_config.h"
 
-#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
+#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER == HAPTIC_HELPER_DRIVER_DRV2605L)
 
 #if (HOJA_BSP_HAS_I2C==0)
     #error "DRV2605L helper driver requires I2C." 

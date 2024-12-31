@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include "hoja.h"
-#include "hoja_system.h"
+
+#include "board_config.h"
+
 #include "devices/rgb.h"
 #include "hal/rgb_hal.h"
 #include "utilities/settings.h"

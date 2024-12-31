@@ -50,6 +50,6 @@ typedef struct
     int8_t stick_y;
 } n64_input_s;
 
-void n64_comms_task(uint32_t timestamp);
+void n64_wired_task(uint32_t timestamp);
 
 #endif 
