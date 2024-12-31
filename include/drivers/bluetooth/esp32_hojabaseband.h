@@ -34,6 +34,7 @@
 
 
     #define HOJA_BLUETOOTH_INIT(device_mode, pairing_mode, evt_cb) esp32hoja_init(device_mode, pairing_mode, evt_cb)
+    #define HOJA_BLUETOOTH_STOP() esp32hoja_stop()
     #define HOJA_BLUETOOTH_TASK(timestamp) esp32hoja_task(timestamp)
     #define HOJA_BLUETOOTH_INIT_LOAD() esp32hoja_init_load()
     #define HOJA_BLUETOOTH_GETINFO() esp32hoja_get_info()

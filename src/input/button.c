@@ -94,12 +94,6 @@ bool button_init()
     // Store boot button state
     _button_blocking_enter();
     cb_hoja_read_buttons(&_boot_button_data);
-
-    if(_boot_button_data.button_safemode && _boot_button_data.trigger_l)
-    {
-        sys_hal_bootloader();
-    }
-    
     _button_exit();
 
     // Init remap

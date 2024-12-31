@@ -2,6 +2,8 @@
 #include "input/macros.h"
 
 #include "input/macros/macro_shutdown.h"
+#include "input/macros/macro_pairing.h"
+
 #include "devices/battery.h"
 
 #include "board_config.h"
@@ -14,5 +16,9 @@ void macros_task(uint32_t timestamp)
 
     #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
     macro_shutdown(timestamp, &buttons);
+    #endif
+
+    #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
+    macro_pairing(timestamp, &buttons);
     #endif
 }

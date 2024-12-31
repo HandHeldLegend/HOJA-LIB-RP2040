@@ -137,9 +137,6 @@
 #define RTP_FREQUENCY_REGISTER 0x22
 #define DRV2605_SLAVE_ADDR 0x5A
 
-#ifdef HAPTIC_DRIVER_DRV2605L
-#if (HAPTIC_DRIVER_DRV2605L>0)
-
 bool drv2605l_init(uint8_t i2c_instance)
 {
     // Take MODE out of standby
@@ -190,6 +187,3 @@ bool drv2605l_init(uint8_t i2c_instance)
     if(i2c_hal_write_blocking(i2c_instance, DRV2605_SLAVE_ADDR, _set_mode3, 2, false) < 0) return false;
     sys_hal_sleep_ms(5);
 }
-
-#endif
-#endif

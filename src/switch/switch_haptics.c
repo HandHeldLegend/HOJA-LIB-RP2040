@@ -4,9 +4,9 @@
 #include <math.h>
 #include "utilities/pcm.h"
 
-#if defined(HOJA_CONFIG_HDRUMBLE) && (HOJA_CONFIG_HDRUMBLE==1)
+#if defined(HOJA_HD_HAPTICS_DRIVER) && (HOJA_HD_HAPTICS_DRIVER == HD_HAPTICS_DRIVER_HAL)
 #include "hal/hdrumble_hal.h"
-#elif defined(HOJA_CONFIG_SDRUMBLE) && (HOJA_CONFIG_SDRUMBLE==1)
+#elif defined(HOJA_HD_HAPTICS_DRIVER) && (HOJA_HD_HAPTICS_DRIVER == SD_HAPTICS_DRIVER_HAL)
 #include "hal/sdrumble_hal.h"
 #endif
 

@@ -53,6 +53,13 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
 #endif
 }
 
+void bluetooth_mode_stop() 
+{
+    #if defined(HOJA_BLUETOOTH_STOP)
+    HOJA_BLUETOOTH_STOP();
+    #endif
+}
+
 void bluetooth_mode_task(uint32_t timestamp)
 {
     #if defined(HOJA_BLUETOOTH_TASK)

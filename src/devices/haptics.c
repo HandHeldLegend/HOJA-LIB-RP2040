@@ -26,17 +26,14 @@ void haptics_set(uint8_t amplitude)
 
 bool haptics_init() 
 {
-    #if HOJA_CONFIG_HDRUMBLE==1
-    #warning "HDRUMBLE ENABLED"
-    return hdrumble_hal_init();
+    #if defined(HOJA_HAPTICS_INIT)
+    return HOJA_HAPTICS_INIT();
     #endif
 }
 
 void haptics_task(uint32_t timestamp)
 {
-    #if HOJA_CONFIG_HDRUMBLE==1
-    hdrumble_hal_task(timestamp);
+    #if defined(HOJA_HAPTICS_TASK)
+    HOJA_HAPTICS_TASK(timestamp);
     #endif
-
-    //erm_simulator_task(timestamp);
 }

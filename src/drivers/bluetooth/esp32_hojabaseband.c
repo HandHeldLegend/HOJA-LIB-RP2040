@@ -1,12 +1,15 @@
 #include "drivers/bluetooth/esp32_hojabaseband.h"
 
 #include <string.h>
+#include <stddef.h>
 
 #include "hal/gpio_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
 
 #include "utilities/interval.h"
+
+#include "switch/switch_haptics.h"
 
 #include "input/button.h"
 #include "input/analog.h"
@@ -76,6 +79,7 @@ uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 
 static bt_connstat_t _current_connected = -1;
 static uint8_t _current_i2c_packet_number = 0;
+bluetooth_cb_t _bluetooth_cb = NULL;
 
 typedef struct
 {
@@ -196,8 +200,8 @@ void _esp32hoja_enable_chip(bool enabled)
         gpio_hal_set_direction(BLUETOOTH_DRIVER_ENABLE_PIN, false);
         gpio_hal_write(BLUETOOTH_DRIVER_ENABLE_PIN, false);
     }
-
-    sys_hal_sleep_ms(5);
+    // Give time for the chip to boot
+    sys_hal_sleep_ms(1000);
 }
 
 void _esp32hoja_enable_uart(bool enabled)
@@ -216,6 +220,131 @@ void _esp32hoja_enable_uart(bool enabled)
     HOJA_USB_MUX_ENABLE(true);
 }
 
+const uint32_t connection_attempt_ms = 25 * 1000;
+uint32_t connection_attempts = 0;
+
+void _btinput_message_parse(uint8_t *data)
+{
+
+    // Handle auto-shut-off timer
+    if(_current_connected < 1)
+    {
+        connection_attempts++;
+        if(connection_attempts >= connection_attempt_ms)
+        {
+            connection_attempts = 0;
+            // Shut down
+        }
+    }
+
+    uint8_t crc = data[0];
+    uint8_t counter = data[1];
+    bool packet_updated = false;
+    i2cinput_status_s status = {0};
+
+    const uint8_t attempts_reset = 25;
+    static uint8_t attempts_remaining = attempts_reset;
+
+    // Verify CRC before proceeding (only if it's present)
+    if (crc > 0)
+    {
+        bool verified = false;
+        verified = _crc8_verify((uint8_t *)&(data[2]), sizeof(i2cinput_status_s), crc);
+
+        if (!verified)
+        {
+            return;
+        }
+
+        memcpy(&status, &(data[2]), sizeof(i2cinput_status_s));
+            
+        if(_current_i2c_packet_number != counter)
+        {
+            packet_updated = true;
+            _current_i2c_packet_number = counter;
+        }
+    }   
+
+    // Only process fresh data
+    if(!packet_updated)
+    {
+        return;
+    }
+
+    switch (status.cmd)
+    {
+    default:
+        break;
+
+    // No data to report
+    case I2C_STATUS_NULL:
+    {
+    }
+    break;
+
+    case I2C_STATUS_CONNECTED_STATUS:
+    {
+        // Handle connected status
+        if (_current_connected != status.data[0])
+        {
+            _current_connected = (int8_t) status.data[0];
+            if (_current_connected > 0)
+            {
+                // Connected OK
+            }
+            else
+            {
+                // Disconnected
+            }
+        }
+    }
+    break;
+
+    case I2C_STATUS_POWER_CODE:
+    {
+        uint8_t power_code = status.data[0];
+
+        if (power_code == 0)
+        {
+            // Shut down
+        }
+        else if (power_code == 1)
+        {
+            // Reboot
+        }
+    }
+    break;
+
+    case I2C_STATUS_HAPTIC_SWITCH:
+    {
+        switch_haptics_rumble_translate(&(status.data[0]));
+    }
+    break;
+
+    case I2C_STATUS_HAPTIC_STANDARD:
+    {
+        uint8_t l = status.data[0];
+        uint8_t r = status.data[1];
+    }
+    break;
+
+    case I2C_STATUS_MAC_UPDATE:
+    {
+        // Paired to Nintendo Switch
+        //printf("New BT Switch Pairing Completed.");
+        //global_loaded_settings.switch_host_address[0] = status.data[0];
+        //global_loaded_settings.switch_host_address[1] = status.data[1];
+        //global_loaded_settings.switch_host_address[2] = status.data[2];
+        //global_loaded_settings.switch_host_address[3] = status.data[3];
+        //global_loaded_settings.switch_host_address[4] = status.data[4];
+        //global_loaded_settings.switch_host_address[5] = status.data[5];
+        //settings_save_from_core0();
+    }
+    break;
+    }
+
+}
+
 // Init firmware loading mode
 void esp32hoja_init_load() 
 {
@@ -226,8 +355,6 @@ void esp32hoja_init_load()
     _esp32hoja_enable_uart(true);
     sys_hal_sleep_ms(200);
     _esp32hoja_enable_chip(true);
-    // Give time for the chip to boot
-    sys_hal_sleep_ms(1000);
 }
 
 bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
@@ -235,6 +362,9 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     #if defined(HOJA_USB_MUX_INIT)
     HOJA_USB_MUX_INIT();
     #endif
+
+    if(evt_cb)
+        _bluetooth_cb = evt_cb;
 
     uint8_t out_mode = (pairing_mode ? 0b10000000 : 0) | (uint8_t) device_mode;
 
@@ -262,7 +392,8 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 
 void esp32hoja_stop()
 {
-
+    _esp32hoja_enable_uart(false);
+    _esp32hoja_enable_chip(false);
 }
 
 void esp32hoja_task(uint32_t timestamp)
@@ -273,6 +404,8 @@ void esp32hoja_task(uint32_t timestamp)
 
     if(interval_run(timestamp, 1000, &interval))
     {
+        memset(data_out, 0x80, 24); // Reset buffer to 0x80 for blank
+
         if(read_write)
         {
             // Update input states
@@ -280,7 +413,7 @@ void esp32hoja_task(uint32_t timestamp)
             analog_data_s   analog  = {0};
             imu_data_s      imu_tmp    = {0};
             button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-            analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+            analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
         
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
@@ -320,9 +453,15 @@ void esp32hoja_task(uint32_t timestamp)
         }  
         else
         {
-
+            int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 8000);
+            
+            if (read == HOJA_I2C_MSG_SIZE_IN)
+            {
+                _btinput_message_parse(data_in);
+                _bt_clear_in();
+            }
         }
-
+        read_write = !read_write;
     }
 }
 
@@ -346,9 +485,6 @@ uint32_t esp32hoja_get_info()
     v = 0xFFFE;
 
     _esp32hoja_enable_chip(true);
-
-    // Give time for the chip to boot
-    sys_hal_sleep_ms(1000);
 
     static uint8_t data_in[HOJA_I2C_MSG_SIZE_IN] = {0};
 

@@ -1,6 +1,7 @@
 #include "input/macros/macro_shutdown.h"
 #include "devices/battery.h"
 #include "utilities/interval.h"
+#include "hoja.h"
 
 #define SHUTDOWN_HOLD_TIME 3 // Seconds
 #define SHUTDOWN_MACRO_INTERVAL_US 3000

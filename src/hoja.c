@@ -31,6 +31,7 @@
 time_callback_t   _hoja_mode_task_cb = NULL;
 gamepad_mode_t    _hoja_current_gamepad_mode    = GAMEPAD_MODE_LOAD;
 gamepad_method_t  _hoja_current_gamepad_method  = GAMEPAD_METHOD_AUTO;
+callback_t        _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) bool cb_hoja_buttons_init()
 {
@@ -47,6 +48,13 @@ void hoja_deinit(callback_t cb)
   static bool deinit_lockout = false;
   if(deinit_lockout) return;
   deinit_lockout = true;
+
+  // Stop our current loop function
+  _hoja_mode_task_cb = NULL;
+
+  // Stop current mode if we have a functions
+  if(_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
 
   //cb_hoja_set_uart_enabled(false);
   //cb_hoja_set_bluetooth_enabled(false);
@@ -126,77 +134,35 @@ void _hoja_task_1()
 
 
 // Replace with proper boot function later TODO
-bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pairing)
+bool _gamepad_mode_init()
 {
-  bool ret = false;
 
-  bool fivevoltsdetected = false;
-  // Get plugged status
-  battery_plug_t plugged = battery_get_plug();
+  gamepad_mode_t    thisMode    = GAMEPAD_MODE_SWPRO;
+  gamepad_method_t  thisMethod  = GAMEPAD_METHOD_USB;
+  bool              thisPair    = false;
 
-  if( (plugged == BATTERY_PLUG_PLUGGED) || 
-      (plugged == BATTERY_PLUG_UNAVAILABLE) )
-  {
-    fivevoltsdetected = true;
-  }
+  boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
+
+  _hoja_current_gamepad_mode = thisMode;
+  _hoja_current_gamepad_method = thisMethod;
   
-  switch(mode)
+  switch(thisMethod)
   {
     default:
-    case GAMEPAD_MODE_SWPRO:
-      if(fivevoltsdetected)
-      {
-        _hoja_current_gamepad_method = GAMEPAD_METHOD_USB;
-        _hoja_current_gamepad_mode   = mode;
-        _hoja_mode_task_cb = usb_mode_task;
-        usb_mode_start(GAMEPAD_MODE_SWPRO);
-      }
-      else 
-      {
-        _hoja_current_gamepad_method = GAMEPAD_METHOD_BLUETOOTH;
-        _hoja_current_gamepad_mode   = mode;
-        _hoja_mode_task_cb = bluetooth_mode_task;
-        bluetooth_mode_start(GAMEPAD_MODE_SWPRO, pairing);
-      }
-    break;
-
-    case GAMEPAD_MODE_GCUSB:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_USB;
-      _hoja_current_gamepad_mode   = mode;
+    case GAMEPAD_METHOD_USB:
       _hoja_mode_task_cb = usb_mode_task;
-      usb_mode_start(GAMEPAD_MODE_GCUSB);
+      usb_mode_start(thisMode);
     break;
 
-    case GAMEPAD_MODE_XINPUT:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_USB;
-      _hoja_current_gamepad_mode   = mode;
-      _hoja_mode_task_cb = usb_mode_task;
-      usb_mode_start(GAMEPAD_MODE_XINPUT);
-    break;
-
-    case GAMEPAD_MODE_SNES:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_WIRED;
+    case GAMEPAD_METHOD_WIRED:
       _hoja_mode_task_cb = wired_mode_task;
-      wired_mode_start(GAMEPAD_MODE_SNES);
+      wired_mode_start(thisMode);
     break;
 
-    case GAMEPAD_MODE_N64:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_WIRED;
-      _hoja_mode_task_cb = wired_mode_task;
-      wired_mode_start(GAMEPAD_MODE_N64);
-    break;
-
-    case GAMEPAD_MODE_GAMECUBE:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_WIRED;
-      _hoja_mode_task_cb = wired_mode_task;
-      wired_mode_start(GAMEPAD_MODE_GAMECUBE);
-    break;
-
-    case GAMEPAD_MODE_LOAD:
-      _hoja_current_gamepad_method = GAMEPAD_METHOD_BLUETOOTH;
-      _hoja_current_gamepad_mode   = mode;
-      _hoja_mode_task_cb = NULL;
-      bluetooth_mode_start(GAMEPAD_MODE_LOAD, pairing);
+    case GAMEPAD_METHOD_BLUETOOTH:
+      _hoja_mode_task_cb = bluetooth_mode_task;
+      _hoja_mode_stop_cb = bluetooth_mode_stop;
+      bluetooth_mode_start(thisMode, thisPair);
     break;
   }
 
@@ -269,35 +235,8 @@ void hoja_init()
   _system_input_init();
   _system_devices_init();
 
-  gamepad_mode_t   mode   = GAMEPAD_MODE_SWPRO;
-  gamepad_method_t method = GAMEPAD_METHOD_USB;
-  bool             pair   = false;
-
-  // Check input mode selection based on button combos
-  gamepad_mode_t boot_mode = boot_get_mode_selection();
-
-  boot_memory_s boot_memory = {0};
-  boot_get_memory(&boot_memory);
-
-  // If we have reboot memory, use it
-  if(boot_memory.val)
-  {
-    mode    = boot_memory.gamepad_mode;
-    method  = boot_memory.gamepad_protocol;
-    pair    = boot_memory.gamepad_pair ? true : false;
-  }
-  // If we have no boot mem, and we have
-  // a selected boot mode, use it
-  else if(boot_mode != GAMEPAD_MODE_UNDEFINED)
-  {
-    mode = boot_mode;
-  }
-
-  // DEBUG always USB for now
-  method = GAMEPAD_METHOD_USB;
-
   // Init gamepad mode with the method
-  _gamepad_mode_init(mode, method, pair);
+  _gamepad_mode_init();
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);
