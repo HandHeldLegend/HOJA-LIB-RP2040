@@ -15,7 +15,11 @@
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
 #elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
-    #error "HOJA_USB_MUX_DRIVER must be defined for the ESP32 driver" 
+    #error "HOJA_USB_MUX_DRIVER must be defined for the ESP32 bluetooth driver" 
+#endif
+
+#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+    #include "drivers/bluetooth/esp32_hojabaseband.h"
 #endif
 
 // Size of messages we send OUT
@@ -199,8 +203,7 @@ void _esp32hoja_enable_chip(bool enabled)
 void _esp32hoja_enable_uart(bool enabled)
 {
     HOJA_USB_MUX_ENABLE(false);
-    sys_hal_sleep_ms(5);
-
+    sys_hal_sleep_ms(100);
     if(enabled)
     {
         HOJA_USB_MUX_SELECT(1);
@@ -209,16 +212,33 @@ void _esp32hoja_enable_uart(bool enabled)
     {
         HOJA_USB_MUX_SELECT(0);
     }
-    sys_hal_sleep_ms(5);
+    sys_hal_sleep_ms(100);
     HOJA_USB_MUX_ENABLE(true);
+}
+
+// Init firmware loading mode
+void esp32hoja_init_load() 
+{
+    #if defined(HOJA_USB_MUX_INIT)
+    HOJA_USB_MUX_INIT();
+    #endif
+
+    _esp32hoja_enable_uart(true);
+    sys_hal_sleep_ms(200);
+    _esp32hoja_enable_chip(true);
+    // Give time for the chip to boot
+    sys_hal_sleep_ms(1000);
 }
 
 bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+    #if defined(HOJA_USB_MUX_INIT)
+    HOJA_USB_MUX_INIT();
+    #endif
+
     uint8_t out_mode = (pairing_mode ? 0b10000000 : 0) | (uint8_t) device_mode;
 
     _esp32hoja_enable_chip(true);
-
     // Give time for the chip to boot
     sys_hal_sleep_ms(1000);
 

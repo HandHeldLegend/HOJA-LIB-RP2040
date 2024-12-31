@@ -27,6 +27,8 @@ gamepad_mode_t boot_get_mode_selection()
     button_access_blocking(&buttons, BUTTON_ACCESS_BOOT_DATA);
 
     // Choose gamepad boot mode here based on button inputs
+    if(buttons.trigger_r)
+        return GAMEPAD_MODE_LOAD;
 
     return GAMEPAD_MODE_UNDEFINED;
 }

@@ -1,5 +1,6 @@
 #include "devices/battery.h"
 #include "utilities/interval.h"
+#include "hoja.h"
 #include "board_config.h"
 
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
@@ -9,13 +10,15 @@
 battery_status_s _battery_status = {
     .battery_status = BATTERY_STATUS_UNAVAILABLE,
     .charge_status  = BATTERY_CHARGE_UNAVAILABLE,
-    .plug_status    = BATTERY_PLUG_UNAVAILABLE
+    .plug_status    = BATTERY_PLUG_UNAVAILABLE,
     };
 
-battery_status_s _new_battery_status;
+battery_status_s _new_battery_status = {0};
+
+bool _battery_shutdown_lockout = false;
 
 // Battery event handler
-void _event_handler(battery_event_t event)
+void _battery_event_handler(battery_event_t event)
 {
     switch(event)
     {
@@ -23,6 +26,8 @@ void _event_handler(battery_event_t event)
         break;
 
         case BATTERY_EVENT_CABLE_UNPLUGGED:
+            _battery_shutdown_lockout = true;
+            hoja_deinit(hoja_shutdown);
         break;
 
         case BATTERY_EVENT_CHARGE_COMPLETE:
@@ -39,15 +44,13 @@ bool battery_init()
     #if defined(HOJA_BATTERY_INIT)
     if(HOJA_BATTERY_INIT())
     {
-        // Update status
-        HOJA_BATTERY_UPDATE_STATUS();
         // Set initial status
-        _battery_status = HOJA_BATTERY_GET_STATUS();
-        _new_battery_status = _battery_status;
+        _battery_status.val = HOJA_BATTERY_GET_STATUS();
+        _new_battery_status.val = _battery_status.val;
+        return true;
     }
-    #else 
-    return false;
     #endif 
+    return false;
 }
 
 // Get current battery level. Returns -1 if unsupported.
@@ -101,39 +104,43 @@ battery_status_t battery_get_battery()
     #endif
 }
 
-#define BATTERY_TASK_INTERVAL 1 * 1000 * 1000 // 1 second (1000ms)
+#define BATTERY_TASK_INTERVAL 500 * 1000 // 0.5 second (microseconds)
 // PMIC management task.
 void battery_task(uint32_t timestamp)
 {
     #if defined(HOJA_BATTERY_DRIVER)
-    interval_s interval = {0};
+    static interval_s interval = {0};
 
     if(interval_run(timestamp, BATTERY_TASK_INTERVAL, &interval))
     {
+        if(_battery_shutdown_lockout) return;
+
         if(_battery_status.plug_status==BATTERY_PLUG_OVERRIDE) return;
 
-        _new_battery_status = HOJA_BATTERY_GET_STATUS();
+        // Update status
+        HOJA_BATTERY_UPDATE_STATUS();
+        _new_battery_status.val = HOJA_BATTERY_GET_STATUS();
 
         // Check change to battery status
-        if( _battery_status.charge_status       !=  BATTERY_CHARGE_UNAVAILABLE &&
-            _new_battery_status.charge_status   !=  _battery_status.charge_status)
+        if( (_battery_status.charge_status       !=  BATTERY_CHARGE_UNAVAILABLE) &&
+            (_new_battery_status.charge_status   !=  _battery_status.charge_status) )
         {
             switch(_new_battery_status.charge_status)
             {
                 case BATTERY_CHARGE_IDLE:
-                    _event_handler(BATTERY_EVENT_CHARGE_STOP);
+                    _battery_event_handler(BATTERY_EVENT_CHARGE_STOP);
                 break;
 
                 case BATTERY_CHARGE_CHARGING:
-                    _event_handler(BATTERY_EVENT_CHARGE_START);
+                    _battery_event_handler(BATTERY_EVENT_CHARGE_START);
                 break;
 
                 case BATTERY_CHARGE_DONE:
-                    _event_handler(BATTERY_EVENT_CHARGE_COMPLETE);
+                    _battery_event_handler(BATTERY_EVENT_CHARGE_COMPLETE);
                 break;
 
                 case BATTERY_CHARGE_DISCHARGING:
-                    _event_handler(BATTERY_EVENT_CHARGE_STOP);
+                    _battery_event_handler(BATTERY_EVENT_CHARGE_STOP);
                 break;
 
                 default:
@@ -143,17 +150,17 @@ void battery_task(uint32_t timestamp)
         }
 
         // Check change to plug status
-        if(_battery_status.plug_status      !=  BATTERY_PLUG_UNAVAILABLE &&
-           _new_battery_status.plug_status  != _battery_status.plug_status)
+        if( (_battery_status.plug_status      !=  BATTERY_PLUG_UNAVAILABLE) &&
+            (_new_battery_status.plug_status  != _battery_status.plug_status) )
         {
             switch(_new_battery_status.plug_status)
             {
                 case BATTERY_PLUG_PLUGGED:
-                    _event_handler(BATTERY_EVENT_CABLE_PLUGGED);
+                    _battery_event_handler(BATTERY_EVENT_CABLE_PLUGGED);
                 break;
 
                 case BATTERY_PLUG_UNPLUGGED:
-                    _event_handler(BATTERY_EVENT_CABLE_UNPLUGGED);
+                    _battery_event_handler(BATTERY_EVENT_CABLE_UNPLUGGED);
                 break;
 
                 default:
@@ -163,7 +170,7 @@ void battery_task(uint32_t timestamp)
         }
 
         // Update battery status to new status
-        _battery_status = _new_battery_status;
+        _battery_status.val = _new_battery_status.val;
     }
     
     #endif 
@@ -180,11 +187,10 @@ bool battery_set_charge_rate(uint16_t rate_ma)
 }
 
 // Enable PMIC ship mode (power off with power conservation).
-bool battery_set_ship_mode()
+void battery_set_ship_mode()
 {
     #if defined(HOJA_BATTERY_SET_SHIP_MODE)
-    return HOJA_BATTERY_SET_SHIP_MODE();
-    #else 
-    return false;
+    HOJA_BATTERY_SET_SHIP_MODE();
     #endif
+    return;
 }

@@ -182,5 +182,7 @@ void remap_init()
       remap_config->profiles[i] = _default_remap;
     }
   }
+
+  _remap_load_remap();
 }
 

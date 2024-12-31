@@ -40,9 +40,17 @@ typedef enum
 
 typedef struct
 {
-    battery_plug_t      plug_status;
-    battery_charge_t    charge_status;
-    battery_status_t    battery_status;
+    union 
+    {
+        struct 
+        {
+            int8_t plug_status;
+            int8_t charge_status;
+            int8_t battery_status;
+            int8_t reserved;
+        };
+        uint32_t val;
+    }; 
 } battery_status_s;
 
 typedef enum
@@ -70,6 +78,6 @@ battery_charge_t    battery_get_charge();
 battery_status_t    battery_get_battery(); 
 void                battery_task(uint32_t timestamp); 
 bool                battery_set_charge_rate(uint16_t rate_ma); 
-bool                battery_set_ship_mode(); 
+void                battery_set_ship_mode(); 
 
 #endif

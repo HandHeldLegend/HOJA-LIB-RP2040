@@ -7,7 +7,8 @@
 #include "devices/haptics.h"
 
 #include "switch/switch_haptics.h"
-
+#include <stdbool.h>
+#include "hoja_shared_types.h"
 #include "devices/devices.h"
 
 typedef enum
@@ -26,9 +27,9 @@ typedef struct
 
 typedef void (*bluetooth_cb_t)(bluetooth_cb_msg_s *msg);
 
-bool bluetooth_init(int device_mode, bool pairing_mode);
+bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode);
 
-void bluetooth_task(uint32_t timestamp);
+void bluetooth_mode_task(uint32_t timestamp);
 
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg);

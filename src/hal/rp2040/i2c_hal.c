@@ -22,10 +22,7 @@ auto_init_mutex(_i2c_safe_mutex); // Mutex to allow thread-safe access to periph
 
 void _i2c_safe_enter_blocking()
 {
-    while(!mutex_enter_timeout_us(&_i2c_safe_mutex, 10))
-    {
-        sleep_us(1);
-    }
+    mutex_enter_blocking(&_i2c_safe_mutex);
 }
 
 void _i2c_safe_exit()
@@ -38,8 +35,10 @@ bool i2c_hal_init(uint8_t instance, uint32_t sda, uint32_t scl)
     if(instance>=I2C_HAL_MAX_INSTANCES) return false;
 
     i2c_init(_i2c_instances[instance], 400*1000);
-    gpio_set_function(HOJA_I2C_0_GPIO_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(HOJA_I2C_0_GPIO_SCL, GPIO_FUNC_I2C);
+    gpio_set_function(sda, GPIO_FUNC_I2C);
+    gpio_set_function(scl, GPIO_FUNC_I2C);
+
+    return true;
 }
 
 void i2c_hal_deinit(uint8_t instance)
@@ -50,9 +49,10 @@ void i2c_hal_deinit(uint8_t instance)
 int i2c_hal_write_timeout_us(uint8_t instance, uint8_t addr, const uint8_t *src, size_t len, bool nostop, int timeout_us)
 {
     if(instance>=I2C_HAL_MAX_INSTANCES) return -1;
+    int ret = 0;
 
     _i2c_safe_enter_blocking();
-    int ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, len, nostop, timeout_us);
+    ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, len, nostop, timeout_us);
     _i2c_safe_exit();
 
     return ret;
@@ -61,9 +61,10 @@ int i2c_hal_write_timeout_us(uint8_t instance, uint8_t addr, const uint8_t *src,
 int i2c_hal_read_timeout_us(uint8_t instance, uint8_t addr, uint8_t *dst, size_t len, bool nostop, int timeout_us)
 {
     if(instance>=I2C_HAL_MAX_INSTANCES) return -1;
+    int ret = 0;
 
     _i2c_safe_enter_blocking();
-    int ret = i2c_read_timeout_us(_i2c_instances[instance], addr, dst, len, nostop, timeout_us);
+    ret = i2c_read_timeout_us(_i2c_instances[instance], addr, dst, len, nostop, timeout_us);
     _i2c_safe_exit();
 
     return ret;
@@ -72,9 +73,10 @@ int i2c_hal_read_timeout_us(uint8_t instance, uint8_t addr, uint8_t *dst, size_t
 int i2c_hal_write_blocking(uint8_t instance, uint8_t addr, const uint8_t *src, size_t len, bool nostop)
 {
     if(instance>=I2C_HAL_MAX_INSTANCES) return -1;
+    int ret = 0;
 
     _i2c_safe_enter_blocking();
-    int ret = i2c_write_blocking(_i2c_instances[instance], addr, src, len, nostop);
+    ret = i2c_write_blocking(_i2c_instances[instance], addr, src, len, nostop);
     _i2c_safe_exit();
 
     return ret;
@@ -85,9 +87,10 @@ int i2c_hal_write_read_timeout_us(uint8_t instance, uint8_t addr, const uint8_t 
                                   size_t wr_len, uint8_t *dst, size_t dst_len, int timeout_us)
 {
     if(instance>=I2C_HAL_MAX_INSTANCES) return -1;
+    int ret = 0;
 
     _i2c_safe_enter_blocking();
-    int ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, wr_len, true, timeout_us);
+    ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, wr_len, true, timeout_us);
     ret = i2c_read_timeout_us(_i2c_instances[instance], addr, dst, dst_len, false, timeout_us);
     _i2c_safe_exit();
 

@@ -1,15 +1,22 @@
 #include "devices/bluetooth.h"
+#include "hoja_shared_types.h"
 #include "devices/rgb.h"
 #include "devices/haptics.h"
 
 #include "devices_shared_types.h"
 
+#include "board_config.h"
+
+#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+    #include "drivers/bluetooth/esp32_hojabaseband.h"
+#endif
+
 uint32_t _mode_color = 0;
 
-bool bluetooth_init(int device_mode, bool pairing_mode)
+bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
 {
-    // Handle color options here for differing modes
-     switch (device_mode)
+#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
+    switch (mode)
     {
     default:
     case DEVICE_MODE_SWPRO:
@@ -24,28 +31,34 @@ bool bluetooth_init(int device_mode, bool pairing_mode)
         _mode_color = COLOR_GREEN.color;
         break;
 
+    // Special case where we want to
+    // initialize into a bluetooth firmware
+    // loading mode
     case DEVICE_MODE_LOAD:
         _mode_color = COLOR_ORANGE.color;
+        #if defined(HOJA_BLUETOOTH_INIT_LOAD)
+        HOJA_BLUETOOTH_INIT_LOAD();
+        return true;
+        #endif
         break;
     }
     //rgb_flash(_mode_color, -1);
 
+    // All other bluetooth modes init normally
     #if defined(HOJA_BLUETOOTH_INIT)
-    return HOJA_BLUETOOTH_INIT(device_mode, pairing_mode, bluetooth_callback_handler);
+    return HOJA_BLUETOOTH_INIT(mode, pairing_mode, bluetooth_callback_handler);
+    #else 
+    return false;
     #endif
+#endif
 }
 
-void bluetooth_load_task(uint32_t timestamp)
-{
-    
-}
-
-void bluetooth_task(uint32_t timestamp)
+void bluetooth_mode_task(uint32_t timestamp)
 {
     #if defined(HOJA_BLUETOOTH_TASK)
     HOJA_BLUETOOTH_TASK(timestamp);
     #endif
-}
+}   
 
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)

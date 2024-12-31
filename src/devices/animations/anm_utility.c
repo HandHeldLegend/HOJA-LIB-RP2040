@@ -47,6 +47,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
     for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
     {
+        // Only apply if above 0
         if(in[i].r)
         {
             // First apply gamma

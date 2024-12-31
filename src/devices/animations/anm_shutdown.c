@@ -4,7 +4,7 @@
 #include <string.h>
 
 callback_t _shutdown_cb = NULL;
-int _delay_steps = 100;
+int _delay_steps = 10;
 
 void anm_shutdown_set_cb(callback_t cb)
 {

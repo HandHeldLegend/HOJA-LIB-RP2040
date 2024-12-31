@@ -71,10 +71,13 @@ bool bq25180_update_status()
     bq25180_status_1_s this_status_1 = {0};
 
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
-    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, &this_status_0.status, 1, 32000);
+    uint8_t _readstatus[1] = {0};
+    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
 
     if(ret==1)
     {
+        this_status_0.status = _readstatus[0];
+        
         // First, get our plug status
         if(this_status_0.vin_power_good)
         {
@@ -84,6 +87,7 @@ bool bq25180_update_status()
         else
         {
             _cable_plugged = false;
+            _pmic_status.plug_status = BATTERY_PLUG_UNPLUGGED;
         }
 
         // Process any changes to status
@@ -135,15 +139,16 @@ bool bq25180_init()
     {
         bq25180_set_source(BATTERY_SOURCE_AUTO);
         bq25180_set_charge_rate(250);
+        bq25180_update_status();
 
         return true;
     }
     else return false;
 }
 
-battery_status_s bq25180_get_status()
+uint32_t bq25180_get_status()
 {
-    return _pmic_status;
+    return _pmic_status.val;
 }
 
 // Battery level isn't supported with this PMIC. Returns -1
@@ -199,7 +204,7 @@ bool bq25180_set_ship_mode()
 
     int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
 
-    if(ret==2) return true; // We will get this value if the charger is still plugged in!
+    if(ret==2) return true; // We may still get this true because of power 'fading' off.
 
     return false;
 }
