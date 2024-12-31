@@ -32,6 +32,8 @@ void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t len
  */
 uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
 {
+    const uint8_t serialnum[] = "Cool Gamers!   ";
+
     switch (offset_address)
     {
         // Patch ROM not needed
@@ -118,6 +120,7 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
                 // Serial number disabled. First byte >= 0x80 means NO serial.
                 case 0x00 ... 0x0F:
                     return 0xFF; // Real pro controller... 255 for all this data.
+                    // return serialnum[address];
                     break;
 
                 // END OF STAGE 1 //
