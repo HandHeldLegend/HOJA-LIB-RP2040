@@ -225,7 +225,6 @@ uint32_t connection_attempts = 0;
 
 void _btinput_message_parse(uint8_t *data)
 {
-
     // Handle auto-shut-off timer
     if(_current_connected < 1)
     {
@@ -366,7 +365,8 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     if(evt_cb)
         _bluetooth_cb = evt_cb;
 
-    uint8_t out_mode = (pairing_mode ? 0b10000000 : 0) | (uint8_t) device_mode;
+    uint8_t pair_flag = (pairing_mode ? 0b10000000 : 0);
+    uint8_t out_mode = pair_flag | (uint8_t) device_mode;
 
     _esp32hoja_enable_chip(true);
     // Give time for the chip to boot
@@ -409,11 +409,11 @@ void esp32hoja_task(uint32_t timestamp)
         if(read_write)
         {
             // Update input states
-            button_data_s   buttons = {0};
-            analog_data_s   analog  = {0};
-            imu_data_s      imu_tmp    = {0};
+            static button_data_s   buttons = {0};
+            static analog_data_s   analog  = {0};
+            static imu_data_s      imu_tmp    = {0};
             button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-            analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
+            analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
         
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location

@@ -21,6 +21,17 @@ void macro_shutdown(uint32_t timestamp, button_data_s *buttons)
     static uint32_t iterations = 0;
     static bool lockout = false;
 
+    // We want to wait until we have our shipping button
+    // clear before we process a future macro (prevent power off right after power on)
+    static bool boot_wait = true;
+
+    if(boot_wait && !buttons->button_shipping)
+    {
+        boot_wait = false;
+        return;
+    }
+    else if(boot_wait) return;
+
     if(lockout)
     {
         // Only shut down when we release button

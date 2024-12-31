@@ -25,6 +25,11 @@ void boot_set_memory(boot_memory_s *in)
     sys_hal_set_bootmemory(in->val);
 }
 
+void boot_clear_memory()
+{
+    sys_hal_set_bootmemory(0);
+}
+
 void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *pair)
 {
     // Access boot time button state
@@ -91,6 +96,12 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         thisMode    = GAMEPAD_MODE_GCUSB;
         thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
     }
+    else // DEFAULT
+    {
+        thisMode            = GAMEPAD_MODE_SWPRO;
+        thisMethod          = GAMEPAD_METHOD_USB;
+        wirelessSupported   = true;
+    }
 
     // Handle Bluetooth for supported devices
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
@@ -104,6 +115,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     // Check reboot memory for any overrides for buttons and whatnot
     boot_memory_s boot_memory = {0};
     boot_get_memory(&boot_memory);
+    boot_clear_memory();
 
     // If we have reboot memory, use it
     if(boot_memory.val != 0)
@@ -127,13 +139,14 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     }
     #endif
 
-    // Set outputs
-    *mode = thisMode;
-    *method = thisMethod;
-    *pair = thisPair;
-
     if(buttons.trigger_l && buttons.button_plus)
     {
         sys_hal_bootloader();
+        return;
     }
+
+    // Set outputs
+    *mode   = thisMode;
+    *method = thisMethod;
+    *pair   = thisPair;
 }
