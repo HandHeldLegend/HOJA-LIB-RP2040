@@ -84,7 +84,6 @@ target_sources(hoja_lib INTERFACE
 
   
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
-
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/gamecube.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/n64.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/wired/nesbus.c 

@@ -132,7 +132,7 @@ bool _force_clear_override = false;
 void anm_handler_tick()
 {
     // Only compile this function if we have our driver update function
-    #if RGB_DEVICE_ENABLED==1
+    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER>0)
     if(_fade)
     {
         if(_ani_queue_fade_handler(_current_ani_leds))

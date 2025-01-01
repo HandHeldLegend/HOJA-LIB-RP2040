@@ -6,7 +6,7 @@
 #include "hoja_shared_types.h"
 #include "devices_shared_types.h"
 
-#define PCM_BUFFER_SIZE 255
+#define PCM_BUFFER_SIZE 256
 #define PCM_SAMPLES_PER_PAIR 64
 #define PCM_SAMPLES_LERP_TIME 0
 #define PCM_TOTAL_SIZE (PCM_BUFFER_SIZE * PCM_CHUNKS)

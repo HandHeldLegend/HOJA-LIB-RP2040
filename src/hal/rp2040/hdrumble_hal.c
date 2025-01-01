@@ -29,8 +29,10 @@
 
 #define SAMPLE_RATE         PCM_SAMPLE_RATE
 #define REPETITION_RATE     4
-#define BUFFER_SIZE         PCM_BUFFER_SIZE
-#define PWM_WRAP            BUFFER_SIZE
+#define BUFFER_SIZE         PCM_BUFFER_SIZE*2
+#define PWM_WRAP            PCM_BUFFER_SIZE
+
+uint dma_reset;
 
 #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
     uint dma_cc_l, dma_trigger_l, dma_sample;
@@ -41,19 +43,22 @@
     #ifndef HOJA_HDRUMBLE_CHAN_A_PIN
         #error "To use channel B, HOJA_HDRUMBLE_CHAN_A_PIN must be defined too." 
     #endif 
-
-    uint dma_cc_r, dma_trigger_r;
+    uint dma_cc_r, dma_trigger_r, dma_reset_r;
     uint pwm_slice_r;
 #endif
 
 uint32_t dma_trigger_start_mask = 0;
+volatile uint32_t *dma_trigger_start_ptr = &dma_trigger_start_mask;
 
 uint32_t single_sample;
 uint32_t *single_sample_ptr = &single_sample;
 
 // The current audio buffer in use
 static volatile uint audio_buffer_idx = 0;
-static uint32_t audio_buffers[2][BUFFER_SIZE] = {0};
+//static uint32_t audio_buffers[2][BUFFER_SIZE] = {0};
+
+__attribute__((aligned(2048))) uint32_t audio_buffer[BUFFER_SIZE] = {0};
+uint32_t *audio_buffer_ptr = &audio_buffer[0];
 
 // Bool to indicate we need to fill our next sine wave
 static volatile bool ready_next_sine = false;
@@ -62,7 +67,7 @@ static void __isr __time_critical_func(_dma_handler)()
 {
     audio_buffer_idx = 1-audio_buffer_idx;
     #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
-        dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
+        //dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
         dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
     
 
@@ -100,11 +105,11 @@ bool hdrumble_hal_init()
 
     // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
-    float clock_div = ( (float) f_clk_sys * 1000.0f) / 254.0f / (float) SAMPLE_RATE / (float) REPETITION_RATE;
+    float clock_div = ( (float) f_clk_sys * 1000.0f) / PWM_WRAP / (float) SAMPLE_RATE / (float) REPETITION_RATE;
 
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv(&config, clock_div);
-    pwm_config_set_wrap(&config, 254);
+    pwm_config_set_wrap(&config, PWM_WRAP);
 
     uint32_t pwm_enable_mask = 0;
 
@@ -118,15 +123,15 @@ bool hdrumble_hal_init()
         pwm_enable_mask         |= (1U<<pwm_slice_l);
         dma_cc_l                 = dma_claim_unused_channel(true);
         dma_trigger_l            = dma_claim_unused_channel(true);
+        dma_reset                = dma_claim_unused_channel(true);
         dma_trigger_start_mask  |= (1U<<dma_trigger_l);
 
         // setup PWM DMA channel LEFT
-        
         dma_channel_config dma_cc_l_cfg = dma_channel_get_default_config(dma_cc_l);
         channel_config_set_transfer_data_size(&dma_cc_l_cfg, DMA_SIZE_32);
         channel_config_set_read_increment(&dma_cc_l_cfg, false);
         channel_config_set_write_increment(&dma_cc_l_cfg, false);
-        channel_config_set_chain_to(&dma_cc_l_cfg, dma_sample);               // Chain to increment DMA sample
+        channel_config_set_chain_to(&dma_cc_l_cfg, dma_sample);               // Chain to increment DMA sample. This loads our next sample to &single_sample after we perform REPETITION_RATE num of transfers
         channel_config_set_dreq(&dma_cc_l_cfg, DREQ_PWM_WRAP0 + pwm_slice_l); // transfer on PWM cycle end
 
         dma_channel_configure(dma_cc_l,
@@ -142,6 +147,7 @@ bool hdrumble_hal_init()
         channel_config_set_read_increment(&dma_trigger_l_cfg, false);              // always read from the same address
         channel_config_set_write_increment(&dma_trigger_l_cfg, false);             // always write to the same address
         channel_config_set_dreq(&dma_trigger_l_cfg, DREQ_PWM_WRAP0 + pwm_slice_l); // transfer on PWM cycle end
+        channel_config_set_chain_to(&dma_trigger_l_cfg, dma_reset);
 
         dma_channel_configure(dma_trigger_l,
                             &dma_trigger_l_cfg,
@@ -150,26 +156,43 @@ bool hdrumble_hal_init()
                             REPETITION_RATE * BUFFER_SIZE,            // trigger once per audio sample per repetition rate
                             false);
 
-        dma_channel_set_irq1_enabled(dma_trigger_l, true); // fire interrupt when trigger DMA channel is done
-        // We do not set up our ISR for dma_trigger_l since they are in sync
-        irq_set_exclusive_handler(DMA_IRQ_1, _dma_handler);
-        irq_set_enabled(DMA_IRQ_1, true);
+        // Don't worry about interrupt
+        //dma_channel_set_irq1_enabled(dma_trigger_l, true); // fire interrupt when trigger DMA channel is done
+        //// We do not set up our ISR for dma_trigger_l since they are in sync
+        //irq_set_exclusive_handler(DMA_IRQ_1, _dma_handler);
+        //irq_set_enabled(DMA_IRQ_1, true);
 
         // setup sample DMA channel
         dma_channel_config dma_sample_cfg = dma_channel_get_default_config(dma_sample);
         channel_config_set_transfer_data_size(&dma_sample_cfg, DMA_SIZE_32); // transfer 8-bits at a time
         channel_config_set_read_increment(&dma_sample_cfg, true);            // increment read address to go through audio buffer
         channel_config_set_write_increment(&dma_sample_cfg, false);          // always write to the same address
+        channel_config_set_ring(&dma_sample_cfg, false, 11); // 1<<11 = 2048. 2048/4 = 512 buffer bytes
+
         dma_channel_configure(dma_sample,
                             &dma_sample_cfg,
                             &single_sample,       // write to single_sample. This contains the data for both CH A and CH B
-                            &audio_buffers[0][0], // read from audio buffer
+                            &audio_buffer[0],     // read from audio buffer
                             1,                    // only do one transfer (once per PWM DMA completion due to chaining)
                             false                 // don't start yet
+        );  
+
+        // Set up a dummy transfer to just get looping
+        dma_channel_config dma_reset_cfg = dma_channel_get_default_config(dma_reset);
+        channel_config_set_transfer_data_size(&dma_reset_cfg, DMA_SIZE_32);
+        channel_config_set_read_increment(&dma_reset_cfg, false); 
+        channel_config_set_write_increment(&dma_reset_cfg, false); 
+
+        dma_channel_configure(dma_reset,
+                            &dma_reset_cfg, 
+                            &dma_hw->multi_channel_trigger,
+                            &dma_trigger_start_mask,
+                            1, // only do one transfer
+                            false
         );
 
         // clear audio buffer
-        memset(audio_buffers[0], 0, BUFFER_SIZE);
+        memset(audio_buffer, 0, BUFFER_SIZE);
         //memset(audio_buffers[1], 0, BUFFER_SIZE);
         
     #endif
@@ -184,6 +207,7 @@ bool hdrumble_hal_init()
         pwm_enable_mask         |= (1U<<pwm_slice_r);
         dma_cc_r                 = dma_claim_unused_channel(true);
         dma_trigger_r            = dma_claim_unused_channel(true);
+        dma_reset_r              = dma_claim_unused_channel(true);
         dma_trigger_start_mask  |= (1U<<dma_trigger_r);
 
         // setup PWM DMA channel RIGHT
@@ -225,15 +249,52 @@ bool hdrumble_hal_init()
     return true;
 }
 
+// Get which half of the buffer is safe to write to
+bool get_inactive_buffer_half() 
+{
+    #ifdef HOJA_HDRUMBLE_CHAN_A_PIN
+    // Get current DMA read address
+    uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>2);
+    
+    // If DMA is reading from first half, return pointer to second half
+    if (current_trans_count >= PCM_BUFFER_SIZE) {
+        return true;
+    } else {
+        return false;
+    }
+    #else 
+    return false;
+    #endif
+}
+
 bool _erm_simulation_enabled = false;
 void hdrumble_hal_task(uint32_t timestamp)
 {
+    static bool inactive_half = true;
+    static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
+
+    bool inactive_this = get_inactive_buffer_half();
+
+    if(inactive_this != inactive_half)
+    {
+        inactive_half = inactive_this;
+
+        if(inactive_half)
+            memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
+            
+        else 
+            memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
+
+        pcm_generate_buffer(buffered);
+    }
+
+    /*
     if (ready_next_sine)
     {
         ready_next_sine = false;
         uint8_t available_buffer = 1 - audio_buffer_idx;
         pcm_generate_buffer(audio_buffers[available_buffer]);
-    }
+    }*/
 
     if(_erm_simulation_enabled)
         erm_simulator_task(timestamp);

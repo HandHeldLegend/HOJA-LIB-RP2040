@@ -85,9 +85,6 @@ void _hoja_task_0()
   // Process any macros
   macros_task(c0_timestamp);
 
-  // Handle haptics
-  haptics_task(c0_timestamp);
-
   // Comms task
   if(_hoja_mode_task_cb!=NULL)
   {
@@ -102,6 +99,9 @@ void _hoja_task_0()
 
   // Battery task
   battery_task(c0_timestamp);
+
+  // Handle haptics
+  haptics_task(c0_timestamp);
 
   // Update sys tick
   sys_hal_tick();

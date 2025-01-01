@@ -23,11 +23,11 @@
 #endif
 
 #if(JOYBUS_GC_DRIVER_PIO_INSTANCE==0)
-    #define PIO_IN_USE pio0
+    #define GC_PIO_IN_USE pio0
     #define PIO_IRQ_USE_0 PIO0_IRQ_0
     #define PIO_IRQ_USE_1 PIO0_IRQ_1
 #else 
-    #define PIO_IN_USE pio1 
+    #define GC_PIO_IN_USE pio1 
     #define PIO_IRQ_USE_0 PIO1_IRQ_0
     #define PIO_IRQ_USE_1 PIO1_IRQ_1
 #endif
@@ -55,41 +55,41 @@ static gamecube_input_s _out_buffer = {
 
 void _gamecube_send_probe()
 {
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x09));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, 0);
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x03));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x09));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, 0);
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x03));
 }
 
 void _gamecube_send_origin()
 {
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, 0);
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, 0);
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x80));
 
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x0)); // LT
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x0)); // RT
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, 0);
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, 0);
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x0)); // LT
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(0x0)); // RT
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, 0);
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, 0);
 }
 
 void _gamecube_send_poll()
 {
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_1));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_2));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_x));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_y));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_x));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_y));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_l));
-  pio_sm_put_blocking(PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_r));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_1));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_2));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_x));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_y));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_x));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_y));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_l));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_r));
 }
 
 void _gamecube_reset_state()
 {
-  joybus_set_in(true, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
+  joybus_set_in(true, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
 }
 
 #define BYTECOUNT_DEFAULT 2
@@ -113,7 +113,7 @@ void __time_critical_func(_gamecube_command_handler)()
 
   if(_byteCounter==BYTECOUNT_UNKNOWN)
   {
-    _workingCmd = pio_sm_get(PIO_IN_USE, PIO_SM);
+    _workingCmd = pio_sm_get(GC_PIO_IN_USE, PIO_SM);
     switch(_workingCmd)
     {
       default:
@@ -126,7 +126,7 @@ void __time_critical_func(_gamecube_command_handler)()
   }
   else
   {
-    dat = pio_sm_get(PIO_IN_USE, PIO_SM);
+    dat = pio_sm_get(GC_PIO_IN_USE, PIO_SM);
   }
 
   switch(_workingCmd)
@@ -148,7 +148,7 @@ void __time_critical_func(_gamecube_command_handler)()
     case GCUBE_CMD_PROBE:
     {
       _byteCounter = BYTECOUNT_UNKNOWN;
-      joybus_set_in(false, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+      joybus_set_in(false, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
       while(c--)
         asm("nop");
       _gamecube_send_probe();
@@ -167,7 +167,7 @@ void __time_critical_func(_gamecube_command_handler)()
       {
         _gc_rumble = (dat&1) ? true : false;
         _byteCounter = BYTECOUNT_UNKNOWN;
-        joybus_set_in(false, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+        joybus_set_in(false, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
         while(c--)
           asm("nop");
         _gamecube_send_poll();
@@ -179,7 +179,7 @@ void __time_critical_func(_gamecube_command_handler)()
     case GCUBE_CMD_ORIGIN:
     {
       _byteCounter = BYTECOUNT_UNKNOWN;
-      joybus_set_in(false, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+      joybus_set_in(false, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
       while(c--)
         asm("nop");
       _gamecube_send_origin();
@@ -192,7 +192,7 @@ void __time_critical_func(_gamecube_command_handler)()
       if(!_byteCounter)
       {
         _byteCounter = BYTECOUNT_UNKNOWN;
-        joybus_set_in(false, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+        joybus_set_in(false, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
         while(c--)
           asm("nop");
         _gamecube_send_origin();
@@ -212,10 +212,10 @@ void __time_critical_func(_gamecube_command_handler)()
 static void _gamecube_isr_handler(void)
 {
   irq_set_enabled(_gamecube_irq, false);
-  if (pio_interrupt_get(PIO_IN_USE, 0))
+  if (pio_interrupt_get(GC_PIO_IN_USE, 0))
   {
     _gc_got_data = true;
-    pio_interrupt_clear(PIO_IN_USE, 0);
+    pio_interrupt_clear(GC_PIO_IN_USE, 0);
     _gamecube_command_handler();
   }
   irq_set_enabled(_gamecube_irq, true);
@@ -223,10 +223,10 @@ static void _gamecube_isr_handler(void)
 
 static void _gamecube_isr_txdone(void)
 {
-  if (pio_interrupt_get(PIO_IN_USE, 1))
+  if (pio_interrupt_get(GC_PIO_IN_USE, 1))
   {
-    pio_interrupt_clear(PIO_IN_USE, 1);
-    joybus_set_in(true, PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, HOJA_SERIAL_PIN);
+    pio_interrupt_clear(GC_PIO_IN_USE, 1);
+    joybus_set_in(true, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
   }
 }
 
@@ -237,18 +237,18 @@ void joybus_gc_hal_stop()
 
 bool joybus_gc_hal_init()
 {
-    _gamecube_offset = pio_add_program(PIO_IN_USE, &joybus_program);
+    _gamecube_offset = pio_add_program(GC_PIO_IN_USE, &joybus_program);
 
     _gamecube_irq    = PIO_IRQ_USE_0;
     _gamecube_irq_tx = PIO_IRQ_USE_1;
 
-    pio_set_irq0_source_enabled(PIO_IN_USE, pis_interrupt0, true);
-    pio_set_irq1_source_enabled(PIO_IN_USE, pis_interrupt1, true);
+    pio_set_irq0_source_enabled(GC_PIO_IN_USE, pis_interrupt0, true);
+    pio_set_irq1_source_enabled(GC_PIO_IN_USE, pis_interrupt1, true);
 
     irq_set_exclusive_handler(_gamecube_irq,    _gamecube_isr_handler);
     irq_set_exclusive_handler(_gamecube_irq_tx, _gamecube_isr_txdone);
 
-    joybus_program_init(PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
+    joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
     irq_set_enabled(_gamecube_irq, true);
     irq_set_enabled(_gamecube_irq_tx, true);
     _gc_running = true;
@@ -280,7 +280,7 @@ void joybus_gc_hal_task(uint32_t timestamp)
 
         // Update input data
         button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-        analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
+        analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
         
         static bool _rumblestate = false;
         if (_gc_rumble != _rumblestate)
