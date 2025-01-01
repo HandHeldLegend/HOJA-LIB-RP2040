@@ -153,6 +153,7 @@ bool _gamepad_mode_init()
     break;
 
     case GAMEPAD_METHOD_WIRED:
+      battery_set_plug(BATTERY_PLUG_OVERRIDE);
       _hoja_mode_task_cb = wired_mode_task;
       wired_mode_start(thisMode);
     break;

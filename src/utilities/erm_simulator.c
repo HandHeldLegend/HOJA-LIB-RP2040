@@ -35,12 +35,6 @@ static int16_t  _amplitude_step = 0;
 void erm_simulator_set_intensity(uint8_t intensity) {
     if((int32_t) intensity == _target_intensity) return;
 
-    if((uint32_t) intensity > _highest_target_current)
-    {
-        _highest_target_current = (uint32_t) intensity;
-        _highest_target_set = true;
-    }
-
     _target_intensity = (int32_t) intensity;
 }
 
@@ -54,28 +48,20 @@ bool _motor_sim_update(uint16_t *out_freq, int16_t *out_amp) {
     int32_t fall_step = 6;
     bool change = false;
 
-    if(_highest_target_set)
+    if(_current_intensity < _target_intensity)
     {
-        if(_current_intensity < _highest_target_current)
-        {
-            _current_intensity += ramp_step;
-            change = true;
-        }
-        else 
-        {
-            _current_intensity = _highest_target_current;
-            _highest_target_current = 0;
-            _highest_target_set = false;
-        }
+        _current_intensity += ramp_step;
+        change = true;
     }
-    else if(_current_intensity > _target_intensity) {
+    else if (_current_intensity > _target_intensity)
+    {
         _current_intensity -= fall_step;
         change = true;
     }
 
     // Clamp intensity to 0-AMPLITUDE_LUT_SIZE
-    _current_intensity = (_current_intensity < 0) ? 0 : _current_intensity;
-    _current_intensity = (_current_intensity > 255) ? 255 : _current_intensity;
+    _current_intensity = (_current_intensity < _target_intensity) ? _target_intensity : _current_intensity;
+    _current_intensity = (_current_intensity > _target_intensity) ? _target_intensity : _current_intensity;
         
     // Look up frequency and amplitude from tables
     freq    = (_frequency_step * _current_intensity) + _frequency_min;
@@ -119,7 +105,7 @@ void erm_simulator_task(uint32_t timestamp)
         _erm_ready = true;
     }
 
-    if(interval_run(timestamp, 4000, &interval))
+    if(interval_run(timestamp, 3000, &interval))
     {
         bool update = _motor_sim_update(&freq_step, &amp_fixed);
 

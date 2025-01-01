@@ -19,9 +19,11 @@ float haptics_get_intensity()
     return _rumble_intensity;
 }
 
-void haptics_set(uint8_t amplitude) 
+void haptics_set_std(uint8_t amplitude)
 {
-
+    #if defined(HOJA_HAPTICS_SET_STD)
+    HOJA_HAPTICS_SET_STD(amplitude);
+    #endif
 }
 
 bool haptics_init() 

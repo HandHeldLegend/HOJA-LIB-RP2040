@@ -73,6 +73,7 @@ typedef enum
 bool                battery_init(); 
 int                 battery_get_level(); 
 bool                battery_set_source(battery_source_t source); 
+void battery_set_plug(battery_plug_t plug);
 battery_plug_t      battery_get_plug();   
 battery_charge_t    battery_get_charge();  
 battery_status_t    battery_get_battery(); 

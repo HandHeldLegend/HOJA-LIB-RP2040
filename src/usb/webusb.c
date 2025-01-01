@@ -89,15 +89,20 @@ void webusb_send_rawinput(uint32_t timestamp)
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-        webusb_input_report[1] = (analog.lx & 0xFF00) >> 8;
-        webusb_input_report[2] = (analog.lx & 0xFF);       
-        webusb_input_report[3] = (analog.ly & 0xFF00) >> 8;
-        webusb_input_report[4] = (analog.ly & 0xFF);       
+        uint16_t lx = (uint16_t) (analog.lx + 2048);
+        uint16_t ly = (uint16_t) (analog.ly + 2048);
+        uint16_t rx = (uint16_t) (analog.rx + 2048);
+        uint16_t ry = (uint16_t) (analog.ry + 2048);
 
-        webusb_input_report[5] = (analog.rx & 0xFF00) >> 8;
-        webusb_input_report[6] = (analog.rx & 0xFF);       
-        webusb_input_report[7] = (analog.ry & 0xFF00) >> 8;
-        webusb_input_report[8] = (analog.ry & 0xFF);       
+        webusb_input_report[1] = (lx & 0xFF00) >> 8;
+        webusb_input_report[2] = (lx & 0xFF);       
+        webusb_input_report[3] = (ly & 0xFF00) >> 8;
+        webusb_input_report[4] = (ly & 0xFF);       
+
+        webusb_input_report[5] = (rx & 0xFF00) >> 8;
+        webusb_input_report[6] = (rx & 0xFF);       
+        webusb_input_report[7] = (ry & 0xFF00) >> 8;
+        webusb_input_report[8] = (ry & 0xFF);       
         webusb_input_report[9] = (buttons.buttons_all >> 8) & 0xFF;
         webusb_input_report[10] = buttons.buttons_all & 0xFF;
         webusb_input_report[11] = buttons.buttons_system;

@@ -74,6 +74,11 @@ bool battery_set_source(battery_source_t source)
     #endif 
 }
 
+void battery_set_plug(battery_plug_t plug)
+{
+    _battery_status.plug_status = plug;
+}
+
 // Get the PMIC plugged status.
 battery_plug_t battery_get_plug()
 {

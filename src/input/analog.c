@@ -35,10 +35,10 @@
   #define ADC_SMOOTHING_ENABLED 0
 #endif
 
-#define ANALOG_MAX_DISTANCE 4095
+#define ANALOG_MAX_DISTANCE 2048
 #define ANALOG_HALF_DISTANCE 2048
 #define DEADZONE_DEFAULT 100
-#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < 0) ? 0 : value)
+#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < (-ANALOG_MAX_DISTANCE)) ? (-ANALOG_MAX_DISTANCE) : value)
 
 #if (ADC_SMOOTHING_ENABLED==1)
 #define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
@@ -71,10 +71,9 @@ void addSample(RollingAverage* ra, float sample) {
 float getAverage(RollingAverage* ra) {
     return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
 }
-
 #endif 
-#define STICK_INTERNAL_CENTER 2048
 
+#define STICK_INTERNAL_CENTER 2048
 
 MUTEX_HAL_INIT(_analog_mutex);
 void _analog_blocking_enter()
@@ -100,6 +99,7 @@ analog_data_s _raw_analog_data      = {0};  // Stage 0
 analog_data_s _scaled_analog_data   = {0};  // Stage 1
 analog_data_s _snapback_analog_data = {0};  // Stage 2
 analog_data_s _deadzone_analog_data = {0};  // Stage 3
+int16_t       _center_offsets[4]    = {0};
 
 // Access analog input data safely
 void analog_access_blocking(analog_data_s *out, analog_access_t type)
@@ -182,6 +182,11 @@ void analog_init()
 
     switch_analog_calibration_init();
     stick_scaling_init();
+
+    _center_offsets[0] = analog_config->lx_center - STICK_INTERNAL_CENTER;
+    _center_offsets[1] = analog_config->ly_center - STICK_INTERNAL_CENTER;
+    _center_offsets[2] = analog_config->rx_center - STICK_INTERNAL_CENTER;
+    _center_offsets[3] = analog_config->ry_center - STICK_INTERNAL_CENTER;
 }
 
 // Read analog values
@@ -249,10 +254,15 @@ void _capture_center_offsets()
     // Read raw analog sticks
     _analog_read_raw();
 
-    analog_config->lx_center = ANALOG_HALF_DISTANCE-_raw_analog_data.lx;
-    analog_config->ly_center = ANALOG_HALF_DISTANCE-_raw_analog_data.ly;
-    analog_config->rx_center = ANALOG_HALF_DISTANCE-_raw_analog_data.rx;
-    analog_config->ry_center = ANALOG_HALF_DISTANCE-_raw_analog_data.ry;
+    analog_config->lx_center = _raw_analog_data.lx & 0x7FFF;
+    analog_config->ly_center = _raw_analog_data.ly & 0x7FFF;
+    analog_config->rx_center = _raw_analog_data.rx & 0x7FFF;
+    analog_config->ry_center = _raw_analog_data.ry & 0x7FFF;
+
+    _center_offsets[0] = analog_config->lx_center - STICK_INTERNAL_CENTER;
+    _center_offsets[1] = analog_config->ly_center - STICK_INTERNAL_CENTER;
+    _center_offsets[2] = analog_config->rx_center - STICK_INTERNAL_CENTER;
+    _center_offsets[3] = analog_config->ry_center - STICK_INTERNAL_CENTER;
 
     _analog_exit();
 }
@@ -284,8 +294,8 @@ void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *o
     out[1] = (int)(distance * sinf(angle_radians));
     
     // Clamp to prevent exceeding the specified range
-    out[0] = fmaxf(-2048, fminf(2047, out[0]));
-    out[1] = fmaxf(-2048, fminf(2047, out[1]));
+    out[0] = fmaxf(-2048, fminf(2048, out[0]));
+    out[1] = fmaxf(-2048, fminf(2048, out[1]));
 }
 
 void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
@@ -340,10 +350,10 @@ void analog_task(uint32_t timestamp)
         _analog_read_raw();
 
         // Offset data by center offsets
-        _raw_analog_data.lx += analog_config->lx_center;
-        _raw_analog_data.ly += analog_config->ly_center;
-        _raw_analog_data.rx += analog_config->rx_center;
-        _raw_analog_data.ry += analog_config->ry_center;
+        _raw_analog_data.lx += _center_offsets[0];
+        _raw_analog_data.ly += _center_offsets[1];
+        _raw_analog_data.rx += _center_offsets[2];
+        _raw_analog_data.ry += _center_offsets[3];
 
         // Rebase data to 0 center
         _raw_analog_data.lx -= ANALOG_HALF_DISTANCE;
@@ -359,10 +369,10 @@ void analog_task(uint32_t timestamp)
         stick_deadzone_process(&_scaled_analog_data, &_deadzone_analog_data);
 
         // Rebase analog data to full non-negative scale
-        _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx+ANALOG_HALF_DISTANCE);
-        _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly+ANALOG_HALF_DISTANCE);
-        _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx+ANALOG_HALF_DISTANCE);
-        _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry+ANALOG_HALF_DISTANCE);
+        _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);
+        _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);
+        _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);
+        _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry);
 
         _analog_exit();
     }

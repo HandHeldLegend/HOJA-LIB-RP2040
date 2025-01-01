@@ -5,6 +5,7 @@
 
 #include "wired/gamecube.h"
 #include "utilities/interval.h"
+#include "devices/haptics.h"
 
 #include "input_shared_types.h"
 #include "input/button.h"
@@ -49,8 +50,8 @@ bool _gc_rumble = false;
 uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
 static gamecube_input_s _out_buffer = {
-    .stick_left_x   = 127, .stick_left_y    = 127, 
-    .stick_right_x  = 127, .stick_right_y   = 127
+    .stick_left_x   = 128, .stick_left_y    = 128, 
+    .stick_right_x  = 128, .stick_right_y   = 128
     };
 
 void _gamecube_send_probe()
@@ -285,9 +286,8 @@ void joybus_gc_hal_task(uint32_t timestamp)
         static bool _rumblestate = false;
         if (_gc_rumble != _rumblestate)
         {
-        _rumblestate = _gc_rumble;
-        //float amp = _rumblestate ? HOJA_HAPTIC_BASE_AMP : 0;
-        //haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
+          _rumblestate = _gc_rumble;
+          haptics_set_std(_rumblestate ? 235 : 0);
         }
 
         // Our buttons are always the same formatting
@@ -305,16 +305,32 @@ void joybus_gc_hal_task(uint32_t timestamp)
         _out_buffer.dpad_right  = buttons.dpad_right;
         _out_buffer.dpad_up     = buttons.dpad_up;
 
-        // Analog stick data conversion
-        float lx = (analog.lx * 0.0488f) + 28;
-        float ly = (analog.ly * 0.0488f) + 28;
-        float rx = (analog.rx * 0.0488f) + 28;
-        float ry = (analog.ry * 0.0488f) + 28;
+        _out_buffer.z           = buttons.trigger_r;
 
-        uint8_t lx8 = CLAMP_0_255(lx);
-        uint8_t ly8 = CLAMP_0_255(ly);
-        uint8_t rx8 = CLAMP_0_255(rx);
-        uint8_t ry8 = CLAMP_0_255(ry);
+        const int32_t center_value = 128;
+        const float   target_max = 110.0f / 2048.0f;
+        const int32_t fixed_multiplier = (int32_t) (target_max * (1<<10));
+
+        bool lx_sign = analog.lx < 0;
+        bool ly_sign = analog.ly < 0;
+        bool rx_sign = analog.rx < 0;
+        bool ry_sign = analog.ry < 0;
+
+        uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
+        uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
+        uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
+        uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
+
+        // Analog stick data conversion
+        int32_t lx = ((lx_abs * fixed_multiplier) >> 10) * (lx_sign ? -1 : 1);
+        int32_t ly = ((ly_abs * fixed_multiplier) >> 10) * (ly_sign ? -1 : 1);
+        int32_t rx = ((rx_abs * fixed_multiplier) >> 10) * (rx_sign ? -1 : 1);
+        int32_t ry = ((ry_abs * fixed_multiplier) >> 10) * (ry_sign ? -1 : 1);
+
+        uint8_t lx8 = CLAMP_0_255(lx + center_value);
+        uint8_t ly8 = CLAMP_0_255(ly + center_value);
+        uint8_t rx8 = CLAMP_0_255(rx + center_value);
+        uint8_t ry8 = CLAMP_0_255(ry + center_value);
         // End analog stick conversion section
 
         // Trigger with SP function conversion

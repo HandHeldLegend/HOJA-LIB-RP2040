@@ -28,14 +28,34 @@ void gcinput_hid_report(uint32_t timestamp)
 
     // Update input data
     button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-    analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+    analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
     buffer[0] = 0x21;
 
-    float lx = (analog.lx*0.0488f) + 28;
-    float ly = (analog.ly*0.0488f) + 28;
-    float rx = (analog.rx*0.0488f) + 28;
-    float ry = (analog.ry*0.0488f) + 28;
+    const int32_t center_value = 128;
+    const float   target_max = 110.0f / 2048.0f;
+    const int32_t fixed_multiplier = (int32_t) (target_max * (1<<10));
+
+    bool lx_sign = analog.lx < 0;
+    bool ly_sign = analog.ly < 0;
+    bool rx_sign = analog.rx < 0;
+    bool ry_sign = analog.ry < 0;
+
+    uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
+    uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
+    uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
+    uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
+
+    // Analog stick data conversion
+    int32_t lx = ((lx_abs * fixed_multiplier) >> 10) * (lx_sign ? -1 : 1);
+    int32_t ly = ((ly_abs * fixed_multiplier) >> 10) * (ly_sign ? -1 : 1);
+    int32_t rx = ((rx_abs * fixed_multiplier) >> 10) * (rx_sign ? -1 : 1);
+    int32_t ry = ((ry_abs * fixed_multiplier) >> 10) * (ry_sign ? -1 : 1);
+
+    uint8_t lx8 = CLAMP_0_255(lx + center_value);
+    uint8_t ly8 = CLAMP_0_255(ly + center_value);
+    uint8_t rx8 = CLAMP_0_255(rx + center_value);
+    uint8_t ry8 = CLAMP_0_255(ry + center_value);
 
     data.button_a = buttons.button_a;
     data.button_b = buttons.button_b;
@@ -47,10 +67,10 @@ void gcinput_hid_report(uint32_t timestamp)
     data.button_r = buttons.trigger_zr;
     data.button_z = buttons.trigger_r;
 
-    data.stick_x    = CLAMP_0_255(lx);
-    data.stick_y    = CLAMP_0_255(ly);
-    data.cstick_x   = CLAMP_0_255(rx);
-    data.cstick_y   = CLAMP_0_255(ry);
+    data.stick_x    = lx8;
+    data.stick_y    = ly8;
+    data.cstick_x   = rx8;
+    data.cstick_y   = ry8;
 
     data.dpad_down  = buttons.dpad_down;
     data.dpad_up    = buttons.dpad_up;
