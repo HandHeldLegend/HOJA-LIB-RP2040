@@ -2,6 +2,7 @@
 #define WIRED_GAMECUBE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum{
     GCUBE_CMD_PROBE     = 0x00,
@@ -95,7 +96,7 @@ typedef struct
     };
 } gamecube_input_s;
 
-void gamecube_comms_task(uint32_t timestamp);
-void gamecube_init();
+void gamecube_wired_task(uint32_t timestamp);
+bool gamecube_wired_start();
 
 #endif

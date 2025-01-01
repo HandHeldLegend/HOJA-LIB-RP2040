@@ -2,6 +2,7 @@
 #define WIRED_N64_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {
@@ -50,6 +51,7 @@ typedef struct
     int8_t stick_y;
 } n64_input_s;
 
+bool n64_wired_start();
 void n64_wired_task(uint32_t timestamp);
 
 #endif 

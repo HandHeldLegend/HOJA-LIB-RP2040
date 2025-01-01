@@ -1,16 +1,22 @@
 #include "wired/gamecube.h"
-#include "devices/haptics.h"
+#include "hoja_bsp.h"
+#include "board_config.h"
 
-#include <stdint.h>
+#if defined(HOJA_JOYBUS_GC_DRIVER) && (HOJA_JOYBUS_GC_DRIVER == JOYBUS_GC_DRIVER_HAL)
+    #include "hal/joybus_gc_hal.h"
+#endif
 
-
-void gamecube_comms_task(uint32_t timestamp)
+void gamecube_wired_task(uint32_t timestamp)
 {
-
+  #if defined(HOJA_JOYBUS_GC_TASK)
+  HOJA_JOYBUS_GC_TASK(timestamp);
+  #endif
 }
 
-void gamecube_init()
+bool gamecube_wired_start()
 {
-
-  // joybus_set_in(false, GAMEPAD_PIO, GAMEPAD_SM, _gamecube_offset, &_gamecube_c);
+  #if defined(HOJA_JOYBUS_GC_INIT)
+  HOJA_JOYBUS_GC_INIT();
+  #endif
+  return true;
 }
