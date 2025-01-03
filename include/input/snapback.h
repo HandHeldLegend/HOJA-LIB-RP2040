@@ -16,5 +16,6 @@
 
 void snapback_process(analog_data_s *input, analog_data_s *output);
 void snapback_webcapture_task(uint32_t timestamp, analog_data_s *data);
+void snapback_debug_dump_webusb(uint16_t distance, bool crossover);
 
 #endif

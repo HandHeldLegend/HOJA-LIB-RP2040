@@ -366,7 +366,6 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
       if (buffer[0] == 0x11)
       {
         haptics_set_std((buffer[1] & 0x1) ? 235 : 0);
-        //haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, amp);
       }
       else if (buffer[0] == 0x13)
       {
@@ -380,17 +379,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if ((buffer[0] == 0x00) && (buffer[1] == 0x08))
       {
-        float xrl = 0;
-        if (buffer[3] > 0)
-          xrl = (float)buffer[2] / 255;
-
-        float xrr = 0;
-        if (buffer[4] > 0)
-          xrr = (float)buffer[3] / 255;
-
-        float out = (xrl > xrr) ? xrl : xrr;
-
-        //haptics_set_all(0, 0, HOJA_HAPTIC_BASE_LFREQ, out);
+        haptics_set_std((buffer[3] > buffer[4]) ? buffer[3] : buffer[4]);
       }
     }
     break;

@@ -4,6 +4,8 @@
  */
 
 #include "input/stick_scaling.h"
+#include "input/analog.h"
+
 #include "hal/mutex_hal.h"
 #include "utilities/settings.h"
 
@@ -26,6 +28,9 @@
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
+
+
+#define CROSSOVER_DEADZONE 750
 
 typedef struct 
 {
@@ -95,7 +100,6 @@ void _angle_setup_reset_to_defaults(angle_setup_s *setup)
   setup->scaling_mode = ANALOG_SCALER_ROUND;
 }
 
-
 // Comparison function for qsort
 int _compare_by_input(const void *a, const void *b) {
     const angleMap_s *angle_a = (const angleMap_s *)a;
@@ -111,7 +115,7 @@ int _compare_by_input(const void *a, const void *b) {
 }
 
 // Get distance to coordinates based on a 0, 0 center
-float _coordinate_distance(int x, int y) {
+float stick_scaling_coordinate_distance(int x, int y) {
     // Use Pythagorean theorem to calculate distance
     // Convert to float to ensure floating-point precision
     return sqrtf((float)(x * x + y * y));
@@ -314,10 +318,10 @@ float stick_scaling_coordinates_to_angle(int x, int y)
     return angle_degrees;
 }
 
-void _calibrate_axis(int *in, angle_setup_s *setup)
+void _calibrate_axis(int16_t *in, angle_setup_s *setup)
 {
   // Get input distance
-  float distance  = _coordinate_distance(in[0], in[1]);
+  float distance  = stick_scaling_coordinate_distance(in[0], in[1]);
   // Get input angle
   float angle     = stick_scaling_coordinates_to_angle(in[0], in[1]);
 
@@ -366,10 +370,10 @@ void _solve_polygon(float d1, float a1, float d2, float a2, polygon_solved_s *so
   solved->midpoint_magnitude = _angle_magnitude(angle, a1, a2);
 }
 
-void _process_axis(int *in, int *out, analog_meta_s *meta_out, angle_setup_s *setup)
+void _process_axis(int16_t *in, analog_meta_s *meta_out, angle_setup_s *setup)
 {
   // Get input distance
-  float distance = _coordinate_distance(in[0], in[1]);
+  float distance = stick_scaling_coordinate_distance(in[0], in[1]);
 
   // Get input angle
   float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
@@ -398,7 +402,7 @@ void _process_axis(int *in, int *out, analog_meta_s *meta_out, angle_setup_s *se
     float output_distance       = 0;
 
     // Determine which polygon half we are in 
-    int polygon_half          = 0;
+    int   polygon_half        = 0;
     float magnitude_expanded  = 0;
     float magnitude_polygon   = 0;
     float scaler_magnitude    = 0;
@@ -630,29 +634,11 @@ void stick_scaling_default_check()
   }
 }
 
-int _is_opposite_direction(int x1, int y1, int x2, int y2)
-{
-    // Opposite directions if dot product is negative.
-    return (x1) * (x2) + (y1) * (y2) < 0;
-}
-
 // Input and output are based around -2048 to 2048 values with 0 as centers
 void stick_scaling_process(analog_data_s *in, analog_data_s *out)
 {
-  static int in_left[2]    = {0};
-  static int in_right[2]   = {0};
-
-  if(_is_opposite_direction(in->lx, in->ly, in_left[0], in_left[1]))
-  {
-    out->lcrossover = true;
-  }
-  else out->lcrossover = false;
-
-  if(_is_opposite_direction(in->rx, in->ry, in_right[0], in_right[1]))
-  {
-    out->rcrossover = true;
-  }
-  else out->rcrossover = false;
+  static int16_t in_left[2]    = {0};
+  static int16_t in_right[2]   = {0};
 
   in_left[0] = in->lx;
   in_left[1] = in->ly;
@@ -660,12 +646,12 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   in_right[0] = in->rx;
   in_right[1] = in->ry;
 
-  int out_left[2];
-  int out_right[2];
-
   // Float angle and distance data
-  analog_meta_s out_left_meta = {0};
+  analog_meta_s out_left_meta  = {0};
   analog_meta_s out_right_meta = {0};
+
+  int16_t out_left[2];
+  int16_t out_right[2];
 
   MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
   if(_sticks_calibrating)
@@ -679,8 +665,10 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   }
   else 
   {
-    _process_axis(in_left,  out_left, &out_left_meta,  &_left_setup);
-    _process_axis(in_right, out_right, &out_right_meta,  &_right_setup);
+    _process_axis(in_left,  &out_left_meta,   &_left_setup);
+    _process_axis(in_right, &out_right_meta,  &_right_setup);
+    analog_angle_distance_to_coordinate(out_left_meta.angle,  out_left_meta.distance,   out_left);
+    analog_angle_distance_to_coordinate(out_right_meta.angle, out_right_meta.distance,  out_right);
   }
 
   out->lx = out_left[0];

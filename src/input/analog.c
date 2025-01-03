@@ -183,10 +183,10 @@ void analog_init()
     switch_analog_calibration_init();
     stick_scaling_init();
 
-    _center_offsets[0] = analog_config->lx_center - STICK_INTERNAL_CENTER;
-    _center_offsets[1] = analog_config->ly_center - STICK_INTERNAL_CENTER;
-    _center_offsets[2] = analog_config->rx_center - STICK_INTERNAL_CENTER;
-    _center_offsets[3] = analog_config->ry_center - STICK_INTERNAL_CENTER;
+    _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
+    _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;
+    _center_offsets[2] = (int16_t) STICK_INTERNAL_CENTER - analog_config->rx_center;
+    _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
 }
 
 // Read analog values
@@ -259,10 +259,10 @@ void _capture_center_offsets()
     analog_config->rx_center = _raw_analog_data.rx & 0x7FFF;
     analog_config->ry_center = _raw_analog_data.ry & 0x7FFF;
 
-    _center_offsets[0] = analog_config->lx_center - STICK_INTERNAL_CENTER;
-    _center_offsets[1] = analog_config->ly_center - STICK_INTERNAL_CENTER;
-    _center_offsets[2] = analog_config->rx_center - STICK_INTERNAL_CENTER;
-    _center_offsets[3] = analog_config->ry_center - STICK_INTERNAL_CENTER;
+    _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
+    _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;
+    _center_offsets[2] = (int16_t) STICK_INTERNAL_CENTER - analog_config->rx_center;
+    _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
 
     _analog_exit();
 }
@@ -336,13 +336,15 @@ void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
         cb(CFG_BLOCK_ANALOG, cmd, NULL, 0);
 }
 
-const uint32_t _analog_interval = 500;
+// 2Khz analog task
+
+#define DEBUG_ANALOG_OUTPUT 1
 
 void analog_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
 
-    if (interval_run(timestamp, _analog_interval, &interval))
+    if (interval_run(timestamp, ANALOG_POLL_INTERVAL, &interval))
     {
         _analog_blocking_enter();
 
@@ -363,12 +365,11 @@ void analog_task(uint32_t timestamp)
 
         stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
 
-        // Temp debug
-        //memcpy(&_snapback_analog_data, &_raw_analog_data, sizeof(analog_data_s));
-        // memcpy(&_deadzone_analog_data, &_scaled_analog_data, sizeof(analog_data_s));
-        stick_deadzone_process(&_scaled_analog_data, &_deadzone_analog_data);
+        snapback_process(&_scaled_analog_data, &_deadzone_analog_data);
 
-        // Rebase analog data to full non-negative scale
+        //stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
+
+        // Cap values
         _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);
         _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);
         _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);

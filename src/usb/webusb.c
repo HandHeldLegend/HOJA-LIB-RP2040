@@ -44,9 +44,13 @@ bool webusb_ready_blocking(int timeout)
     return true;
 }
 
+bool _ready_to_go = false;
+
 uint8_t _webusb_out_buffer[64] = {0x00};
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {
+    if(!_ready_to_go) return;
+
     memset(_webusb_out_buffer, 0, 64);
     memcpy(_webusb_out_buffer, data, size);
 
@@ -57,7 +61,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
     }
 }
 
-bool _ready_to_go = false;
+
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 void webusb_send_rawinput(uint32_t timestamp)

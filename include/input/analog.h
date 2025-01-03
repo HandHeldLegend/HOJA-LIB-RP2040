@@ -7,6 +7,10 @@
 #include "input/button.h"
 #include "settings_shared_types.h"
 
+#define ANALOG_POLL_INTERVAL 500 
+
+#define ANALOG_DATA_UNSET   0xFFFF
+
 typedef enum
 {
     ANALOG_ACCESS_RAW_DATA,     // Access raw analog data
