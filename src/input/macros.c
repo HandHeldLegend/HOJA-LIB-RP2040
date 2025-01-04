@@ -1,5 +1,6 @@
 #include "input/button.h"
 #include "input/macros.h"
+#include "utilities/interval.h"
 
 #include "input/macros/macro_shutdown.h"
 #include "input/macros/macro_pairing.h"
@@ -11,8 +12,16 @@
 void macros_task(uint32_t timestamp)
 {
     static button_data_s buttons = {0};
+    static interval_s interval = {0};
+    static bool first_run = false;
 
-    button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
+    if(interval_run(timestamp, 1000, &interval))
+    {
+        first_run = button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
+    }
+
+    // Only run macros on successful button read
+    if(!first_run) return;
 
     #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
     macro_shutdown(timestamp, &buttons);

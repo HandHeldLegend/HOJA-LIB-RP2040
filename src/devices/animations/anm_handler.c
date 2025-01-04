@@ -20,6 +20,11 @@
 #include "devices/animations/anm_react.h"
 #include "devices/animations/anm_shutdown.h"
 
+// Player LED animation modes
+#include "devices/animations/ply_chase.h"
+#include "devices/animations/ply_blink.h"
+#include "devices/animations/ply_idle.h"
+
 // Overrides
 #include "devices/animations/or_flash.h"
 #include "devices/animations/or_indicate.h"
@@ -27,27 +32,27 @@
 #define ALL_LEDS_SIZE (sizeof(uint32_t) * RGB_DRIVER_LED_COUNT)
 
 #define FADE_LENGTH_MS 500
-#define FADE_LENGTH_FRAMES ((FADE_LENGTH_MS*1000) / RGB_TASK_INTERVAL)
-#define FADE_STEP_FLOAT (float) (1.0f / FADE_LENGTH_FRAMES)
+#define FADE_LENGTH_FRAMES  ((FADE_LENGTH_MS*1000) / RGB_TASK_INTERVAL)
+#define FADE_STEP_FIXED     RGB_FLOAT_TO_FIXED(1.0f / FADE_LENGTH_FRAMES)
 
 // This function handles animation transition, and returns the proper rgb array pointer
 typedef bool (*rgb_anim_fn)(rgb_s *);
 typedef void (*rgb_anim_stop_fn)(void);
 
-rgb_anim_fn _ani_main_fn = NULL; // The main operating function of the current rgb mode
-rgb_anim_fn _ani_fn_get_state = NULL; // Get the current state of the active mode
-rgb_anim_stop_fn _ani_fn_stop = NULL; // Call this to stop/pause the rgb state
+rgb_anim_fn         _ani_main_fn = NULL; // The main operating function of the current rgb mode
+rgb_anim_fn         _ani_fn_get_state = NULL; // Get the current state of the active mode
+rgb_anim_stop_fn    _ani_fn_stop = NULL; // Call this to stop/pause the rgb state
 
-rgb_anim_fn _ani_override_fn = NULL; // Override function
-rgb_anim_stop_fn _ani_override_stop_fn = NULL;
+rgb_anim_fn         _ani_override_fn = NULL; // Override function
+rgb_anim_stop_fn    _ani_override_stop_fn = NULL;
 
 typedef enum 
 {
-    RGB_ANIM_NONE,  // Show stored colors static
-    RGB_ANIM_RAINBOW, // Fade through the RGB rainbow
-    RGB_ANIM_FAIRY, // Play a random animation between user preset colors
-    RGB_ANIM_BREATHE, // Looping animation using stored colors
-    RGB_ANIM_REACT, // Not used for now
+    RGB_ANIM_NONE,      // Show stored colors static
+    RGB_ANIM_RAINBOW,   // Fade through the RGB rainbow
+    RGB_ANIM_REACT,     // React to user input
+    RGB_ANIM_FAIRY,     // Play a random animation between user preset colors
+    RGB_ANIM_BREATHE,   // Looping animation using stored colors
 } rgb_anim_t;
 
 typedef enum 
@@ -57,7 +62,7 @@ typedef enum
     RGB_OVERRIDE_SHUTDOWN,
 } rgb_override_t;
 
-float       _fade_progress  = 0;
+uint32_t _fade_progress  = 0;
 
 rgb_s    _fade_start[RGB_DRIVER_LED_COUNT]   = {0};
 rgb_s    _fade_end[RGB_DRIVER_LED_COUNT]     = {0};
@@ -88,8 +93,8 @@ bool _ani_queue_fade_handler()
         _current_ani_leds[i].color = anm_utility_blend(&(_fade_start[i]), &(_fade_end[i]), _fade_progress);
     }
 
-    _fade_progress += FADE_STEP_FLOAT;
-    if(_fade_progress>1.0f)
+    _fade_progress += FADE_STEP_FIXED;
+    if(_fade_progress>=RGB_FADE_FIXED_MULT)
     {
         _fade_progress = 0;
         memcpy(_current_ani_leds, _fade_end, ALL_LEDS_SIZE);
@@ -107,8 +112,10 @@ void anm_handler_shutdown(callback_t cb)
     _ani_queue_fade_start();
 }
 
-void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness)
+void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t animation_time_ms)
 {
+    anm_utility_set_time_ms(animation_time_ms);
+
     _anim_brightness = brightness;
 
     _current_mode = rgb_mode;
@@ -116,9 +123,23 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness)
     {        
         // RGB_ANIM_NONE
         default:
-        case 0:
+        case RGB_ANIM_NONE:
             _ani_main_fn = anm_none_handler;
             _ani_fn_get_state = anm_none_get_state;
+            _ani_queue_fade_start();
+            return;
+        break;
+
+        case RGB_ANIM_RAINBOW:
+            _ani_main_fn = anm_rainbow_handler;
+            _ani_fn_get_state = anm_rainbow_get_state;
+            _ani_queue_fade_start();
+            return;
+        break;
+
+        case RGB_ANIM_REACT:
+            _ani_main_fn = anm_react_handler;
+            _ani_fn_get_state = anm_react_get_state;
             _ani_queue_fade_start();
             return;
         break;
@@ -127,6 +148,43 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness)
 
 // Set this flag to clear the override
 bool _force_clear_override = false;
+
+void _player_connection_manager(rgb_s *output) 
+{
+    static int _controller_connected = 0; // 0 is idle, -1 is connecting, 1 is connected
+    static int _player_number = -1; // -1 is no player
+
+    static bool allow_update = true;
+
+    if(allow_update)
+    {
+        _controller_connected   = hoja_get_connected_status();
+        _player_number          = hoja_get_player_number_status();
+        allow_update = false;
+    }
+
+    // If we have more than our group size, we can do the chase animation 
+    
+    if(_controller_connected < 0)
+    {
+        #if defined(HOJA_RGB_PLAYER_GROUP_IDX) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
+        allow_update = ply_chase_handler(output);
+        #else 
+        allow_update = ply_blink_handler(output);
+        #endif
+    }
+    else 
+    {
+        if(_player_number > 0)
+        {
+            allow_update = ply_idle_handler(output, _player_number);
+        }
+        else 
+        {
+            allow_update = ply_idle_handler(output, 0);
+        }
+    }
+}
 
 // Call this once per frame
 void anm_handler_tick()
@@ -140,22 +198,6 @@ void anm_handler_tick()
             _fade = false;
         }
     }
-    else if(_ani_override_fn != NULL)
-    {
-        // Enter if our override function returned true
-        if(_ani_override_fn(_current_ani_leds) || _force_clear_override)
-        {
-            // Stop the override
-            _ani_override_stop_fn();
-
-            // Clear our override
-            _ani_override_fn = NULL;
-            _ani_override_stop_fn = NULL;
-            _force_clear_override = false;
-            
-            _ani_queue_fade_start();
-        }
-    }
     else if(_ani_main_fn != NULL)
     {
         _ani_main_fn(_current_ani_leds);
@@ -163,6 +205,9 @@ void anm_handler_tick()
 
     // Process brightness/gamma
     anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);
+
+    // Ensure these show no matter the brightness
+    _player_connection_manager(_adjusted_ani_leds);
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
     #endif

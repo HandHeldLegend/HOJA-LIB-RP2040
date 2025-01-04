@@ -11,6 +11,8 @@
 #define BQ25180_REG_SYS_REG     0xA
 #define BQ25180_REG_ICHG_CTRL   0x4
 
+bool _shipping_lockout = false;
+
 typedef struct
 {
     union
@@ -53,6 +55,8 @@ bool               _cable_plugged = false;
 
 bool _comms_check()
 {
+    if(_shipping_lockout) return true;
+
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
     uint8_t _readstatus[1] = {0x00};
     int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
@@ -67,6 +71,8 @@ bool _comms_check()
 
 bool bq25180_update_status()
 {
+    if(_shipping_lockout) return true;
+
     bq25180_status_0_s this_status_0 = {0};
     bq25180_status_1_s this_status_1 = {0};
 
@@ -135,6 +141,7 @@ bool bq25180_update_status()
 
 bool bq25180_init()
 {
+    sys_hal_sleep_ms(100);
     if(_comms_check())
     {
         bq25180_set_source(BATTERY_SOURCE_AUTO);
@@ -159,13 +166,18 @@ int  bq25180_get_level()
 
 bool bq25180_set_source(battery_source_t source)
 {
+    // Disable pushbutton
+    const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, 0b00000000}; // Ship mode with wake on button press/adapter insert
+    int ret1 = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write1, 2, false);
+
+
     // We want to disable the onboard regulation
     // SYS_REG_CTRL_2:0 set as 111 will set as Pass-Through 
     uint8_t new_source = 0b11100000;
 
     // We will enable the I2C watchdog.
     // This ensures that if there's a freeze or lockup, we will reboot.
-    new_source |= 0b10;
+    //new_source |= 0b10;
 
     // Disable VDPPM (set VPPM_DIS bit) to allow charger operation with lower voltage input.
     // 15 seconds is the timeout
@@ -194,19 +206,23 @@ bool bq25180_set_source(battery_source_t source)
 
 bool bq25180_set_ship_mode()
 {
-    static bool shipping_lockout = false;
+    if(_shipping_lockout) return true;
+    _shipping_lockout = true;
 
-    if(shipping_lockout) return true;
-    shipping_lockout = true;
-
-    sys_hal_sleep_ms(150);
-    uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b11000001}; // Ship mode with wake on button press/adapter insert
-
+    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
     int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
 
-    if(ret==2) return true; // We may still get this true because of power 'fading' off.
-
-    return false;
+    if(ret == PICO_ERROR_GENERIC)
+    {
+        //hoja_shutdown_instant();
+    }
+    else if (ret== PICO_ERROR_TIMEOUT)
+    {
+        //hoja_shutdown_instant();
+    }
+    else if (ret==2)
+    {
+    }
 }
 
 bool bq25180_set_charge_rate(uint16_t rate_ma)

@@ -25,6 +25,7 @@
 #include "devices/rgb.h"
 #include "devices/bluetooth.h"
 #include "wired/wired.h"
+#include "devices/haptics.h"
 
 time_callback_t   _hoja_mode_task_cb = NULL;
 gamepad_mode_t    _hoja_current_gamepad_mode    = GAMEPAD_MODE_LOAD;
@@ -44,21 +45,17 @@ __attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
 void hoja_deinit(callback_t cb)
 {
   static bool deinit_lockout = false;
+
   if(deinit_lockout) return;
   deinit_lockout = true;
 
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
 
-  // Stop current mode if we have a functions
-  if(_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
-
-  //cb_hoja_set_uart_enabled(false);
-  //cb_hoja_set_bluetooth_enabled(false);
-
-  //sleep_ms(100);
-
+  hoja_set_connected_status(0);
+  hoja_set_player_number_status(-1);
+  haptics_stop();
+  
   #if defined(HOJA_RGB_DRIVER)
   rgb_deinit(cb);
   #else
@@ -68,7 +65,91 @@ void hoja_deinit(callback_t cb)
 
 void hoja_shutdown() 
 {
+  // Stop our current loop function
+  _hoja_mode_task_cb = NULL;
+
+  // Stop current mode if we have a functions
+  if(_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
+
   battery_set_ship_mode();
+  for(;;) {}
+}
+
+void hoja_restart()
+{
+  // Stop our current loop function
+  _hoja_mode_task_cb = NULL;
+
+  // Stop current mode if we have a functions
+  if(_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
+  
+  sys_hal_reboot();
+}
+
+rgb_s hoja_gamepad_mode_color_get() 
+{
+  switch(_hoja_current_gamepad_mode)
+  {
+      case GAMEPAD_MODE_SWPRO:
+          return COLOR_WHITE;
+      break;
+
+      case GAMEPAD_MODE_XINPUT:
+          return COLOR_GREEN;
+      break;
+
+      case GAMEPAD_MODE_GAMECUBE:
+          return COLOR_PURPLE;
+      break;
+
+      case GAMEPAD_MODE_GCUSB:
+          return COLOR_CYAN;
+      break;
+
+      case GAMEPAD_MODE_N64:
+          return COLOR_YELLOW;
+      break;
+
+      case GAMEPAD_MODE_SNES:
+          return COLOR_RED;
+      break;
+
+      default:
+          return COLOR_ORANGE;
+      break;  
+  }
+}
+
+bool _hoja_running = false;
+
+bool hoja_get_running_status()
+{
+  return _hoja_running;
+}
+
+volatile int  _hoja_connected_status = 0;
+volatile int  _hoja_player_number_status = -1;
+void hoja_set_connected_status(int status) 
+{
+  _hoja_connected_status = status;
+}
+
+int hoja_get_connected_status() 
+{
+  return _hoja_connected_status;
+}
+
+void hoja_set_player_number_status(int player_number) 
+{
+  player_number = (player_number > 8) ? 8 : player_number;
+  _hoja_player_number_status = player_number;
+}
+
+int hoja_get_player_number_status() 
+{
+  return _hoja_player_number_status;
 }
 
 // Core 0 task loop entrypoint
@@ -86,7 +167,7 @@ void _hoja_task_0()
   macros_task(c0_timestamp);
 
   // Comms task
-  if(_hoja_mode_task_cb!=NULL)
+  if(_hoja_mode_task_cb)
   {
     _hoja_mode_task_cb(c0_timestamp);
 
@@ -130,7 +211,6 @@ void _hoja_task_1()
   }
 }
 
-
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init()
 {
@@ -141,7 +221,7 @@ bool _gamepad_mode_init()
 
   boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
 
-  _hoja_current_gamepad_mode = thisMode;
+  _hoja_current_gamepad_mode   = thisMode;
   _hoja_current_gamepad_method = thisMethod;
   
   switch(thisMethod)
@@ -236,6 +316,8 @@ void hoja_init()
 
   // Init gamepad mode with the method
   _gamepad_mode_init();
+
+  hoja_set_connected_status(-1);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

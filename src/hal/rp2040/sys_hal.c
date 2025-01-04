@@ -23,8 +23,6 @@ void sys_hal_reboot()
 void sys_hal_bootloader()
 {
     reset_usb_boot(0, 0);
-    // Loop forever
-    for(;;){}
 }
 
 void sys_hal_sleep_ms(uint32_t ms)

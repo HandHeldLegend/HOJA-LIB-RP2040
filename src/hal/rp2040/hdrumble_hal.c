@@ -83,6 +83,23 @@ static void __isr __time_critical_func(_dma_handler)()
     uint8_t available_buffer = 1 - audio_buffer_idx;
 }
 
+void hdrumble_hal_stop()
+{
+    #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
+        dma_channel_abort(dma_cc_l);
+        dma_channel_abort(dma_trigger_l);
+        dma_channel_abort(dma_sample);
+        dma_channel_abort(dma_reset);
+        pwm_set_enabled(pwm_slice_l, false);
+    #endif
+
+    #if defined(HOJA_HDRUMBLE_CHAN_B_PIN)
+        dma_channel_abort(dma_cc_r);
+        dma_channel_abort(dma_trigger_r);
+        pwm_set_enabled(pwm_slice_r, false);
+    #endif
+}
+
 bool hdrumble_hal_init()
 {
     static bool hal_init = false;

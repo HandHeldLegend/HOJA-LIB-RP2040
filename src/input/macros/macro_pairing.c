@@ -17,12 +17,23 @@ void macro_pairing(uint32_t timestamp, button_data_s *buttons)
     static uint32_t iterations = 0;
     static bool lockout = false;
 
+    static bool boot_wait = true;
+
+    bool interval_reset = false;
+
+    if(boot_wait && !buttons->button_sync)
+    {
+        boot_wait = false;
+        interval_reset = true;
+    }
+    else if(boot_wait) return;
+
     if(lockout)
     {
         return;
     }
 
-    if(interval_run(timestamp, PAIRING_MACRO_INTERVAL_US, &interval))
+    if(interval_resettable_run(timestamp, PAIRING_MACRO_INTERVAL_US, interval_reset, &interval))
     {
         if(!holding && buttons->button_sync)
         {
@@ -64,9 +75,10 @@ void macro_pairing(uint32_t timestamp, button_data_s *buttons)
                         .gamepad_pair   = true
                         };
 
-                    boot_set_memory(&mem);
+                    //boot_set_memory(&mem);
                     
-                    hoja_deinit(sys_hal_reboot);
+                    //hoja_deinit(hoja_restart);
+                    hoja_deinit(hoja_shutdown);
                 }
             }
         }

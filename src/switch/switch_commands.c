@@ -385,7 +385,9 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
       set_num = 8;
       break;
     }
-    //rgb_set_player(set_num);
+    
+    hoja_set_connected_status(1);
+    hoja_set_player_number_status(set_num);
     break;
 
   default:

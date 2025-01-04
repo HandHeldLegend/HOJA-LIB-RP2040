@@ -7,6 +7,11 @@
 #include "board_config.h"
 
 #define RGB_TASK_INTERVAL (1000000/RGB_DRIVER_REFRESHRATE)
+#define RGB_FADE_FIXED_SHIFT 16
+#define RGB_FADE_FIXED_MULT (uint32_t) (1<<RGB_FADE_FIXED_SHIFT)
+#define RGB_FLOAT_TO_FIXED(f) ((uint32_t) (f * RGB_FADE_FIXED_MULT))
+
+extern int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP];
 
 void rgb_set_player(uint8_t player);
 

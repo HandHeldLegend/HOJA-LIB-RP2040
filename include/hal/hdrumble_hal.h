@@ -24,7 +24,9 @@
 
 #define HOJA_HAPTICS_INIT() hdrumble_hal_init()
 #define HOJA_HAPTICS_TASK(timestamp) hdrumble_hal_task(timestamp)
+#define HOJA_HAPTICS_STOP() hdrumble_hal_stop()
 
+void hdrumble_hal_stop();
 bool hdrumble_hal_init();
 void hdrumble_hal_task(uint32_t timestamp);
 void hdrumble_hal_push_amfm(haptic_processed_s *input);

@@ -11,38 +11,17 @@
     #include "drivers/bluetooth/esp32_hojabaseband.h"
 #endif
 
-uint32_t _mode_color = 0;
-
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
 {
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
-    switch (mode)
+
+    if(mode==GAMEPAD_MODE_LOAD)
     {
-    default:
-    case DEVICE_MODE_SWPRO:
-        _mode_color = COLOR_WHITE.color;
-        break;
-
-    case DEVICE_MODE_GCUSB:
-        _mode_color = COLOR_CYAN.color;
-        break;
-
-    case DEVICE_MODE_XINPUT:
-        _mode_color = COLOR_GREEN.color;
-        break;
-
-    // Special case where we want to
-    // initialize into a bluetooth firmware
-    // loading mode
-    case DEVICE_MODE_LOAD:
-        _mode_color = COLOR_ORANGE.color;
         #if defined(HOJA_BLUETOOTH_INIT_LOAD)
         HOJA_BLUETOOTH_INIT_LOAD();
         return true;
         #endif
-        break;
     }
-    //rgb_flash(_mode_color, -1);
 
     // All other bluetooth modes init normally
     #if defined(HOJA_BLUETOOTH_INIT)

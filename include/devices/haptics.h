@@ -19,6 +19,7 @@ typedef enum
 } rumble_t;
 
 void haptics_set_std(uint8_t amplitude);
+void haptics_stop();
 bool haptics_init();
 void haptics_task(uint32_t timestamp);
 

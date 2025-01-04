@@ -247,10 +247,14 @@ uint8_t const *tud_descriptor_device_cb(void)
     break;
 
   case GAMEPAD_MODE_XINPUT:
+    hoja_set_connected_status(1);
+    hoja_set_player_number_status(1);
     return (uint8_t const *)&xid_device_descriptor;
     break;
 
   case GAMEPAD_MODE_GCUSB:
+    hoja_set_connected_status(1);
+    hoja_set_player_number_status(1);
     return (uint8_t const *)&ginput_device_descriptor;
     break;
 

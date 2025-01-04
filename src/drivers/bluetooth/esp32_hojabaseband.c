@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stddef.h>
 
+#include "hoja.h"
+
 #include "hal/gpio_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
@@ -192,12 +194,12 @@ void _esp32hoja_enable_chip(bool enabled)
 {
     if(enabled)
     {
+        gpio_hal_init(BLUETOOTH_DRIVER_ENABLE_PIN, false, true);
         gpio_hal_write(BLUETOOTH_DRIVER_ENABLE_PIN, true);
-        gpio_hal_set_direction(BLUETOOTH_DRIVER_ENABLE_PIN, true);
     }
     else
     {
-        gpio_hal_set_direction(BLUETOOTH_DRIVER_ENABLE_PIN, false);
+        gpio_hal_init(BLUETOOTH_DRIVER_ENABLE_PIN, false, false);
         gpio_hal_write(BLUETOOTH_DRIVER_ENABLE_PIN, false);
     }
     // Give time for the chip to boot
@@ -290,10 +292,14 @@ void _btinput_message_parse(uint8_t *data)
             if (_current_connected > 0)
             {
                 // Connected OK
+                hoja_set_connected_status(1);
+                hoja_set_player_number_status(_current_connected);
             }
             else
             {
                 // Disconnected
+                hoja_set_connected_status(0);
+                hoja_set_player_number_status(-1);
             }
         }
     }
@@ -306,10 +312,12 @@ void _btinput_message_parse(uint8_t *data)
         if (power_code == 0)
         {
             // Shut down
+            hoja_deinit(hoja_shutdown);
         }
         else if (power_code == 1)
         {
             // Reboot
+            hoja_deinit(hoja_shutdown);
         }
     }
     break;
@@ -324,6 +332,7 @@ void _btinput_message_parse(uint8_t *data)
     {
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
+        haptics_set_std(l>r? l : r);
     }
     break;
 
@@ -369,8 +378,6 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     uint8_t out_mode = pair_flag | (uint8_t) device_mode;
 
     _esp32hoja_enable_chip(true);
-    // Give time for the chip to boot
-    sys_hal_sleep_ms(1000);
 
     _bt_clear_out();
 
@@ -422,10 +429,10 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.buttons_all = buttons.buttons_all;
             input_data.buttons_system = buttons.buttons_system;
 
-            input_data.lx = (uint16_t) analog.lx;
-            input_data.ly = (uint16_t) analog.ly;
-            input_data.rx = (uint16_t) analog.rx;
-            input_data.ry = (uint16_t) analog.ry;
+            input_data.lx = (uint16_t) (analog.lx+2048);
+            input_data.ly = (uint16_t) (analog.ly+2048);
+            input_data.rx = (uint16_t) (analog.rx+2048);
+            input_data.ry = (uint16_t) (analog.ry+2048);
 
             input_data.lt = (uint16_t) buttons.zl_analog;
             input_data.rt = (uint16_t) buttons.zr_analog;

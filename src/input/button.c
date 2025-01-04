@@ -16,6 +16,7 @@ MUTEX_HAL_INIT(_button_mutex);
 button_data_s _boot_button_data;
 button_data_s _raw_button_data;
 button_data_s _remapped_button_data;
+volatile bool _first_run = false;
 
 void _button_blocking_enter()
 {

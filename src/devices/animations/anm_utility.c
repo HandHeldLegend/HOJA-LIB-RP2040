@@ -34,6 +34,40 @@ const uint8_t gamma8[256] = {
   177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
   215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
 
+uint32_t _stored_fixed_point_time = 0;
+
+uint32_t anm_utility_pack_local_color(rgb_s color)
+{
+    return  
+    (color.r << 16) |
+    (color.g << 8) |
+    (color.b);
+}
+
+rgb_s anm_utility_unpack_local_color(uint32_t color)
+{
+    rgb_s out = {
+        .r = (color & 0xFF0000) >> 16,
+        .g = (color & 0xFF00) >> 8,
+        .b = (color & 0xFF)
+    };
+    return out;
+}
+
+// Get our current animation fade fixed point time
+uint32_t anm_utility_get_time_fixedpoint()
+{
+    return _stored_fixed_point_time;
+}
+
+// Set our animation step fade time in ms
+void anm_utility_set_time_ms(uint32_t time_ms)
+{
+    uint32_t us = MS_TO_US(time_ms);
+    uint32_t ticks = us / RGB_TASK_INTERVAL;
+    _stored_fixed_point_time = RGB_FLOAT_TO_FIXED(1.0f / (float)ticks);
+}
+
 // Brightness is 0 to 1275 range
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 {
@@ -52,7 +86,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         if(in[i].r)
         {
             // First apply gamma
-            out[i].r = gamma8[in[i].r];
+            //out[i].r = gamma8[in[i].r];
 
             // Apply brightness u8
             out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
@@ -64,7 +98,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         
         if(in[i].g)
         {
-            out[i].g = gamma8[in[i].g];
+            //out[i].g = gamma8[in[i].g];
             out[i].g = (in[i].g * brightness_u8 + 127) >> 8;
             out[i].g += dither_amt;
         }
@@ -72,7 +106,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
         if(in[i].b)
         {
-            out[i].b = gamma8[in[i].b];
+            //out[i].b = gamma8[in[i].b];
             out[i].b = (in[i].b * brightness_u8 + 127) >> 8;
             out[i].b += dither_amt;
         }
@@ -82,25 +116,28 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
     repeating = (repeating+1)%DITHER_MAX_LOOP;
 }
 
-// Blend two RGB values together with a float (0.0 to 1.0)
-uint32_t anm_utility_blend(rgb_s *from, rgb_s *target, float blend)
+// Blend two RGB values together with a fixed point val (0 to (1<<16))
+uint32_t anm_utility_blend(rgb_s *from, rgb_s *target, uint32_t blend)
 {
-    float or = (float)from->r;
-    float og = (float)from->g;
-    float ob = (float)from->b;
-    float nr = (float)target->r;
-    float ng = (float)target->g;
-    float nb = (float)target->b;
-    float outr = or +((nr - or) * blend);
-    float outg = og + ((ng - og) * blend);
-    float outb = ob + ((nb - ob) * blend);
-    uint8_t outr_int = (uint8_t)outr;
-    uint8_t outg_int = (uint8_t)outg;
-    uint8_t outb_int = (uint8_t)outb;
+    if(blend >= RGB_FADE_FIXED_MULT) blend = RGB_FADE_FIXED_MULT;
+
+    int32_t or = (int32_t)from->r;
+    int32_t og = (int32_t)from->g;
+    int32_t ob = (int32_t)from->b;
+    int32_t nr = (int32_t)target->r;
+    int32_t ng = (int32_t)target->g;
+    int32_t nb = (int32_t)target->b;
+
+    // Do the blend calculation with proper fixed-point math
+    uint32_t outr = (uint32_t)(or * (RGB_FADE_FIXED_MULT - blend) + nr * blend) >> RGB_FADE_FIXED_SHIFT;
+    uint32_t outg = (uint32_t)(og * (RGB_FADE_FIXED_MULT - blend) + ng * blend) >> RGB_FADE_FIXED_SHIFT;
+    uint32_t outb = (uint32_t)(ob * (RGB_FADE_FIXED_MULT - blend) + nb * blend) >> RGB_FADE_FIXED_SHIFT;
+
     rgb_s col = {
-        .r = outr_int,
-        .g = outg_int,
-        .b = outb_int};
+        .r = (uint8_t)outr,
+        .g = (uint8_t)outg,
+        .b = (uint8_t)outb
+    };
     return col.color;
 }
 
@@ -122,7 +159,7 @@ uint32_t anm_utility_ms_to_frames(uint32_t time_ms)
  * @param s Saturation
  * @param v Value (Brightness)
  */
-void _rgb_convert_hue_saturation(hsv_s *hsv, rgb_s *out)
+void anm_utility_hsv_to_rgb(hsv_s *hsv, rgb_s *out)
 {
     float scale = (float)hsv->hue / 255;
     float hf = scale * 191;

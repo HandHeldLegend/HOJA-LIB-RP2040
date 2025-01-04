@@ -12,6 +12,9 @@
 #endif
 
 #include "devices/animations/anm_handler.h"
+#include "devices/animations/anm_utility.h"
+
+int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 
 /**
 void _rgb_set_player(uint8_t player_number)
@@ -121,14 +124,6 @@ void rgb_deinit(callback_t cb)
 
 const rgb_s _rainbow[] = COLORS_RAINBOW;
 
-uint32_t rgb_pack_local_color(rgb_s color)
-{
-    return  
-    (color.r << 16) |
-    (color.g << 8) |
-    (color.b);
-}
-
 // Function to compute an exponential ramp
 float _exponentialRamp(float input) {
     if (input < 0.0f) input = 0.0f;
@@ -145,6 +140,18 @@ void rgb_init(int mode, int brightness)
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
     uint16_t loaded_brightness = 0;
+    uint16_t set_speed = 650;
+
+    if(rgb_config->rgb_speed < 300)
+    {
+        rgb_config->rgb_speed = 300;
+    }
+    else if (rgb_config->rgb_speed > 5000)
+    {
+        rgb_config->rgb_speed = 5000;
+    }
+
+    set_speed = rgb_config->rgb_speed;
 
     if(mode<0)
     {
@@ -177,9 +184,12 @@ void rgb_init(int mode, int brightness)
         const uint8_t color_count = 7;
         for(int i = 0; i < 32; i++)
         {
-            rgb_config->rgb_colors[i] = rgb_pack_local_color(_rainbow[col]);
+            rgb_config->rgb_colors[i] = anm_utility_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
         }
+
+        rgb_config->rgb_speed = 650;
+        set_speed = rgb_config->rgb_speed;
     }
 
     // Clamp our stored brightness
@@ -197,7 +207,7 @@ void rgb_init(int mode, int brightness)
         _rgb_ll_init = true;
     }
 
-    anm_handler_setup_mode(set_mode, set_brightness);
+    anm_handler_setup_mode(set_mode, set_brightness, set_speed);
 
     #endif
 }

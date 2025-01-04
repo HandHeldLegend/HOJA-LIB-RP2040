@@ -25,5 +25,5 @@ void gpio_hal_set_direction(uint32_t gpio, bool input)
     if(input)
         gpio_set_dir(gpio, GPIO_IN);
     else
-        gpio_set_dir(gpio, GPIO_IN);
+        gpio_set_dir(gpio, GPIO_OUT);
 }

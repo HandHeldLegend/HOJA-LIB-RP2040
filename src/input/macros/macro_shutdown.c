@@ -7,7 +7,7 @@
 #define SHUTDOWN_MACRO_INTERVAL_US 3000
 #define SHUTDOWN_HOLD_LOOPS ( (SHUTDOWN_HOLD_TIME*1000*1000) / SHUTDOWN_MACRO_INTERVAL_US )
 
-volatile bool _shutdown_ready = false;
+bool _shutdown_ready = false;
 
 void _shutdown_finalize()
 {
@@ -20,15 +20,14 @@ void macro_shutdown(uint32_t timestamp, button_data_s *buttons)
     static bool holding = false;
     static uint32_t iterations = 0;
     static bool lockout = false;
-
-    // We want to wait until we have our shipping button
-    // clear before we process a future macro (prevent power off right after power on)
     static bool boot_wait = true;
+
+    bool interval_reset = false;
 
     if(boot_wait && !buttons->button_shipping)
     {
         boot_wait = false;
-        return;
+        interval_reset = true;
     }
     else if(boot_wait) return;
 
@@ -38,12 +37,12 @@ void macro_shutdown(uint32_t timestamp, button_data_s *buttons)
         if(_shutdown_ready && !buttons->button_shipping)
         {
             _shutdown_ready = false;
-            battery_set_ship_mode();
+            hoja_shutdown();
         }
         return;
     }
 
-    if(interval_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, &interval))
+    if(interval_resettable_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, interval_reset, &interval))
     {
         if(!holding && buttons->button_shipping)
         {

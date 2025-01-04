@@ -33,6 +33,13 @@ bool haptics_init()
     #endif
 }
 
+void haptics_stop() 
+{
+    #if defined(HOJA_HAPTICS_STOP)
+    HOJA_HAPTICS_STOP();
+    #endif
+}
+
 void haptics_task(uint32_t timestamp)
 {
     #if defined(HOJA_HAPTICS_TASK)
