@@ -53,15 +53,24 @@ void settings_init()
     battery_config     = (batteryConfig_s *)  &live_settings.battery_configuration_block;
 
     // Debug mac address if zero
-    if(!gamepad_config->switch_mac_address[0])
+    if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
     {
+        gamepad_config->gamepad_config_version = CFG_BLOCK_GAMEPAD_VERSION;
+
         for(uint8_t i = 0; i < 6; i++)
         {
             uint8_t rand = sys_hal_random() & 0xFF;
             if(!rand) rand++;
             gamepad_config->switch_mac_address[i] = rand;
         }
+
+        gamepad_config->gamepad_color_body = 0x2D2D2D;
+        gamepad_config->gamepad_color_buttons = 0xE6E6E6;
+        gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
+        gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
     }
+
+    // Init gamepad config
 }
 
 MUTEX_HAL_INIT(_settings_mutex);

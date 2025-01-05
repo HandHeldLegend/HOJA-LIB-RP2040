@@ -63,13 +63,13 @@
 #endif
 
 const deviceInfoStatic_s    device_static = {
-    .fw_version = HOJA_FW_VERSION,
-    .maker      = DEVICE_MAKER, 
-    .name       = DEVICE_NAME,
-    .firmware_url = FIRMWARE_URL,
-    .manifest_url = MANIFEST_URL,
-    .fcc_elabel = FCC_ELABEL,
-    .manual_url = MANUAL_URL,
+    .fw_version     = HOJA_FW_VERSION,
+    .maker          = DEVICE_MAKER, 
+    .name           = DEVICE_NAME,
+    .firmware_url   = FIRMWARE_URL,
+    .manifest_url   = MANIFEST_URL,
+    .fcc_elabel     = FCC_ELABEL,
+    .manual_url     = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT
 };
