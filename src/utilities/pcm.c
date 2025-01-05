@@ -170,6 +170,17 @@ static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t
     return (uint16_t)(start + ((diff * t) >> 8));
 }
 
+uint8_t *_external_sample;
+uint32_t _external_sample_remaining = 0;
+uint32_t _external_sample_size = 0;
+
+void pcm_play_sample(uint8_t *sample, uint32_t size) 
+{
+    _external_sample = sample;
+    _external_sample_remaining = size;
+    _external_sample_size = size;
+}
+
 // Generate 255 samples of PCM data
 void pcm_generate_buffer(
     uint32_t *buffer // Output buffer
@@ -221,6 +232,15 @@ void pcm_generate_buffer(
         uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * (uint32_t)hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
         uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * (uint32_t)lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
 
+        uint32_t external_sample = 0;
+
+        // Mix in external sample if we have any remaining
+        if(_external_sample_remaining)
+        {
+            external_sample = _external_sample[_external_sample_size - _external_sample_remaining];
+            _external_sample_remaining--;
+        }
+
         /*
            High frequency is used for Special hit effects, tilt attack hit, tilt whiff,
            Smash attack chargeup, enemy death confirmation, Shield, Landing
@@ -246,6 +266,11 @@ void pcm_generate_buffer(
         #define RATIO_MULT  (1 << RATIO_SHIFT)
         #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
+        #define CLICK_MAX_SAFE_VALUE (90)
+        #define RATIO_CLICK_SHIFT (14)
+        #define RATIO_CLICK_MULT  (1 << RATIO_SHIFT)
+        #define RATIO_CLICK_FACTOR (RATIO_CLICK_MULT * CLICK_MAX_SAFE_VALUE)
+
         // Check if scaling is required
         if (mixed > PCM_MAX_SAFE_VALUE)
         {
@@ -260,7 +285,20 @@ void pcm_generate_buffer(
             mixed = scaled_hi + scaled_lo;
         }
 
-        uint8_t sample = (uint8_t)(mixed > PCM_MAX_SAFE_VALUE ? PCM_MAX_SAFE_VALUE : mixed);
+        if ((mixed+external_sample) > CLICK_MAX_SAFE_VALUE)
+        {
+            // Compute the scaling factor as a fixed-point ratio
+            uint32_t new_ratio = RATIO_CLICK_FACTOR / mixed;
+
+            // Scale the components proportionally
+            mixed = (mixed * new_ratio) >> RATIO_CLICK_SHIFT;
+            external_sample = (external_sample * new_ratio) >> RATIO_CLICK_SHIFT;
+
+            // Recalculate the mixed value (optional for verification)
+            mixed = mixed + external_sample;
+        }
+
+        uint8_t sample = (uint8_t)(mixed > CLICK_MAX_SAFE_VALUE ? CLICK_MAX_SAFE_VALUE : mixed);
 
         uint32_t outsample = ((uint32_t) sample << 16) | (uint8_t) sample;
         buffer[i] = outsample;

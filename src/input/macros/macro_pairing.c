@@ -75,10 +75,8 @@ void macro_pairing(uint32_t timestamp, button_data_s *buttons)
                         .gamepad_pair   = true
                         };
 
-                    //boot_set_memory(&mem);
-                    
-                    //hoja_deinit(hoja_restart);
-                    hoja_deinit(hoja_shutdown);
+                    boot_set_memory(&mem);
+                    hoja_deinit(hoja_restart);
                 }
             }
         }

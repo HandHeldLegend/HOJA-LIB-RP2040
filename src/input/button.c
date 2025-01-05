@@ -106,6 +106,7 @@ bool button_init()
 #define BUTTON_READ_RATE_US 500 // 500us read rate. Double the 1khz maximum USB input rate.
 
 #include "utilities/erm_simulator.h"
+#include "utilities/pcm_samples.h"
 
 void button_task(uint32_t timestamp)
 {
@@ -116,6 +117,31 @@ void button_task(uint32_t timestamp)
         _button_blocking_enter();
         // Read raw buttons
         cb_hoja_read_buttons(&_raw_button_data);
+
+        static bool pressed_zl = false;
+        if(_raw_button_data.trigger_zl && !pressed_zl)
+        {
+            pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+            pressed_zl = true;
+        }
+        else if (!_raw_button_data.trigger_zl && pressed_zl)
+        {
+            pcm_play_sample(offPattern, sizeof(offPattern));
+            pressed_zl = false;
+        }
+
+        static bool pressed_zr = false;
+        if(_raw_button_data.trigger_zr && !pressed_zr)
+        {
+            pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+            pressed_zr = true;
+        }
+        else if (!_raw_button_data.trigger_zr && pressed_zr)
+        {
+            pcm_play_sample(offPattern, sizeof(offPattern));
+            pressed_zr = false;
+        }
+
         // Process button remaps
         //--
 

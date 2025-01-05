@@ -91,14 +91,13 @@ typedef struct
 
 typedef struct 
 {
-
     uint8_t     haptic_strength;
-    uint8_t     reserved[7];
+    uint8_t     haptic_triggers;
+    uint8_t     reserved[6];
 } hapticConfig_s;
 
 typedef struct 
 {
-
     uint8_t     imu_config_version;
     uint8_t     imu_a_gyro_config[3];
     uint8_t     imu_a_accel_config[3];
