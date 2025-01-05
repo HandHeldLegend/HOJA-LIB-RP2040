@@ -52,8 +52,6 @@ void hoja_deinit(callback_t cb)
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
 
-  hoja_set_connected_status(0);
-  hoja_set_player_number_status(-1);
   haptics_stop();
   
   #if defined(HOJA_RGB_DRIVER)

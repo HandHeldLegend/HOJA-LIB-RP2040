@@ -203,11 +203,12 @@ void anm_handler_tick()
         _ani_main_fn(_current_ani_leds);
     }
 
+    // Ensure these show no matter the brightness
+    _player_connection_manager(_current_ani_leds);
+
     // Process brightness/gamma
     anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);
 
-    // Ensure these show no matter the brightness
-    _player_connection_manager(_adjusted_ani_leds);
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
     #endif

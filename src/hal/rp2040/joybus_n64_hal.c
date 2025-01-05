@@ -39,7 +39,7 @@
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 #define N64_RANGE 90
-#define N64_RANGE_MULTIPLIER (N64_RANGE*2)/4095
+#define N64_RANGE_MULTIPLIER (N64_RANGE)/4095
 
 uint _n64_irq;
 uint _n64_irq_tx;
@@ -316,8 +316,8 @@ void joybus_n64_hal_task(uint32_t timestamp)
         _out_buffer.button_z = buttons.trigger_zl;
         _out_buffer.button_r = buttons.trigger_zr;
 
-        float lx = (analog.lx*N64_RANGE_MULTIPLIER) - N64_RANGE;
-        float ly = (analog.ly*N64_RANGE_MULTIPLIER) - N64_RANGE;
+        float lx = (analog.lx*N64_RANGE_MULTIPLIER) + 127;
+        float ly = (analog.ly*N64_RANGE_MULTIPLIER) + 127;
 
         _out_buffer.stick_x = (int8_t) lx;
         _out_buffer.stick_y = (int8_t) ly;

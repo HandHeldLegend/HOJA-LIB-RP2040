@@ -137,6 +137,15 @@ bool anm_react_handler(rgb_s* output)
 
     button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
     analog_access_try(&analog,  ANALOG_ACCESS_SCALED_DATA);
+    
+    // Color player LEDs if they exist to our preset group color
+    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
+    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    {
+        uint8_t idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+        output[idx] = anm_utility_unpack_local_color(rgb_config->rgb_colors[HOJA_RGB_PLAYER_GROUP_IDX]);
+    }
+    #endif
 
     #if defined(RGB_REACT_GROUP_ASSIGNMENT)
 
@@ -314,6 +323,12 @@ bool anm_react_handler(rgb_s* output)
             output
             );
     }
+
+    //for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    //{
+    //    uint8_t this_player_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+    //    output[this_player_idx] = 
+    //}
 
     #endif 
 }
