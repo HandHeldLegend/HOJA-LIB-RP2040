@@ -17,7 +17,7 @@
 
 bool imu_init();
 
-void imu_config_cmd(imu_cmd_t cmd, command_confirm_t cb);
+void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb);
 
 bool imu_access_try(imu_data_s *out);
 void imu_access_block(imu_data_s *out);

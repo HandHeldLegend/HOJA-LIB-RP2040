@@ -70,12 +70,17 @@ void settings_init()
         gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
     }
 
-    // Init gamepad config
+    // Init User config
+    if(user_config->user_config_version != CFG_BLOCK_USER_VERSION)
+    {
+        user_config->user_config_version = CFG_BLOCK_USER_VERSION;
+        memset(user_config->user_name, 0, sizeof(user_config->user_name));
+    }
 }
 
 MUTEX_HAL_INIT(_settings_mutex);
 
-void settings_commit_blocks(setting_callback_t cb)
+void _settings_commit_blocks()
 {
     // Check which core we're on
     // Get mutex
@@ -84,12 +89,18 @@ void settings_commit_blocks(setting_callback_t cb)
     flash_hal_write((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
     
     MUTEX_HAL_EXIT(&_settings_mutex);
+}
 
-    //if(cb)
-    //{
-    //    uint8_t save_confirm_data[1] = {WEBUSB_ID_SAVE_SETTINGS};
-    //    cb(save_confirm_data, 1);
-    //}
+void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
+{
+    // CFG_BLOCK_GAMEPAD
+    switch(command)
+    {
+        case GAMEPAD_CMD_SAVE_ALL:
+            _settings_commit_blocks();
+            cb(CFG_BLOCK_GAMEPAD, command, true, NULL, 0);
+        break;
+    }
 }
 
 // Input only commands that don't involve writing data
@@ -101,7 +112,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         return;
 
         case CFG_BLOCK_GAMEPAD:
-            
+            _gamepad_config_command(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_REMAP:
@@ -202,10 +213,6 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
     }
 
     if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
-
-    // Send confirmation data 
-    //uint8_t confirm_data[3] = {WEBUSB_ID_WRITE_CONFIG_BLOCK, (uint8_t) block, write_idx};
-    //webusb_send_bulk(confirm_data, 3);
 }
 
 uint8_t _sdata[64] = {0};

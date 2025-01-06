@@ -11,6 +11,8 @@
 
 #include "hal/mutex_hal.h"
 
+#include "usb/webusb.h"
+
 #include "utilities/interval.h"
 
 #include "switch/switch_analog.h"
@@ -298,7 +300,7 @@ void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *o
     out[1] = fmaxf(-2048, fminf(2048, out[1]));
 }
 
-void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
+void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
 {
     float left = 0.0f;
     float right = 0.0f;
@@ -307,6 +309,7 @@ void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
     switch(cmd)
     {
         default:
+        cb(CFG_BLOCK_ANALOG, cmd, false, NULL, 0);
         break;
 
         case ANALOG_CMD_CALIBRATE_START:
@@ -327,13 +330,13 @@ void analog_config_command(analog_cmd_t cmd, command_confirm_t cb)
             uint8_t buffer[8] = {0};
             memcpy(buffer, &left, sizeof(float));
             memcpy(buffer+4, &right, sizeof(float));
-            cb(CFG_BLOCK_ANALOG, cmd, buffer, 8);
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer, 8);
             return;
         break;
     }
 
     if(do_cb)
-        cb(CFG_BLOCK_ANALOG, cmd, NULL, 0);
+        cb(CFG_BLOCK_ANALOG, cmd, true, NULL, 0);
 }
 
 // 2Khz analog task
@@ -365,9 +368,9 @@ void analog_task(uint32_t timestamp)
 
         stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
 
-        snapback_process(&_scaled_analog_data, &_deadzone_analog_data);
+        snapback_process(&_scaled_analog_data, &_snapback_analog_data);
 
-        //stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
+        stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
 
         // Cap values
         _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);

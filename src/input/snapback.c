@@ -109,10 +109,9 @@ int8_t _get_direction(int currentPosition, int lastPosition)
 /**
  * Adds value to axis_s and returns the latest value
  */
-void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
+void _add_axis(int16_t x, int16_t y, uint16_t in_distance, uint16_t *out_distance, axis_s *a)
 {   
-    int return_x = (int) x;
-    int return_y = (int) y;
+    uint16_t return_distance = in_distance;
 
     float distance = _get_2d_distance((int) x, (int) y);
 
@@ -130,8 +129,7 @@ void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
     if(_center_trigger_detect(a, (int) x, (int) y) && (a->crossover_expiration>0))
     {
         // reset rising
-        return_x = 0;
-        return_y = 0;
+        return_distance = 0;
 
         a->triggered = false;
         a->rising = true;
@@ -142,8 +140,7 @@ void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
     // Valid snapback wave potentially happening
     else if(a->rising)
     {
-        return_x = 0;
-        return_y = 0;
+        return_distance = 0;
 
         a->trigger_width += 1;
 
@@ -160,8 +157,7 @@ void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
             //release
             a->rising = false;
 
-            return_x = x;
-            return_y = y;
+            return_distance = 0;
 
             a->decaying = false;
         }
@@ -182,8 +178,7 @@ void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
     }
     else if(a->decaying)
     {
-        return_x = 0;
-        return_y = 0;
+        return_distance = 0;
 
         a->decay_timer -= 1;
         if(!a->decay_timer)
@@ -195,8 +190,7 @@ void _add_axis(int16_t x, int16_t y, int16_t *out_x, int16_t *out_y, axis_s *a)
     }
 
     a->last_distance = distance;
-    *out_x = return_x;
-    *out_y = return_y;
+    *out_distance = return_distance;
 }
 
 void snapback_process(analog_data_s *input, analog_data_s *output)
@@ -204,8 +198,25 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
     static axis_s l = {0};
     static axis_s r = {0};
 
-    _add_axis(input->lx, input->ly, &(output->lx), &(output->ly), &l);
-    _add_axis(input->rx, input->ry, &(output->rx), &(output->ry), &r);
+    _add_axis(input->lx, input->ly, input->ldistance, &(output->ldistance), &l);
+    _add_axis(input->rx, input->ry, input->rdistance, &(output->rdistance), &r);
+
+    output->langle = input->langle;
+    if(output->ldistance>0)
+    {
+        output->lx = input->lx;
+        output->ly = input->ly;
+    }
+
+    output->rangle = input->rangle;
+    if(output->rdistance>0)
+    {
+        output->rx = input->rx;
+        output->ry = input->ry;
+    }
+
+    output->ltarget = input->ltarget;
+    output->rtarget = input->rtarget;
 }
 
 uint8_t _snapback_report[64] = {0};

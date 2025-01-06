@@ -177,7 +177,7 @@ void swpro_hid_report(uint32_t timestamp)
 
     // Update input data
     button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-    analog_access_try(&analog, ANALOG_ACCESS_DEADZONE_DATA);
+    analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
     data.d_down     = buttons.dpad_down;
     data.d_right    = buttons.dpad_right;

@@ -2,6 +2,7 @@
 #define SETTINGS_SHARED_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum 
 {
@@ -14,7 +15,7 @@ typedef enum
     CFG_BLOCK_HAPTIC, 
     CFG_BLOCK_USER, 
     CFG_BLOCK_BATTERY,
-    CFG_BLOCK_MAX, 
+    CFG_BLOCK_MAX,
 } cfg_block_t;
 
 #define CFG_BLOCK_GAMEPAD_VERSION   0x1
@@ -33,7 +34,7 @@ typedef enum
     GAMEPAD_CMD_SET_DEFAULT_MODE, 
     GAMEPAD_CMD_RESET_TO_BOOTLOADER, 
     GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
-    GAMEPAD_CMD_SAVE_ALL, 
+    GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 
 typedef enum 
@@ -75,25 +76,31 @@ typedef enum
 
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 typedef void (*command_confirm_t)(cfg_block_t, uint8_t, uint8_t*, uint32_t);
+typedef void (*webreport_cmd_confirm_t)(
+    uint8_t block, uint8_t command, bool success, 
+    uint8_t* data, uint32_t size);
 
 #pragma pack(push, 1)
 typedef struct 
 {
-    float charge_level_percent;
-    uint8_t reserved[4];
+    uint8_t battery_config_version;
+    float   charge_level_percent;
+    uint8_t reserved[11];
 } batteryConfig_s;
 
 typedef struct 
 {
+    uint8_t user_config_version;
     uint8_t user_name[24];
-    uint8_t reserved[40];
+    uint8_t reserved[39];
 } userConfig_s;
 
 typedef struct 
 {
+    uint8_t     haptic_config_version;
     uint8_t     haptic_strength;
     uint8_t     haptic_triggers;
-    uint8_t     reserved[6];
+    uint8_t     reserved[5];
 } hapticConfig_s;
 
 typedef struct 

@@ -61,8 +61,6 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
     }
 }
 
-
-
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 void webusb_send_rawinput(uint32_t timestamp)
 {
@@ -88,7 +86,7 @@ void webusb_send_rawinput(uint32_t timestamp)
     {
         uint8_t webusb_input_report[64] = {0};
 
-        analog_access_try(&analog, ANALOG_ACCESS_DEADZONE_DATA);
+        analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
@@ -128,17 +126,18 @@ void webusb_send_rawinput(uint32_t timestamp)
     }
 }
 
-void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, uint8_t *data, uint32_t size)
+void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool success, uint8_t *data, uint32_t size)
 {
     uint8_t cmd_confirm_buffer[64] = {0x00};
     cmd_confirm_buffer[0] = WEBUSB_ID_CONFIG_COMMAND;
     cmd_confirm_buffer[1] = config_block;
     cmd_confirm_buffer[2] = cmd;
+    cmd_confirm_buffer[3] = success;
 
-    if(data != NULL) 
-        memcpy(&cmd_confirm_buffer[3], data, size);
+    if(data) 
+        memcpy(&cmd_confirm_buffer[4], data, size);
 
-    webusb_send_bulk(cmd_confirm_buffer, 3+size);
+    webusb_send_bulk(cmd_confirm_buffer, 4+size);
 }
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
@@ -161,20 +160,13 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
         case WEBUSB_ID_CONFIG_COMMAND:
             settings_config_command(data[1], data[2]);
         break;
-
-        case WEBUSB_ID_SAVE_SETTINGS:
-            settings_commit_blocks(webusb_send_bulk);
-        break;
     }   
 }
 
 void webusb_version_read(uint8_t type)
 {
     (void) type;
-
-
 }
-
 
 // Read out all configuration blocks
 void webusb_settings_read()

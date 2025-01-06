@@ -9,6 +9,8 @@
 #include "devices_shared_types.h"
 #include "settings_shared_types.h"
 
+#include "usb/webusb.h"
+
 #include "utilities/settings.h"
 
 #include <math.h>
@@ -257,7 +259,7 @@ void _imu_std_function(uint32_t timestamp)
 }
 
 // Function we call when our IMU calibration is completed
-command_confirm_t _calibrate_done_cb = NULL;
+webreport_cmd_confirm_t _calibrate_done_cb = NULL;
 uint8_t _command = 0;
 
 void _imu_calibrate_stop()
@@ -266,7 +268,7 @@ void _imu_calibrate_stop()
 
   if(_calibrate_done_cb != NULL)
   { 
-    _calibrate_done_cb(CFG_BLOCK_IMU, _command, NULL, 0);
+    _calibrate_done_cb(CFG_BLOCK_IMU, IMU_CMD_CALIBRATE_START, true, NULL, 0);
   }
 
   _calibrate_done_cb = NULL;
@@ -299,9 +301,8 @@ void _imu_calibrate_start()
 }
 
 // IMU module command handler
-void imu_config_cmd(imu_cmd_t cmd, command_confirm_t cb)
+void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 {
-  
   switch(cmd)
   {
     default:

@@ -11,14 +11,13 @@ typedef enum
   WEBUSB_ID_WRITE_CONFIG_BLOCK, 
   WEBUSB_ID_READ_STATIC_BLOCK, 
   WEBUSB_ID_CONFIG_COMMAND, 
-  WEBUSB_ID_SAVE_SETTINGS,
   WEBUSB_LEGACY_GET_FW_VERSION = 0xAF, 
   WEBUSB_ANALOG_DUMP = 250,
   WEBUSB_INPUT_PROCESSED = 254,
   WEBUSB_INPUT_RAW = 255, 
 } webusb_report_id_t;
 
-void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, uint8_t *data, uint32_t size);
+void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool success, uint8_t *data, uint32_t size);
 void webusb_send_bulk(const uint8_t *data, uint16_t size);
 void webusb_command_handler(uint8_t *data, uint32_t size);
 void webusb_send_rawinput(uint32_t timestamp);
