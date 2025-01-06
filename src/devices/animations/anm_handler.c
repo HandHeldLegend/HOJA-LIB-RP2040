@@ -151,38 +151,36 @@ bool _force_clear_override = false;
 
 void _player_connection_manager(rgb_s *output) 
 {
-    static int _controller_connected = 0; // 0 is idle, -1 is connecting, 1 is connected
-    static int _player_number = -1; // -1 is no player
-
     static bool allow_update = true;
+    static hoja_status_s status = {0};
 
-    if(allow_update)
+    if(status.notification_color.color > 0)
     {
-        _controller_connected   = hoja_get_connected_status();
-        _player_number          = hoja_get_player_number_status();
-        allow_update = false;
+        allow_update = ply_blink_handler(output, status.notification_color);
     }
-
-    // If we have more than our group size, we can do the chase animation 
-    
-    if(_controller_connected < 0)
+    else if(status.connection_status < 0)
     {
         #if defined(HOJA_RGB_PLAYER_GROUP_IDX) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-        allow_update = ply_chase_handler(output);
+        allow_update = ply_chase_handler(output, status.gamepad_color);
         #else 
-        allow_update = ply_blink_handler(output);
+        allow_update = ply_blink_handler(output, status.gamepad_color);
         #endif
     }
     else 
     {
-        if(_player_number > 0)
+        if(status.player_number > 0)
         {
-            allow_update = ply_idle_handler(output, _player_number);
+            allow_update = ply_idle_handler(output, status.player_number);
         }
         else 
         {
             allow_update = ply_idle_handler(output, 0);
         }
+    }
+
+    if(allow_update)
+    {
+        status          = hoja_get_status();
     }
 }
 

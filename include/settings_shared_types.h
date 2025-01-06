@@ -106,10 +106,10 @@ typedef struct
 typedef struct 
 {
     uint8_t     imu_config_version;
-    uint8_t     imu_a_gyro_config[3];
-    uint8_t     imu_a_accel_config[3];
-    uint8_t     imu_b_gyro_config[3];
-    uint8_t     imu_b_accel_config[3];
+    int8_t      imu_a_gyro_offsets[3];
+    int8_t      imu_a_accel_config[3];
+    int8_t      imu_b_gyro_offsets[3];
+    int8_t      imu_b_accel_config[3];
     uint8_t     reserved[19];
 } imuConfig_s;
 
@@ -168,7 +168,9 @@ typedef struct
         uint8_t     r_scaler_type; 
         uint16_t    l_deadzone; 
         uint16_t    r_deadzone; 
-        uint8_t     reserved[365];
+        uint8_t     l_snapback_type;
+        uint8_t     r_snapback_type;
+        uint8_t     reserved[363];
 } analogConfig_s;
 
 typedef struct 

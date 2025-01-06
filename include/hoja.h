@@ -18,14 +18,12 @@
 
 void cb_hoja_read_buttons(button_data_s *data);
 bool cb_hoja_buttons_init();
-bool hoja_get_running_status();
-void hoja_set_connected_status(int status);
-int  hoja_get_connected_status();
-void hoja_set_player_number_status(int player_number);
-int  hoja_get_player_number_status();
 
-rgb_s hoja_gamepad_mode_color_get();
-gamepad_mode_t hoja_gamepad_mode_get();
+void hoja_set_connected_status(int status);
+void hoja_set_player_number_status(int player_number);
+void hoja_set_notification_status(rgb_s color);
+
+hoja_status_s hoja_get_status();
 
 void hoja_restart();
 void hoja_shutdown();

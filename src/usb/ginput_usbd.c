@@ -222,7 +222,7 @@ void ginputd_reset(uint8_t rhport)
 
 uint16_t ginputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
-  TU_VERIFY(hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB);
+  TU_VERIFY(hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB);
 
   // len = interface + hid + n*endpoints
   uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +

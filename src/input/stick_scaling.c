@@ -6,6 +6,8 @@
 #include "input/stick_scaling.h"
 #include "input/analog.h"
 
+#include "hoja.h"
+
 #include "hal/mutex_hal.h"
 #include "utilities/settings.h"
 
@@ -318,7 +320,7 @@ float stick_scaling_coordinates_to_angle(int x, int y)
     return angle_degrees;
 }
 
-void _calibrate_axis(int16_t *in, angle_setup_s *setup)
+bool _calibrate_axis(int16_t *in, angle_setup_s *setup)
 {
   // Get input distance
   float distance  = stick_scaling_coordinate_distance(in[0], in[1]);
@@ -334,6 +336,14 @@ void _calibrate_axis(int16_t *in, angle_setup_s *setup)
   {
     setup->round_distances[idx] = distance;
   }
+
+  // Return true if all distances are greater than minimum
+  for(int i = 0; i < TOTAL_ANGLES; i++)
+  {
+    if(setup->round_distances[i] < 650) return false;
+  }
+
+  return true;
 }
 
 float _closest_distance_to_line(float x1, float y1, float x2, float y2) {
@@ -548,6 +558,9 @@ void _read_from_config_block()
 
   _left_setup.scaling_mode  = analog_config->l_scaler_type;
   _right_setup.scaling_mode = analog_config->r_scaler_type;
+
+  if(analog_config->l_snapback_type == 0xFF) analog_config->l_snapback_type = 0;
+  if(analog_config->r_snapback_type == 0xFF) analog_config->r_snapback_type = 0;
 }
 
 // Validates a setup
@@ -601,10 +614,13 @@ void stick_scaling_calibrate_start(bool start)
     _zero_distances(&_left_setup);
     _zero_distances(&_right_setup);
 
+    hoja_set_notification_status(COLOR_RED);
+
     _sticks_calibrating = true;
   }
   else if (_sticks_calibrating && !start) 
   {
+    hoja_set_notification_status(COLOR_BLACK);
     _write_to_config_block();
     _sticks_calibrating = false;
   }
@@ -625,6 +641,9 @@ void stick_scaling_default_check()
     analog_config->ly_center = 0;
     analog_config->rx_center = 0;
     analog_config->ry_center = 0;
+
+    analog_config->l_snapback_type = 0;
+    analog_config->r_snapback_type = 0;
 
     // Set to default left setup
     _angle_setup_reset_to_defaults(&_left_setup);
@@ -656,12 +675,17 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
   if(_sticks_calibrating)
   {
-    _calibrate_axis(in_left, &_left_setup);
-    _calibrate_axis(in_right, &_right_setup);
+    bool left_done  = _calibrate_axis(in_left, &_left_setup);
+    bool right_done = _calibrate_axis(in_right, &_right_setup);
     out_left[0] = 0;
     out_left[1] = 0;
     out_right[0] = 0;
     out_right[1] = 0;
+
+    if(left_done && right_done)
+    {
+      hoja_set_notification_status(COLOR_CYAN);
+    }
   }
   else 
   {

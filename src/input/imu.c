@@ -34,18 +34,15 @@ imu_data_s _imu_buffer_avg = {0};
 time_callback_t _imu_process_task = NULL;
 
 // Access IMU config union members macro
-#define CH_A_GYRO_CFG(axis)   (imu_config->imu_a_gyro_config[axis])
-#define CH_B_GYRO_CFG(axis)   (imu_config->imu_b_gyro_config[axis])
+#define CH_A_GYRO_OFFSET(axis)   (imu_config->imu_a_gyro_offsets[axis])
+#define CH_B_GYRO_OFFSET(axis)   (imu_config->imu_b_gyro_offsets[axis])
 #define CH_A_ACCEL_CFG(axis)  (imu_config->imu_a_accel_config[axis])
 #define CH_B_ACCEL_CFG(axis)  (imu_config->imu_b_accel_config[axis])
 
-// Macro to retrieve IMU offset based on set bit flag
-#define IMU_OFFSET_GET(cfg) ( (cfg & 0b1000000) ? ((int) -(cfg & 0b111111)) : ((int) cfg & 0b111111) )
-
 // Macro to access the offset for a given gyro axis channel
-#define IMU_GYRO_OFFSET_X(channel)  (!channel ? IMU_OFFSET_GET(CH_A_GYRO_CFG(0)) : IMU_OFFSET_GET(CH_B_GYRO_CFG(0)))
-#define IMU_GYRO_OFFSET_Y(channel)  (!channel ? IMU_OFFSET_GET(CH_A_GYRO_CFG(1)) : IMU_OFFSET_GET(CH_B_GYRO_CFG(1)))
-#define IMU_GYRO_OFFSET_Z(channel)  (!channel ? IMU_OFFSET_GET(CH_A_GYRO_CFG(2)) : IMU_OFFSET_GET(CH_B_GYRO_CFG(2)))
+#define IMU_GYRO_OFFSET_X(channel)  (!channel ? CH_A_GYRO_OFFSET(0): CH_B_GYRO_OFFSET(0))
+#define IMU_GYRO_OFFSET_Y(channel)  (!channel ? CH_A_GYRO_OFFSET(1) : CH_B_GYRO_OFFSET(1))
+#define IMU_GYRO_OFFSET_Z(channel)  (!channel ? CH_A_GYRO_OFFSET(2) : CH_B_GYRO_OFFSET(2))
 
 #define IMU_FIFO_COUNT 4
 #define IMU_FIFO_IDX_MAX (IMU_FIFO_COUNT-1)
@@ -284,7 +281,21 @@ void _imu_calibrate_function(uint32_t timestamp)
   {
     _imu_calibrate_cycles_remaining--;
 
-    // TODO implement IMU calibration method
+    // Read IMU data
+    _imu_read(&_imu_buffer_a, &_imu_buffer_b);
+
+    #if defined(HOJA_IMU_CHAN_A_READ)
+    CH_A_GYRO_OFFSET(0) =  _imu_average_value(CH_A_GYRO_OFFSET(0), _imu_buffer_a.gx);
+    CH_A_GYRO_OFFSET(1) =  _imu_average_value(CH_A_GYRO_OFFSET(1), _imu_buffer_a.gy);
+    CH_A_GYRO_OFFSET(2) =  _imu_average_value(CH_A_GYRO_OFFSET(2), _imu_buffer_a.gz);
+    _imu_buffer_a.retrieved = false;
+    #if defined(HOJA_IMU_CHAN_B_READ)
+    CH_B_GYRO_OFFSET(0) =  _imu_average_value(CH_B_GYRO_OFFSET(0), _imu_buffer_b.gx);
+    CH_B_GYRO_OFFSET(1) =  _imu_average_value(CH_B_GYRO_OFFSET(1), _imu_buffer_b.gy);
+    CH_B_GYRO_OFFSET(2) =  _imu_average_value(CH_B_GYRO_OFFSET(2), _imu_buffer_b.gz);
+    _imu_buffer_b.retrieved = false;
+    #endif
+    #endif
   }
   else
   {
@@ -312,7 +323,6 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
       _command = cmd;
       _calibrate_done_cb = cb;
       _imu_calibrate_start();
-
     // We don't send a callback until the calibration is done.
     break;
   }
@@ -335,7 +345,7 @@ void imu_task(uint32_t timestamp)
     _imu_read(&_imu_buffer_a, &_imu_buffer_b);
 
     // Jump into appropriate IMU task if it's defined
-    if(_imu_process_task!=NULL)
+    if(_imu_process_task)
       _imu_process_task(timestamp);
     else
       _imu_process_task = _imu_std_function;

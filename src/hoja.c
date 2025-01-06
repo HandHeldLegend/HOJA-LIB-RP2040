@@ -28,8 +28,6 @@
 #include "devices/haptics.h"
 
 time_callback_t   _hoja_mode_task_cb = NULL;
-gamepad_mode_t    _hoja_current_gamepad_mode    = GAMEPAD_MODE_LOAD;
-gamepad_method_t  _hoja_current_gamepad_method  = GAMEPAD_METHOD_AUTO;
 callback_t        _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) bool cb_hoja_buttons_init()
@@ -86,9 +84,9 @@ void hoja_restart()
   sys_hal_reboot();
 }
 
-rgb_s hoja_gamepad_mode_color_get() 
+rgb_s _gamepad_mode_color_get(gamepad_mode_t mode) 
 {
-  switch(_hoja_current_gamepad_mode)
+  switch(mode)
   {
       case GAMEPAD_MODE_SWPRO:
           return COLOR_WHITE;
@@ -120,34 +118,36 @@ rgb_s hoja_gamepad_mode_color_get()
   }
 }
 
-bool _hoja_running = false;
+volatile hoja_status_s  _hoja_status = {
+  .connection_status = -1,
+  .player_number = -1,
+  .notification_color = 0,
+  .gamepad_color = 0,
+  .gamepad_method = 0,
+  .gamepad_mode = 0,
+  .init_status = false
+};
 
-bool hoja_get_running_status()
-{
-  return _hoja_running;
-}
-
-volatile int  _hoja_connected_status = 0;
-volatile int  _hoja_player_number_status = -1;
+// -1 is disconnected. 0 connecting. 1 connected.
 void hoja_set_connected_status(int status) 
 {
-  _hoja_connected_status = status;
+  _hoja_status.connection_status = status;
 }
 
-int hoja_get_connected_status() 
+void hoja_set_notification_status(rgb_s color)
 {
-  return _hoja_connected_status;
+  _hoja_status.notification_color = color;
 }
 
 void hoja_set_player_number_status(int player_number) 
 {
   player_number = (player_number > 8) ? 8 : player_number;
-  _hoja_player_number_status = player_number;
+  _hoja_status.player_number = player_number;
 }
 
-int hoja_get_player_number_status() 
+hoja_status_s hoja_get_status() 
 {
-  return _hoja_player_number_status;
+  return _hoja_status;
 }
 
 // Core 0 task loop entrypoint
@@ -219,8 +219,9 @@ bool _gamepad_mode_init()
 
   boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
 
-  _hoja_current_gamepad_mode   = thisMode;
-  _hoja_current_gamepad_method = thisMethod;
+  _hoja_status.gamepad_mode   = thisMode;
+  _hoja_status.gamepad_method = thisMethod;
+  _hoja_status.gamepad_color = _gamepad_mode_color_get(thisMode);
   
   switch(thisMethod)
   {
@@ -296,14 +297,6 @@ bool _system_input_init()
   // IMU motion
   imu_init();
   return true;
-}
-
-gamepad_mode_t hoja_gamepad_mode_get()
-{
-  if(_hoja_current_gamepad_mode != GAMEPAD_MODE_UNDEFINED)
-  return _hoja_current_gamepad_mode;
-
-  return GAMEPAD_MODE_SWPRO;
 }
 
 void hoja_init()

@@ -12,7 +12,7 @@ uint8_t _chase_ticks = 0;
 bool    _chase_dir = true;
 #define LINGER_PLAYER_CHASE_TICKS ANM_UTILITY_GET_FRAMES_FROM_MS(120) // 250ms
 
-bool ply_chase_handler(rgb_s *output)
+bool ply_chase_handler(rgb_s *output, rgb_s set_color)
 {
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
 
@@ -25,7 +25,7 @@ bool ply_chase_handler(rgb_s *output)
         if(i != _current_chase_led)
             output[clear_idx].color = 0x00;
         else 
-            output[clear_idx] = hoja_gamepad_mode_color_get();
+            output[clear_idx] = set_color;
     }
 
     _chase_ticks++;

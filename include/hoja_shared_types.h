@@ -1,6 +1,9 @@
 #ifndef HOJA_SHARED_TYPES_H
 #define HOJA_SHARED_TYPES_H
 
+#include "devices_shared_types.h"
+#include <stdbool.h>
+
 typedef enum
 {
     GAMEPAD_MODE_UNDEFINED = -2,
@@ -22,5 +25,16 @@ typedef enum
     GAMEPAD_METHOD_USB   = 1, // Use for USB modes where we should power off when unplugged
     GAMEPAD_METHOD_BLUETOOTH = 2, // Wireless Bluetooth modes
 } gamepad_method_t;
+
+typedef struct 
+{
+    int8_t player_number;
+    int8_t connection_status;
+    gamepad_mode_t gamepad_mode;
+    gamepad_method_t gamepad_method;
+    bool   init_status;
+    rgb_s  notification_color;
+    rgb_s  gamepad_color;
+} hoja_status_s;
 
 #endif

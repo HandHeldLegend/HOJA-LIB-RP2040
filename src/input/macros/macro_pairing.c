@@ -53,7 +53,7 @@ void macro_pairing(uint32_t timestamp, button_data_s *buttons)
             if(iterations>=PAIRING_HOLD_LOOPS)
             {
                 // Get our current input mode
-                gamepad_mode_t mode = hoja_gamepad_mode_get();
+                gamepad_mode_t mode = hoja_get_status().gamepad_mode;
                 bool pair = false;
 
                 // If it's a valid mode

@@ -6,6 +6,7 @@
 #include "wired/n64.h"
 #include "wired/n64_crc.h"
 #include "utilities/interval.h"
+#include "devices/haptics.h"
 
 #include "input_shared_types.h"
 #include "input/button.h"
@@ -287,45 +288,56 @@ void joybus_n64_hal_task(uint32_t timestamp)
     
     if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
     {
-        if(_n64_got_data) _n64_got_data = false;
+      if(_n64_got_data) _n64_got_data = false;
 
-        // Update input data
-        button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-        analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
+      // Update input data
+      button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
+      analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
 
-        static bool _rumblestate = false;
-        if(_n64_rumble != _rumblestate)
-        {
-            _rumblestate = _n64_rumble;
-            // Set rumble
-        }
-        
-        _out_buffer.button_a = buttons.button_a;
-        _out_buffer.button_b = buttons.button_b;
+      static bool _rumblestate = false;
+      if(_n64_rumble != _rumblestate)
+      {
+          _rumblestate = _n64_rumble;
+          haptics_set_std(_rumblestate ? 235 : 0);
+      }
+      
+      _out_buffer.button_a = buttons.button_a;
+      _out_buffer.button_b = buttons.button_b;
 
-        _out_buffer.cpad_up   = buttons.button_x;
-        _out_buffer.cpad_down = buttons.button_y;
+      _out_buffer.cpad_up   = buttons.button_x;
+      _out_buffer.cpad_down = buttons.button_y;
 
-        _out_buffer.cpad_left     = buttons.trigger_l;
-        _out_buffer.cpad_right    = buttons.trigger_r;
+      _out_buffer.cpad_left     = buttons.trigger_l;
+      _out_buffer.cpad_right    = buttons.trigger_r;
 
-        _out_buffer.button_start = buttons.button_plus;
+      _out_buffer.button_start = buttons.button_plus;
 
-        _out_buffer.button_l = buttons.button_minus;
+      _out_buffer.button_l = buttons.button_minus;
 
-        _out_buffer.button_z = buttons.trigger_zl;
-        _out_buffer.button_r = buttons.trigger_zr;
+      _out_buffer.button_z = buttons.trigger_zl;
+      _out_buffer.button_r = buttons.trigger_zr;
 
-        float lx = (analog.lx*N64_RANGE_MULTIPLIER) + 127;
-        float ly = (analog.ly*N64_RANGE_MULTIPLIER) + 127;
+      const int32_t center_value = 128;
+      const float   target_max = 85.0f / 2048.0f;
+      const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
 
-        _out_buffer.stick_x = (int8_t) lx;
-        _out_buffer.stick_y = (int8_t) ly;
+      bool lx_sign = analog.lx < 0;
+      bool ly_sign = analog.ly < 0;
 
-        _out_buffer.dpad_down     = buttons.dpad_down;
-        _out_buffer.dpad_left     = buttons.dpad_left;
-        _out_buffer.dpad_right    = buttons.dpad_right;
-        _out_buffer.dpad_up       = buttons.dpad_up;
+      uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
+      uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
+
+      // Analog stick data conversion
+      int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
+      int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
+
+      _out_buffer.stick_x = (int8_t) lx;
+      _out_buffer.stick_y = (int8_t) ly;
+
+      _out_buffer.dpad_down     = buttons.dpad_down;
+      _out_buffer.dpad_left     = buttons.dpad_left;
+      _out_buffer.dpad_right    = buttons.dpad_right;
+      _out_buffer.dpad_up       = buttons.dpad_up;
     }
 }
 

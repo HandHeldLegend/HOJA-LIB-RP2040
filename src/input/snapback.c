@@ -2,6 +2,7 @@
 #include "utilities/interval.h"
 #include "input/analog.h"
 #include "usb/webusb.h"
+#include "utilities/settings.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -198,9 +199,32 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
     static axis_s l = {0};
     static axis_s r = {0};
 
-    _add_axis(input->lx, input->ly, input->ldistance, &(output->ldistance), &l);
-    _add_axis(input->rx, input->ry, input->rdistance, &(output->rdistance), &r);
+    if(!analog_config->l_snapback_type)
+    {
+        _add_axis(input->lx, input->ly, input->ldistance, &(output->ldistance), &l);
+    }
+    else 
+    {
+        output->lx          = input->lx;
+        output->ly          = input->ly;
+        output->ldistance   = input->ldistance;
+        output->ltarget     = input->ltarget;
+        output->langle      = input->langle;
+    }
 
+    if(!analog_config->r_snapback_type)
+    {
+        _add_axis(input->rx, input->ry, input->rdistance, &(output->rdistance), &r);
+    }
+    else 
+    {
+        output->rx          = input->rx;
+        output->ry          = input->ry;
+        output->rdistance   = input->rdistance;
+        output->rtarget     = input->rtarget;
+        output->rangle      = input->rangle;
+    }
+    
     output->langle = input->langle;
     if(output->ldistance>0)
     {

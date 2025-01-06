@@ -98,7 +98,7 @@ void _remap_unpack_remap(uint8_t profile_idx, buttonRemap_s *remap)
 void _remap_load_remap()
 {
   uint8_t profile_idx = 0;
-  uint8_t mode = hoja_gamepad_mode_get();
+  uint8_t mode = hoja_get_status().gamepad_mode;
   switch(mode)
   {
     default:

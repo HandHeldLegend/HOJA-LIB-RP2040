@@ -122,7 +122,7 @@ usb_ready_t _usb_ready_cb = NULL;
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
   *driver_count += 1;
-  if (hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB)
+  if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB)
     return &tud_ginput_driver;
   return &tud_xinput_driver;
 }
@@ -239,7 +239,7 @@ void usb_mode_task(uint32_t timestamp)
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb(void)
 {
-  switch (hoja_gamepad_mode_get())
+  switch (hoja_get_status().gamepad_mode)
   {
   default:
   case GAMEPAD_MODE_SWPRO:
@@ -270,7 +270,7 @@ uint8_t const *tud_descriptor_device_cb(void)
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
-  switch (hoja_gamepad_mode_get())
+  switch (hoja_get_status().gamepad_mode)
   {
   default:
   case GAMEPAD_MODE_SWPRO:
@@ -306,7 +306,7 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 // Invoked when report complete
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
 {
-  switch (hoja_gamepad_mode_get())
+  switch (hoja_get_status().gamepad_mode)
   {
   case GAMEPAD_MODE_SWPRO:
     if ((report[0] == REPORT_ID_SWITCH_INPUT) || (report[0] == REPORT_ID_SWITCH_CMD) || (report[0] == REPORT_ID_SWITCH_INIT))
@@ -346,7 +346,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
 
-  switch (hoja_gamepad_mode_get())
+  switch (hoja_get_status().gamepad_mode)
   {
   default:
     break;
@@ -395,7 +395,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 {
   (void)instance;
-  switch (hoja_gamepad_mode_get())
+  switch (hoja_get_status().gamepad_mode)
   {
   default:
   case GAMEPAD_MODE_SWPRO:
@@ -597,7 +597,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         // Get Microsoft OS 2.0 compatible descriptor
         uint16_t total_len;
 
-        if (hoja_gamepad_mode_get() == GAMEPAD_MODE_GCUSB)
+        if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB)
         {
           memcpy(&total_len, gc_desc_ms_os_20 + 8, 2);
           return tud_control_xfer(rhport, request, (void *)(uintptr_t)gc_desc_ms_os_20, total_len);
