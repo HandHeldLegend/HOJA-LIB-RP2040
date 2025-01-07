@@ -316,6 +316,7 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
   switch(cmd)
   {
     default:
+    return;
     break;
 
     case IMU_CMD_CALIBRATE_START:
@@ -336,12 +337,22 @@ void imu_task(uint32_t timestamp)
   {
     _imu_blocking_enter();
 
-    // Update timestamp since we blocked for unknown time
-    // We need accurate timings for our quaternion calculation/updates
-    timestamp = sys_hal_time_us();
+    if(imu_config->imu_disabled==1)
+    {
+      memset(&_imu_buffer_a, 0, sizeof(imu_data_s));
+      memset(&_imu_buffer_b, 0, sizeof(imu_data_s));
+      _imu_buffer_a.retrieved = true;
+      _imu_buffer_b.retrieved = true;
+    }
+    else
+    {
+      // Update timestamp since we blocked for unknown time
+      // We need accurate timings for our quaternion calculation/updates
+      timestamp = sys_hal_time_us();
 
-    // Read IMU data
-    _imu_read(&_imu_buffer_a, &_imu_buffer_b);
+      // Read IMU data
+      _imu_read(&_imu_buffer_a, &_imu_buffer_b);
+    }
 
     // Jump into appropriate IMU task if it's defined
     if(_imu_process_task)
@@ -356,6 +367,17 @@ void imu_task(uint32_t timestamp)
 // IMU module initialization function
 bool imu_init()
 {
+  // Verify or default IMU
+  if(imu_config->imu_config_version != CFG_BLOCK_IMU_VERSION)
+  {
+    imu_config->imu_config_version = CFG_BLOCK_IMU_VERSION;
+    imu_config->imu_disabled = 0;
+    memset(&imu_config->imu_a_gyro_offsets, 0, 3);
+    memset(&imu_config->imu_a_accel_config, 0, 3);
+    memset(&imu_config->imu_b_gyro_offsets, 0, 3);
+    memset(&imu_config->imu_b_accel_config, 0, 3);
+  }
+
   #if defined(HOJA_IMU_CHAN_A_INIT)
   HOJA_IMU_CHAN_A_INIT();
   _imu_process_task = _imu_std_function;
@@ -364,4 +386,6 @@ bool imu_init()
   #if defined(HOJA_IMU_CHAN_B_INIT)
   HOJA_IMU_CHAN_B_INIT()
   #endif
+
+  return true;
 }

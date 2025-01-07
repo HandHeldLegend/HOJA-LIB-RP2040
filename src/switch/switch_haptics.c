@@ -32,8 +32,10 @@ haptic_defaults_s _haptic_defaults = {
 };
 
 
-int16_t float_to_fixed(float input) {
-   return (int16_t)(input * PCM_AMPLITUDE_SHIFT_FIXED);
+uint16_t float_to_fixed(float input) {
+   uint16_t tmp = (uint16_t)(input * PCM_AMPLITUDE_SHIFT_FIXED);
+   if(input>0 && !tmp) tmp = 1;
+   return tmp;
 }
 
 /* We used to use this ExpBase lookup table made with this data
@@ -74,20 +76,15 @@ int16_t float_to_fixed(float input) {
 #define HI_FREQUENCY_RANGE      PCM_HI_FREQUENCY_RANGE
 
 // Q1.15 fixed-point amplitude lookup table (Post-exp2f)
-static int16_t _ExpBase2LookupHi[EXP_BASE2_LOOKUP_LENGTH];
-static int16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH];
+volatile uint16_t _ExpBase2LookupHi[EXP_BASE2_LOOKUP_LENGTH] = {0};
+volatile uint16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH] = {0};
 
-void _initialize_exp_base2_lookup(uint8_t user_intensity) {
-
-    float intensity = user_intensity / 255.0f;
-    float scaledRangeHi = intensity * HI_FREQUENCY_RANGE;
-    float scaledRangeLo = intensity * LO_FREQUENCY_RANGE;
-
+void _initialize_exp_base2_lookup() {
     for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            _ExpBase2LookupHi[i] = float_to_fixed( (exp2f(f) * HI_FREQUENCY_RANGE) + HI_FREQUENCY_MINIMUM);
-            _ExpBase2LookupLo[i] = float_to_fixed( (exp2f(f) * LO_FREQUENCY_RANGE) + LO_FREQUENCY_MINIMUM);
+            _ExpBase2LookupHi[i] = float_to_fixed(exp2f(f));
+            _ExpBase2LookupLo[i] = float_to_fixed(exp2f(f));
         } else {
             _ExpBase2LookupHi[i] = 0;
             _ExpBase2LookupLo[i] = 0;
@@ -98,6 +95,14 @@ void _initialize_exp_base2_lookup(uint8_t user_intensity) {
 // Frequency sine increment values are Q8.8 fixed-point
 static uint16_t _haptics_hi_freq_increment[128];
 static uint16_t _haptics_lo_freq_increment[128];
+
+// Function to return values from our pre-determined lookup table
+void switch_haptics_get_basic(uint8_t amplitude, uint8_t frequency, uint16_t *amp_out, uint16_t *freq_out)
+{
+    frequency = (frequency>128)?128:frequency;
+    *amp_out    = _ExpBase2LookupLo[amplitude];
+    *freq_out   = _haptics_lo_freq_increment[frequency];
+}
 
 /* Original frequency lookup table algorithm
     void initialize_rumble_freq_lookup(void)
@@ -562,11 +567,11 @@ void _haptics_decode_type_4(const SwitchHapticPacket_s *encoded, haptic_raw_stat
 
 haptic_raw_state_s _raw_state = {0};
 
-void switch_haptics_init(uint8_t user_intensity) 
+void switch_haptics_init() 
 {
     _init_amp_idx_lookup();
     _init_frequency_phase_increment_tables();
-    _initialize_exp_base2_lookup(user_intensity);
+    _initialize_exp_base2_lookup();
 
     _raw_state.state.hi_amplitude_idx   = _haptic_defaults.starting_amplitude;
     _raw_state.state.lo_amplitude_idx   = _haptic_defaults.starting_amplitude;

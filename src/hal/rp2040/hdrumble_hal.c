@@ -100,15 +100,18 @@ void hdrumble_hal_stop()
     #endif
 }
 
-bool hdrumble_hal_init()
+bool hdrumble_hal_init(uint8_t intensity)
 {
     static bool hal_init = false;
 
     // Initialize the haptics
-    switch_haptics_init(haptic_config->haptic_strength);
+    switch_haptics_init();
 
     // Initialize the PCM
-    pcm_init();
+    pcm_init(intensity);
+
+    // Initialize ERM simulator
+    erm_simulator_init();
 
     if(hal_init) return true;
     hal_init = true;
@@ -284,7 +287,7 @@ bool get_inactive_buffer_half()
     #endif
 }
 
-bool _erm_simulation_enabled = false;
+volatile bool _erm_simulation_enabled = false;
 void hdrumble_hal_task(uint32_t timestamp)
 {
     static bool inactive_half = true;

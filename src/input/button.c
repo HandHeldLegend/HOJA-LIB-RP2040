@@ -5,6 +5,7 @@
 
 #include "utilities/interval.h"
 #include "utilities/pcm.h"
+#include "utilities/settings.h"
 
 #include "hal/mutex_hal.h"
 #include "hal/sys_hal.h"
@@ -118,35 +119,38 @@ void button_task(uint32_t timestamp)
         // Read raw buttons
         cb_hoja_read_buttons(&_raw_button_data);
 
-        static bool pressed_zl = false;
-        if(_raw_button_data.trigger_zl && !pressed_zl)
+        // Could break this out later...
+        if(haptic_config->haptic_triggers==1)
         {
-            pcm_play_sample(hapticPattern, sizeof(hapticPattern));
-            pressed_zl = true;
-        }
-        else if (!_raw_button_data.trigger_zl && pressed_zl)
-        {
-            pcm_play_sample(offPattern, sizeof(offPattern));
-            pressed_zl = false;
-        }
+            static bool pressed_zl = false;
+            if(_raw_button_data.trigger_zl && !pressed_zl)
+            {
+                pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+                pressed_zl = true;
+            }
+            else if (!_raw_button_data.trigger_zl && pressed_zl)
+            {
+                pcm_play_sample(offPattern, sizeof(offPattern));
+                pressed_zl = false;
+            }
 
-        static bool pressed_zr = false;
-        if(_raw_button_data.trigger_zr && !pressed_zr)
-        {
-            pcm_play_sample(hapticPattern, sizeof(hapticPattern));
-            pressed_zr = true;
-        }
-        else if (!_raw_button_data.trigger_zr && pressed_zr)
-        {
-            pcm_play_sample(offPattern, sizeof(offPattern));
-            pressed_zr = false;
+            static bool pressed_zr = false;
+            if(_raw_button_data.trigger_zr && !pressed_zr)
+            {
+                pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+                pressed_zr = true;
+            }
+            else if (!_raw_button_data.trigger_zr && pressed_zr)
+            {
+                pcm_play_sample(offPattern, sizeof(offPattern));
+                pressed_zr = false;
+            }
         }
 
         // Process button remaps
         //--
+        remap_process(&_raw_button_data, &_remapped_button_data);
 
-        // Debug paste remapped buttons
-        memcpy(&_remapped_button_data, &_raw_button_data, sizeof(button_data_s));
         _button_exit();
     }
 }

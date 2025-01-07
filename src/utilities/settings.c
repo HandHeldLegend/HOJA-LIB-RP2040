@@ -15,6 +15,7 @@
 
 #include "input/stick_scaling.h"
 #include "input/imu.h"
+#include "devices/haptics.h"
 
 #include "devices/rgb.h"
 
@@ -136,7 +137,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_HAPTIC:
-            
+            haptic_config_cmd(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_USER:
@@ -176,6 +177,9 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_REMAP:
             write_to_ptr = live_settings.remap_configuration_block;
+
+            if(completed)
+                remap_init();
         break;
 
         case CFG_BLOCK_ANALOG:
@@ -201,6 +205,9 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_HAPTIC:
             write_to_ptr = live_settings.haptic_configuration_block;
+
+            if(completed)
+                haptics_init();
         break;
 
         case CFG_BLOCK_USER:

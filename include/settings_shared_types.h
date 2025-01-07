@@ -110,7 +110,8 @@ typedef struct
     int8_t      imu_a_accel_config[3];
     int8_t      imu_b_gyro_offsets[3];
     int8_t      imu_b_accel_config[3];
-    uint8_t     reserved[19];
+    uint8_t     imu_disabled;
+    uint8_t     reserved[18];
 } imuConfig_s;
 
 typedef struct 

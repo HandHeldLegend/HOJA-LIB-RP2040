@@ -15,6 +15,11 @@
 #endif
 
 int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
+volatile uint32_t _lo_amp_miniumum = 0;
+volatile uint32_t _hi_amp_minimum  = 0;
+volatile uint32_t _lo_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+volatile uint32_t _hi_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+
 #define TWO_PI 2.0f * M_PI
 
 // Initialize the sine table
@@ -152,8 +157,34 @@ bool pcm_amfm_is_full()
     return _pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE;
 }
 
-void pcm_init() 
+volatile bool _pcm_init_done = false;
+void pcm_init(uint8_t intensity) 
 {
+    if(!intensity)
+    {
+        _lo_amp_scaler = 0;
+        _lo_amp_miniumum = 0;
+        _hi_amp_scaler = 0;
+        _hi_amp_minimum = 0;
+        return;
+    }
+    
+    float scaler = (float) intensity / 255.0f;
+
+    scaler = powf(scaler, 2.0f);
+
+    float loscale = scaler / (1 - PCM_LO_FREQUENCY_MIN);
+    float hiscale = scaler / (1 - PCM_HI_FREQUENCY_MIN);
+
+    _lo_amp_scaler = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
+    _hi_amp_scaler = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
+
+    _lo_amp_miniumum = (uint32_t) (PCM_LO_FREQUENCY_MIN * PCM_AMPLITUDE_SHIFT_FIXED);
+    _hi_amp_minimum  = (uint32_t) (PCM_HI_FREQUENCY_MIN * PCM_AMPLITUDE_SHIFT_FIXED);
+
+    if(_pcm_init_done) return;
+    _pcm_init_done = true;
+
     _generate_sine_table();
     pcm_amfm_queue_init();
 }
@@ -215,10 +246,10 @@ void pcm_generate_buffer(
             }
         }
 
-        int16_t hi_amplitude_fixed = 0;
-        int16_t lo_amplitude_fixed = 0;
-        uint16_t hi_frequency_increment = 200;
-        uint16_t lo_frequency_increment = 200;
+        uint32_t hi_amplitude_fixed = 0;
+        uint32_t lo_amplitude_fixed = 0;
+        uint32_t hi_frequency_increment = 200;
+        uint32_t lo_frequency_increment = 200;
 
         hi_amplitude_fixed = current_values.hi_amplitude_fixed;
         lo_amplitude_fixed = current_values.lo_amplitude_fixed;
@@ -228,9 +259,30 @@ void pcm_generate_buffer(
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
 
-        // Using only positive half of sine wave
-        uint32_t scaled_hi = (sine_hi > 0) ? ((uint32_t)sine_hi * (uint32_t)hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
-        uint32_t scaled_lo = (sine_lo > 0) ? ((uint32_t)sine_lo * (uint32_t)lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE : 0;
+        uint32_t scaled_hi = 0;
+        uint32_t scaled_lo = 0;
+
+        if(hi_amplitude_fixed)
+        {
+            // Scale according to our global scaler
+            hi_amplitude_fixed = (hi_amplitude_fixed * _hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
+            hi_amplitude_fixed += _hi_amp_minimum;
+            if(sine_hi > 0)
+            {
+                scaled_hi = ((uint32_t) sine_hi * hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+            }
+        }
+
+        if(lo_amplitude_fixed)
+        {
+            // Scale according to our global scaler
+            lo_amplitude_fixed = (lo_amplitude_fixed * _lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
+            lo_amplitude_fixed += _lo_amp_miniumum;
+            if(sine_lo > 0)
+            {
+                scaled_lo = ((uint32_t) sine_lo * lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+            }
+        }
 
         uint32_t external_sample = 0;
 
@@ -262,7 +314,7 @@ void pcm_generate_buffer(
         // Mix the two channels
         uint32_t    mixed = (scaled_hi + scaled_lo);
 
-        #define RATIO_SHIFT (14)
+        #define RATIO_SHIFT (15)
         #define RATIO_MULT  (1 << RATIO_SHIFT)
         #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
