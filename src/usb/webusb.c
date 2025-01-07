@@ -88,6 +88,7 @@ void webusb_send_rawinput(uint32_t timestamp)
 
         analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
+        imu_access_try(&imu);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
@@ -111,13 +112,13 @@ void webusb_send_rawinput(uint32_t timestamp)
         webusb_input_report[12] = CLAMP_0_255(buttons.zl_analog >> 4);
         webusb_input_report[13] = CLAMP_0_255(buttons.zr_analog >> 4);
 
+        memcpy(&webusb_input_report[14], &imu.ax, 2);
+        memcpy(&webusb_input_report[16], &imu.ay, 2);
+        memcpy(&webusb_input_report[18], &imu.az, 2);
 
-        webusb_input_report[14] = CLAMP_0_255((uint8_t) ( ( (imu.ax*4)+32767)>>8));
-        webusb_input_report[15] = CLAMP_0_255((uint8_t) ( ( (imu.ay*4)+32767)>>8));
-        webusb_input_report[16] = CLAMP_0_255((uint8_t) ( ( (imu.az*4)+32767)>>8));
-        webusb_input_report[17] = CLAMP_0_255((uint8_t) ( ( (imu.gx*4)+32767)>>8));
-        webusb_input_report[18] = CLAMP_0_255((uint8_t) ( ( (imu.gy*4)+32767)>>8));
-        webusb_input_report[19] = CLAMP_0_255((uint8_t) ( ( (imu.gz*4)+32767)>>8));
+        memcpy(&webusb_input_report[20], &imu.gx, 2);
+        memcpy(&webusb_input_report[22], &imu.gy, 2);
+        memcpy(&webusb_input_report[24], &imu.gz, 2);
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);

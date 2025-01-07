@@ -1,4 +1,5 @@
 #include "input/imu.h"
+#include "hoja.h"
 
 #include "hal/mutex_hal.h"
 #include "hal/sys_hal.h"
@@ -20,8 +21,8 @@
 // Include all IMU drivers
 #include "drivers/imu/lsm6dsr.h"
 
-#define IMU_READ_RATE 1000 // 500KHz 
-#define IMU_CALIBRATE_CYCLES 16000
+#define IMU_POLLING_INTERVAL 1000 // 1KHz 
+#define IMU_CALIBRATE_CYCLES 4000
 
 // Raw IMU buffers for channel A and B
 imu_data_s _imu_buffer_a = {0};
@@ -224,13 +225,13 @@ int16_t _imu_average_value(int16_t first, int16_t second)
 void _imu_std_function(uint32_t timestamp)
 {
   // Apply offsets
-  _imu_buffer_a.gx += IMU_GYRO_OFFSET_X(0);
-  _imu_buffer_a.gy += IMU_GYRO_OFFSET_Y(0);
-  _imu_buffer_a.gz += IMU_GYRO_OFFSET_Z(0);
+  _imu_buffer_a.gx -= IMU_GYRO_OFFSET_X(0);
+  _imu_buffer_a.gy -= IMU_GYRO_OFFSET_Y(0);
+  _imu_buffer_a.gz -= IMU_GYRO_OFFSET_Z(0);
 
-  _imu_buffer_b.gx += IMU_GYRO_OFFSET_X(1);
-  _imu_buffer_b.gy += IMU_GYRO_OFFSET_Y(1);
-  _imu_buffer_b.gz += IMU_GYRO_OFFSET_Z(1);
+  _imu_buffer_b.gx -= IMU_GYRO_OFFSET_X(1);
+  _imu_buffer_b.gy -= IMU_GYRO_OFFSET_Y(1);
+  _imu_buffer_b.gz -= IMU_GYRO_OFFSET_Z(1);
 
   // If we received two buffers, average A and B
   if (_imu_buffer_b.retrieved && _imu_buffer_a.retrieved)
@@ -261,6 +262,7 @@ uint8_t _command = 0;
 
 void _imu_calibrate_stop()
 {
+  hoja_set_notification_status(COLOR_BLACK);
   _imu_process_task = _imu_std_function;
 
   if(_calibrate_done_cb != NULL)
@@ -270,8 +272,6 @@ void _imu_calibrate_stop()
 
   _calibrate_done_cb = NULL;
   _command = 0;
-  
-  _imu_exit();
 }
 
 int _imu_calibrate_cycles_remaining = 0;
@@ -305,10 +305,9 @@ void _imu_calibrate_function(uint32_t timestamp)
 
 void _imu_calibrate_start()
 {
-  _imu_blocking_enter();
+  hoja_set_notification_status(COLOR_YELLOW);
   _imu_calibrate_cycles_remaining = IMU_CALIBRATE_CYCLES;
   _imu_process_task = _imu_calibrate_function;
-  _imu_exit();
 }
 
 // IMU module command handler
@@ -333,7 +332,7 @@ void imu_task(uint32_t timestamp)
 {
   static interval_s interval = {0};
 
-  if (interval_run(timestamp, 1000, &interval))
+  if (interval_run(timestamp, IMU_POLLING_INTERVAL, &interval))
   {
     _imu_blocking_enter();
 
