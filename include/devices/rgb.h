@@ -13,13 +13,7 @@
 
 extern int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP];
 
-void rgb_set_player(uint8_t player);
-
 void rgb_deinit(callback_t cb);
-void rgb_flash(uint32_t color);
-void rgb_flash_multi(uint32_t *colors, uint8_t size);
-void rgb_indicate(uint32_t color);
-
 void rgb_init(int mode, int brightness);
 void rgb_task(uint32_t timestamp);
 

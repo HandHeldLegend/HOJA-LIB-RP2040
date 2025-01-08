@@ -42,6 +42,10 @@ static inline void _handle_button(
     uint8_t fade_idx,
     rgb_s *output )
 {
+    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
+    if(group_idx == HOJA_RGB_PLAYER_GROUP_IDX) return;
+    #endif
+
     // Control our fades
     if(button_state)
     {

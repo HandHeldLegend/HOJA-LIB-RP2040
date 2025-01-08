@@ -9,7 +9,7 @@
 #include "board_config.h"
 
 uint32_t _blink_blend = 0;
-bool     _blink_dir = true;
+bool     _blink_dir = false;
 rgb_s    _blink_color = {.color = 0x00};
 rgb_s    _blink_black = {.color = 0x00};
 #define PLAYER_BLINK_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
