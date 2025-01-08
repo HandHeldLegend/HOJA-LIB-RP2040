@@ -103,6 +103,11 @@ analog_data_s _snapback_analog_data = {0};  // Stage 2
 analog_data_s _deadzone_analog_data = {0};  // Stage 3
 int16_t       _center_offsets[4]    = {0};
 
+analog_data_s _safe_raw_analog_data      = {0};  // Stage 0
+analog_data_s _safe_scaled_analog_data   = {0};  // Stage 1
+analog_data_s _safe_snapback_analog_data = {0};  // Stage 2
+analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
+
 // Access analog input data safely
 void analog_access_blocking(analog_data_s *out, analog_access_t type)
 {
@@ -130,30 +135,25 @@ void analog_access_blocking(analog_data_s *out, analog_access_t type)
 
 bool analog_access_try(analog_data_s *out, analog_access_t type)
 {
-    if(_analog_try_enter())
+    switch(type)
     {
-        switch(type)
-        {
-            case ANALOG_ACCESS_RAW_DATA:
-            memcpy(out, &_raw_analog_data, sizeof(analog_data_s));
-            break; 
+        case ANALOG_ACCESS_RAW_DATA:
+        memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
+        break; 
 
-            case ANALOG_ACCESS_SCALED_DATA:
-            memcpy(out, &_scaled_analog_data, sizeof(analog_data_s));
-            break; 
+        case ANALOG_ACCESS_SCALED_DATA:
+        memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
+        break; 
 
-            case ANALOG_ACCESS_SNAPBACK_DATA:
-            memcpy(out, &_snapback_analog_data, sizeof(analog_data_s));
-            break;
+        case ANALOG_ACCESS_SNAPBACK_DATA:
+        memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
+        break;
 
-            case ANALOG_ACCESS_DEADZONE_DATA:
-            memcpy(out, &_deadzone_analog_data, sizeof(analog_data_s));
-            break;
-        }
-        _analog_exit();
-        return true;
+        case ANALOG_ACCESS_DEADZONE_DATA:
+        memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
+        break;
     }
-    return false;
+    return true;
 }
 
 void analog_init()
@@ -377,6 +377,12 @@ void analog_task(uint32_t timestamp)
         _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);
         _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);
         _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry);
+
+        // Copy to safe data
+        memcpy(&_safe_deadzone_analog_data, &_deadzone_analog_data, sizeof(analog_data_s));
+        memcpy(&_safe_raw_analog_data,      &_raw_analog_data,      sizeof(analog_data_s));
+        memcpy(&_safe_scaled_analog_data,   &_scaled_analog_data,   sizeof(analog_data_s));
+        memcpy(&_safe_snapback_analog_data, &_snapback_analog_data, sizeof(analog_data_s));
 
         _analog_exit();
     }

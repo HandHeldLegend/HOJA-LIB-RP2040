@@ -12,7 +12,7 @@
 #define PLAYER_NUM_CHANGE_STEP_FIXED RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 uint32_t _player_change_blend = RGB_FADE_FIXED_MULT;
 rgb_s _stored_color[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
-rgb_s _new_color[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
+rgb_s _new_color[HOJA_RGB_PLAYER_GROUP_SIZE]    = {0};
 
 const rgb_s _player_num_colors[] = {
     COLOR_RED,
@@ -28,7 +28,7 @@ const rgb_s _player_num_colors[] = {
 bool ply_idle_handler(rgb_s *output, int player_num)
 {
     #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
-    static int player_internal = 0;
+    static int player_internal = -1;
 
     if(player_internal != player_num)
     {
@@ -43,6 +43,7 @@ bool ply_idle_handler(rgb_s *output, int player_num)
         {
             case -1:
             case 0:
+                setup = 0;
             break;
             case 1: 
                 setup = 0b1;
@@ -82,7 +83,10 @@ bool ply_idle_handler(rgb_s *output, int player_num)
         for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
         {
             uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-            _new_color[i].color = output[group_idx].color;
+            if(player_num<=0)
+                _new_color[i].color = 0;
+            else
+                _new_color[i].color = output[group_idx].color;
         }
         #endif
     }
@@ -95,12 +99,15 @@ bool ply_idle_handler(rgb_s *output, int player_num)
             uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
             output[group_idx].color = new.color;
         }
+
         _player_change_blend+=PLAYER_NUM_CHANGE_STEP_FIXED;
+
         if(_player_change_blend >= RGB_FADE_FIXED_MULT)
         {
             _player_change_blend = RGB_FADE_FIXED_MULT;
             memcpy(_stored_color, _new_color, sizeof(rgb_s) * HOJA_RGB_PLAYER_GROUP_SIZE);
         }
+        return false;
     }
     else 
     {
@@ -110,7 +117,6 @@ bool ply_idle_handler(rgb_s *output, int player_num)
             output[group_idx].color = _stored_color[i].color;
         }
     }
-
 
     return true;
 

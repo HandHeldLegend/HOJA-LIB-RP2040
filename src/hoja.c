@@ -54,6 +54,8 @@ void hoja_deinit(callback_t cb)
   if(_hoja_mode_stop_cb)
     _hoja_mode_stop_cb();
 
+  hoja_set_player_number_status(-1);
+
   haptics_stop();
   
   #if defined(HOJA_RGB_DRIVER)
@@ -262,6 +264,11 @@ bool _system_requirements_init()
   // I2C 0
   #if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE==1)
   i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL);
+  #endif
+
+  // I2C 1
+  #if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE==1)
+  i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL);
   #endif
 
   // System settings

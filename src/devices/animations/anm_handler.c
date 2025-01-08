@@ -146,9 +146,6 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     }
 }
 
-// Set this flag to clear the override
-bool _force_clear_override = false;
-
 void _player_connection_manager(rgb_s *output) 
 {
     static bool allow_update = true;
@@ -160,7 +157,7 @@ void _player_connection_manager(rgb_s *output)
     }
     else if(status.connection_status < 0)
     {
-        #if defined(HOJA_RGB_PLAYER_GROUP_IDX) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
+        #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
         allow_update = ply_chase_handler(output, status.gamepad_color);
         #else 
         allow_update = ply_blink_handler(output, status.gamepad_color);
@@ -168,19 +165,19 @@ void _player_connection_manager(rgb_s *output)
     }
     else 
     {
-        if(status.player_number > 0)
+        if(status.player_number > -1)
         {
             allow_update = ply_idle_handler(output, status.player_number);
         }
         else 
         {
-            allow_update = ply_idle_handler(output, 0);
+            allow_update = ply_idle_handler(output, -1);
         }
     }
 
     if(allow_update)
     {
-        status          = hoja_get_status();
+        status = hoja_get_status();
     }
 }
 

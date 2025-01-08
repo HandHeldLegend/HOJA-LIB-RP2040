@@ -17,6 +17,16 @@
   #endif
 #endif
 
+#if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE==1)
+  #ifndef HOJA_I2C_1_GPIO_SDA
+    #error "HOJA_I2C_1_GPIO_SDA undefined in board_config.h" 
+  #endif
+
+  #ifndef HOJA_I2C_1_GPIO_SCL
+    #error "HOJA_I2C_1_GPIO_SCL undefined in board_config.h" 
+  #endif
+#endif
+
 i2c_inst_t* _i2c_instances[2] = {i2c0, i2c1}; // Numerical accessible array to spi hardware
 auto_init_mutex(_i2c_safe_mutex); // Mutex to allow thread-safe access to peripheral
 
