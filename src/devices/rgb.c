@@ -22,7 +22,7 @@ void rgb_deinit(callback_t cb)
     anm_handler_shutdown(cb);
 }
 
-const rgb_s _rainbow[] = COLORS_RAINBOW;
+const rgb_s _rainbow[] = COLORS_RAINBOW; 
 
 // Function to compute an exponential ramp
 float _exponentialRamp(float input) {

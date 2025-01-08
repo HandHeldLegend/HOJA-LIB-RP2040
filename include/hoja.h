@@ -1,6 +1,16 @@
 #ifndef HOJA_H
 #define HOJA_H
 
+#if __has_include("timestamp.h")
+    #include "timestamp.h"
+#endif
+
+#ifndef BUILD_TIMESTAMP
+    #define FIRMWARE_VERSION_TIMESTAMP 0x00000000
+#else 
+    #define FIRMWARE_VERSION_TIMESTAMP BUILD_TIMESTAMP
+#endif
+
 #define HOJA_SETTINGS_VERSION 0xA003
 
 #include <stdbool.h>
