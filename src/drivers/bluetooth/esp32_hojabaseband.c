@@ -27,6 +27,8 @@
     #include "drivers/bluetooth/esp32_hojabaseband.h"
 #endif
 
+#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
 
@@ -519,3 +521,5 @@ uint32_t esp32hoja_get_info()
     _esp32hoja_enable_chip(false);
     return ret_info;
 }
+
+#endif

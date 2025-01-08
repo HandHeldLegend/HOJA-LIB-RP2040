@@ -340,7 +340,7 @@ bool _calibrate_axis(int16_t *in, angle_setup_s *setup)
   // Return true if all distances are greater than minimum
   for(int i = 0; i < TOTAL_ANGLES; i++)
   {
-    if(setup->round_distances[i] < 650) return false;
+    if(setup->round_distances[i] < 400) return false;
   }
 
   return true;
@@ -637,10 +637,10 @@ void stick_scaling_default_check()
     analog_config->l_deadzone = 350;
     analog_config->r_deadzone = 350;
 
-    analog_config->lx_center = 0;
-    analog_config->ly_center = 0;
-    analog_config->rx_center = 0;
-    analog_config->ry_center = 0;
+    analog_config->lx_center = 2048;
+    analog_config->ly_center = 2048;
+    analog_config->rx_center = 2048;
+    analog_config->ry_center = 2048;
 
     analog_config->l_snapback_type = 0;
     analog_config->r_snapback_type = 0;

@@ -3,6 +3,8 @@
 #include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
 
+#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
+
 #define BQ25180_SLAVE_ADDRESS 0x6A
 
 #define BQ25180_REG_STATUS_0    0x0
@@ -283,3 +285,5 @@ bool bq25180_set_charge_rate(uint16_t rate_ma)
     // Should never reach here... 
     return false;
 }
+
+#endif 
