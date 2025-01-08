@@ -174,7 +174,7 @@ void rgb_init(int mode, int brightness)
     {
         rgb_config->rgb_config_version = CFG_BLOCK_RGB_VERSION;
 
-        rgb_config->rgb_brightness = 4000;
+        rgb_config->rgb_brightness = 3750;
         loaded_brightness = rgb_config->rgb_brightness;
 
         rgb_config->rgb_mode = 0;

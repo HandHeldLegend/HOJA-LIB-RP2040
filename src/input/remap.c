@@ -72,8 +72,12 @@ void remap_process(button_data_s *in, button_data_s *out)
   output |= REMAP_SET(in_copy.button_stick_left,  _remap_profile.button_stick_left);
   output |= REMAP_SET(in_copy.button_stick_right, _remap_profile.button_stick_right);
 
+  output |= REMAP_SET(in_copy.button_plus,  _remap_profile.button_plus);
+  output |= REMAP_SET(in_copy.button_minus, _remap_profile.button_minus);
+
   // Set all output (remappable buttons only) in a single operation
   in_copy.buttons_all = output;
+  in_copy.buttons_system = in->buttons_system;
 
   triggers_process_post(
     _ltrigger_processing_mode, 

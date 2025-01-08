@@ -16,6 +16,7 @@
 #define PCM_SINE_TABLE_SIZE 4096
 
 #if defined(BOARD_SAFE_PCM_MAX)
+    #warning "BOARD_SAFE_PCM_MAX USED"
     #define PCM_MAX_SAFE_VALUE BOARD_SAFE_PCM_MAX
 #else
     #define PCM_MAX_SAFE_VALUE 80 // 60 maybe felt closest to OEM?

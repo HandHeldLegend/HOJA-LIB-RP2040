@@ -202,8 +202,10 @@ void _esp32hoja_enable_chip(bool enabled)
         gpio_hal_init(BLUETOOTH_DRIVER_ENABLE_PIN, false, false);
         gpio_hal_write(BLUETOOTH_DRIVER_ENABLE_PIN, false);
     }
-    // Give time for the chip to boot
-    sys_hal_sleep_ms(1000);
+
+    if(enabled)
+        // Give time for the chip to boot
+        sys_hal_sleep_ms(1000);
 }
 
 void _esp32hoja_enable_uart(bool enabled)

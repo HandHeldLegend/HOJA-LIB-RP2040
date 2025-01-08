@@ -76,14 +76,12 @@ bool ply_idle_handler(rgb_s *output, int player_num)
     }
     #else
     // If we have a different number of LEDs in the player group
-    rgb_s new_color_plyr = _player_num_colors[player_internal];
-
-    for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
-    {
-        uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-        if(!(setup & (1 << i))) output[group_idx].color = 0;
-        else output[group_idx].color = new_color_plyr.color;
-    }
+    //rgb_s new_color_plyr = _player_num_colors[player_internal];
+    //for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    //{
+    //    uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+    //    output[group_idx].color = new_color_plyr.color;
+    //}
     #endif
 
 

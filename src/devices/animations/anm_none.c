@@ -47,7 +47,16 @@ bool anm_none_get_state(rgb_s *output)
     _unpack_groups_to_leds(output);
 }
 
+const uint32_t delayed = 24;
+uint32_t _delay = delayed;
 bool anm_none_handler(rgb_s* output)
 {
-    return true;
+    _delay--;
+    if(!_delay)
+    {
+        _unpack_groups_to_leds(output);
+        _delay = delayed;
+        return true;
+    }
+    return false;
 }

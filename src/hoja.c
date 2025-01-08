@@ -50,6 +50,10 @@ void hoja_deinit(callback_t cb)
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
 
+  // Stop current mode if we have a functions
+  if(_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
+
   haptics_stop();
   
   #if defined(HOJA_RGB_DRIVER)
@@ -63,10 +67,6 @@ void hoja_shutdown()
 {
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
-
-  // Stop current mode if we have a functions
-  if(_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
 
   battery_set_ship_mode();
   for(;;) {}
