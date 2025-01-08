@@ -25,8 +25,6 @@
 
 int32_t _target_intensity = 0;
 int32_t _current_intensity = 0;
-int32_t _highest_target_current = 0;
-bool _highest_target_set = false;
 
 // Step values
 static uint16_t     _frequency_min = 0;
@@ -64,13 +62,6 @@ bool _motor_sim_update(uint16_t *out_freq, uint16_t *out_amp) {
     // Clamp intensity to 0-AMPLITUDE_LUT_SIZE
     _current_intensity = (_current_intensity < _target_intensity) ? _target_intensity : _current_intensity;
     _current_intensity = (_current_intensity > _target_intensity) ? _target_intensity : _current_intensity;
-        
-    // Look up frequency and amplitude from tables
-    //freq    = (_frequency_step  * _current_intensity) + _frequency_min;
-    //amp     = _amplitude_step   * _current_intensity;
-    
-    //*out_freq   = freq;
-    //*out_amp    = amp;
 
     switch_haptics_get_basic(_current_intensity, _current_intensity>>2, out_amp, out_freq);
 
@@ -83,18 +74,6 @@ bool _erm_ready = false;
 void erm_simulator_init() 
 {
     return;
-    // Frequency step size 
-    float f_step = (MOTOR_MAX_FREQUENCY - MOTOR_MIN_FREQUENCY) / (FREQUENCY_LUT_SIZE - 1);
-    float f_min = MOTOR_MIN_FREQUENCY;
-
-    _frequency_step = (uint16_t)((f_step * PCM_SINE_TABLE_SIZE / PCM_SAMPLE_RATE) * 
-                               PCM_FREQUENCY_SHIFT_FIXED + 0.5f);
-    _frequency_min = (uint16_t)((f_min * PCM_SINE_TABLE_SIZE / PCM_SAMPLE_RATE) * 
-                               PCM_FREQUENCY_SHIFT_FIXED + 0.5f);
-
-    float a_step = (PCM_AMPLITUDE_SHIFT_FIXED) / (AMPLITUDE_LUT_SIZE - 1);
-    _amplitude_step = (uint16_t)(a_step + 0.5f);
-    _erm_ready = true;
 }
 
 void erm_simulator_task(uint32_t timestamp)

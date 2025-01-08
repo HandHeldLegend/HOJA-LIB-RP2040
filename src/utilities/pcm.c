@@ -318,7 +318,7 @@ void pcm_generate_buffer(
         #define RATIO_MULT  (1 << RATIO_SHIFT)
         #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
-        #define CLICK_MAX_SAFE_VALUE (90)
+        #define CLICK_MAX_SAFE_VALUE ( ((PCM_MAX_SAFE_VALUE+10) > 255)  ? 255 : (PCM_MAX_SAFE_VALUE+10))
         #define RATIO_CLICK_SHIFT (14)
         #define RATIO_CLICK_MULT  (1 << RATIO_SHIFT)
         #define RATIO_CLICK_FACTOR (RATIO_CLICK_MULT * CLICK_MAX_SAFE_VALUE)
