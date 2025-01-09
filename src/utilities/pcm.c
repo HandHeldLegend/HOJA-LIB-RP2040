@@ -289,7 +289,7 @@ void pcm_generate_buffer(
         // Mix in external sample if we have any remaining
         if(_external_sample_remaining)
         {
-            external_sample = _external_sample[_external_sample_size - _external_sample_remaining];
+            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining];
             _external_sample_remaining--;
         }
 
@@ -318,9 +318,9 @@ void pcm_generate_buffer(
         #define RATIO_MULT  (1 << RATIO_SHIFT)
         #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
-        #define CLICK_MAX_SAFE_VALUE ( ((PCM_MAX_SAFE_VALUE+10) > 255)  ? 255 : (PCM_MAX_SAFE_VALUE+10))
-        #define RATIO_CLICK_SHIFT (14)
-        #define RATIO_CLICK_MULT  (1 << RATIO_SHIFT)
+        #define CLICK_MAX_SAFE_VALUE ((uint32_t) ((PCM_MAX_SAFE_VALUE+10) > 255) ? 255 : (PCM_MAX_SAFE_VALUE+10) )
+        #define RATIO_CLICK_SHIFT (15)
+        #define RATIO_CLICK_MULT  (1 << RATIO_CLICK_SHIFT)
         #define RATIO_CLICK_FACTOR (RATIO_CLICK_MULT * CLICK_MAX_SAFE_VALUE)
 
         // Check if scaling is required
@@ -340,11 +340,11 @@ void pcm_generate_buffer(
         if ((mixed+external_sample) > CLICK_MAX_SAFE_VALUE)
         {
             // Compute the scaling factor as a fixed-point ratio
-            uint32_t new_ratio = RATIO_CLICK_FACTOR / mixed;
+            uint32_t new_ratio_2 = RATIO_CLICK_FACTOR / (mixed+external_sample);
 
             // Scale the components proportionally
-            mixed = (mixed * new_ratio) >> RATIO_CLICK_SHIFT;
-            external_sample = (external_sample * new_ratio) >> RATIO_CLICK_SHIFT;
+            mixed = (mixed * new_ratio_2) >> RATIO_CLICK_SHIFT;
+            external_sample = (external_sample * new_ratio_2) >> RATIO_CLICK_SHIFT;
 
             // Recalculate the mixed value (optional for verification)
             mixed = mixed + external_sample;

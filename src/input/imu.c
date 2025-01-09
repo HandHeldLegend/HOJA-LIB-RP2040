@@ -32,7 +32,7 @@ imu_data_s _imu_buffer_b = {0};
 imu_data_s _imu_buffer_avg = {0};
 
 // Processing task which we use to handle the newly read IMU data
-time_callback_t _imu_process_task = NULL;
+callback_t _imu_process_task = NULL;
 
 // Access IMU config union members macro
 #define CH_A_GYRO_OFFSET(axis)   (imu_config->imu_a_gyro_offsets[axis])
@@ -129,7 +129,7 @@ void _imu_read(imu_data_s *a, imu_data_s *b)
   #endif
 
   #ifdef HOJA_IMU_CHAN_B_READ
-    HOJA_IMU_CHAN_B_READ(b);
+    //HOJA_IMU_CHAN_B_READ(b);
   #endif
 }
 
@@ -195,8 +195,10 @@ void _imu_update_quaternion(imu_data_s *imu_data, uint32_t timestamp) {
 }
 
 // Add data to our FIFO
-void _imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp)
+void _imu_fifo_push(imu_data_s *imu_data)
 { 
+  static uint32_t timestamp = 0;
+
   int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
 
   _imu_fifo[_i].ax = imu_data->ax;
@@ -209,6 +211,9 @@ void _imu_fifo_push(imu_data_s *imu_data, uint32_t timestamp)
 
   _imu_fifo_idx = _i;
 
+  // Update timestamp since we blocked for unknown time
+  // We need accurate timings for our quaternion calculation/updates
+  timestamp = sys_hal_time_us();
   _imu_update_quaternion(imu_data, timestamp);
 }
 
@@ -222,13 +227,12 @@ int16_t _imu_average_value(int16_t first, int16_t second)
   return total;
 }
 
-void _imu_std_function(uint32_t timestamp)
+void _imu_std_function()
 {
   // Apply offsets
   _imu_buffer_a.gx -= IMU_GYRO_OFFSET_X(0);
   _imu_buffer_a.gy -= IMU_GYRO_OFFSET_Y(0);
   _imu_buffer_a.gz -= IMU_GYRO_OFFSET_Z(0);
-
   _imu_buffer_b.gx -= IMU_GYRO_OFFSET_X(1);
   _imu_buffer_b.gy -= IMU_GYRO_OFFSET_Y(1);
   _imu_buffer_b.gz -= IMU_GYRO_OFFSET_Z(1);
@@ -245,11 +249,11 @@ void _imu_std_function(uint32_t timestamp)
     _imu_buffer_avg.gy = _imu_average_value(_imu_buffer_a.gy, _imu_buffer_b.gy);
     _imu_buffer_avg.gz = _imu_average_value(_imu_buffer_a.gz, _imu_buffer_b.gz);
 
-    _imu_fifo_push(&_imu_buffer_avg, timestamp);
+    _imu_fifo_push(&_imu_buffer_avg);
   }
   else if (_imu_buffer_a.retrieved)
   {
-    _imu_fifo_push(&_imu_buffer_a, timestamp);
+    _imu_fifo_push(&_imu_buffer_a);
   }
 
   _imu_buffer_a.retrieved = false;
@@ -275,7 +279,7 @@ void _imu_calibrate_stop()
 }
 
 int _imu_calibrate_cycles_remaining = 0;
-void _imu_calibrate_function(uint32_t timestamp)
+void _imu_calibrate_function()
 {
   if(_imu_calibrate_cycles_remaining>0)
   {
@@ -346,17 +350,13 @@ void imu_task(uint32_t timestamp)
     }
     else
     {
-      // Update timestamp since we blocked for unknown time
-      // We need accurate timings for our quaternion calculation/updates
-      timestamp = sys_hal_time_us();
-
       // Read IMU data
       _imu_read(&_imu_buffer_a, &_imu_buffer_b);
     }
 
     // Jump into appropriate IMU task if it's defined
     if(_imu_process_task)
-      _imu_process_task(timestamp);
+      _imu_process_task();
     else
       _imu_process_task = _imu_std_function;
 

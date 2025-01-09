@@ -11,6 +11,7 @@ typedef struct{
     int16_t z;
 } vector_s;
 
+#pragma pack(push, 1)
 typedef struct {
     vector_s accel_0;
     uint32_t mode : 2;
@@ -33,6 +34,9 @@ typedef struct {
     uint16_t timestamp_start_h : 10;
     uint16_t timestamp_count : 6;
 } mode_2_s;
+#pragma pack(pop)
+
+#define MODE2_DATA_SIZE sizeof(mode_2_s)
 
 void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out);
 

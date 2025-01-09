@@ -58,8 +58,8 @@ int lsm6dsr_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_
     scaler *= SCALER_IMU;
     out->gz = APPLY_INVERSION((int16_t)scaler, gz_invert);
 
-    out->ax = APPLY_INVERSION(_imu_concat_16(i[6], i[7]), ax_invert);
-    out->ay = APPLY_INVERSION(_imu_concat_16(i[8], i[9]), ay_invert);
+    out->ax = APPLY_INVERSION(_imu_concat_16(i[6], i[7]),   ax_invert);
+    out->ay = APPLY_INVERSION(_imu_concat_16(i[8], i[9]),   ay_invert);
     out->az = APPLY_INVERSION(_imu_concat_16(i[10], i[11]), az_invert);
 
     out->retrieved = true;

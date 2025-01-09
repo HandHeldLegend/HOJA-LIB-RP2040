@@ -13,6 +13,8 @@
     #define MUTEX_HAL_ENTER_BLOCKING(mtx) mutex_enter_blocking(mtx)
 
     #define MUTEX_HAL_EXIT(mtx) mutex_exit(mtx)
+
+    #define MUTEX_HAL_ENTER_TRY(mtx, owner) mutex_try_enter(mtx, owner)
 #endif
 
 #endif

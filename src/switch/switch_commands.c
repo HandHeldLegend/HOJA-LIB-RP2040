@@ -64,20 +64,27 @@ void set_timer()
 {
   static uint32_t last_time = 0;
   uint32_t this_time = sys_hal_time_us();
+  uint32_t diff;
 
-  double diff = (double) abs((int) this_time - (int) last_time);
+  // Handle wrap-around correctly
+  if (this_time < last_time) {
+    diff = (0xFFFFFFFF - last_time) + this_time;
+  } else {
+    diff = this_time - last_time;
+  }
+  
   last_time = this_time;
-  // Calculate time from us to ms
-  diff /= 1000;
-  uint32_t u32diff = (uint32_t) diff;
+  
+  // Convert us to ms
+  uint32_t ms_diff = diff / 1000;
 
-  static int16_t _switch_timer = 0;
+  static uint32_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
-  // //printf("Td=%d \n", _switch_timer);
-  _switch_timer += u32diff;
+  
+  _switch_timer += ms_diff;
   if (_switch_timer > 0xFF)
   {
-    _switch_timer -= 0xFF;
+    _switch_timer %= 0xFF;  // or -= 0xFF depending on requirements
   }
 }
 

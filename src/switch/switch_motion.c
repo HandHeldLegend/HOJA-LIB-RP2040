@@ -62,6 +62,7 @@ void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
   time = sys_hal_time_us();
   uint32_t delta = 0;
   uint32_t whole = 0;
+
   // Increment only by changed time
   if (time < last_time)
   {

@@ -61,12 +61,13 @@ void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void)
     }
 }
 
+uint32_t _time_owner = 0;
 MUTEX_HAL_INIT(_sys_hal_time_mutex);
 uint32_t sys_hal_time_us()
 {
     static uint32_t time;
 
-    if(MUTEX_HAL_ENTER_TIMEOUT_US(&_sys_hal_time_mutex, 10))
+    if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
     {
         time = time_us_32();
         MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
