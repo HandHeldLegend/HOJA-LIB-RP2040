@@ -11,8 +11,8 @@
 
 #define PLAYER_NUM_CHANGE_STEP_FIXED RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 uint32_t _player_change_blend = RGB_FADE_FIXED_MULT;
-rgb_s _stored_color[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
-rgb_s _new_color[HOJA_RGB_PLAYER_GROUP_SIZE]    = {0};
+
+bool _off_flags[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
 
 const rgb_s _player_num_colors[] = {
     COLOR_RED,
@@ -33,7 +33,6 @@ bool ply_idle_handler(rgb_s *output, int player_num)
     if(player_internal != player_num)
     {
         player_internal = player_num;
-        _player_change_blend = 0;
 
         #if (HOJA_RGB_PLAYER_GROUP_SIZE == 4)
         // If we have 4 LEDs in the player group,
@@ -73,50 +72,30 @@ bool ply_idle_handler(rgb_s *output, int player_num)
 
         for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
         {
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
             if(!(setup & (1 << i))) 
-                _new_color[i].color = 0;
+                _off_flags[i] = true;
             else 
-                _new_color[i].color = output[group_idx].color;
+                _off_flags[i] = false;
         }
         #else
         for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
         {
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-            if(player_num<=0)
-                _new_color[i].color = 0;
-            else
-                _new_color[i].color = output[group_idx].color;
+            if(player_num > 0)
+                _off_flags[i] = false;
+            else 
+                _off_flags[i] = true;
         }
         #endif
     }
 
-    if(_player_change_blend < RGB_FADE_FIXED_MULT)
+    for(uint8_t i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
-        for(uint8_t i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
-        {
-            rgb_s new = {.color = anm_utility_blend(&_stored_color[i], &_new_color[i], _player_change_blend)};
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-            output[group_idx].color = new.color;
-        }
-
-        _player_change_blend+=PLAYER_NUM_CHANGE_STEP_FIXED;
-
-        if(_player_change_blend >= RGB_FADE_FIXED_MULT)
-        {
-            _player_change_blend = RGB_FADE_FIXED_MULT;
-            memcpy(_stored_color, _new_color, sizeof(rgb_s) * HOJA_RGB_PLAYER_GROUP_SIZE);
-        }
-        return false;
+        uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+        if(_off_flags[i])
+            output[group_idx].color = 0;
     }
-    else 
-    {
-        for(uint8_t i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
-        {
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-            output[group_idx].color = _stored_color[i].color;
-        }
-    }
+
+    // Otherwise we do nothing (passthrough)
 
     return true;
 

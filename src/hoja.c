@@ -54,8 +54,6 @@ void hoja_deinit(callback_t cb)
   if(_hoja_mode_stop_cb)
     _hoja_mode_stop_cb();
 
-  hoja_set_player_number_status(-1);
-
   haptics_stop();
   
   #if defined(HOJA_RGB_DRIVER)

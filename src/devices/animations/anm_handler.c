@@ -70,6 +70,7 @@ rgb_s    _fade_end[RGB_DRIVER_LED_COUNT]     = {0};
 rgb_s    _current_ani_leds[RGB_DRIVER_LED_COUNT] = {0};
 rgb_s    _adjusted_ani_leds[RGB_DRIVER_LED_COUNT] = {0};
 
+
 uint16_t _anim_brightness = 0;
 int _current_mode = -1;
 
