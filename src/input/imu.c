@@ -82,14 +82,11 @@ imu_data_s* _imu_fifo_last()
 // Optional access IMU data (If available)
 bool imu_access_try(imu_data_s *out)
 {
-  if(_imu_try_enter())
-  {
-    imu_data_s* tmp = _imu_fifo_last();
-    memcpy(out, tmp, sizeof(imu_data_s));
-    _imu_exit();
-    return true;
-  }
-  return false;
+
+  imu_data_s* tmp = _imu_fifo_last();
+  memcpy(out, tmp, sizeof(imu_data_s));
+  _imu_exit();
+  return true;
 }
 
 // Access IMU data and block for it
@@ -104,13 +101,8 @@ void imu_access_block(imu_data_s *out)
 // Optional access Quaternion data (If available)
 bool imu_quaternion_access_try(quaternion_s *out)
 {
-  if(_imu_try_enter())
-  {
-    memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
-    _imu_exit();
-    return true;
-  }
-  return false;
+  memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
+  return true;
 }
 
 // Access Quaternion data and block for it
