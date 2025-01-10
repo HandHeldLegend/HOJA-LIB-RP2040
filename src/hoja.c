@@ -14,6 +14,7 @@
 #include "utilities/callback.h"
 #include "utilities/settings.h"
 #include "utilities/boot.h"
+#include "utilities/hooks.h"
 
 #include "input/button.h"
 #include "input/analog.h"
@@ -184,6 +185,9 @@ void _hoja_task_0()
 
   // Update sys tick
   sys_hal_tick();
+
+  // Hooks tasks
+  hooks_run_all_core0();
 }
 
 // Core 1 task loop entrypoint
@@ -206,6 +210,9 @@ void _hoja_task_1()
 
     // Flash task
     flash_hal_task();
+
+    // Hooks tasks
+    hooks_run_all_core1();
   }
 }
 

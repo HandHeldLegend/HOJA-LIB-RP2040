@@ -12,7 +12,9 @@
 #define PLAYER_NUM_CHANGE_STEP_FIXED RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 uint32_t _player_change_blend = RGB_FADE_FIXED_MULT;
 
+#if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE>0)
 bool _off_flags[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
+#endif
 
 const rgb_s _player_num_colors[] = {
     COLOR_RED,
@@ -27,7 +29,7 @@ const rgb_s _player_num_colors[] = {
 
 bool ply_idle_handler(rgb_s *output, int player_num)
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
+    #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE>0)
     static int player_internal = -1;
 
     if(player_internal != player_num)

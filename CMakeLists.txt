@@ -44,7 +44,8 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/static_config.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
