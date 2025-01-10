@@ -58,10 +58,15 @@ typedef struct
         };
         uint8_t buttons_system;
     };
-
-    int16_t zl_analog;
-    int16_t zr_analog;
 } button_data_s;
+
+typedef struct 
+{
+    uint16_t left_analog;
+    uint16_t right_analog;
+    bool left_hairpin;
+    bool right_hairpin;
+} trigger_data_s;
 
 // Analog input data structure
 typedef struct

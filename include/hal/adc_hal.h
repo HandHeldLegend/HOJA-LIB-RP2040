@@ -7,8 +7,6 @@
 #include "board_config.h"
 
 #if defined(HOJA_ADC_LX_DRIVER) && (HOJA_ADC_LX_DRIVER==ADC_DRIVER_HAL)
-    #define LX_EN 1
-
     #ifndef HOJA_ADC_LX_CHANNEL
         #error "Define HOJA_ADC_LX_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -27,12 +25,9 @@
 
     #define HOJA_ADC_CHAN_LX_READ() adc_hal_read(HOJA_ADC_LX_CHANNEL, HOJA_ADC_LX_INVERT)
     #define HOJA_ADC_CHAN_LX_INIT() adc_hal_init(HOJA_ADC_LX_CHANNEL, HOJA_ADC_LX_PIN)
-#else 
-    #define LX_EN 0
 #endif
 
 #if defined(HOJA_ADC_LY_DRIVER) && (HOJA_ADC_LY_DRIVER==ADC_DRIVER_HAL)
-    #define LY_EN 1
     #ifndef HOJA_ADC_LY_CHANNEL
         #error "Define HOJA_ADC_LY_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -51,12 +46,9 @@
 
     #define HOJA_ADC_CHAN_LY_READ() adc_hal_read(HOJA_ADC_LY_CHANNEL, HOJA_ADC_LY_INVERT)
     #define HOJA_ADC_CHAN_LY_INIT() adc_hal_init(HOJA_ADC_LY_CHANNEL, HOJA_ADC_LY_PIN)
-#else 
-    #define LY_EN 0
 #endif
 
 #if defined(HOJA_ADC_RX_DRIVER) && (HOJA_ADC_RX_DRIVER==ADC_DRIVER_HAL)
-    #define RX_EN 1
     #ifndef HOJA_ADC_RX_CHANNEL
         #error "Define HOJA_ADC_RX_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -75,12 +67,9 @@
 
     #define HOJA_ADC_CHAN_RX_READ() adc_hal_read(HOJA_ADC_RX_CHANNEL, HOJA_ADC_RX_INVERT)
     #define HOJA_ADC_CHAN_RX_INIT() adc_hal_init(HOJA_ADC_RX_CHANNEL, HOJA_ADC_RX_PIN)
-#else 
-    #define RX_EN 0
 #endif
 
 #if defined(HOJA_ADC_RY_DRIVER) && (HOJA_ADC_RY_DRIVER==ADC_DRIVER_HAL)
-    #define RY_EN 1
     #ifndef HOJA_ADC_RY_CHANNEL
         #error "Define HOJA_ADC_RY_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -99,12 +88,9 @@
 
     #define HOJA_ADC_CHAN_RY_READ() adc_hal_read(HOJA_ADC_RY_CHANNEL, HOJA_ADC_RY_INVERT)
     #define HOJA_ADC_CHAN_RY_INIT() adc_hal_init(HOJA_ADC_RY_CHANNEL, HOJA_ADC_RY_PIN)
-#else 
-    #define RY_EN 0
 #endif
 
 #if defined(HOJA_ADC_LT_DRIVER) && (HOJA_ADC_LT_DRIVER==ADC_DRIVER_HAL)
-    #define LT_EN 1
     #ifndef HOJA_ADC_LT_CHANNEL
         #error "Define HOJA_ADC_LT_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -127,12 +113,9 @@
 
     #define HOJA_ADC_CHAN_LT_READ() adc_hal_read(HOJA_ADC_LT_CHANNEL, HOJA_ADC_LT_INVERT)
     #define HOJA_ADC_CHAN_LT_INIT() adc_hal_init(HOJA_ADC_LT_CHANNEL, HOJA_ADC_LT_PIN)
-#else 
-    #define LT_EN 0
 #endif
 
 #if defined(HOJA_ADC_RT_DRIVER) && (HOJA_ADC_RT_DRIVER==ADC_DRIVER_HAL)
-    #define RT_EN 1
     #ifndef HOJA_ADC_RT_CHANNEL
         #error "Define HOJA_ADC_RT_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -151,12 +134,9 @@
 
     #define HOJA_ADC_CHAN_RT_READ() adc_hal_read(HOJA_ADC_RT_CHANNEL, HOJA_ADC_RT_INVERT)
     #define HOJA_ADC_CHAN_RT_INIT() adc_hal_init(HOJA_ADC_RT_CHANNEL, HOJA_ADC_RT_PIN)
-#else 
-    #define RT_EN 0
 #endif
 
 #if defined(HOJA_ADC_BATTERY_DRIVER) && (HOJA_ADC_BATTERY_DRIVER==ADC_DRIVER_HAL)
-    #define BAT_EN 1
     #ifndef HOJA_ADC_BATTERY_CHANNEL
         #error "Define HOJA_ADC_BATTERY_CHANNEL number for HAL in board_config.h" 
     #endif
@@ -181,7 +161,7 @@
     
 #define HOJA_RP2040_ADC_COUNT (LX_EN + LY_EN + RX_EN + RY_EN + LT_EN + RT_EN + BAT_EN)
 
-uint16_t    adc_hal_read(uint8_t gpio, bool invert);
+uint16_t    adc_hal_read(uint8_t channel, bool invert);
 bool        adc_hal_init(uint8_t channel, uint32_t gpio);
 
 #endif

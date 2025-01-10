@@ -405,8 +405,8 @@ void ds4_hid_report(uint32_t timestamp)
     data.button_l2 = button_data.trigger_zl;
     data.button_r2 = button_data.trigger_zr;
 
-    data.trigger_l2 = button_data.zl_analog>>4;
-    data.trigger_r2 = button_data.zr_analog>>4;
+    //data.trigger_l2 = button_data.zl_analog>>4;
+    //data.trigger_r2 = button_data.zr_analog>>4;
 
     data.button_share = button_data.button_capture;
     data.button_options = button_data.button_plus;

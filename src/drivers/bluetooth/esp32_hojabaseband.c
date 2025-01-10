@@ -16,6 +16,7 @@
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
+#include "input/trigger.h"
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
@@ -411,6 +412,7 @@ void esp32hoja_task(uint32_t timestamp)
 {
     static interval_s       interval    = {0};
     static i2cinput_input_s input_data  = {0};
+    
     static bool read_write = true;
 
     if(interval_run(timestamp, 1000, &interval))
@@ -423,8 +425,11 @@ void esp32hoja_task(uint32_t timestamp)
             static button_data_s   buttons = {0};
             static analog_data_s   analog  = {0};
             static imu_data_s      imu_tmp    = {0};
+            static trigger_data_s  triggers = {0};
+
             button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
             analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+            trigger_access_try(&triggers, TRIGGER_ACCESS_RAW_DATA);
         
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
@@ -438,8 +443,8 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.rx = (uint16_t) (analog.rx+2048);
             input_data.ry = (uint16_t) (analog.ry+2048);
 
-            input_data.lt = (uint16_t) buttons.zl_analog;
-            input_data.rt = (uint16_t) buttons.zr_analog;
+            input_data.lt = (uint16_t) triggers.left_analog;
+            input_data.rt = (uint16_t) triggers.right_analog;
 
             imu_access_try(&imu_tmp);
 

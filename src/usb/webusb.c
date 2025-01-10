@@ -8,6 +8,7 @@
 #include "input/analog.h"
 #include "input/button.h"
 #include "input/imu.h"
+#include "input/trigger.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -67,6 +68,7 @@ void webusb_send_rawinput(uint32_t timestamp)
     static interval_s interval_ready = {0};
     static interval_s interval = {0};
     static button_data_s buttons = {0};
+    static trigger_data_s triggers = {0};
     static analog_data_s analog = {0};
     static imu_data_s imu = {0};
 
@@ -88,6 +90,7 @@ void webusb_send_rawinput(uint32_t timestamp)
 
         analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
+        trigger_access_try(&triggers, TRIGGER_ACCESS_RAW_DATA);
         imu_access_try(&imu);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
@@ -109,8 +112,8 @@ void webusb_send_rawinput(uint32_t timestamp)
         webusb_input_report[9] = (buttons.buttons_all >> 8) & 0xFF;
         webusb_input_report[10] = buttons.buttons_all & 0xFF;
         webusb_input_report[11] = buttons.buttons_system;
-        webusb_input_report[12] = CLAMP_0_255(buttons.zl_analog >> 4);
-        webusb_input_report[13] = CLAMP_0_255(buttons.zr_analog >> 4);
+        webusb_input_report[12] = CLAMP_0_255(triggers.left_analog  >> 4);
+        webusb_input_report[13] = CLAMP_0_255(triggers.right_analog >> 4);
 
         memcpy(&webusb_input_report[14], &imu.ax, 2);
         memcpy(&webusb_input_report[16], &imu.ay, 2);

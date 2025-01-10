@@ -50,6 +50,8 @@ typedef struct
 	uint8_t reserved_1[6];
 } xid_input_s;
 
+#define XINPUT_INPUT_SIZE sizeof(xid_input_s)
+
 void xinput_hid_report(uint32_t timestamp);
 
 #endif

@@ -1,6 +1,6 @@
 #include "input/remap.h"
 #include "input/button.h"
-#include "input/triggers.h"
+#include "input/trigger.h"
 #include "hoja_shared_types.h"
 #include "utilities/settings.h"
 #include "hoja.h"
@@ -45,11 +45,11 @@ void remap_process(button_data_s *in, button_data_s *out)
   memcpy(&in_copy, in, sizeof(button_data_s));
 
   // Pre-process triggers
-  triggers_process_pre(
-    _ltrigger_processing_mode, 
-    _rtrigger_processing_mode,
-    &in_copy
-    );
+  //trigger_process_pre(
+  //  _ltrigger_processing_mode, 
+  //  _rtrigger_processing_mode,
+  //  &in_copy
+  //  );
 
   uint16_t output = 0;
 
@@ -79,11 +79,11 @@ void remap_process(button_data_s *in, button_data_s *out)
   in_copy.buttons_all = output;
   in_copy.buttons_system = in->buttons_system;
 
-  triggers_process_post(
-    _ltrigger_processing_mode, 
-    _rtrigger_processing_mode,
-    &in_copy
-    );
+  //trigger_process_post(
+  //  _ltrigger_processing_mode, 
+  //  _rtrigger_processing_mode,
+  //  &in_copy
+  //  );
 
   // Copy to output
   memcpy(out, &in_copy, sizeof(button_data_s));
@@ -133,9 +133,9 @@ void _remap_load_remap()
   // Does our ZL mapping match ZL?
   if(_remap_profile.trigger_zl == MAPCODE_T_ZL)
     _ltrigger_processing_mode = 0;
-  else _rtrigger_processing_mode = 1;
+  else _ltrigger_processing_mode = 1;
   
-  if(_remap_profile.trigger_zl == MAPCODE_T_ZR)
+  if(_remap_profile.trigger_zr == MAPCODE_T_ZR)
     _rtrigger_processing_mode = 0;
   else _rtrigger_processing_mode = 1;
 

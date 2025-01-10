@@ -19,7 +19,7 @@
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
-#include "input/triggers.h"
+#include "input/trigger.h"
 #include "input/macros.h"
 
 #include "devices/battery.h"
@@ -161,6 +161,9 @@ void _hoja_task_0()
 
   // Read/process buttons/analog triggers
   button_task(c0_timestamp);
+
+  // Trigger task
+  trigger_task(c0_timestamp);
 
   // Process any macros
   macros_task(c0_timestamp);
@@ -304,7 +307,7 @@ bool _system_input_init()
   analog_init();
 
   // Analog triggers
-  triggers_init();
+  trigger_init();
 
   // IMU motion
   imu_init();

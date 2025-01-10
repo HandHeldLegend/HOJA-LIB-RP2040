@@ -1,5 +1,6 @@
 #include "input/button.h"
 #include "input/remap.h"
+#include "input/trigger.h"
 
 #include <string.h>
 
@@ -116,6 +117,7 @@ void button_task(uint32_t timestamp)
     if(interval_run(timestamp, BUTTON_READ_RATE_US, &interval))
     {
         _button_blocking_enter();
+
         // Read raw buttons
         cb_hoja_read_buttons(&_raw_button_data);
 
