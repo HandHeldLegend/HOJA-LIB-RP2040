@@ -82,10 +82,8 @@ imu_data_s* _imu_fifo_last()
 // Optional access IMU data (If available)
 bool imu_access_try(imu_data_s *out)
 {
-
   imu_data_s* tmp = _imu_fifo_last();
   memcpy(out, tmp, sizeof(imu_data_s));
-  _imu_exit();
   return true;
 }
 
@@ -121,7 +119,7 @@ void _imu_read(imu_data_s *a, imu_data_s *b)
   #endif
 
   #ifdef HOJA_IMU_CHAN_B_READ
-    //HOJA_IMU_CHAN_B_READ(b);
+    HOJA_IMU_CHAN_B_READ(b);
   #endif
 }
 
