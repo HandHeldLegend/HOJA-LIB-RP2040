@@ -78,6 +78,7 @@ float getAverage(RollingAverage* ra) {
 #define STICK_INTERNAL_CENTER 2048
 
 MUTEX_HAL_INIT(_analog_mutex);
+uint32_t _analog_mutex_owner = 0;
 void _analog_blocking_enter()
 {
     MUTEX_HAL_ENTER_BLOCKING(&_analog_mutex);
@@ -85,7 +86,7 @@ void _analog_blocking_enter()
 
 bool _analog_try_enter()
 {
-    if(MUTEX_HAL_ENTER_TIMEOUT_US(&_analog_mutex, 10))
+    if(MUTEX_HAL_ENTER_TRY(&_analog_mutex, &_analog_mutex_owner))
     {
         return true;
     }
@@ -109,51 +110,30 @@ analog_data_s _safe_snapback_analog_data = {0};  // Stage 2
 analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
 
 // Access analog input data safely
-void analog_access_blocking(analog_data_s *out, analog_access_t type)
+void analog_access_safe(analog_data_s *out, analog_access_t type)
 {
-    _analog_blocking_enter();
-    switch(type)
+    if(_analog_try_enter())
     {
-        case ANALOG_ACCESS_RAW_DATA:
-        memcpy(out, &_raw_analog_data, sizeof(analog_data_s));
-        break; 
+        switch(type)
+        {
+            case ANALOG_ACCESS_RAW_DATA:
+            memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
+            break; 
 
-        case ANALOG_ACCESS_SCALED_DATA:
-        memcpy(out, &_scaled_analog_data, sizeof(analog_data_s));
-        break; 
+            case ANALOG_ACCESS_SCALED_DATA:
+            memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
+            break; 
 
-        case ANALOG_ACCESS_SNAPBACK_DATA:
-        memcpy(out, &_snapback_analog_data, sizeof(analog_data_s));
-        break;
+            case ANALOG_ACCESS_SNAPBACK_DATA:
+            memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
+            break;
 
-        case ANALOG_ACCESS_DEADZONE_DATA:
-        memcpy(out, &_deadzone_analog_data, sizeof(analog_data_s));
-        break;
+            case ANALOG_ACCESS_DEADZONE_DATA:
+            memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
+            break;
+        }
+        _analog_exit();
     }
-    _analog_exit();
-}
-
-bool analog_access_try(analog_data_s *out, analog_access_t type)
-{
-    switch(type)
-    {
-        case ANALOG_ACCESS_RAW_DATA:
-        memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
-        break; 
-
-        case ANALOG_ACCESS_SCALED_DATA:
-        memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
-        break; 
-
-        case ANALOG_ACCESS_SNAPBACK_DATA:
-        memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
-        break;
-
-        case ANALOG_ACCESS_DEADZONE_DATA:
-        memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
-        break;
-    }
-    return true;
 }
 
 void analog_init()
@@ -172,14 +152,6 @@ void analog_init()
 
     #if defined(HOJA_ADC_CHAN_RY_INIT)
         HOJA_ADC_CHAN_RY_INIT();
-    #endif
-
-    #if defined(HOJA_ADC_CHAN_LT_INIT)
-        HOJA_ADC_CHAN_LT_INIT();
-    #endif
-
-    #if defined(HOJA_ADC_CHAN_RT_INIT)
-        HOJA_ADC_CHAN_RT_INIT();
     #endif
 
     switch_analog_calibration_init();
@@ -349,8 +321,6 @@ void analog_task(uint32_t timestamp)
 
     if (interval_run(timestamp, ANALOG_POLL_INTERVAL, &interval))
     {
-        _analog_blocking_enter();
-
         // Read raw analog sticks
         _analog_read_raw();
 
@@ -378,12 +348,14 @@ void analog_task(uint32_t timestamp)
         _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);
         _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry);
 
-        // Copy to safe data
-        memcpy(&_safe_deadzone_analog_data, &_deadzone_analog_data, sizeof(analog_data_s));
-        memcpy(&_safe_raw_analog_data,      &_raw_analog_data,      sizeof(analog_data_s));
-        memcpy(&_safe_scaled_analog_data,   &_scaled_analog_data,   sizeof(analog_data_s));
-        memcpy(&_safe_snapback_analog_data, &_snapback_analog_data, sizeof(analog_data_s));
-
-        _analog_exit();
+        if(_analog_try_enter())
+        {
+            // Copy to safe data
+            memcpy(&_safe_deadzone_analog_data, &_deadzone_analog_data, sizeof(analog_data_s));
+            memcpy(&_safe_raw_analog_data,      &_raw_analog_data,      sizeof(analog_data_s));
+            memcpy(&_safe_scaled_analog_data,   &_scaled_analog_data,   sizeof(analog_data_s));
+            memcpy(&_safe_snapback_analog_data, &_snapback_analog_data, sizeof(analog_data_s));
+            _analog_exit();
+        } 
     }
 }

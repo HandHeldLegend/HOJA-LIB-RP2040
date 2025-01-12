@@ -6,8 +6,13 @@
 #include "utilities/settings.h"
 #include "utilities/interval.h"
 
+#include "hal/mutex_hal.h"
+
 #include "hal/adc_hal.h"
 #include "drivers/adc/mcp3002.h"
+
+trigger_data_s  _safe_raw_triggers       = {0};
+trigger_data_s  _safe_scaled_triggers    = {0};
 
 trigger_data_s  _raw_triggers       = {0};
 trigger_data_s  _scaled_triggers    = {0};
@@ -20,22 +25,69 @@ bool _trigger_calibration = false;
 
 #define MAX_ANALOG_OUT 4095
 
-// Access button data with fallback
-bool trigger_access_try(trigger_data_s *out, trigger_access_t type)
-{
+MUTEX_HAL_INIT(_trigger_mutex);
+uint32_t _trigger_mutex_owner = 0;
 
-    switch(type)
+bool _trigger_try_enter()
+{
+    if(MUTEX_HAL_ENTER_TRY(&_trigger_mutex, &_trigger_mutex_owner))
     {
-        case TRIGGER_ACCESS_RAW_DATA:
-        memcpy(out, &_raw_triggers, sizeof(trigger_data_s));
+        return true;
+    }
+    return false;
+}
+
+void _trigger_exit()
+{
+    MUTEX_HAL_EXIT(&_trigger_mutex);
+}
+
+void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
+{
+    switch(trigger_config->trigger_mode_gamecube)
+    {
+        default:
+        case GC_SP_MODE_NONE:
         break;
 
-        case TRIGGER_ACCESS_SCALED_DATA:
-        memcpy(out, &_scaled_triggers, sizeof(trigger_data_s));
+        case GC_SP_MODE_LT:
+            t_state->left_analog = 0;
+
+            t_state->left_analog |= (b_state->trigger_l) ? (trigger_config->left_static_output_value) : 0;
+            t_state->left_analog |= (b_state->trigger_zl) ? 255 : 0;
+        break;
+
+        case GC_SP_MODE_RT:
+            t_state->right_analog = 0;
+
+            t_state->right_analog |= (b_state->trigger_l) ? (trigger_config->right_static_output_value) : 0;
+            t_state->right_analog |= (b_state->trigger_zr) ? 255 : 0;
+        break;
+
+        case GC_SP_MODE_DUALZ:
+            if(b_state->trigger_l)
+                b_state->trigger_r |= 1;
         break;
     }
-    return true;
+}
 
+// Access button data with fallback
+void trigger_access_safe(trigger_data_s *out, trigger_access_t type)
+{
+    if(_trigger_try_enter())
+    {
+        switch(type)
+        {
+            case TRIGGER_ACCESS_RAW_DATA:
+            memcpy(out, &_safe_raw_triggers, sizeof(trigger_data_s));
+            break;
+
+            case TRIGGER_ACCESS_SCALED_DATA:
+            memcpy(out, &_safe_scaled_triggers, sizeof(trigger_data_s));
+            break;
+        }
+        _trigger_exit();
+    }
 }
 
 void trigger_task(uint32_t timestamp)
@@ -46,12 +98,22 @@ void trigger_task(uint32_t timestamp)
     {
         #if defined(HOJA_ADC_CHAN_RT_READ)
             _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
+            _scaled_triggers.right_analog = _raw_triggers.right_analog;
         #endif
 
         #if defined(HOJA_ADC_CHAN_LT_READ)
             _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
+            _scaled_triggers.left_analog = _raw_triggers.left_analog;
         #endif
     }
+
+    if(_trigger_try_enter())
+    {
+        memcpy(&_safe_raw_triggers, &_raw_triggers, sizeof(trigger_data_s));
+        memcpy(&_safe_scaled_triggers, &_scaled_triggers, sizeof(trigger_data_s));
+        _trigger_exit();
+    }
+
     #endif
 }
 
@@ -97,16 +159,6 @@ void trigger_config_cmd(trigger_cmd_t cmd, command_confirm_t cb)
 
 bool trigger_init()
 {
-    #if defined(HOJA_ADC_CHAN_RT_INIT)
-        HOJA_ADC_CHAN_RT_INIT();
-    #endif 
-
-    #if defined(HOJA_AD_CHAN_LT_INIT)
-        HOJA_AD_CHAN_LT_INIT();
-    #endif
-
-    return true;
-
     _lt_deadzone = trigger_config->left_min + trigger_config->left_deadzone;
     _lt_scaler = _trigger_calculate_scaler(_lt_deadzone,
         trigger_config->left_max, MAX_ANALOG_OUT);
@@ -114,225 +166,13 @@ bool trigger_init()
     _rt_deadzone = trigger_config->right_min + trigger_config->right_deadzone;
     _rt_scaler = _trigger_calculate_scaler(_rt_deadzone,
         trigger_config->right_max, MAX_ANALOG_OUT);
+
+    #if defined(HOJA_ADC_CHAN_RT_INIT)
+        HOJA_ADC_CHAN_RT_INIT();
+    #endif 
+
+    #if defined(HOJA_AD_CHAN_LT_INIT)
+        HOJA_AD_CHAN_LT_INIT();
+    #endif
 }
 
-/*
-For Gamecube specific trigger modes
-the L trigger (L1, LB) is used for our special function 
-*/
-
-// Everything is default
-void _gc_mode_0()
-{
-    // UNUSED :)
-}
-
-// Left trigger function is split
-void _gc_mode_1(button_data_s *safe)
-{
-    /*
-    // Use ZL digital as our override
-    if(safe->trigger_zl)
-    {
-        safe->zl_analog = MAX_ANALOG_OUT;
-        return;
-    }
-    else 
-    {
-        // Trigger L is our 'SP' button in gamecube modes
-        if(safe->trigger_l)
-            safe->zl_analog = trigger_config->left_static_output_value;
-        else 
-            safe->zl_analog = 0;
-    }
-    // Nothing else modified? I think...
-    */
-}
-
-// Right trigger function is split
-void _gc_mode_2(button_data_s *safe)
-{
-    // // Use ZR digital as our override
-    // if(safe->trigger_zr)
-    // {
-    //     safe->zr_analog = MAX_ANALOG_OUT;
-    //     return;
-    // }
-    // else 
-    // {
-    //     if(safe->trigger_l)
-    //         safe->zr_analog = trigger_config->right_static_output_value;
-    //     else 
-    //         safe->zr_analog = 0;
-    // }
-}
-
-// Dual Z
-void _gc_mode_3(button_data_s *safe)
-{
-    // if(safe->trigger_l)
-    //     safe->trigger_r |= 1;
-}
-
-// Let's say our analog trigger is bound to another
-// button such as ABXY (digital only)
-// We can have our hairtrigger function
-void _trigger_preprocess_rebound_l(button_data_s *safe, bool hairpin)
-{
-    // // We only care if analog function is NOT disabled
-    // // The remap function will handle the digital press
-    // if(!trigger_config->left_disabled)
-    // {   
-    //     // Scale left trigger according to calibration params
-    //     int16_t new_l = _trigger_scale_input(safe->zl_analog, _lt_deadzone, _lt_scaler);
-
-    //     // Cap the output
-    //     if(new_l > MAX_ANALOG_OUT) new_l = MAX_ANALOG_OUT;
-        
-    //     // Apply our hairpin for the digital press
-    //     if( hairpin
-    //         && trigger_config->left_hairpin_value 
-    //         && (new_l >= trigger_config->left_hairpin_value))
-
-    //         safe->trigger_zl |= 1;
-
-    //     // Output analog trigger here is always
-    //     // Zero'd out
-    //     safe->zl_analog = 0;
-    // }
-}
-
-// Process a trigger where the mapping doesn't
-// match. (A btn mapped to ZL as an example)
-void _trigger_postprocess_rebound_l(button_data_s *safe)
-{
-    // /* 
-    //     With this safe data, the remap has already been completed.
-    //     If our ZL button is pressed (A activating it), we should 
-    //     apply our full analog output value, no matter if analog is disabled.
-    // */
-    // if(safe->trigger_zl)
-    //     safe->zl_analog = MAX_ANALOG_OUT;
-    // else 
-    //     safe->zl_analog = 0;
-}
-
-// Process a trigger where the mapping
-// matches (ZL mapped to ZL)
-void _trigger_postprocess_matching_l(button_data_s *safe)
-{
-    // // Analog function for the trigger is disabled
-    // if(trigger_config->left_disabled)
-    // {   
-    //     // Apply full analog value if digital is pressed
-    //     if(safe->trigger_zl)
-    //         safe->zl_analog = MAX_ANALOG_OUT;
-    //     else 
-    //         safe->zl_analog = 0;
-    // }
-    // else 
-    // {   
-    //     // Scale left trigger according to calibration params
-    //     int16_t new_l = _trigger_scale_input(safe->zl_analog, _lt_deadzone, _lt_scaler);
-
-    //     // Cap the output
-    //     if(new_l > MAX_ANALOG_OUT) new_l = MAX_ANALOG_OUT;
-        
-    //     // Apply our hairpin for the digital press
-    //     if(trigger_config->left_hairpin_value && (new_l >= trigger_config->left_hairpin_value))
-    //         safe->trigger_zl |= 1;
-
-    //     // Apply full analog value if digital is pressed
-    //     if(safe->trigger_zl)
-    //         safe->zl_analog = MAX_ANALOG_OUT;
-    //     else 
-    //         // Forward our scaled analog signal
-    //         safe->zl_analog = new_l;
-    // }
-}
-
-void _trigger_preprocess_rebound_r(button_data_s *safe, bool hairpin)
-{
-    // if(!trigger_config->right_disabled)
-    // {   
-    //     int16_t new_r = _trigger_scale_input(safe->zr_analog, _rt_deadzone, _rt_scaler);
-    //     if(new_r > MAX_ANALOG_OUT) new_r = MAX_ANALOG_OUT;
-        
-    //     if( hairpin
-    //         && trigger_config->right_hairpin_value 
-    //         && (new_r >= trigger_config->right_hairpin_value))
-
-    //         safe->trigger_zr |= 1;
-
-    //     safe->zr_analog = 0;
-    // }
-}
-
-void _trigger_postprocess_rebound_r(button_data_s *safe)
-{
-    // if(safe->trigger_zr)
-    //     safe->zr_analog = MAX_ANALOG_OUT;
-    // else 
-    //     safe->zr_analog = 0;
-}
-
-void _trigger_postprocess_matching_r(button_data_s *safe)
-{
-    // if(trigger_config->right_disabled)
-    // {   
-    //     if(safe->trigger_zr)
-    //         safe->zr_analog = MAX_ANALOG_OUT;
-    //     else 
-    //         safe->zr_analog = 0;
-    // }
-    // else 
-    // {   
-    //     int16_t new_r = _trigger_scale_input(safe->zr_analog, _rt_deadzone, _rt_scaler);
-    //     if(new_r > MAX_ANALOG_OUT) new_r = MAX_ANALOG_OUT;
-        
-    //     if(trigger_config->right_hairpin_value && (new_r >= trigger_config->right_hairpin_value))
-    //         safe->trigger_zr |= 1;
-
-    //     if(safe->trigger_zr)
-    //         safe->zr_analog = MAX_ANALOG_OUT;
-    //     else 
-    //         safe->zr_analog = new_r;
-    // }
-}
-
-// Handle hair triggers basically
-void trigger_process_pre(int l_type, int r_type, button_data_s *safe)
-{
-    // // These functions are taking in the button data before remapping is done.
-    // if(l_type)
-    // {
-    //     _trigger_preprocess_rebound_l(safe, (l_type < 2));
-    // }
-
-    // if(r_type)
-    // {
-    //     _trigger_preprocess_rebound_r(safe, (r_type < 2));
-    // }
-}
-
-// Handle digital to analog mappings
-void trigger_process_post(int l_type, int r_type, button_data_s *safe)
-{
-    // // These functions are taking in the button data after remapping was done.
-    // if(l_type)
-    // {
-    //     _trigger_postprocess_rebound_l(safe);
-    // }
-    // else _trigger_postprocess_matching_l(safe);
-
-    // if(r_type)
-    // {
-    //     _trigger_postprocess_rebound_r(safe);
-    // }
-    // else _trigger_postprocess_matching_r(safe);
-}
-
-void trigger_process_gamecube(button_data_s *in, button_data_s *out)
-{
-
-}

@@ -28,25 +28,22 @@ auto_init_mutex(_spi_safe_mutex); // Mutex to allow thread-safe access to periph
 
 void _spi_safe_enter_blocking()
 {
-    while(!mutex_enter_timeout_us(&_spi_safe_mutex, 10))
-    {
-        sleep_us(1);
-    }
+    //mutex_enter_blocking(&_spi_safe_mutex);
 }
 
 void _spi_safe_exit()
 {
-    mutex_exit(&_spi_safe_mutex);
+    //mutex_exit(&_spi_safe_mutex);
 }
 
 bool spi_hal_init(uint8_t instance, uint32_t clock, uint32_t mosi, uint32_t miso)
 {
     if(instance>=SPI_HAL_MAX_INSTANCES) return false;
 
-    spi_init(_spi_instances[instance], 2000 * 1000);
-    gpio_set_function(clock, GPIO_FUNC_SPI);
-    gpio_set_function(mosi, GPIO_FUNC_SPI);
-    gpio_set_function(miso, GPIO_FUNC_SPI);
+    spi_init(_spi_instances[instance], 3000 * 1000);
+    gpio_set_function(clock,    GPIO_FUNC_SPI);
+    gpio_set_function(mosi,     GPIO_FUNC_SPI);
+    gpio_set_function(miso,     GPIO_FUNC_SPI);
 
     return true;
 }
@@ -78,7 +75,6 @@ int spi_hal_write_blocking(uint8_t instance, uint32_t cs_gpio, const uint8_t *da
     if(instance>=SPI_HAL_MAX_INSTANCES) return -1;
 
     int ret = 0;
-
     _spi_safe_enter_blocking();
     gpio_put(cs_gpio, false);
 
@@ -98,8 +94,8 @@ int spi_hal_read_write_blocking(uint8_t instance, uint32_t cs_gpio, const uint8_
     _spi_safe_enter_blocking();
     gpio_put(cs_gpio, false);
 
-    ret = spi_write_blocking(_spi_instances[instance], data, data_len);
-    ret = spi_read_blocking(_spi_instances[instance], repeated_tx_data, dst, dst_len);
+    ret = spi_write_blocking(_spi_instances[instance],  data, data_len);
+    ret = spi_read_blocking(_spi_instances[instance],   repeated_tx_data, dst, dst_len);
 
     gpio_put(cs_gpio, true);
     _spi_safe_exit();

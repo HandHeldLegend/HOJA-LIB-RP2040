@@ -5,6 +5,7 @@
 #include "input/analog.h"
 #include "input/button.h"
 #include "input/trigger.h"
+#include "input/remap.h"
 
 #define XINPUT_SHIFT_SCALE_BITS 16
 #define XINPUT_SHIFT_SCALE_MULT (1<<XINPUT_SHIFT_SCALE_BITS)
@@ -23,9 +24,8 @@ void xinput_hid_report(uint32_t timestamp)
     static button_data_s button_data = {0};
     static trigger_data_s trigger_data = {0};
 
-    analog_access_try(&analog_data, ANALOG_ACCESS_SNAPBACK_DATA);
-    button_access_try(&button_data, BUTTON_ACCESS_RAW_DATA);
-    trigger_access_try(&trigger_data, TRIGGER_ACCESS_RAW_DATA);
+    analog_access_safe(&analog_data, ANALOG_ACCESS_SNAPBACK_DATA);
+    remap_get_processed_input(&button_data, &trigger_data);
 
     data.report_size = 20;
 
@@ -53,8 +53,8 @@ void xinput_hid_report(uint32_t timestamp)
     data.button_stick_l = button_data.button_stick_left;
     data.button_stick_r = button_data.button_stick_right;
 
-    data.analog_trigger_l = button_data.trigger_zl ? 254 : (trigger_data.left_analog>>4);
-    data.analog_trigger_r = 0;// button_data.trigger_zr ? 254 : (trigger_data.right_analog>>4);
+    data.analog_trigger_l = trigger_data.left_analog    >>  4;
+    data.analog_trigger_r = trigger_data.right_analog   >>  4;
 
     tud_xinput_report(&data, XID_REPORT_LEN);
 }

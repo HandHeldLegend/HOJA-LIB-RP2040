@@ -21,8 +21,7 @@ typedef enum
 
 void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out);
 void analog_init();
-void analog_access_blocking(analog_data_s *out, analog_access_t type);
-bool analog_access_try(analog_data_s *out, analog_access_t type);
+void analog_access_safe(analog_data_s *out, analog_access_t type);
 
 void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb);
 void analog_task(uint32_t timestamp);

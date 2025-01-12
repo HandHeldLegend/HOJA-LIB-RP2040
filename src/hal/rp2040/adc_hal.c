@@ -32,6 +32,8 @@ uint16_t _process_samples(volatile uint16_t *source)
     // Main processing loop (handles samples 1 to length-2)
     for (int i = 1; i < SAMPLES_PER_CHANNEL-1; i++) {
         uint16_t sample = source[i] & 0xFFF;
+        sum += sample;
+        continue;
         
         if (ADC_HAL_CHECK_RANGE(sample, 512) ||
             ADC_HAL_CHECK_RANGE(sample, 1536) ||
@@ -51,9 +53,11 @@ uint16_t _process_samples(volatile uint16_t *source)
     return (result > 4095) ? 4095 : result;
 }
 
+static bool adc_init_done = false;
+
 uint16_t adc_hal_read(uint8_t channel, bool invert)
 {
-    if(channel>3) return 0;
+    if(!adc_init_done || channel>3) return 0;
 
     adc_select_input(channel);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
@@ -80,7 +84,7 @@ bool adc_hal_init(uint8_t channel, uint32_t gpio)
 
     uint8_t adc_gpio = 26+channel;
 
-    static bool adc_init_done = false;
+    
     if(!adc_init_done)
     {
         adc_init_done = true;

@@ -69,7 +69,7 @@ typedef struct
 } buttons_unset_s;
 
 void remap_config_cmd(remap_cmd_t cmd, const uint8_t *data, setting_callback_t cb);
-void remap_process(button_data_s *in, button_data_s *out);
+void remap_get_processed_input(button_data_s *buttons_out, trigger_data_s *triggers_out);
 void remap_init();
 
 #endif

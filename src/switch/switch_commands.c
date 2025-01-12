@@ -479,7 +479,7 @@ void switch_commands_process(sw_input_s *input_data)
       {
         imu_data_s imu_tmp = {0};
 
-        imu_access_try(&imu_tmp);
+        imu_access_safe(&imu_tmp);
 
         // Group 1
         _switch_command_buffer[12] = imu_tmp.ay_8l; // Y-axis
@@ -500,7 +500,7 @@ void switch_commands_process(sw_input_s *input_data)
         _switch_command_buffer[22] = imu_tmp.gz_8l;
         _switch_command_buffer[23] = imu_tmp.gz_8h;
 
-        imu_access_try(&imu_tmp);
+        imu_access_safe(&imu_tmp);
 
         // Group 2
         _switch_command_buffer[24] = imu_tmp.ay_8l; // Y-axis
@@ -517,7 +517,7 @@ void switch_commands_process(sw_input_s *input_data)
         _switch_command_buffer[34] = imu_tmp.gz_8l;
         _switch_command_buffer[35] = imu_tmp.gz_8h;
 
-        imu_access_try(&imu_tmp);
+        imu_access_safe(&imu_tmp);
 
         // Group 3
         _switch_command_buffer[36] = imu_tmp.ay_8l; // Y-axis
@@ -539,7 +539,7 @@ void switch_commands_process(sw_input_s *input_data)
         static mode_2_s mode_2_data = {0};
         static quaternion_s quat_data = {0};
 
-        imu_quaternion_access_try(&quat_data);
+        imu_quaternion_access_safe(&quat_data);
         switch_motion_pack_quat(&quat_data, &mode_2_data);
 
         memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));

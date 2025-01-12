@@ -11,6 +11,7 @@
 #include "input_shared_types.h"
 #include "input/button.h"
 #include "input/analog.h"
+#include "input/remap.h"
 
 #include "hoja_bsp.h"
 #include "board_config.h"
@@ -275,6 +276,7 @@ void joybus_n64_hal_task(uint32_t timestamp)
     static interval_s       interval    = {0};
     static button_data_s    buttons     = {0};
     static analog_data_s    analog      = {0};
+    static trigger_data_s   triggers    = {0};
 
     // Only go when we have init
     if (!_n64_running) return;
@@ -291,8 +293,8 @@ void joybus_n64_hal_task(uint32_t timestamp)
       if(_n64_got_data) _n64_got_data = false;
 
       // Update input data
-      button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-      analog_access_try(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
+      remap_get_processed_input(&buttons, &triggers);
+      analog_access_safe(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
 
       static bool _rumblestate = false;
       if(_n64_rumble != _rumblestate)

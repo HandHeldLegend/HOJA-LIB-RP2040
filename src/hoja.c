@@ -190,7 +190,7 @@ void _hoja_task_0()
   sys_hal_tick();
 
   // Hooks tasks
-  hooks_run_all_core0();
+  //hooks_run_all_core0();
 }
 
 // Core 1 task loop entrypoint
@@ -200,6 +200,8 @@ void _hoja_task_1()
 
   // Init settings hal
   //flash_hal_init();
+
+  sys_hal_sleep_ms(500);
 
   for (;;)
   {
@@ -215,7 +217,7 @@ void _hoja_task_1()
     flash_hal_task();
 
     // Hooks tasks
-    hooks_run_all_core1();
+    //hooks_run_all_core1();
   }
 }
 

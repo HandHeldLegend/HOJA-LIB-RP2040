@@ -24,6 +24,12 @@
 #define IMU_POLLING_INTERVAL 1000 // 1KHz 
 #define IMU_CALIBRATE_CYCLES 4000
 
+// Define data that is safe to access
+// from any core at any time
+MUTEX_HAL_INIT(_imu_mutex);
+imu_data_s    _safe_imu_data = {0};
+quaternion_s  _safe_quaternion_data = {0};
+
 // Raw IMU buffers for channel A and B
 imu_data_s _imu_buffer_a = {0};
 imu_data_s _imu_buffer_b = {0};
@@ -35,10 +41,10 @@ imu_data_s _imu_buffer_avg = {0};
 callback_t _imu_process_task = NULL;
 
 // Access IMU config union members macro
-#define CH_A_GYRO_OFFSET(axis)   (imu_config->imu_a_gyro_offsets[axis])
-#define CH_B_GYRO_OFFSET(axis)   (imu_config->imu_b_gyro_offsets[axis])
-#define CH_A_ACCEL_CFG(axis)  (imu_config->imu_a_accel_config[axis])
-#define CH_B_ACCEL_CFG(axis)  (imu_config->imu_b_accel_config[axis])
+#define CH_A_GYRO_OFFSET(axis)    (imu_config->imu_a_gyro_offsets[axis])
+#define CH_B_GYRO_OFFSET(axis)    (imu_config->imu_b_gyro_offsets[axis])
+#define CH_A_ACCEL_CFG(axis)      (imu_config->imu_a_accel_config[axis])
+#define CH_B_ACCEL_CFG(axis)      (imu_config->imu_b_accel_config[axis])
 
 // Macro to access the offset for a given gyro axis channel
 #define IMU_GYRO_OFFSET_X(channel)  (!channel ? CH_A_GYRO_OFFSET(0): CH_B_GYRO_OFFSET(0))
@@ -53,15 +59,16 @@ imu_data_s _imu_fifo[IMU_FIFO_COUNT];
 quaternion_s _imu_quat_state = {.w = 1};
 #define GYRO_SENS (2000.0f / 32768.0f)
 
-MUTEX_HAL_INIT(_imu_mutex);
+
 void _imu_blocking_enter()
 {
   MUTEX_HAL_ENTER_BLOCKING(&_imu_mutex);
 }
 
+uint32_t _imu_mutex_owner = 0;
 bool _imu_try_enter()
 {
-  if(MUTEX_HAL_ENTER_TIMEOUT_US(&_imu_mutex, 10))
+  if(MUTEX_HAL_ENTER_TRY(&_imu_mutex, &_imu_mutex_owner))
   {
     return true;
   }
@@ -79,36 +86,23 @@ imu_data_s* _imu_fifo_last()
   return &(_imu_fifo[idx]);
 }
 
-// Optional access IMU data (If available)
-bool imu_access_try(imu_data_s *out)
+void imu_access_safe(imu_data_s *out)
 {
-  imu_data_s* tmp = _imu_fifo_last();
-  memcpy(out, tmp, sizeof(imu_data_s));
-  return true;
-}
-
-// Access IMU data and block for it
-void imu_access_block(imu_data_s *out)
-{
-  _imu_blocking_enter();
-  imu_data_s* tmp = _imu_fifo_last();
-  memcpy(out, tmp, sizeof(imu_data_s));
-  _imu_exit();
+  if(_imu_try_enter())
+  {
+    memcpy(out, &_safe_imu_data, sizeof(imu_data_s));
+    _imu_exit();
+  }
 }
 
 // Optional access Quaternion data (If available)
-bool imu_quaternion_access_try(quaternion_s *out)
+void imu_quaternion_access_safe(quaternion_s *out)
 {
-  memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
-  return true;
-}
-
-// Access Quaternion data and block for it
-void imu_quaternion_access_block(quaternion_s *out)
-{
-  _imu_blocking_enter();
-  memcpy(out, &_imu_quat_state, sizeof(quaternion_s));
-  _imu_exit();
+  if(_imu_try_enter())
+  {
+    memcpy(out, &_safe_quaternion_data, sizeof(quaternion_s));
+    _imu_exit();
+  }
 }
 
 // Read IMU hardware from driver (if defined)
@@ -329,8 +323,6 @@ void imu_task(uint32_t timestamp)
 
   if (interval_run(timestamp, IMU_POLLING_INTERVAL, &interval))
   {
-    _imu_blocking_enter();
-
     if(imu_config->imu_disabled==1)
     {
       memset(&_imu_buffer_a, 0, sizeof(imu_data_s));
@@ -349,7 +341,13 @@ void imu_task(uint32_t timestamp)
       _imu_process_task();
     else
       _imu_process_task = _imu_std_function;
+  }
 
+  if(_imu_try_enter())
+  {
+    imu_data_s* tmp = _imu_fifo_last();
+    memcpy(&_safe_imu_data, tmp, sizeof(imu_data_s));
+    memcpy(&_safe_quaternion_data, &_imu_quat_state, sizeof(quaternion_s));
     _imu_exit();
   }
 }

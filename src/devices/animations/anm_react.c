@@ -139,8 +139,8 @@ bool anm_react_handler(rgb_s* output)
     static button_data_s buttons = {0};
     static analog_data_s analog = {0};
 
-    button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
-    analog_access_try(&analog,  ANALOG_ACCESS_SCALED_DATA);
+    button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
+    analog_access_safe(&analog,  ANALOG_ACCESS_SCALED_DATA);
     
     // Color player LEDs if they exist to our preset group color
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX)

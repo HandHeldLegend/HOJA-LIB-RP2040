@@ -11,11 +11,8 @@
 int _imu_write_register(const uint8_t reg, const uint8_t data, uint32_t cs_gpio, uint8_t spi_instance)
 {
     const uint8_t dat[2] = {reg, data};
-    gpio_hal_write(cs_gpio, false);
     int ret = spi_hal_write_blocking(spi_instance, cs_gpio, dat, 2);
-    gpio_hal_write(cs_gpio, true);
     sys_hal_sleep_ms(2);
-
     return ret;
 }
 
@@ -70,7 +67,6 @@ int lsm6dsr_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_
 int lsm6dsr_init(uint32_t cs_gpio, uint8_t spi_instance)
 {
     gpio_hal_init(cs_gpio, true, false);
-
     _imu_write_register(CTRL1_XL, CTRL1_MASK, cs_gpio, spi_instance);
     _imu_write_register(CTRL2_G, CTRL2_MASK, cs_gpio, spi_instance);
     _imu_write_register(CTRL3_C, CTRL3_MASK, cs_gpio, spi_instance);

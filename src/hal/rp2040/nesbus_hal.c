@@ -6,6 +6,7 @@
 
 #include "input/analog.h"
 #include "input/button.h"
+#include "input/remap.h"
 
 #include "board_config.h"
 
@@ -86,6 +87,7 @@ void nesbus_hal_task(uint32_t timestamp)
     static button_data_s    buttons = {0};
     static analog_data_s    analog  = {0};
     static interval_s       interval = {0};
+    static trigger_data_s   triggers = {0};
 
     if(!_nspi_running)
     {
@@ -96,8 +98,8 @@ void nesbus_hal_task(uint32_t timestamp)
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
-            button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-            analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+            remap_get_processed_input(&buttons, &triggers);
+            analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
             buffer.a = !buttons.button_a;
             buffer.b = !buttons.button_b;

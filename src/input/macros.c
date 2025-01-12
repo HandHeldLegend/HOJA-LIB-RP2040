@@ -17,7 +17,8 @@ void macros_task(uint32_t timestamp)
 
     if(interval_run(timestamp, 1000, &interval))
     {
-        first_run = button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
+        button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
+        first_run = true;
     }
 
     // Only run macros on successful button read

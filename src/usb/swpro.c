@@ -174,10 +174,11 @@ void swpro_hid_report(uint32_t timestamp)
 
     static button_data_s buttons = {0};
     static analog_data_s analog  = {0};
+    static trigger_data_s triggers = {0};
 
     // Update input data
-    button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-    analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+    remap_get_processed_input(&buttons, &triggers);
+    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
     data.d_down     = buttons.dpad_down;
     data.d_right    = buttons.dpad_right;

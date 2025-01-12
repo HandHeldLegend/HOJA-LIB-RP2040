@@ -4,8 +4,8 @@
 #define CHIPSET_RP2040 0xF001
 
 #define HOJA_BSP_CHIPSET CHIPSET_RP2040
-#define HOJA_BSP_CLOCK_SPEED_HZ 200000000 // 200 Mhz
-
+//#define HOJA_BSP_CLOCK_SPEED_HZ 200000000 // 200 Mhz
+#define HOJA_BSP_CLOCK_SPEED_HZ 133000000 // 133 Mhz
 // How many I2C peripheral channels there are
 #define HOJA_BSP_HAS_I2C 2
 

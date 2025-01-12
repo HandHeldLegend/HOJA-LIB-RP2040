@@ -2,6 +2,8 @@
 
 #include "input/button.h"
 #include "input/analog.h"
+#include "input/trigger.h"
+#include "input/remap.h"
 
 #include "usb/ginput_usbd.h"
 
@@ -20,15 +22,18 @@ void gcinput_enable(bool enable)
 
 void gcinput_hid_report(uint32_t timestamp)
 {
-    static gc_input_s data = {0};
-    static uint8_t buffer[37] = {0};
+    static gc_input_s   data = {0};
+    static uint8_t      buffer[37] = {0};
 
-    static button_data_s buttons = {0};
-    static analog_data_s analog  = {0};
+    static button_data_s    buttons = {0};
+    static analog_data_s    analog  = {0};
+    static trigger_data_s   triggers = {0};
 
     // Update input data
-    button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-    analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+    remap_get_processed_input(&buttons, &triggers);
+    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+
+    //trigger_gc_process(&buttons, &triggers);
 
     buffer[0] = 0x21;
 
@@ -77,71 +82,8 @@ void gcinput_hid_report(uint32_t timestamp)
     data.dpad_left  = buttons.dpad_left;
     data.dpad_right = buttons.dpad_right;
 
-    int outl = 0;
-    int outr = 0;
-
-    /*
-    // Handle trigger SP stuff
-    switch(global_loaded_settings.gc_sp_mode)
-    {
-        default:
-            data.trigger_l = buttons.trigger_zl ? 255 : (buttons.zl_analog >> 4);
-            data.trigger_r = buttons.trigger_zr ? 255 : (buttons.zr_analog >> 4);
-
-            break;
-
-        case GC_SP_MODE_LT:
-            outl = buttons.trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-            data.trigger_l = buttons.trigger_zl ? 255 : outl;
-
-            data.trigger_r = buttons.zr_analog >> 4;
-            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
-
-            break;
-
-        case GC_SP_MODE_RT:
-            outr = buttons.trigger_l ? (global_loaded_settings.gc_sp_light_trigger) : 0;
-            data.trigger_r = buttons.trigger_zr ? 255 : outr;
-
-            data.trigger_l = buttons.zl_analog >> 4;
-            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
-
-            break;
-
-        case GC_SP_MODE_TRAINING:
-        
-            data.trigger_l = buttons.zl_analog >> 4;
-            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
-
-            data.trigger_r = buttons.zr_analog >> 4;
-            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
-
-            if(buttons.trigger_l)
-            {
-                data.button_a = 1;
-                data.trigger_l = 255;
-                data.trigger_r = 255;
-                data.button_l = 1;
-                data.button_r = 1;
-            }
-
-            break;
-
-        case GC_SP_MODE_DUALZ:
-            data.button_z |= buttons.trigger_l;
-
-            data.button_l = buttons.trigger_zl;
-            data.button_r = buttons.trigger_zr;
-
-            data.trigger_l = buttons.zl_analog >> 4;
-            data.trigger_l = buttons.trigger_zl ? 255 : data.trigger_l;
-
-            data.trigger_r = buttons.zr_analog >> 4;
-            data.trigger_r = buttons.trigger_zr ? 255 : data.trigger_r;
-
-          break;
-    }
-    */
+    data.trigger_l  = triggers.left_analog  >> 4;
+    data.trigger_r  = triggers.right_analog >> 4;
 
     if(!_gc_first)
     {

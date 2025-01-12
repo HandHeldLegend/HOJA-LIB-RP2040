@@ -39,13 +39,12 @@ typedef enum
 typedef enum 
 {
     BUTTON_ACCESS_RAW_DATA,
-    BUTTON_ACCESS_REMAPPED_DATA,
     BUTTON_ACCESS_BOOT_DATA
 } button_access_t;
 
 bool button_init();
 void button_access_blocking(button_data_s *out, button_access_t type);
-bool button_access_try(button_data_s *out, button_access_t type);
+void button_access_safe(button_data_s *out, button_access_t type);
 
 void button_task(uint32_t timestamp);
 

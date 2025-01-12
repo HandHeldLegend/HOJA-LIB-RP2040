@@ -10,6 +10,7 @@
 #include "input_shared_types.h"
 #include "input/button.h"
 #include "input/analog.h"
+#include "input/remap.h"
 
 #include "board_config.h"
 
@@ -264,6 +265,7 @@ void joybus_gc_hal_task(uint32_t timestamp)
     static interval_s     interval_reset    = {0};
     static interval_s     interval    = {0};
     static button_data_s  buttons     = {0};
+    static trigger_data_s triggers    = {0};
     static analog_data_s  analog      = {0};
     
     // Wait for init to complete
@@ -280,8 +282,8 @@ void joybus_gc_hal_task(uint32_t timestamp)
         if(_gc_got_data) _gc_got_data = false;
 
         // Update input data
-        button_access_try(&buttons, BUTTON_ACCESS_REMAPPED_DATA);
-        analog_access_try(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+        remap_get_processed_input(&buttons, &triggers);
+        analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
         
         static bool _rumblestate = false;
         if (_gc_rumble != _rumblestate)

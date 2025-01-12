@@ -89,8 +89,8 @@
         #error "HOJA_IMU_CHAN_A_READ define conflict."
     #endif
 
-    #define HOJA_IMU_CHAN_A_READ(out) lsm6dsr_read(out, HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE, HOJA_IMU_CHAN_A_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_A_INIT() lsm6dsr_init(HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE);
+    #define HOJA_IMU_CHAN_A_READ(out)   lsm6dsr_read(out, HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE, HOJA_IMU_CHAN_A_INVERT_FLAGS)
+    #define HOJA_IMU_CHAN_A_INIT()      lsm6dsr_init(HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE);
 #endif
 
 #if defined(HOJA_IMU_CHAN_B_DRIVER) && (HOJA_IMU_CHAN_B_DRIVER==IMU_DRIVER_LSM6DSR)
@@ -110,8 +110,8 @@
         #error "HOJA_IMU_CHAN_B_READ define conflict."
     #endif
 
-    #define HOJA_IMU_CHAN_B_READ(out) lsm6dsr_read(out, HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE, HOJA_IMU_CHAN_B_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_B_INIT() lsm6dsr_init(HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE);
+    #define HOJA_IMU_CHAN_B_READ(out)   lsm6dsr_read(out, HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE, HOJA_IMU_CHAN_B_INVERT_FLAGS)
+    #define HOJA_IMU_CHAN_B_INIT()      lsm6dsr_init(HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE);
 #endif
 
 int lsm6dsr_init(uint32_t cs_gpio, uint8_t spi_instance);

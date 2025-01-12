@@ -9,6 +9,7 @@
 #include "input/button.h"
 #include "input/imu.h"
 #include "input/trigger.h"
+#include "input/remap.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -88,10 +89,9 @@ void webusb_send_rawinput(uint32_t timestamp)
     {
         uint8_t webusb_input_report[64] = {0};
 
-        analog_access_try(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
-        button_access_try(&buttons, BUTTON_ACCESS_RAW_DATA);
-        trigger_access_try(&triggers, TRIGGER_ACCESS_RAW_DATA);
-        imu_access_try(&imu);
+        analog_access_safe(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
+        remap_get_processed_input(&buttons, &triggers);
+        imu_access_safe(&imu);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
