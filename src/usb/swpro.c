@@ -5,6 +5,7 @@
 #include "tusb.h"
 #include "input/button.h"
 #include "input/analog.h"
+#include "input/remap.h"
 
 /** Switch PRO HID MODE **/
 // 1. Device Descriptor

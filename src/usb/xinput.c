@@ -24,7 +24,7 @@ void xinput_hid_report(uint32_t timestamp)
     static button_data_s button_data = {0};
     static trigger_data_s trigger_data = {0};
 
-    analog_access_safe(&analog_data, ANALOG_ACCESS_SNAPBACK_DATA);
+    analog_access_safe(&analog_data, ANALOG_ACCESS_DEADZONE_DATA);
     remap_get_processed_input(&button_data, &trigger_data);
 
     data.report_size = 20;

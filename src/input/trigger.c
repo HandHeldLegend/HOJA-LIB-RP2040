@@ -134,11 +134,11 @@ uint32_t _trigger_calculate_scaler(uint16_t deadzone, uint16_t max_value, uint16
 }
 
 // Fast real-time scaling using the pre-calculated scaler
-int16_t _trigger_scale_input(int16_t input, uint16_t deadzone, uint32_t scaler) {
-    if (input <= deadzone) return 0;
+uint16_t _trigger_scale_input(uint16_t input, uint16_t deadzone, uint32_t scaler) {
+    if (input < deadzone) return 0;
 
     uint32_t adjusted = (uint32_t) input - deadzone;
-    return (int16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
+    return (uint16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
 }
 
 void trigger_task(uint32_t timestamp)
@@ -147,14 +147,19 @@ void trigger_task(uint32_t timestamp)
     static interval_s interval = {0};
     if(interval_run(timestamp, 1000, &interval))
     {
+        
         #if defined(HOJA_ADC_CHAN_RT_READ)
-            _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
-            
+            if(trigger_config->right_disabled)
+                _raw_triggers.right_analog = 0;
+            else 
+                _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
         #endif
 
         #if defined(HOJA_ADC_CHAN_LT_READ)
-            _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
-            _scaled_triggers.left_analog = _raw_triggers.left_analog;
+            if(trigger_config->left_disabled)
+                _raw_triggers.left_analog = 0;
+            else 
+                _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
         #endif
 
         if(_trigger_calibrate)
@@ -172,6 +177,19 @@ void trigger_task(uint32_t timestamp)
             _scaled_triggers.left_analog = _trigger_scale_input(
                 _raw_triggers.left_analog, 
                 _lt_deadzone, _lt_scaler);
+
+
+            if((_scaled_triggers.right_analog > trigger_config->right_hairpin_value) && trigger_config->right_hairpin_value)
+            {
+                _scaled_triggers.right_hairpin = 1;
+            }
+            else _scaled_triggers.right_hairpin = 0;
+
+            if((_scaled_triggers.left_analog > trigger_config->left_hairpin_value) && trigger_config->left_hairpin_value)
+            {
+                _scaled_triggers.left_hairpin = 1;
+            }
+            else _scaled_triggers.left_hairpin = 0;
         }
 
         if(_trigger_try_enter())
@@ -246,5 +264,7 @@ bool trigger_init()
     #if defined(HOJA_AD_CHAN_LT_INIT)
         HOJA_AD_CHAN_LT_INIT();
     #endif
+
+    return true;
 }
 

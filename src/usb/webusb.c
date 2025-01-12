@@ -16,6 +16,12 @@
 
 #define WEBUSB_ITF 0
 
+bool _ready_to_go = false;
+bool webusb_outputting_check()
+{
+    return _ready_to_go;
+}
+
 // Can be used to block until webUSB
 // is clear and ready to send output data
 // Set timeout to value greater than zero.
@@ -46,7 +52,7 @@ bool webusb_ready_blocking(int timeout)
     return true;
 }
 
-bool _ready_to_go = false;
+
 
 uint8_t _webusb_out_buffer[64] = {0x00};
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
@@ -56,10 +62,14 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
     memset(_webusb_out_buffer, 0, 64);
     memcpy(_webusb_out_buffer, data, size);
 
-    if(webusb_ready_blocking(4000))
+    if(webusb_ready_blocking(256))
     {
         tud_vendor_n_write(0, _webusb_out_buffer, 64);
         tud_vendor_n_flush(0);
+    }
+    else 
+    {
+        _ready_to_go = false;
     }
 }
 

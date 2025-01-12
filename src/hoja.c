@@ -168,13 +168,14 @@ void _hoja_task_0()
   // Process any macros
   macros_task(c0_timestamp);
 
-  // Comms task
-  if(_hoja_mode_task_cb)
+  if(webusb_outputting_check())
   {
-    _hoja_mode_task_cb(c0_timestamp);
-
     // Optional web Input
     webusb_send_rawinput(c0_timestamp);
+  }
+  else if(_hoja_mode_task_cb)
+  {
+    _hoja_mode_task_cb(c0_timestamp);
   }
 
   // RGB task

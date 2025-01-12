@@ -5,6 +5,10 @@
 #include "utilities/settings.h"
 #include "hoja.h"
 
+#include "utilities/erm_simulator.h"
+#include "utilities/pcm_samples.h"
+#include "utilities/pcm.h"
+
 #include <string.h>
 
 #define REMAP_SET(inputButton, outputButton) ( (outputButton < 0) ? 0 : (inputButton << outputButton) )
@@ -48,6 +52,7 @@ void _trigger_remap_preprocess(button_data_s *state, trigger_data_s *triggers_in
         default:
         break;
 
+        case REMAP_TRIGGER_DIGITALONLY:
         case REMAP_TRIGGER_MISMATCH:
         state->trigger_zl |= triggers_in->left_hairpin;
         break;
@@ -58,6 +63,7 @@ void _trigger_remap_preprocess(button_data_s *state, trigger_data_s *triggers_in
         default:
         break;
 
+        case REMAP_TRIGGER_DIGITALONLY:
         case REMAP_TRIGGER_MISMATCH:
         state->trigger_zr |= triggers_in->right_hairpin;
         break;
@@ -126,7 +132,7 @@ void remap_get_processed_input(button_data_s *buttons_out, trigger_data_s *trigg
   static trigger_data_s tmp_output_triggers = {0};
 
   // Obtain button data and trigger data
-  button_access_safe(&tmp_input_buttons, BUTTON_ACCESS_RAW_DATA);
+  button_access_safe(&tmp_input_buttons,   BUTTON_ACCESS_RAW_DATA);
   trigger_access_safe(&tmp_input_triggers, TRIGGER_ACCESS_SCALED_DATA);
 
   uint16_t output = 0;
@@ -160,6 +166,34 @@ void remap_get_processed_input(button_data_s *buttons_out, trigger_data_s *trigg
 
   _trigger_remap_postprocess(&tmp_output_buttons, &tmp_input_triggers, &tmp_output_triggers, _ltrigger_type, _rtrigger_type);
 
+  // Could break this out later...
+  if(haptic_config->haptic_triggers==1)
+  {
+      static bool pressed_zl = false;
+      if(tmp_output_buttons.trigger_zl && !pressed_zl)
+      {
+          pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+          pressed_zl = true;
+      }
+      else if (!tmp_output_buttons.trigger_zl && pressed_zl)
+      {
+          pcm_play_sample(offPattern, sizeof(offPattern));
+          pressed_zl = false;
+      }
+
+      static bool pressed_zr = false;
+      if(tmp_output_buttons.trigger_zr && !pressed_zr)
+      {
+          pcm_play_sample(hapticPattern, sizeof(hapticPattern));
+          pressed_zr = true;
+      }
+      else if (!tmp_output_buttons.trigger_zr && pressed_zr)
+      {
+          pcm_play_sample(offPattern, sizeof(offPattern));
+          pressed_zr = false;
+      }
+  }
+
   // Copy out
   memcpy(buttons_out,   &tmp_output_buttons,   sizeof(button_data_s));
   memcpy(triggers_out,  &tmp_output_triggers,  sizeof(trigger_data_s));
@@ -179,11 +213,14 @@ void _remap_load_remap()
 {
   uint8_t profile_idx = 0;
   uint8_t mode = hoja_get_status().gamepad_mode;
+  bool digital_only = false;
+
   switch(mode)
   {
     default:
     case GAMEPAD_MODE_SWPRO:
       // Profile 0
+      digital_only = true;
       break;
 
     case GAMEPAD_MODE_XINPUT:
@@ -191,10 +228,12 @@ void _remap_load_remap()
       break;
 
     case GAMEPAD_MODE_SNES:
+      digital_only = true;
       profile_idx = 2;
       break;
 
     case GAMEPAD_MODE_N64:
+      digital_only = true;
       profile_idx = 3;
       break;
 
@@ -208,14 +247,20 @@ void _remap_load_remap()
 
   // Does our ZL mapping match ZL?
   if(_remap_profile.trigger_zl == MAPCODE_T_ZL)
-    _ltrigger_type = REMAP_TRIGGER_MATCHING;
+  {
+    if(digital_only) _ltrigger_type = REMAP_TRIGGER_DIGITALONLY;
+    else _ltrigger_type = REMAP_TRIGGER_MATCHING;
+  }
   else if(_remap_profile.trigger_zl == MAPCODE_T_ZR)
     _ltrigger_type = REMAP_TRIGGER_SWAPPED;
   else 
     _ltrigger_type = REMAP_TRIGGER_MISMATCH;
 
   if(_remap_profile.trigger_zr == MAPCODE_T_ZR)
-    _rtrigger_type = REMAP_TRIGGER_MATCHING;
+  {
+    if(digital_only) _rtrigger_type = REMAP_TRIGGER_DIGITALONLY;
+    else _rtrigger_type = REMAP_TRIGGER_MATCHING;
+  }
   else if(_remap_profile.trigger_zr == MAPCODE_T_ZL)
     _rtrigger_type = REMAP_TRIGGER_SWAPPED;
   else 

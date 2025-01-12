@@ -129,6 +129,7 @@ typedef enum
     REMAP_TRIGGER_MATCHING,
     REMAP_TRIGGER_SWAPPED,
     REMAP_TRIGGER_MISMATCH,
+    REMAP_TRIGGER_DIGITALONLY,
 } remap_trigger_t;
 
 // IMU data structure
