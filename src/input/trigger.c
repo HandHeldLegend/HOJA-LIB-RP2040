@@ -1,6 +1,7 @@
 #include "input/trigger.h"
 #include <stddef.h>
 #include <string.h>
+#include "hoja.h"
 
 #include "settings_shared_types.h"
 #include "utilities/settings.h"
@@ -90,31 +91,39 @@ void trigger_access_safe(trigger_data_s *out, trigger_access_t type)
     }
 }
 
-void trigger_task(uint32_t timestamp)
+
+bool _trigger_calibrate = false;
+void _trigger_calibrate_stop()
 {
-    #if defined(HOJA_ADC_CHAN_RT_READ) || defined(HOJA_ADC_CHAN_LT_READ)
-    static interval_s interval = {0};
-    if(interval_run(timestamp, 1000, &interval))
-    {
-        #if defined(HOJA_ADC_CHAN_RT_READ)
-            _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
-            _scaled_triggers.right_analog = _raw_triggers.right_analog;
-        #endif
+    hoja_set_notification_status(COLOR_BLACK);
+    _trigger_calibrate = false;
+}
 
-        #if defined(HOJA_ADC_CHAN_LT_READ)
-            _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
-            _scaled_triggers.left_analog = _raw_triggers.left_analog;
-        #endif
-    }
+void _trigger_calibrate_start()
+{
+    hoja_set_notification_status(COLOR_YELLOW);
+    // Reset analog distances
+    trigger_config->left_max = 0;
+    trigger_config->left_min = MAX_ANALOG_OUT;
 
-    if(_trigger_try_enter())
-    {
-        memcpy(&_safe_raw_triggers, &_raw_triggers, sizeof(trigger_data_s));
-        memcpy(&_safe_scaled_triggers, &_scaled_triggers, sizeof(trigger_data_s));
-        _trigger_exit();
-    }
+    trigger_config->right_max = 0;
+    trigger_config->right_min = MAX_ANALOG_OUT;
+    _trigger_calibrate = true;
+}
 
-    #endif
+void _trigger_calibrate_task()
+{
+    if(_raw_triggers.left_analog < trigger_config->left_min)
+        trigger_config->left_min = _raw_triggers.left_analog;
+
+    if(_raw_triggers.right_analog < trigger_config->right_min)
+        trigger_config->right_min = _raw_triggers.right_analog;
+
+    if(_raw_triggers.left_analog > trigger_config->left_max)
+        trigger_config->left_max = _raw_triggers.left_analog;
+
+    if(_raw_triggers.right_analog > trigger_config->right_max)
+        trigger_config->right_max = _raw_triggers.right_analog;
 }
 
 // Calculate scaler when deadzone or range changes
@@ -132,7 +141,50 @@ int16_t _trigger_scale_input(int16_t input, uint16_t deadzone, uint32_t scaler) 
     return (int16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
 }
 
-void trigger_config_cmd(trigger_cmd_t cmd, command_confirm_t cb)
+void trigger_task(uint32_t timestamp)
+{
+    //#if defined(HOJA_ADC_CHAN_RT_READ) || defined(HOJA_ADC_CHAN_LT_READ)
+    static interval_s interval = {0};
+    if(interval_run(timestamp, 1000, &interval))
+    {
+        #if defined(HOJA_ADC_CHAN_RT_READ)
+            _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
+            
+        #endif
+
+        #if defined(HOJA_ADC_CHAN_LT_READ)
+            _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
+            _scaled_triggers.left_analog = _raw_triggers.left_analog;
+        #endif
+
+        if(_trigger_calibrate)
+        {
+            _trigger_calibrate_task();
+            _scaled_triggers.right_analog = 0;
+            _scaled_triggers.left_analog  = 0;
+        }
+        else 
+        {
+            _scaled_triggers.right_analog = _trigger_scale_input(
+                _raw_triggers.right_analog, 
+                _rt_deadzone, _rt_scaler);
+
+            _scaled_triggers.left_analog = _trigger_scale_input(
+                _raw_triggers.left_analog, 
+                _lt_deadzone, _lt_scaler);
+        }
+
+        if(_trigger_try_enter())
+        {
+            memcpy(&_safe_raw_triggers, &_raw_triggers, sizeof(trigger_data_s));
+            memcpy(&_safe_scaled_triggers, &_scaled_triggers, sizeof(trigger_data_s));
+            _trigger_exit();
+        }
+    }
+    //#endif
+}
+
+void trigger_config_cmd(trigger_cmd_t cmd, webreport_cmd_confirm_t  cb)
 {
     bool do_cb = false;
 
@@ -145,20 +197,40 @@ void trigger_config_cmd(trigger_cmd_t cmd, command_confirm_t cb)
         break;
 
         case TRIGGER_CMD_CALIBRATE_START:
+            _trigger_calibrate_start();
             do_cb = true;
         break;
 
         case TRIGGER_CMD_CALIBRATE_STOP:
+            _trigger_calibrate_stop();
+            trigger_init();
             do_cb = true;
         break;
     }
 
     if(do_cb)
-        cb(CFG_BLOCK_TRIGGER, cmd, NULL, 0);
+        cb(CFG_BLOCK_TRIGGER, cmd, true, NULL, 0);
 }
 
 bool trigger_init()
 {
+    if(trigger_config->trigger_config_version != CFG_BLOCK_TRIGGER_VERSION)
+    {
+        trigger_config->trigger_config_version = CFG_BLOCK_TRIGGER_VERSION;
+        trigger_config->left_deadzone   = 0;
+        trigger_config->right_deadzone  = 0;
+        trigger_config->left_hairpin_value  = 0;
+        trigger_config->right_hairpin_value = 0;
+        trigger_config->left_disabled   = 0;
+        trigger_config->right_disabled  = 0;
+        trigger_config->left_min    = 0;
+        trigger_config->right_min   = 0;
+        trigger_config->left_max    = MAX_ANALOG_OUT;
+        trigger_config->right_max   = MAX_ANALOG_OUT;
+        trigger_config->left_static_output_value    = MAX_ANALOG_OUT;
+        trigger_config->right_static_output_value   = MAX_ANALOG_OUT;
+    }
+
     _lt_deadzone = trigger_config->left_min + trigger_config->left_deadzone;
     _lt_scaler = _trigger_calculate_scaler(_lt_deadzone,
         trigger_config->left_max, MAX_ANALOG_OUT);

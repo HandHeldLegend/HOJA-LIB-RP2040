@@ -15,6 +15,7 @@
 
 #include "input/stick_scaling.h"
 #include "input/imu.h"
+#include "input/trigger.h"
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
@@ -129,7 +130,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_TRIGGER:
-            
+            trigger_config_cmd(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_IMU:

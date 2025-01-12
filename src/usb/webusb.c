@@ -85,7 +85,7 @@ void webusb_send_rawinput(uint32_t timestamp)
         }
     }
 
-    if (interval_run(timestamp, 3000, &interval) && ready)
+    if (interval_run(timestamp, 8000, &interval) && ready)
     {
         uint8_t webusb_input_report[64] = {0};
 
@@ -112,16 +112,18 @@ void webusb_send_rawinput(uint32_t timestamp)
         webusb_input_report[9] = (buttons.buttons_all >> 8) & 0xFF;
         webusb_input_report[10] = buttons.buttons_all & 0xFF;
         webusb_input_report[11] = buttons.buttons_system;
-        webusb_input_report[12] = CLAMP_0_255(triggers.left_analog  >> 4);
-        webusb_input_report[13] = CLAMP_0_255(triggers.right_analog >> 4);
+        webusb_input_report[12] = (triggers.left_analog & 0xFF00)  >> 8;
+        webusb_input_report[13] = (triggers.left_analog & 0xFF);
+        webusb_input_report[14] = (triggers.right_analog & 0xFF00)  >> 8;
+        webusb_input_report[15] = (triggers.right_analog & 0xFF);
 
-        memcpy(&webusb_input_report[14], &imu.ax, 2);
-        memcpy(&webusb_input_report[16], &imu.ay, 2);
-        memcpy(&webusb_input_report[18], &imu.az, 2);
+        memcpy(&webusb_input_report[16], &imu.ax, 2);
+        memcpy(&webusb_input_report[18], &imu.ay, 2);
+        memcpy(&webusb_input_report[20], &imu.az, 2);
 
-        memcpy(&webusb_input_report[20], &imu.gx, 2);
-        memcpy(&webusb_input_report[22], &imu.gy, 2);
-        memcpy(&webusb_input_report[24], &imu.gz, 2);
+        memcpy(&webusb_input_report[22], &imu.gx, 2);
+        memcpy(&webusb_input_report[24], &imu.gy, 2);
+        memcpy(&webusb_input_report[26], &imu.gz, 2);
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);
