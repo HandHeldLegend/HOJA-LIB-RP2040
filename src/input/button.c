@@ -96,7 +96,7 @@ bool button_init()
     return true;
 }
 
-#define BUTTON_READ_RATE_US 500 // 500us read rate. Double the 1khz maximum USB input rate.
+#define BUTTON_READ_RATE_US 333 // 333us read rate. Double the 1khz maximum USB input rate.
 
 void button_task(uint32_t timestamp)
 {

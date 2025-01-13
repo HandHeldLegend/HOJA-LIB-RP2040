@@ -55,19 +55,22 @@ void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
             t_state->left_analog = 0;
 
             t_state->left_analog |= (b_state->trigger_l) ? (trigger_config->left_static_output_value) : 0;
-            t_state->left_analog |= (b_state->trigger_zl) ? 255 : 0;
+            t_state->left_analog |= (b_state->trigger_zl) ? MAX_ANALOG_OUT : 0;
         break;
 
         case GC_SP_MODE_RT:
             t_state->right_analog = 0;
 
             t_state->right_analog |= (b_state->trigger_l) ? (trigger_config->right_static_output_value) : 0;
-            t_state->right_analog |= (b_state->trigger_zr) ? 255 : 0;
+            t_state->right_analog |= (b_state->trigger_zr) ? MAX_ANALOG_OUT : 0;
         break;
 
         case GC_SP_MODE_DUALZ:
             if(b_state->trigger_l)
                 b_state->trigger_r |= 1;
+            
+            if(!b_state->trigger_l && !b_state->trigger_r)
+                b_state->trigger_r = 0;
         break;
     }
 }

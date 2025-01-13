@@ -33,7 +33,7 @@ void gcinput_hid_report(uint32_t timestamp)
     remap_get_processed_input(&buttons, &triggers);
     analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
-    //trigger_gc_process(&buttons, &triggers);
+    trigger_gc_process(&buttons, &triggers);
 
     buffer[0] = 0x21;
 
