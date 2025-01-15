@@ -93,6 +93,7 @@ void webusb_send_rawinput(uint32_t timestamp)
         {
             ready = true;
         }
+        else _ready_to_go = false;
     }
 
     if (interval_run(timestamp, 8000, &interval) && ready)

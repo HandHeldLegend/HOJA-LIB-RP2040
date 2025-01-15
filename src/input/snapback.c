@@ -18,9 +18,6 @@
 #define SNAPBACK_FIXED_POINT_SHIFT 12
 #define SNAPBACK_FIXED_POINT_MULT (1<<SNAPBACK_FIXED_POINT_SHIFT)
 
-#define SNAPBACK_DEADZONE 750
-#define SNAPBACK_CROSSOVER_EXPIRATION 20
-
 // How many measurements we need to
 // 'fall' before we activate
 #define TRIGGER_THRESHOLD 3
