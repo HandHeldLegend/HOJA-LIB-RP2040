@@ -98,9 +98,14 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
     // CFG_BLOCK_GAMEPAD
     switch(command)
     {
+        case GAMEPAD_CMD_RESET_TO_BOOTLOADER:
+            sys_hal_bootloader();
+        break;
+
         case GAMEPAD_CMD_SAVE_ALL:
             _settings_commit_blocks();
             cb(CFG_BLOCK_GAMEPAD, command, true, NULL, 0);
+            
         break;
     }
 }

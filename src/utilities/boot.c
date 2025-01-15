@@ -79,12 +79,10 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         thisMethod          = GAMEPAD_METHOD_USB;
         wirelessSupported   = true;
     }
-    // UNUSED DS4 MODE
     else if(buttons.button_b)
     {
-        thisMode    = GAMEPAD_MODE_SWPRO;
-        thisMethod          = GAMEPAD_METHOD_USB;
-        wirelessSupported   = true;
+        thisMode            = GAMEPAD_MODE_OPENGP;
+        thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
     }
     else if(buttons.button_x)
     {

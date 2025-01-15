@@ -22,6 +22,7 @@
 #include "usb/swpro.h"
 #include "usb/xinput.h"
 #include "usb/gcinput.h"
+#include "usb/opengp.h"
 
 #include "switch/switch_commands.h"
 #include "switch/switch_haptics.h"
@@ -161,6 +162,12 @@ bool usb_mode_start(gamepad_mode_t mode)
     _usb_ready_cb = tud_xinput_ready;
     break;
 
+  case GAMEPAD_MODE_OPENGP:
+    _usb_set_interval(USBRATE_1);
+    _usb_task_cb  = opengp_hid_report;
+    _usb_ready_cb = tud_hid_ready;
+    break;
+
   //case GAMEPAD_MODE_DS4:
   //  imu_set_enabled(true);
   //  _hoja_usb_set_interval(USBRATE_4);
@@ -258,6 +265,12 @@ uint8_t const *tud_descriptor_device_cb(void)
     return (uint8_t const *)&ginput_device_descriptor;
     break;
 
+  case GAMEPAD_MODE_OPENGP:
+    hoja_set_connected_status(1);
+    hoja_set_player_number_status(1);
+    return (uint8_t const *)&opengp_device_descriptor;
+    break;
+
   //case GAMEPAD_MODE_DS4:
   //  return (uint8_t const *)&ds4_device_descriptor;
   //  break;
@@ -283,6 +296,10 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 
   case GAMEPAD_MODE_GCUSB:
     return (uint8_t const *)&ginput_configuration_descriptor;
+    break;
+
+  case GAMEPAD_MODE_OPENGP:
+    return (uint8_t const *)&opengp_configuration_descriptor;
     break;
 
   //case GAMEPAD_MODE_DS4:
@@ -326,6 +343,13 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
 
   case GAMEPAD_MODE_GCUSB:
     if ((report[0] == REPORT_ID_GAMECUBE))
+    {
+      _usb_set_usb_clear();
+    }
+    break;
+
+  case GAMEPAD_MODE_OPENGP:
+    if ((report[0] == REPORT_ID_OPENGP))
     {
       _usb_set_usb_clear();
     }
@@ -404,6 +428,10 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 
   case GAMEPAD_MODE_GCUSB:
     return gc_hid_report_descriptor;
+    break;
+
+  case GAMEPAD_MODE_OPENGP:
+    return opengp_hid_report_descriptor;
     break;
 
   //case GAMEPAD_MODE_DS4:

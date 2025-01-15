@@ -425,10 +425,9 @@ void esp32hoja_task(uint32_t timestamp)
             // Update input states
             static button_data_s   buttons = {0};
             static analog_data_s   analog  = {0};
-            static imu_data_s      imu_tmp    = {0};
+            static imu_data_s      imu_tmp = {0};
             static trigger_data_s  triggers = {0};
 
-            
             analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
             remap_get_processed_input(&buttons, &triggers);
 
@@ -436,8 +435,8 @@ void esp32hoja_task(uint32_t timestamp)
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
-            input_data.buttons_all = buttons.buttons_all;
-            input_data.buttons_system = buttons.buttons_system;
+            input_data.buttons_all      = buttons.buttons_all;
+            input_data.buttons_system   = buttons.buttons_system;
 
             input_data.lx = (uint16_t) (analog.lx+2048);
             input_data.ly = (uint16_t) (analog.ly+2048);
@@ -489,17 +488,11 @@ int esp32hoja_hwtest()
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
-uint32_t esp32hoja_get_info()
+uint32_t esp32hoja_get_fwversion()
 {
-    uint16_t driver_type = 0xF000;
-    uint32_t ret_info = (driver_type<<16);
+    uint32_t ret_info = 0x00;
 
     uint8_t attempts = BTINPUT_GET_VERSION_ATTEMPTS;
-
-    // 0xFFFF indicates that the firmware is unused
-    uint16_t v = 0x0001;
-
-    v = 0xFFFE;
 
     _esp32hoja_enable_chip(true);
 
@@ -525,7 +518,7 @@ uint32_t esp32hoja_get_info()
     }
 
     _esp32hoja_enable_chip(false);
-    return ret_info;
+    return 0x00;
 }
 
 #endif

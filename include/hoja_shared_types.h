@@ -14,7 +14,7 @@ typedef enum
     GAMEPAD_MODE_GAMECUBE = 3,
     GAMEPAD_MODE_N64      = 4,
     GAMEPAD_MODE_SNES     = 5,
-    GAMEPAD_MODE_DS4      = 6,
+    GAMEPAD_MODE_OPENGP   = 6,
     GAMEPAD_MODE_MAX,
 } gamepad_mode_t;
 

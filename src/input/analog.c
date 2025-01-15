@@ -76,6 +76,7 @@ float getAverage(RollingAverage* ra) {
 #endif 
 
 #define STICK_INTERNAL_CENTER 2048
+#define STICK_OPTIONAL_INVERT(val, invert) (invert ? 0xFFF - val : val)
 
 MUTEX_HAL_INIT(_analog_mutex);
 uint32_t _analog_mutex_owner = 0;
@@ -209,15 +210,15 @@ void _analog_read_raw()
         addSample(&rary, ry);
 
         // Convert data
-        _raw_analog_data.lx = (uint16_t) getAverage(&ralx);
-        _raw_analog_data.ly = (uint16_t) getAverage(&raly);
-        _raw_analog_data.rx = (uint16_t) getAverage(&rarx);
-        _raw_analog_data.ry = (uint16_t) getAverage(&rary);
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&ralx), analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&raly), analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rarx), analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rary), analog_config->ry_invert);
     #else
-        _raw_analog_data.lx = lx;
-        _raw_analog_data.ly = ly;
-        _raw_analog_data.rx = rx;
-        _raw_analog_data.ry = ry;
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(lx, analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(ly, analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(rx, analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(ry, analog_config->ry_invert);
     #endif
 }
 

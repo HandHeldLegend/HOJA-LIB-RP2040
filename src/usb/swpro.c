@@ -202,17 +202,8 @@ void swpro_hid_report(uint32_t timestamp)
     data.t_r = buttons.trigger_r;
     data.t_l = buttons.trigger_l;
     
-    #if (HOJA_CAPABILITY_ANALOG_TRIGGER_L)
-        data.t_zl = ( (buttons.zl_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | buttons.trigger_zl;
-    #else
-        data.t_zl = buttons.trigger_zl;
-    #endif
-
-    #if (HOJA_CAPABILITY_ANALOG_TRIGGER_R)
-        data.t_zr = ( (buttons.zr_analog > ANALOG_DIGITAL_THRESH) ? true : false ) | buttons.trigger_zr;
-    #else
-        data.t_zr = buttons.trigger_zr;
-    #endif
+    data.t_zl = buttons.trigger_zl;
+    data.t_zr = buttons.trigger_zr;
 
     data.ls_x = (uint16_t) (analog.lx+2048);
     data.ls_y = (uint16_t) (analog.ly+2048);

@@ -37,7 +37,7 @@
     #define HOJA_BLUETOOTH_STOP() esp32hoja_stop()
     #define HOJA_BLUETOOTH_TASK(timestamp) esp32hoja_task(timestamp)
     #define HOJA_BLUETOOTH_INIT_LOAD() esp32hoja_init_load()
-    #define HOJA_BLUETOOTH_GETINFO() esp32hoja_get_info()
+    #define HOJA_BLUETOOTH_GET_FWVERSION() esp32hoja_get_fwversion()
 #endif
 
 // Define types
@@ -52,7 +52,7 @@ void esp32hoja_task(uint32_t timestamp);
 
 int esp32hoja_hwtest();
 
-uint32_t esp32hoja_get_info();
+uint32_t esp32hoja_get_fwversion();
 
 #endif
 #endif 

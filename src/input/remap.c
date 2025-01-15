@@ -72,48 +72,56 @@ void _trigger_remap_preprocess(button_data_s *state, trigger_data_s *triggers_in
 
 // Runs after our remap in remap.c
 void _trigger_remap_postprocess(
-  button_data_s *state, 
-  trigger_data_s *triggers_in, 
-  trigger_data_s *triggers_out, 
+  button_data_s   *state, 
+  trigger_data_s  *triggers_in, 
+  trigger_data_s  *triggers_out, 
   remap_trigger_t left_type, 
   remap_trigger_t right_type)
 {
+
+  triggers_out->left_analog   = 0;
+  triggers_out->right_analog  = 0;
+  triggers_out->left_hairpin  = 0;
+  triggers_out->right_hairpin = 0;
+
   switch(left_type)
   {
-      default:
-      case REMAP_TRIGGER_MATCHING:
-      triggers_out->left_analog     = triggers_in->left_analog;
-      triggers_out->left_hairpin    = triggers_in->left_hairpin;
-      break;
+    default:
+    case REMAP_TRIGGER_MATCHING:
+    triggers_out->left_analog     = triggers_in->left_analog;
+    triggers_out->left_hairpin    = triggers_in->left_hairpin;
+    break;
 
-      case REMAP_TRIGGER_MISMATCH:
-      triggers_out->left_analog     = state->trigger_zl ? 0 : MAX_ANALOG_OUT;
-      triggers_out->left_hairpin    = state->trigger_zl;
-      break;
+    case REMAP_TRIGGER_DIGITALONLY:
+    case REMAP_TRIGGER_MISMATCH:
+    triggers_out->left_analog     = state->trigger_zl ? MAX_ANALOG_OUT : 0;
+    triggers_out->left_hairpin    = state->trigger_zl;
+    break;
 
-      case REMAP_TRIGGER_SWAPPED:
-      triggers_out->right_analog     = triggers_in->left_analog;
-      triggers_out->right_hairpin    = triggers_in->left_hairpin;
-      break;
+    case REMAP_TRIGGER_SWAPPED:
+    triggers_out->right_analog     = triggers_in->left_analog;
+    triggers_out->right_hairpin    = triggers_in->left_hairpin;
+    break;
   }
 
   switch(right_type)
   {
-      default:
-      case REMAP_TRIGGER_MATCHING:
-      triggers_out->right_analog     = triggers_in->right_analog;
-      triggers_out->right_hairpin    = triggers_in->right_hairpin;
-      break;
+    default:
+    case REMAP_TRIGGER_MATCHING:
+    triggers_out->right_analog     = triggers_in->right_analog;
+    triggers_out->right_hairpin    = triggers_in->right_hairpin;
+    break;
 
-      case REMAP_TRIGGER_MISMATCH:
-      triggers_out->right_analog     = state->trigger_zr ? 0 : MAX_ANALOG_OUT;
-      triggers_out->right_hairpin    = state->trigger_zr;
-      break;
+    case REMAP_TRIGGER_DIGITALONLY:
+    case REMAP_TRIGGER_MISMATCH:
+    triggers_out->right_analog     = state->trigger_zr ? MAX_ANALOG_OUT : 0;
+    triggers_out->right_hairpin    = state->trigger_zr;
+    break;
 
-      case REMAP_TRIGGER_SWAPPED:
-      triggers_out->left_analog     = triggers_in->right_analog;
-      triggers_out->left_hairpin    = triggers_in->right_hairpin;
-      break;
+    case REMAP_TRIGGER_SWAPPED:
+    triggers_out->left_analog     = triggers_in->right_analog;
+    triggers_out->left_hairpin    = triggers_in->right_hairpin;
+    break;
   }
 
   if(state->trigger_zl)

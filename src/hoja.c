@@ -90,31 +90,35 @@ rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
   switch(mode)
   {
       case GAMEPAD_MODE_SWPRO:
-          return COLOR_WHITE;
+        return COLOR_WHITE;
+      break;
+
+      case GAMEPAD_MODE_OPENGP:
+        return COLOR_BLUE;
       break;
 
       case GAMEPAD_MODE_XINPUT:
-          return COLOR_GREEN;
+        return COLOR_GREEN;
       break;
 
       case GAMEPAD_MODE_GAMECUBE:
-          return COLOR_PURPLE;
+        return COLOR_PURPLE;
       break;
 
       case GAMEPAD_MODE_GCUSB:
-          return COLOR_CYAN;
+        return COLOR_CYAN;
       break;
 
       case GAMEPAD_MODE_N64:
-          return COLOR_YELLOW;
+        return COLOR_YELLOW;
       break;
 
       case GAMEPAD_MODE_SNES:
-          return COLOR_RED;
+        return COLOR_RED;
       break;
 
       default:
-          return COLOR_ORANGE;
+        return COLOR_ORANGE;
       break;  
   }
 }

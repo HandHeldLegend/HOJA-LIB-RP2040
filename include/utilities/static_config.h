@@ -4,6 +4,16 @@
 #include <stdint.h>
 #include "settings_shared_types.h"
 
+#if __has_include("timestamp.h")
+    #include "timestamp.h"
+#endif
+
+#ifndef BUILD_TIMESTAMP
+    #define FIRMWARE_VERSION_TIMESTAMP 0x00000000
+#else 
+    #define FIRMWARE_VERSION_TIMESTAMP BUILD_TIMESTAMP
+#endif
+
 typedef enum 
 {
     STATIC_BLOCK_DEVICE, // Half way through config block
@@ -26,7 +36,7 @@ typedef struct
     uint8_t     firmware_url[256];
     uint8_t     manual_url[128];
     uint8_t     fcc_elabel[256];
-    uint16_t    fw_version; 
+    uint32_t    fw_version; 
     uint8_t     snes_supported : 1;
     uint8_t     joybus_supported : 1;
     uint8_t     reserved_bits : 6;
@@ -74,8 +84,10 @@ typedef struct
 
 typedef struct 
 {
-    uint8_t bluetooth_bdr : 1;
-    uint8_t bluetooth_ble : 1;
+    uint16_t    baseband_version;
+    uint16_t    baseband_type; // 0 is onboard
+    uint8_t     bluetooth_bdr : 1;
+    uint8_t     bluetooth_ble : 1;
     uint8_t reserved      : 6;
 } bluetoothInfoStatic_s;
 
@@ -107,8 +119,8 @@ extern const analogInfoStatic_s     analog_static;
 extern const imuInfoStatic_s        imu_static; 
 extern const batteryInfoStatic_s    battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
-extern const bluetoothInfoStatic_s  bluetooth_static;
-extern rgbInfoStatic_s        rgb_static;
+extern bluetoothInfoStatic_s  bluetooth_static;
+extern rgbInfoStatic_s              rgb_static;
 
 void static_config_read_block(static_block_t block, setting_callback_t cb);
 

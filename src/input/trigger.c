@@ -182,13 +182,13 @@ void trigger_task(uint32_t timestamp)
                 _lt_deadzone, _lt_scaler);
 
 
-            if((_scaled_triggers.right_analog > trigger_config->right_hairpin_value) && trigger_config->right_hairpin_value)
+            if((_scaled_triggers.right_analog > trigger_config->right_hairpin_value) && trigger_config->right_hairpin_value>0)
             {
                 _scaled_triggers.right_hairpin = 1;
             }
             else _scaled_triggers.right_hairpin = 0;
 
-            if((_scaled_triggers.left_analog > trigger_config->left_hairpin_value) && trigger_config->left_hairpin_value)
+            if((_scaled_triggers.left_analog > trigger_config->left_hairpin_value) && trigger_config->left_hairpin_value>0)
             {
                 _scaled_triggers.left_hairpin = 1;
             }
@@ -197,8 +197,8 @@ void trigger_task(uint32_t timestamp)
 
         if(_trigger_try_enter())
         {
-            memcpy(&_safe_raw_triggers, &_raw_triggers, sizeof(trigger_data_s));
-            memcpy(&_safe_scaled_triggers, &_scaled_triggers, sizeof(trigger_data_s));
+            memcpy(&_safe_raw_triggers,     &_raw_triggers,     sizeof(trigger_data_s));
+            memcpy(&_safe_scaled_triggers,  &_scaled_triggers,  sizeof(trigger_data_s));
             _trigger_exit();
         }
     }

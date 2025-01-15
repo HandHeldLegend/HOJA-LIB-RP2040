@@ -642,6 +642,11 @@ void stick_scaling_default_check()
     analog_config->rx_center = 2048;
     analog_config->ry_center = 2048;
 
+    analog_config->lx_invert = 0;
+    analog_config->ly_invert = 0;
+    analog_config->rx_invert = 0;
+    analog_config->ry_invert = 0;
+
     analog_config->l_snapback_type = 0;
     analog_config->r_snapback_type = 0;
 

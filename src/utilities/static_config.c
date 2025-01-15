@@ -59,11 +59,12 @@
 #if defined(HOJA_DEVICE_MANUAL_URL)
     #define MANUAL_URL HOJA_DEVICE_MANUAL_URL
 #else 
+    #define MANUAL_URL "~"
     #warning "HOJA_DEVICE_MANUAL_URL undefined. Include to enable documentation URL in app."
 #endif
 
 const deviceInfoStatic_s    device_static = {
-    .fw_version     = HOJA_FW_VERSION,
+    .fw_version     = FIRMWARE_VERSION_TIMESTAMP,
     .maker          = DEVICE_MAKER, 
     .name           = DEVICE_NAME,
     .firmware_url   = FIRMWARE_URL,
@@ -141,8 +142,8 @@ const analogInfoStatic_s    analog_static = {
 #endif
 
 const imuInfoStatic_s       imu_static = {
-    .axis_gyro_a = IMU_AVAILABLE,
-    .axis_gyro_b = IMU_AVAILABLE,
+    .axis_gyro_a  = IMU_AVAILABLE,
+    .axis_gyro_b  = IMU_AVAILABLE,
     .axis_accel_a = IMU_AVAILABLE,
     .axis_accel_b = IMU_AVAILABLE,
 };
@@ -180,14 +181,21 @@ const hapticInfoStatic_s    haptic_static = {
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
     #define BTSUPPORT 1 
+    #define BT_BASEBAND_TYPE HOJA_BLUETOOTH_DRIVER
+    #define BT_BASEBAND_VERSION 0
 #else 
     #warning "HOJA_BLUETOOTH_DRIVER undefined. Bluetooth features will be disabled."
+    #define BT_BASEBAND_TYPE 0
+    #define BT_BASEBAND_VERSION 0
     #define BTSUPPORT 0
 #endif
 
-const bluetoothInfoStatic_s bluetooth_static = {
+// Dynamic BT versoin
+bluetoothInfoStatic_s bluetooth_static = {
     .bluetooth_bdr = BTSUPPORT,
-    .bluetooth_ble = BTSUPPORT
+    .bluetooth_ble = BTSUPPORT,
+    .baseband_type = BT_BASEBAND_TYPE,
+    .baseband_version = BT_BASEBAND_VERSION,
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)
@@ -313,6 +321,17 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
+            // Optional compile for bluetooth version checks
+            #if(BT_BASEBAND_TYPE > 1)
+                // Set our Bluetooth baseband version
+                #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
+                    bluetooth_static.baseband_version = HOJA_BLUETOOTH_GET_FWVERSION();
+                #else 
+                    bluetooth_static.baseband_version = 0;
+                #endif
+            #else
+                bluetooth_static.baseband_version = 0;
+            #endif
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
