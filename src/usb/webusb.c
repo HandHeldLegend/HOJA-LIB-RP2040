@@ -78,6 +78,7 @@ void webusb_send_rawinput(uint32_t timestamp)
 {
     static interval_s interval_ready = {0};
     static interval_s interval = {0};
+    static button_data_s remapped_buttons = {0};
     static button_data_s buttons = {0};
     static trigger_data_s triggers = {0};
     static analog_data_s analog = {0};
@@ -101,7 +102,8 @@ void webusb_send_rawinput(uint32_t timestamp)
         uint8_t webusb_input_report[64] = {0};
 
         analog_access_safe(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
-        remap_get_processed_input(&buttons, &triggers);
+        remap_get_processed_input(&remapped_buttons, &triggers);
+        button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
         imu_access_safe(&imu);
 
         webusb_input_report[0] = WEBUSB_INPUT_RAW;

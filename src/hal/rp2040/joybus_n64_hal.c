@@ -294,7 +294,7 @@ void joybus_n64_hal_task(uint32_t timestamp)
 
       // Update input data
       remap_get_processed_input(&buttons, &triggers);
-      analog_access_safe(&analog,  ANALOG_ACCESS_SNAPBACK_DATA);
+      analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
       static bool _rumblestate = false;
       if(_n64_rumble != _rumblestate)

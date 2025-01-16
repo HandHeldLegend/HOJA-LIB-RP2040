@@ -18,23 +18,30 @@ buttonRemap_s   _remap_profile;
 remap_trigger_t _ltrigger_type = REMAP_TRIGGER_MATCHING;
 remap_trigger_t _rtrigger_type = REMAP_TRIGGER_MATCHING;
 
+#if defined(HOJA_BUTTONS_SUPPORTED_MAIN)
+  #define SUPPORTED_BUTNS HOJA_BUTTONS_SUPPORTED_MAIN
+#else 
+  #define SUPPORTED_BUTNS 0xFFFF
+#endif
+#define MAYBE_MAP(supported, val) (((1<<val) & supported) ? val : -1)
+
 #define DEFAULT_REMAP { \
-    .dpad_up = MAPCODE_DUP, \
-    .dpad_down = MAPCODE_DDOWN, \
-    .dpad_left = MAPCODE_DLEFT, \
-    .dpad_right = MAPCODE_DRIGHT, \
-    .button_a = MAPCODE_B_A, \
-    .button_b = MAPCODE_B_B, \
-    .button_x = MAPCODE_B_X, \
-    .button_y = MAPCODE_B_Y, \
-    .trigger_l = MAPCODE_T_L, \
-    .trigger_r = MAPCODE_T_R, \
-    .trigger_zl = MAPCODE_T_ZL, \
-    .trigger_zr = MAPCODE_T_ZR, \
-    .button_plus = MAPCODE_B_PLUS, \
-    .button_minus = MAPCODE_B_MINUS, \
-    .button_stick_left = MAPCODE_B_STICKL, \
-    .button_stick_right = MAPCODE_B_STICKR \
+    .dpad_up    = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_DUP   ) , \
+    .dpad_down  = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_DDOWN ) , \
+    .dpad_left  = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_DLEFT ) , \
+    .dpad_right = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_DRIGHT) , \
+    .button_a   = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_A )   , \
+    .button_b   = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_B )   , \
+    .button_x   = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_X )   , \
+    .button_y   = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_Y )   , \
+    .trigger_l  = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_T_L )   , \
+    .trigger_r  = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_T_R )   , \
+    .trigger_zl = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_T_ZL)   , \
+    .trigger_zr = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_T_ZR)   , \
+    .button_plus = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_PLUS), \
+    .button_minus = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_MINUS), \
+    .button_stick_left  = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_STICKL), \
+    .button_stick_right = MAYBE_MAP(SUPPORTED_BUTNS, MAPCODE_B_STICKR) \
 }
 
 #define MAX_ANALOG_OUT 4095
@@ -303,6 +310,7 @@ void remap_init()
 {
   if(remap_config->remap_config_version != CFG_BLOCK_REMAP_VERSION)
   {
+    
     remap_config->remap_config_version = CFG_BLOCK_REMAP_VERSION;
     for(int i = 0; i < 12; i++)
     {
