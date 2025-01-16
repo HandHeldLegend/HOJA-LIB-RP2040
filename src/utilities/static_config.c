@@ -3,6 +3,9 @@
 #include "board_config.h"
 #include "usb/webusb.h"
 
+// Bluetooth driver nonsense
+#include "drivers/bluetooth/esp32_hojabaseband.h"
+
 #include <string.h>
 
 #if !defined(HOJA_DEVICE_NAME)
@@ -50,10 +53,10 @@
     #define FIRMWARE_URL "~"
 #endif
 
-#if !defined(HOJA_DEVICE_FCC_ELABEL) 
-    #define FCC_ELABEL "~"
+#if !defined(HOJA_DEVICE_FCC_ID_TEXT) 
+    #define FCC_ID_TEXT "~"
 #else 
-    #define FCC_ELABEL HOJA_DEVICE_FCC_ELABEL
+    #define FCC_ID_TEXT HOJA_DEVICE_FCC_ID_TEXT
 #endif
 
 #if defined(HOJA_DEVICE_MANUAL_URL)
@@ -69,7 +72,7 @@ const deviceInfoStatic_s    device_static = {
     .name           = DEVICE_NAME,
     .firmware_url   = FIRMWARE_URL,
     .manifest_url   = MANIFEST_URL,
-    .fcc_elabel     = FCC_ELABEL,
+    .fcc_id         = FCC_ID_TEXT,
     .manual_url     = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT

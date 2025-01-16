@@ -89,7 +89,7 @@ void webusb_send_rawinput(uint32_t timestamp)
 
     if(!ready)
     {
-        if(webusb_ready_blocking(10))
+        if(webusb_ready_blocking(256))
         {
             ready = true;
         }
