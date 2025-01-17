@@ -103,7 +103,7 @@ volatile uint8_t _workingMode = 0x03;
 
 // Constants for default cycles and clock speeds
 #define DEFAULT_CYCLES         80 // 80 was the tested working from old FW
-#define DEFAULT_CLOCK_KHZ      133000 // 125 MHz
+#define DEFAULT_CLOCK_KHZ      125000 // 125 MHz
 #define NEW_CLOCK_KHZ          (HOJA_BSP_CLOCK_SPEED_HZ/1000)
 const uint32_t _delay_cycles_gc = (DEFAULT_CYCLES * DEFAULT_CLOCK_KHZ) / NEW_CLOCK_KHZ;
 

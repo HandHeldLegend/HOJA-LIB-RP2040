@@ -19,6 +19,9 @@ uint16_t _current_adc_values[4];
 
 static uint32_t _adc_dma_chan = 0;
 
+adc_hal_cfg_t       _adchal_driver = {0};
+bool                _adchal_initialized = false;
+
 #define ADC_HAL_CHECK_RANGE(x, target) ((x > (target-8)) && (x < (target+8)))
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
@@ -55,11 +58,11 @@ uint16_t _process_samples(volatile uint16_t *source)
 
 static bool adc_init_done = false;
 
-uint16_t adc_hal_read(uint8_t channel, bool invert)
+uint16_t adc_hal_read(uint8_t ch_local, uint8_t driver_instance)
 {
-    if(!adc_init_done || channel>3) return 0;
+    if(!adc_init_done || ch_local>3) return 0;
 
-    adc_select_input(channel);
+    adc_select_input(ch_local);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
     adc_run(true);
 
@@ -68,23 +71,17 @@ uint16_t adc_hal_read(uint8_t channel, bool invert)
     adc_run(false);
     adc_fifo_drain();
 
-    _current_adc_values[channel] = _process_samples(_dma_adc_buffer);
+    _current_adc_values[ch_local] = _process_samples(_dma_adc_buffer);
 
-    if(invert)
-        return 0xFFF - _current_adc_values[channel];
-    else 
-        return _current_adc_values[channel];
+    return _current_adc_values[ch_local];
 }
 
-bool adc_hal_init(uint8_t channel, uint32_t gpio)
+bool _adc_hal_init(uint32_t gpio)
 {
-    (void) gpio;
+    if(gpio<26 || gpio>29) return false;
 
-    if(channel>3) return false;
+    uint8_t adc_gpio = gpio-26;
 
-    uint8_t adc_gpio = 26+channel;
-
-    
     if(!adc_init_done)
     {
         adc_init_done = true;
@@ -113,4 +110,20 @@ bool adc_hal_init(uint8_t channel, uint32_t gpio)
 
     adc_gpio_init(adc_gpio);
     return true;
+}
+
+bool adc_hal_register_driver(uint8_t ch_local, adc_driver_cfg_s *cfg)
+{
+    if(cfg->driver_instance<0) return false;
+    if(cfg->driver_instance>0) return false; // Only 1 instance here
+
+    int8_t instance = cfg->driver_instance;
+
+    // Get associated driver
+    adc_hal_cfg_t *driver   = &_adchal_driver;
+    adc_hal_cfg_t *read     = &cfg->hal_cfg;
+
+    // Initialize GPIO for HAL ADC
+    uint32_t gpio = ch_local + 26;
+    return _adc_hal_init(gpio);
 }

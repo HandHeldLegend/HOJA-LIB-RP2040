@@ -51,6 +51,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/adc.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 

@@ -3,6 +3,8 @@
 #include "input/snapback.h"
 #include "input/stick_deadzone.h"
 
+#include "devices/adc.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <math.h>
@@ -20,10 +22,6 @@
 #include "utilities/settings.h"
 
 #include "board_config.h"
-
-// Include all ADC drivers
-#include "hal/adc_hal.h"
-#include "drivers/adc/mcp3002.h"
 
 // Analog smoothing
 #ifdef ADC_SMOOTHING_STRENGTH
@@ -139,21 +137,7 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
 
 void analog_init()
 {
-    #if defined(HOJA_ADC_CHAN_LX_INIT)
-        HOJA_ADC_CHAN_LX_INIT();
-    #endif
-
-    #if defined(HOJA_ADC_CHAN_LY_INIT)
-        HOJA_ADC_CHAN_LY_INIT();
-    #endif
-
-    #if defined(HOJA_ADC_CHAN_RX_INIT)
-        HOJA_ADC_CHAN_RX_INIT();
-    #endif
-
-    #if defined(HOJA_ADC_CHAN_RY_INIT)
-        HOJA_ADC_CHAN_RY_INIT();
-    #endif
+    adc_devices_init();
 
     switch_analog_calibration_init();
     stick_scaling_init();
@@ -179,29 +163,10 @@ void _analog_read_raw()
     static RollingAverage rary = {0};
     #endif
 
-    #ifndef HOJA_ADC_CHAN_LX_READ
-        #warning "HOJA_ADC_CHAN_LX_READ undefined and won't produce input."
-    #else
-        lx = HOJA_ADC_CHAN_LX_READ();
-    #endif 
-
-    #ifndef HOJA_ADC_CHAN_LY_READ
-        #warning "HOJA_ADC_CHAN_LY_READ undefined and won't produce input."
-    #else
-        ly = HOJA_ADC_CHAN_LY_READ();
-    #endif 
-
-    #ifndef HOJA_ADC_CHAN_RX_READ
-        #warning "HOJA_ADC_CHAN_RX_READ undefined and won't produce input."
-    #else
-        rx = HOJA_ADC_CHAN_RX_READ();
-    #endif 
-
-    #ifndef HOJA_ADC_CHAN_RY_READ
-        #warning "HOJA_ADC_CHAN_RY_READ undefined and won't produce input."
-    #else
-        ry = HOJA_ADC_CHAN_RY_READ();
-    #endif 
+    lx = adc_read_lx();
+    ly = adc_read_ly();
+    rx = adc_read_rx();
+    ry = adc_read_ry();
 
     #if (ADC_SMOOTHING_ENABLED==1)
         addSample(&ralx, lx);

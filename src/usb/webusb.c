@@ -102,7 +102,7 @@ void webusb_send_rawinput(uint32_t timestamp)
         uint8_t webusb_input_report[64] = {0};
 
         analog_access_safe(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
-        remap_get_processed_input(&remapped_buttons, &triggers);
+        trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
         button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
         imu_access_safe(&imu);
 
@@ -140,6 +140,8 @@ void webusb_send_rawinput(uint32_t timestamp)
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);
+
+        remap_get_processed_input(&remapped_buttons, &triggers);
 
         ready = false;
     }

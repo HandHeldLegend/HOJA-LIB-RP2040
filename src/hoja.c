@@ -239,7 +239,7 @@ bool _gamepad_mode_init()
   _hoja_status.gamepad_mode   = thisMode;
   _hoja_status.gamepad_method = thisMethod;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(thisMode);
-  
+
   switch(thisMethod)
   {
     default:
