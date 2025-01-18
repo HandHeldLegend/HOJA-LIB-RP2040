@@ -284,6 +284,8 @@ void joybus_gc_hal_task(uint32_t timestamp)
         // Update input data
         remap_get_processed_input(&buttons, &triggers);
         analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+
+        trigger_gc_process(&buttons, &triggers);
         
         static bool _rumblestate = false;
         if (_gc_rumble != _rumblestate)
@@ -311,7 +313,7 @@ void joybus_gc_hal_task(uint32_t timestamp)
 
         const int32_t center_value = 128;
         const float   target_max = 110.0f / 2048.0f;
-        const int32_t fixed_multiplier = (int32_t) (target_max * (1<<10));
+        const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
 
         bool lx_sign = analog.lx < 0;
         bool ly_sign = analog.ly < 0;
@@ -324,10 +326,10 @@ void joybus_gc_hal_task(uint32_t timestamp)
         uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
 
         // Analog stick data conversion
-        int32_t lx = ((lx_abs * fixed_multiplier) >> 10) * (lx_sign ? -1 : 1);
-        int32_t ly = ((ly_abs * fixed_multiplier) >> 10) * (ly_sign ? -1 : 1);
-        int32_t rx = ((rx_abs * fixed_multiplier) >> 10) * (rx_sign ? -1 : 1);
-        int32_t ry = ((ry_abs * fixed_multiplier) >> 10) * (ry_sign ? -1 : 1);
+        int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
+        int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
+        int32_t rx = ((rx_abs * fixed_multiplier) >> 16) * (rx_sign ? -1 : 1);
+        int32_t ry = ((ry_abs * fixed_multiplier) >> 16) * (ry_sign ? -1 : 1);
 
         uint8_t lx8 = CLAMP_0_255(lx + center_value);
         uint8_t ly8 = CLAMP_0_255(ly + center_value);
@@ -336,10 +338,8 @@ void joybus_gc_hal_task(uint32_t timestamp)
         // End analog stick conversion section
 
         // Trigger with SP function conversion
-        uint8_t lt8 = 0;
-        uint8_t rt8 = 0;
-        uint8_t outl = 0;
-        uint8_t outr = 0;
+        uint8_t lt8 = triggers.left_analog  >> 4;
+        uint8_t rt8 = triggers.right_analog >> 4;
 
         // Handle reporting for differing modes
         switch(_workingMode)
