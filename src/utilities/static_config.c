@@ -91,37 +91,37 @@ const buttonInfoStatic_s   buttons_static = {
     .system_buttons = HOJA_BUTTONS_SUPPORTED_SYSTEM
 };
 
-#if defined(HOJA_ADC_LX_DRIVER) 
+#if defined(HOJA_ADC_LX_CFG) 
  #define ALX (1)
 #else 
  #define ALX (0)
 #endif
 
-#if defined(HOJA_ADC_LY_DRIVER) 
+#if defined(HOJA_ADC_LY_CFG) 
  #define ALY (1)
 #else 
  #define ALY (0)
 #endif
 
-#if defined(HOJA_ADC_RX_DRIVER) 
+#if defined(HOJA_ADC_RX_CFG) 
  #define ARX (1)
 #else 
  #define ARX (0)
 #endif
 
-#if defined(HOJA_ADC_RY_DRIVER) 
+#if defined(HOJA_ADC_RY_CFG) 
  #define ARY (1)
 #else 
  #define ARY (0)
 #endif
 
-#if defined(HOJA_ADC_LT_DRIVER) 
+#if defined(HOJA_ADC_LT_CFG) 
  #define ALT (1)
 #else 
  #define ALT (0)
 #endif
 
-#if defined(HOJA_ADC_RT_DRIVER) 
+#if defined(HOJA_ADC_RT_CFG) 
  #define ART (1)
 #else 
  #define ART (0)

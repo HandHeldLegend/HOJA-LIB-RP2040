@@ -19,9 +19,6 @@ uint16_t _current_adc_values[4];
 
 static uint32_t _adc_dma_chan = 0;
 
-adc_hal_cfg_t       _adchal_driver = {0};
-bool                _adchal_initialized = false;
-
 #define ADC_HAL_CHECK_RANGE(x, target) ((x > (target-8)) && (x < (target+8)))
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
@@ -58,11 +55,12 @@ uint16_t _process_samples(volatile uint16_t *source)
 
 static bool adc_init_done = false;
 
-uint16_t adc_hal_read(uint8_t ch_local, uint8_t driver_instance)
+// Read channel according to cfg data
+uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
 {
-    if(!adc_init_done || ch_local>3) return 0;
+    if(!adc_init_done || cfg->ch_local>3) return 0;
 
-    adc_select_input(ch_local);
+    adc_select_input(cfg->ch_local);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
     adc_run(true);
 
@@ -71,9 +69,9 @@ uint16_t adc_hal_read(uint8_t ch_local, uint8_t driver_instance)
     adc_run(false);
     adc_fifo_drain();
 
-    _current_adc_values[ch_local] = _process_samples(_dma_adc_buffer);
-
-    return _current_adc_values[ch_local];
+    _current_adc_values[cfg->ch_local] = _process_samples(_dma_adc_buffer);
+    
+    return cfg->ch_invert ? (0xFFF - _current_adc_values[cfg->ch_local]) : _current_adc_values[cfg->ch_local];
 }
 
 bool _adc_hal_init(uint32_t gpio)
@@ -112,18 +110,11 @@ bool _adc_hal_init(uint32_t gpio)
     return true;
 }
 
-bool adc_hal_register_driver(uint8_t ch_local, adc_driver_cfg_s *cfg)
+bool adc_hal_init_channel(adc_channel_cfg_s *cfg)
 {
-    if(cfg->driver_instance<0) return false;
-    if(cfg->driver_instance>0) return false; // Only 1 instance here
-
-    int8_t instance = cfg->driver_instance;
-
-    // Get associated driver
-    adc_hal_cfg_t *driver   = &_adchal_driver;
-    adc_hal_cfg_t *read     = &cfg->hal_cfg;
+    if(cfg->ch_local>3) return false;
 
     // Initialize GPIO for HAL ADC
-    uint32_t gpio = ch_local + 26;
+    uint32_t gpio = cfg->ch_local + 26;
     return _adc_hal_init(gpio);
 }

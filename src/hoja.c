@@ -166,9 +166,6 @@ void _hoja_task_0()
   // Read/process buttons/analog triggers
   button_task(c0_timestamp);
 
-  // Trigger task
-  trigger_task(c0_timestamp);
-
   // Process any macros
   macros_task(c0_timestamp);
 
@@ -214,6 +211,9 @@ void _hoja_task_1()
 
     // Analog task
     analog_task(c1_timestamp);
+
+    // Trigger task
+    trigger_task(c1_timestamp);
 
     // IMU task
     imu_task(c1_timestamp);

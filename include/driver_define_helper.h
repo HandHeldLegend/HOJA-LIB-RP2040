@@ -38,20 +38,22 @@
 
     // Forward declare the driver config struct
     typedef struct adc_driver_cfg_s adc_driver_cfg_s;
+    typedef struct adc_channel_cfg_s adc_channel_cfg_s;
 
     typedef struct {
-        adc_driver_cfg_s *host_cfg;
-        int8_t          host_ch_local; // Local channel for host driver
-        int8_t          en_gpio;
+        adc_driver_cfg_s *host_cfg; // Configuration of host driver (TMUX1204 needs another ADC to send data to)
+        int8_t          host_ch_local; // Local channel for host driver. IE if the output is going to ADC HAL ch 0, use ch 0!
+        int8_t          a0_gpio;
         int8_t          a1_gpio;
-        int8_t          a2_gpio;
     } adc_tmux1204_cfg_t;
 
     // ADC Drivers
     struct adc_driver_cfg_s
     {
-        adc_driver_t    driver_type;    // Type of ADC driver
-        int8_t          driver_instance; // Driver number used to read 
+        adc_driver_t    driver_type;        // Type of ADC driver
+        int8_t          driver_instance;    // Instance of driver
+
+        // CFG data for specific driver
         union 
         {
             adc_hal_cfg_t       hal_cfg;
@@ -60,20 +62,13 @@
         };
     };
 
-    typedef struct {
+    struct adc_channel_cfg_s {
         int8_t  ch_local; // Local channel for the given driver
         uint8_t ch_invert;
         adc_driver_cfg_s *driver_cfg;
-    } adc_channel_cfg_s;
+    };
 
-    typedef uint16_t(*adc_read_fn_t)(uint8_t ch_local, uint8_t driver_instance);
-
-    typedef struct 
-    {
-        int8_t          driver_instance; // Driver number to pass to our read function
-        int8_t          ch_local;   // Local channel for the driver
-        adc_read_fn_t   read_fn;    // Function pointer to read ADC data
-    } adc_local_read_s;
+    typedef uint16_t(*adc_read_fn_t)(adc_channel_cfg_s *cfg);
     
     // IMU Drivers
     #define IMU_DRIVER_LSM6DSR 1

@@ -10,7 +10,7 @@
     #error "MCP3002 driver requires SPI." 
 #endif
 
-bool        mcp3002_register_driver(uint8_t ch_local, adc_driver_cfg_s *cfg);
-uint16_t    mcp3002_read(uint8_t ch_local, uint8_t driver_instance);
+bool        mcp3002_init_channel(adc_channel_cfg_s *cfg);
+uint16_t    mcp3002_read_channel(adc_channel_cfg_s *cfg);
 
 #endif

@@ -24,7 +24,7 @@
     #define HOJA_BATTERY_UPDATE_STATUS()    bq25180_update_status()
     #define HOJA_BATTERY_SET_SOURCE(source) bq25180_set_source(source) 
     
-    #warning "HOJA_BATTERY_GET_LEVEL() is unused by BQ25180 and may be overridden."
+    //#warning "HOJA_BATTERY_GET_LEVEL() is unused by BQ25180 and may be overridden."
 
     #define HOJA_BATTERY_SET_SHIP_MODE()    bq25180_set_ship_mode()
     #define HOJA_BATTERY_SET_CHARGE_RATE(rate_ma) bq25180_set_charge_rate(rate_ma)

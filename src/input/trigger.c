@@ -7,10 +7,9 @@
 #include "utilities/settings.h"
 #include "utilities/interval.h"
 
-#include "hal/mutex_hal.h"
+#include "devices/adc.h"
 
-#include "hal/adc_hal.h"
-#include "drivers/adc/mcp3002.h"
+#include "hal/mutex_hal.h"
 
 trigger_data_s  _safe_raw_triggers       = {0};
 trigger_data_s  _safe_scaled_triggers    = {0};
@@ -150,19 +149,18 @@ void trigger_task(uint32_t timestamp)
     static interval_s interval = {0};
     if(interval_run(timestamp, 1000, &interval))
     {
-        
-        #if defined(HOJA_ADC_CHAN_RT_READ)
-            if(trigger_config->right_disabled)
-                _raw_triggers.right_analog = 0;
-            else 
-                _raw_triggers.right_analog = HOJA_ADC_CHAN_RT_READ();
+        #if defined(HOJA_ADC_RT_CFG)
+        if(trigger_config->right_disabled)
+            _raw_triggers.right_analog = 0;
+        else 
+            _raw_triggers.right_analog = adc_read_rt();
         #endif
 
-        #if defined(HOJA_ADC_CHAN_LT_READ)
-            if(trigger_config->left_disabled)
-                _raw_triggers.left_analog = 0;
-            else 
-                _raw_triggers.left_analog = HOJA_ADC_CHAN_LT_READ();
+        #if defined(HOJA_ADC_LT_CFG)
+        if(trigger_config->left_disabled)
+            _raw_triggers.left_analog = 0;
+        else 
+            _raw_triggers.left_analog = adc_read_lt();
         #endif
 
         if(_trigger_calibrate)

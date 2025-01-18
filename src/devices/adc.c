@@ -2,6 +2,7 @@
 #include "driver_define_helper.h"
 #include "board_config.h"
 #include <stdlib.h>
+#include "utilities/settings.h"
 
 #include "drivers/adc/mcp3002.h"
 #include "drivers/adc/tmux1204.h"
@@ -37,15 +38,14 @@
     #define HOJA_ADC_BAT_CFG BLANK_ADC_CFG
 #endif 
 
-const adc_channel_cfg_s _chan_cfgs[7] = {
+adc_channel_cfg_s _chan_cfgs[ADC_CH_MAX] = {
     HOJA_ADC_LX_CFG, HOJA_ADC_LY_CFG, 
     HOJA_ADC_RX_CFG, HOJA_ADC_RY_CFG,
     HOJA_ADC_LT_CFG, HOJA_ADC_RT_CFG,
     HOJA_ADC_BAT_CFG
     };
 
-#define LNULL {.driver_instance = -1, .ch_local = -1}
-adc_local_read_s _adc_channels[7] = {LNULL,LNULL,LNULL,LNULL,LNULL,LNULL,LNULL};
+adc_read_fn_t _chan_read_fns[ADC_CH_MAX] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 bool adc_devices_init()
 {
@@ -54,11 +54,12 @@ bool adc_devices_init()
         int8_t          driver_num = -1;
         adc_read_fn_t   read_fn = NULL;
 
+        adc_channel_cfg_s *cfg = &_chan_cfgs[i];
+
         // If our channel config exists
-        if(_chan_cfgs[i].ch_local > -1)
+        if(cfg->ch_local > -1)
         {
-            adc_driver_cfg_s    *driver_cfg = _chan_cfgs[i].driver_cfg;
-            uint8_t ch_local = _chan_cfgs[i].ch_local;
+            adc_driver_cfg_s *driver_cfg = cfg->driver_cfg;
 
             switch(driver_cfg->driver_type)
             {
@@ -66,26 +67,19 @@ bool adc_devices_init()
                 break;
 
                 case ADC_DRIVER_MCP3002:
-                    if(mcp3002_register_driver(ch_local, driver_cfg))
-                        read_fn = mcp3002_read;
+                    if(mcp3002_init_channel(cfg))
+                        _chan_read_fns[i] = mcp3002_read_channel;
                 break;
 
                 case ADC_DRIVER_HAL:
-                    if(adc_hal_register_driver(ch_local, driver_cfg))
-                        read_fn = adc_hal_read;
+                    if(adc_hal_init_channel(cfg))
+                        _chan_read_fns[i] = adc_hal_read_channel;
                 break;
 
                 case ADC_DRIVER_TMUX1204:
-                    if(tmux1204_register_driver(ch_local, driver_cfg))
-                        read_fn = tmux1204_read;
+                    if(tmux1204_init_channel(cfg))
+                        _chan_read_fns[i] = tmux1204_read_channel;
                 break;
-            }
-
-            if(read_fn)
-            {
-                _adc_channels[i].ch_local           = _chan_cfgs[i].ch_local;
-                _adc_channels[i].driver_instance    = _chan_cfgs[i].driver_cfg->driver_instance;
-                _adc_channels[i].read_fn            = read_fn;
             }
         }
     }
@@ -95,8 +89,12 @@ bool adc_devices_init()
 
 static inline int _read_adc_instance(uint8_t idx)
 {
-    if(_adc_channels[idx].driver_instance > -1)
-        return _adc_channels[idx].read_fn(_adc_channels[idx].ch_local, _adc_channels[idx].driver_instance);
+    if(_chan_read_fns[idx])
+    {
+        adc_channel_cfg_s *cfg = &_chan_cfgs[idx];
+        return _chan_read_fns[idx](cfg);
+    }
+        
     return -1;
 }
 
