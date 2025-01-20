@@ -9,6 +9,10 @@
 
 #include "board_config.h"
 
+#if defined(HOJA_HDRUMBLE_DEBUG) && (HOJA_HDRUMBLE_DEBUG==1)
+#include "input/macros/macro_pcmdebug.h"
+#endif
+
 void macros_task(uint32_t timestamp)
 {
     static button_data_s buttons = {0};
@@ -30,5 +34,9 @@ void macros_task(uint32_t timestamp)
 
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
     macro_pairing(timestamp, &buttons);
+    #endif
+
+    #if defined(HOJA_HDRUMBLE_DEBUG) && (HOJA_HDRUMBLE_DEBUG==1)
+    macro_pcmdebug(timestamp, &buttons);
     #endif
 }

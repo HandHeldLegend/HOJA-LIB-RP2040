@@ -15,12 +15,44 @@
 #endif
 
 int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
-volatile uint32_t _lo_amp_miniumum = 0;
+volatile uint32_t _lo_amp_minimum = 0;
 volatile uint32_t _hi_amp_minimum  = 0;
+
 volatile uint32_t _lo_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
 volatile uint32_t _hi_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
 
+float _pcm_max_safe_value = 0; 
+
+float _pcm_param_min_hi = PCM_LO_FREQUENCY_MIN;
+
+float _pcm_param_min_lo = PCM_LO_FREQUENCY_MIN;
+
+float _pcm_param_max = PCM_MIN_SAFE_RATIO;
+
 #define TWO_PI 2.0f * M_PI
+
+void pcm_debug_adjust_param(uint8_t param_type, float amount)
+{
+    switch(param_type)
+    {
+        case PCM_DEBUG_PARAM_MAX:
+            _pcm_param_max += amount;
+            _pcm_param_max = (_pcm_param_max > 1) ? 1 : (_pcm_param_max < 0) ? 0 : _pcm_param_max;
+        break;
+
+        case PCM_DEBUG_PARAM_MIN_HI:
+            _pcm_param_min_hi += amount;
+            _pcm_param_min_hi = (_pcm_param_min_hi > 1) ? 1 : (_pcm_param_min_hi < 0) ? 0 : _pcm_param_min_hi;
+        break;
+
+        case PCM_DEBUG_PARAM_MIN_LO:
+            _pcm_param_min_lo += amount;
+            _pcm_param_min_lo = (_pcm_param_min_lo > 1) ? 1 : (_pcm_param_min_lo < 0) ? 0 : _pcm_param_min_lo;
+        break;
+    }
+
+    pcm_init(255);
+}
 
 // Initialize the sine table
 void _generate_sine_table()
@@ -34,7 +66,7 @@ void _generate_sine_table()
         float sample = sinf(fi);
 
         // Convert to int16_t, rounding to nearest value
-        _pcm_sine_table[i] = (int16_t)(sample * (float) PCM_SIN_RANGE_MAX);
+        _pcm_sine_table[i] = (int16_t)(sample * (float) PCM_WRAP_VAL);
 
         fi += inc;
         fi = fmodf(fi, TWO_PI);  
@@ -53,24 +85,6 @@ typedef struct
 } pcm_amfm_queue_t;
 
 pcm_amfm_queue_t _pcm_amfm_queue = {0};
-
-void xpcm_set_frequency_amplitude(float frequency, float amplitude) 
-{
-    if(amplitude < 0) amplitude = 0;
-    if(amplitude > 1) amplitude = 1;
-
-    // Calculate phase increment float
-    float increment = (frequency * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE; 
-    uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5); 
-    float scaled_amplitude = 0;
-
-    if(amplitude > 0)
-        scaled_amplitude = (amplitude * PCM_LO_FREQUENCY_RANGE) + PCM_LO_FREQUENCY_MIN;
-
-    // Scale to fixed point
-    int16_t  fixed_amplitude = (int16_t)(amplitude * PCM_AMPLITUDE_SHIFT_FIXED + 0.5);
-
-}
 
 void pcm_set_frequency_amplitude(uint16_t frequency_step_value, int16_t amplitude_fixed) 
 {
@@ -160,31 +174,44 @@ bool pcm_amfm_is_full()
 volatile bool _pcm_init_done = false;
 void pcm_init(uint8_t intensity) 
 {
+    // DEBUG
+    intensity = 255;
+
     if(!intensity)
     {
         _lo_amp_scaler = 0;
-        _lo_amp_miniumum = 0;
+        _lo_amp_minimum = 0;
         _hi_amp_scaler = 0;
         _hi_amp_minimum = 0;
         return;
     }
-    
-    float scaler = (float) intensity / 255.0f;
 
-    scaler = powf(scaler, 2.0f);
+    // Calculate pcm clamp value (max allowed value)
+    _pcm_max_safe_value = (float) PCM_WRAP_VAL * _pcm_param_max;
 
-    float loscale = scaler / (1 - PCM_LO_FREQUENCY_MIN);
-    float hiscale = scaler / (1 - PCM_HI_FREQUENCY_MIN);
+    // Minimum amplitudes are based on our WRAP value
+
+    // Calculate the exact wrap value that our min amplitudes
+    // rest at 
+    float lomin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_lo;
+    float himin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_hi;
+
+    // Calculate remainder of range 
+    float remaininghi = _pcm_max_safe_value - himin_pcm;
+    float remaininglo = _pcm_max_safe_value - lomin_pcm;
+
+    // Calculate scalers for the remaining ranges for our sine table
+    float loscale = remaininglo / (float) PCM_WRAP_VAL;
+    float hiscale = remaininghi / (float) PCM_WRAP_VAL;
 
     _lo_amp_scaler = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_scaler = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
 
-    _lo_amp_miniumum = (uint32_t) (PCM_LO_FREQUENCY_MIN * PCM_AMPLITUDE_SHIFT_FIXED);
-    _hi_amp_minimum  = (uint32_t) (PCM_HI_FREQUENCY_MIN * PCM_AMPLITUDE_SHIFT_FIXED);
+    _lo_amp_minimum  = (uint32_t) (_pcm_param_min_lo * PCM_AMPLITUDE_SHIFT_FIXED);
+    _hi_amp_minimum  = (uint32_t) (_pcm_param_min_hi * PCM_AMPLITUDE_SHIFT_FIXED);
 
     if(_pcm_init_done) return;
     _pcm_init_done = true;
-
     _generate_sine_table();
     pcm_amfm_queue_init();
 }
@@ -221,11 +248,9 @@ void pcm_generate_buffer(
     static uint32_t phase_hi = 0;
     static uint32_t phase_lo = 0;
     static uint16_t current_sample_idx = 0;
+    static bool     processing_sample = false;
     static haptic_processed_s   last_values     = {0};
     static haptic_processed_s   current_values  = {0};
-
-    // Interpolation factor (t) goes from 0 to 255
-    static uint8_t lerp_factor = 0; 
 
     static int load_sample = -1;
 
@@ -234,15 +259,15 @@ void pcm_generate_buffer(
         uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
         uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
 
-        if(!current_sample_idx || (current_sample_idx >= PCM_SAMPLES_PER_PAIR)) 
+        if(!processing_sample)
         {
             // Get new values from queue
             if (!pcm_amfm_is_empty())
             {
                 last_values = current_values;
-                lerp_factor = 0;
-                current_sample_idx = 0;
                 pcm_amfm_pop(&current_values);
+                processing_sample = true;
+                current_sample_idx = 0;
             }
         }
 
@@ -253,35 +278,45 @@ void pcm_generate_buffer(
 
         hi_amplitude_fixed = current_values.hi_amplitude_fixed;
         lo_amplitude_fixed = current_values.lo_amplitude_fixed;
+
+        /*
+           High frequency is used for Special hit effects, tilt attack hit, tilt whiff,
+           Smash attack chargeup, enemy death confirmation, Shield, Landing
+        */
         hi_frequency_increment = current_values.hi_frequency_increment;
+
+        /*
+           Low frequency is used for Jump, Smash attack, 
+           Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
+        */
         lo_frequency_increment = current_values.lo_frequency_increment;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
 
-        uint32_t scaled_hi = 0;
-        uint32_t scaled_lo = 0;
+        bool hi_sign = (sine_hi >= 0) ? true : false;
+        bool lo_sign = (sine_lo >= 0) ? true : false;
+
+        if(!hi_sign) sine_hi = -sine_hi;
+        if(!lo_sign) sine_lo = -sine_lo;
+
+        int32_t scaled_hi = 0;
+        int32_t scaled_lo = 0;
 
         if(hi_amplitude_fixed)
         {
             // Scale according to our global scaler
             hi_amplitude_fixed = (hi_amplitude_fixed * _hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
             hi_amplitude_fixed += _hi_amp_minimum;
-            if(sine_hi > 0)
-            {
-                scaled_hi = ((uint32_t) sine_hi * hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
+            scaled_hi = ((uint32_t) sine_hi * hi_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
         }
 
         if(lo_amplitude_fixed)
         {
             // Scale according to our global scaler
             lo_amplitude_fixed = (lo_amplitude_fixed * _lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-            lo_amplitude_fixed += _lo_amp_miniumum;
-            if(sine_lo > 0)
-            {
-                scaled_lo = ((uint32_t) sine_lo * lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
+            lo_amplitude_fixed += _lo_amp_minimum;
+            scaled_lo = ((uint32_t) sine_lo * lo_amplitude_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
         }
 
         uint32_t external_sample = 0;
@@ -293,28 +328,20 @@ void pcm_generate_buffer(
             _external_sample_remaining--;
         }
 
-        /*
-           High frequency is used for Special hit effects, tilt attack hit, tilt whiff,
-           Smash attack chargeup, enemy death confirmation, Shield, Landing
-        */
-        scaled_hi >>= 7; // Scale down to 8-bit
-
-        /*
-           Low frequency is used for Jump, Smash attack, 
-           Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
-        */
-        scaled_lo >>= 7; // Scale down to 8-bit
-
         // Debug disable lo 
         //scaled_lo = 0;
 
         // Debug disable hi
         //scaled_hi = 0;
 
-        // Mix the two channels
-        uint32_t    mixed = (scaled_hi + scaled_lo);
+        // Reappy signs
+        if(!hi_sign) scaled_hi = -scaled_hi;
+        if(!lo_sign) scaled_lo = -scaled_lo;
 
-        #define RATIO_SHIFT (15)
+        // Mix the two channels
+        int32_t    mixed = (scaled_hi + scaled_lo);
+
+        #define RATIO_SHIFT (14)
         #define RATIO_MULT  (1 << RATIO_SHIFT)
         #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
 
@@ -324,40 +351,46 @@ void pcm_generate_buffer(
         #define RATIO_CLICK_FACTOR (RATIO_CLICK_MULT * CLICK_MAX_SAFE_VALUE)
 
         // Check if scaling is required
-        if (mixed > PCM_MAX_SAFE_VALUE)
-        {
-            // Compute the scaling factor as a fixed-point ratio
-            uint32_t new_ratio = RATIO_FACTOR / mixed;
 
-            // Scale the components proportionally
-            scaled_hi = (scaled_hi * new_ratio) >> RATIO_SHIFT;
-            scaled_lo = (scaled_lo * new_ratio) >> RATIO_SHIFT;
+        //if (mixed > (uint32_t)_pcm_max_safe_value)
+        //{
+        //    // Compute the scaling factor as a fixed-point ratio
+        //    uint32_t new_ratio = (RATIO_MULT*(uint32_t)_pcm_max_safe_value) / mixed;
+        //    // Scale the components proportionally
+        //    scaled_hi = (scaled_hi * new_ratio) >> RATIO_SHIFT;
+        //    scaled_lo = (scaled_lo * new_ratio) >> RATIO_SHIFT;
+        //    // Recalculate the mixed value (optional for verification)
+        //    mixed = scaled_hi + scaled_lo;
+        //}
 
-            // Recalculate the mixed value (optional for verification)
-            mixed = scaled_hi + scaled_lo;
-        }
+        //if ((mixed+external_sample) > CLICK_MAX_SAFE_VALUE)
+        //{
+        //    // Compute the scaling factor as a fixed-point ratio
+        //    uint32_t new_ratio_2 = RATIO_CLICK_FACTOR / (mixed+external_sample);
+        //    // Scale the components proportionally
+        //    mixed = (mixed * new_ratio_2) >> RATIO_CLICK_SHIFT;
+        //    external_sample = (external_sample * new_ratio_2) >> RATIO_CLICK_SHIFT;
+        //    // Recalculate the mixed value (optional for verification)
+        //    mixed = mixed + external_sample;
+        //}
 
-        if ((mixed+external_sample) > CLICK_MAX_SAFE_VALUE)
-        {
-            // Compute the scaling factor as a fixed-point ratio
-            uint32_t new_ratio_2 = RATIO_CLICK_FACTOR / (mixed+external_sample);
+        //uint8_t sample = (uint8_t)(mixed > CLICK_MAX_SAFE_VALUE ? CLICK_MAX_SAFE_VALUE : mixed);
 
-            // Scale the components proportionally
-            mixed = (mixed * new_ratio_2) >> RATIO_CLICK_SHIFT;
-            external_sample = (external_sample * new_ratio_2) >> RATIO_CLICK_SHIFT;
+        if(mixed < 0) mixed = 0;
 
-            // Recalculate the mixed value (optional for verification)
-            mixed = mixed + external_sample;
-        }
-
-        uint8_t sample = (uint8_t)(mixed > CLICK_MAX_SAFE_VALUE ? CLICK_MAX_SAFE_VALUE : mixed);
-
-        uint32_t outsample = ((uint32_t) sample << 16) | (uint8_t) sample;
+        uint32_t outsample = ((uint32_t) mixed << 16) | (uint32_t) mixed;
         buffer[i] = outsample;
 
         phase_hi = (phase_hi + hi_frequency_increment) % PCM_SINE_WRAPAROUND;
         phase_lo = (phase_lo + lo_frequency_increment) % PCM_SINE_WRAPAROUND;
 
-        current_sample_idx++;
+        if(processing_sample)
+        {
+            current_sample_idx++;
+            if(current_sample_idx >= PCM_SAMPLES_PER_PAIR)
+            {
+                processing_sample = false;
+            }
+        }
     }
 }

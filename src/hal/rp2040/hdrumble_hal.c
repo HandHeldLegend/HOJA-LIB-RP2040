@@ -28,9 +28,9 @@
 #endif
 
 #define SAMPLE_RATE         PCM_SAMPLE_RATE
-#define REPETITION_RATE     4
+#define REPETITION_RATE     PCM_SAMPLE_REPETITIONS
 #define BUFFER_SIZE         PCM_BUFFER_SIZE*2
-#define PWM_WRAP            PCM_BUFFER_SIZE
+#define PWM_WRAP            PCM_WRAP_VAL
 
 uint dma_reset;
 
@@ -274,7 +274,7 @@ bool get_inactive_buffer_half()
 {
     #ifdef HOJA_HDRUMBLE_CHAN_A_PIN
     // Get current DMA read address
-    uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>2);
+    uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>1);
     
     // If DMA is reading from first half, return pointer to second half
     if (current_trans_count >= PCM_BUFFER_SIZE) {

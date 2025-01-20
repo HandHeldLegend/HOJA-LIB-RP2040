@@ -8,33 +8,31 @@
 
 #include "board_config.h"
 
-#define PCM_BUFFER_SIZE 256
-#define PCM_SAMPLES_PER_PAIR 85
-#define PCM_SAMPLES_LERP_TIME 0
-#define PCM_TOTAL_SIZE (PCM_BUFFER_SIZE * PCM_CHUNKS)
-#define PCM_SAMPLE_RATE 16000
-#define PCM_SINE_TABLE_SIZE 4096
+#define PCM_BUFFER_SIZE         256
+#define PCM_SAMPLES_PER_PAIR    85
+#define PCM_WRAP_VAL            6000 // (1<<14)
+#define PCM_SAMPLE_REPETITIONS  2
 
-#if defined(BOARD_SAFE_PCM_MAX)
-    #define PCM_MAX_SAFE_VALUE BOARD_SAFE_PCM_MAX
-#else
-    #define PCM_MAX_SAFE_VALUE 80 // 60 maybe felt closest to OEM?
-#endif
+#define PCM_SAMPLE_RATE         11000
+#define PCM_SINE_TABLE_SIZE     4096
 
-#if defined(BOARD_LO_FREQUENCY_MIN)
-    #define PCM_LO_FREQUENCY_MIN BOARD_LO_FREQUENCY_MIN
+#if defined(HOJA_HAPTICS_MAX)
+    #define PCM_MIN_SAFE_RATIO      HOJA_HAPTICS_MAX
 #else 
-    #define PCM_LO_FREQUENCY_MIN 0.175f
+    #define PCM_MIN_SAFE_RATIO      0.3f
 #endif
 
-#if defined(BOARD_HI_FREQUENCY_MIN)
-    #define PCM_HI_FREQUENCY_MIN BOARD_HI_FREQUENCY_MIN
+#if defined(HOJA_HAPTICS_MIN_LO)
+    #define PCM_LO_FREQUENCY_MIN    HOJA_HAPTICS_MIN_LO
 #else 
-    #define PCM_HI_FREQUENCY_MIN 0.17f
+    #define PCM_LO_FREQUENCY_MIN    0.0625f
 #endif
 
-#define PCM_LO_FREQUENCY_RANGE (1 - PCM_LO_FREQUENCY_MIN)
-#define PCM_HI_FREQUENCY_RANGE (1 - PCM_HI_FREQUENCY_MIN)
+#if defined(HOJA_HAPTICS_MIN_HI)
+    #define PCM_HI_FREQUENCY_MIN    HOJA_HAPTICS_MIN_HI
+#else 
+    #define PCM_HI_FREQUENCY_MIN    0.000f
+#endif
 
 #define PCM_SIN_RANGE_MAX 32767
 #define PCM_SINE_TABLE_IDX_MAX (PCM_SINE_TABLE_SIZE - 1)
@@ -45,6 +43,15 @@
 #define PCM_FREQUENCY_SHIFT_BITS 7 // How many bits for fraction
 #define PCM_FREQUENCY_SHIFT_FIXED (1 << PCM_FREQUENCY_SHIFT_BITS)
 #define PCM_SINE_WRAPAROUND (PCM_SINE_TABLE_SIZE << PCM_FREQUENCY_SHIFT_BITS)
+
+typedef enum 
+{
+    PCM_DEBUG_PARAM_MAX, 
+    PCM_DEBUG_PARAM_MIN_LO, 
+    PCM_DEBUG_PARAM_MIN_HI, 
+} pcm_adjust_t;
+
+void pcm_debug_adjust_param(uint8_t param_type, float amount);
 
 void pcm_init(uint8_t intensity);
 void pcm_play_sample(uint8_t *sample, uint32_t size);
