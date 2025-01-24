@@ -1,5 +1,6 @@
 #include "hal/joybus_gc_hal.h"
 #include "pico/stdlib.h"
+#include "hoja.h"
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"
 
@@ -11,6 +12,7 @@
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/remap.h"
+#include "input/trigger.h"
 
 #include "board_config.h"
 
@@ -274,128 +276,135 @@ void joybus_gc_hal_task(uint32_t timestamp)
     // Reset if no new data for 150ms
     if (interval_resettable_run(timestamp, 150000, _gc_got_data, &interval_reset))
     {
-        _gamecube_reset_state();
+      hoja_set_connected_status(0);
+      hoja_set_player_number_status(-1);
+      _gamecube_reset_state();
     }
     
     if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
     {
-        if(_gc_got_data) _gc_got_data = false;
+      if(_gc_got_data) 
+      {
+        _gc_got_data = false;
+        hoja_set_connected_status(1);
+        hoja_set_player_number_status(1);
+      }
 
-        // Update input data
-        remap_get_processed_input(&buttons, &triggers);
-        analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+      // Update input data
+      remap_get_processed_input(&buttons, &triggers);
+      analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
-        trigger_gc_process(&buttons, &triggers);
-        
-        static bool _rumblestate = false;
-        if (_gc_rumble != _rumblestate)
-        {
-          _rumblestate = _gc_rumble;
-          haptics_set_std(_rumblestate ? 235 : 0);
-        }
+      trigger_gc_process(&buttons, &triggers);
+      
+      static bool _rumblestate = false;
+      if (_gc_rumble != _rumblestate)
+      {
+        _rumblestate = _gc_rumble;
+        haptics_set_std(_rumblestate ? 235 : 0);
+      }
 
-        // Our buttons are always the same formatting
-        _out_buffer.blank_2 = 1;
-        _out_buffer.a       = buttons.button_a;
-        _out_buffer.b       = buttons.button_b;
-        _out_buffer.x       = buttons.button_x;
-        _out_buffer.y       = buttons.button_y;
-        _out_buffer.start   = buttons.button_plus;
-        _out_buffer.l       = buttons.trigger_zl;
-        _out_buffer.r       = buttons.trigger_zr;
+      // Our buttons are always the same formatting
+      _out_buffer.blank_2 = 1;
+      _out_buffer.a       = buttons.button_a;
+      _out_buffer.b       = buttons.button_b;
+      _out_buffer.x       = buttons.button_x;
+      _out_buffer.y       = buttons.button_y;
+      _out_buffer.start   = buttons.button_plus;
+      _out_buffer.l       = buttons.trigger_zl;
+      _out_buffer.r       = buttons.trigger_zr;
 
-        _out_buffer.dpad_down   = buttons.dpad_down;
-        _out_buffer.dpad_left   = buttons.dpad_left;
-        _out_buffer.dpad_right  = buttons.dpad_right;
-        _out_buffer.dpad_up     = buttons.dpad_up;
+      _out_buffer.dpad_down   = buttons.dpad_down;
+      _out_buffer.dpad_left   = buttons.dpad_left;
+      _out_buffer.dpad_right  = buttons.dpad_right;
+      _out_buffer.dpad_up     = buttons.dpad_up;
 
-        _out_buffer.z           = buttons.trigger_r;
+      _out_buffer.z           = buttons.trigger_r;
 
-        const int32_t center_value = 128;
-        const float   target_max = 110.0f / 2048.0f;
-        const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
+      const int32_t center_value = 128;
+      const float   target_max = 110.0f / 2048.0f;
+      const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
 
-        bool lx_sign = analog.lx < 0;
-        bool ly_sign = analog.ly < 0;
-        bool rx_sign = analog.rx < 0;
-        bool ry_sign = analog.ry < 0;
+      bool lx_sign = analog.lx < 0;
+      bool ly_sign = analog.ly < 0;
+      bool rx_sign = analog.rx < 0;
+      bool ry_sign = analog.ry < 0;
 
-        uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
-        uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
-        uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
-        uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
+      uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
+      uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
+      uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
+      uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
 
-        // Analog stick data conversion
-        int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
-        int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
-        int32_t rx = ((rx_abs * fixed_multiplier) >> 16) * (rx_sign ? -1 : 1);
-        int32_t ry = ((ry_abs * fixed_multiplier) >> 16) * (ry_sign ? -1 : 1);
+      // Analog stick data conversion
+      int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
+      int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
+      int32_t rx = ((rx_abs * fixed_multiplier) >> 16) * (rx_sign ? -1 : 1);
+      int32_t ry = ((ry_abs * fixed_multiplier) >> 16) * (ry_sign ? -1 : 1);
 
-        uint8_t lx8 = CLAMP_0_255(lx + center_value);
-        uint8_t ly8 = CLAMP_0_255(ly + center_value);
-        uint8_t rx8 = CLAMP_0_255(rx + center_value);
-        uint8_t ry8 = CLAMP_0_255(ry + center_value);
-        // End analog stick conversion section
+      uint8_t lx8 = CLAMP_0_255(lx + center_value);
+      uint8_t ly8 = CLAMP_0_255(ly + center_value);
+      uint8_t rx8 = CLAMP_0_255(rx + center_value);
+      uint8_t ry8 = CLAMP_0_255(ry + center_value);
+      // End analog stick conversion section
 
-        // Trigger with SP function conversion
-        uint8_t lt8 = triggers.left_analog  >> 4;
-        uint8_t rt8 = triggers.right_analog >> 4;
+      // Trigger with SP function conversion
+      uint8_t lt8 = triggers.left_analog  >> 4;
+      uint8_t rt8 = triggers.right_analog >> 4;
 
-        // Handle reporting for differing modes
-        switch(_workingMode)
-        {
-        // Default is mode 3
-        default:
-            _out_buffer.stick_left_x  = lx8;
-            _out_buffer.stick_left_y  = ly8;
-            _out_buffer.stick_right_x = rx8;
-            _out_buffer.stick_right_y = ry8;
-            _out_buffer.analog_trigger_l  = lt8;
-            _out_buffer.analog_trigger_r  = rt8;
-        break;
+      // Handle reporting for differing modes
+      switch(_workingMode)
+      {
+      // Default is mode 3
+      default:
+          _out_buffer.stick_left_x  = lx8;
+          _out_buffer.stick_left_y  = ly8;
+          _out_buffer.stick_right_x = rx8;
+          _out_buffer.stick_right_y = ry8;
+          _out_buffer.analog_trigger_l  = lt8;
+          _out_buffer.analog_trigger_r  = rt8;
+      break;
 
-        case 0:
-            _out_buffer.mode0.stick_left_x  = lx8;
-            _out_buffer.mode0.stick_left_y  = ly8;
-            _out_buffer.mode0.stick_right_x = rx8;
-            _out_buffer.mode0.stick_right_y = ry8;
-            _out_buffer.mode0.analog_trigger_l  = lt8>>4;
-            _out_buffer.mode0.analog_trigger_r  = rt8>>4;
-            _out_buffer.mode0.analog_a = 0; // 4bits
-            _out_buffer.mode0.analog_b = 0; // 4bits
-        break;
+      case 0:
+          _out_buffer.mode0.stick_left_x  = lx8;
+          _out_buffer.mode0.stick_left_y  = ly8;
+          _out_buffer.mode0.stick_right_x = rx8;
+          _out_buffer.mode0.stick_right_y = ry8;
+          _out_buffer.mode0.analog_trigger_l  = lt8>>4;
+          _out_buffer.mode0.analog_trigger_r  = rt8>>4;
+          _out_buffer.mode0.analog_a = 0; // 4bits
+          _out_buffer.mode0.analog_b = 0; // 4bits
+      break;
 
-        case 1:
-            _out_buffer.mode1.stick_left_x  = lx8;
-            _out_buffer.mode1.stick_left_y  = ly8;
-            _out_buffer.mode1.stick_right_x = rx8>>4;
-            _out_buffer.mode1.stick_right_y = ry8>>4;
-            _out_buffer.mode1.analog_trigger_l  = lt8;
-            _out_buffer.mode1.analog_trigger_r  = rt8;
-            _out_buffer.mode1.analog_a = 0; // 4bits
-            _out_buffer.mode1.analog_b = 0; // 4bits
-        break;
+      case 1:
+          _out_buffer.mode1.stick_left_x  = lx8;
+          _out_buffer.mode1.stick_left_y  = ly8;
+          _out_buffer.mode1.stick_right_x = rx8>>4;
+          _out_buffer.mode1.stick_right_y = ry8>>4;
+          _out_buffer.mode1.analog_trigger_l  = lt8;
+          _out_buffer.mode1.analog_trigger_r  = rt8;
+          _out_buffer.mode1.analog_a = 0; // 4bits
+          _out_buffer.mode1.analog_b = 0; // 4bits
+      break;
 
-        case 2:
-            _out_buffer.mode2.stick_left_x  = lx8;
-            _out_buffer.mode2.stick_left_y  = ly8;
-            _out_buffer.mode2.stick_right_x = rx8>>4;
-            _out_buffer.mode2.stick_right_y = ry8>>4;
-            _out_buffer.mode2.analog_trigger_l  = lt8>>4;
-            _out_buffer.mode2.analog_trigger_r  = rt8>>4;
-            _out_buffer.mode2.analog_a = 0;
-            _out_buffer.mode2.analog_b = 0;
-        break;
+      case 2:
+          _out_buffer.mode2.stick_left_x  = lx8;
+          _out_buffer.mode2.stick_left_y  = ly8;
+          _out_buffer.mode2.stick_right_x = rx8>>4;
+          _out_buffer.mode2.stick_right_y = ry8>>4;
+          _out_buffer.mode2.analog_trigger_l  = lt8>>4;
+          _out_buffer.mode2.analog_trigger_r  = rt8>>4;
+          _out_buffer.mode2.analog_a = 0;
+          _out_buffer.mode2.analog_b = 0;
+      break;
 
-        case 4:
-            _out_buffer.mode4.stick_left_x  = lx8;
-            _out_buffer.mode4.stick_left_y  = ly8;
-            _out_buffer.mode4.stick_right_x = rx8;
-            _out_buffer.mode4.stick_right_y = ry8;
-            _out_buffer.mode4.analog_a = 0;
-            _out_buffer.mode4.analog_b = 0;
-        break;
-        }
+      case 4:
+          _out_buffer.mode4.stick_left_x  = lx8;
+          _out_buffer.mode4.stick_left_y  = ly8;
+          _out_buffer.mode4.stick_right_x = rx8;
+          _out_buffer.mode4.stick_right_y = ry8;
+          _out_buffer.mode4.analog_a = 0;
+          _out_buffer.mode4.analog_b = 0;
+      break;
+      }
     }
 }
 

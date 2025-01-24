@@ -17,9 +17,9 @@
 #define PCM_SINE_TABLE_SIZE     4096
 
 #if defined(HOJA_HAPTICS_MAX)
-    #define PCM_MIN_SAFE_RATIO      HOJA_HAPTICS_MAX
+    #define PCM_MAX_SAFE_RATIO      HOJA_HAPTICS_MAX
 #else 
-    #define PCM_MIN_SAFE_RATIO      0.3f
+    #define PCM_MAX_SAFE_RATIO      0.285f
 #endif
 
 #if defined(HOJA_HAPTICS_MIN_LO)
@@ -31,7 +31,7 @@
 #if defined(HOJA_HAPTICS_MIN_HI)
     #define PCM_HI_FREQUENCY_MIN    HOJA_HAPTICS_MIN_HI
 #else 
-    #define PCM_HI_FREQUENCY_MIN    0.000f
+    #define PCM_HI_FREQUENCY_MIN    0.005f
 #endif
 
 #define PCM_SIN_RANGE_MAX 32767
@@ -46,7 +46,7 @@
 
 typedef enum 
 {
-    PCM_DEBUG_PARAM_MAX, 
+    PCM_DEBUG_PARAM_MAX,
     PCM_DEBUG_PARAM_MIN_LO, 
     PCM_DEBUG_PARAM_MIN_HI, 
 } pcm_adjust_t;

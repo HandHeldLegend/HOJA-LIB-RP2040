@@ -95,10 +95,8 @@
     #define RGB_MAX_LEDS_PER_GROUP 4
     #define RGB_MAX_GROUP_NAME_LEN 8
 
-    // HD and SD drivers for haptics
-    #define HD_HAPTICS_DRIVER_HAL 1
-
-    #define SD_HAPTICS_DRIVER_HAL 1
+    // Drivers for haptics
+    #define HAPTICS_DRIVER_HAL 1
 
     // NESBus Drivers
     #define NESBUS_DRIVER_HAL 1

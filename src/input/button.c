@@ -60,19 +60,15 @@ void button_access_blocking(button_data_s *out, button_access_t type)
 // Access button data (not guaranteed latest)
 void button_access_safe(button_data_s *out, button_access_t type)
 {
-    if(_button_try_enter())
+    switch(type)
     {
-        switch(type)
-        {
-            case BUTTON_ACCESS_RAW_DATA:
-            memcpy(out, &_safe_raw_button_data, sizeof(button_data_s));
-            break;
+        case BUTTON_ACCESS_RAW_DATA:
+        memcpy(out, &_safe_raw_button_data, sizeof(button_data_s));
+        break;
 
-            case BUTTON_ACCESS_BOOT_DATA:
-            memcpy(out, &_boot_button_data, sizeof(button_data_s));
-            break;
-        }
-        _button_exit();
+        case BUTTON_ACCESS_BOOT_DATA:
+        memcpy(out, &_boot_button_data, sizeof(button_data_s));
+        break;
     }
 }
 

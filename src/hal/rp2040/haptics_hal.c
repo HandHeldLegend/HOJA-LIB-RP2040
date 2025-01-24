@@ -1,4 +1,4 @@
-#include "hal/hdrumble_hal.h"
+#include "hal/haptics_hal.h"
 #include "hal/gpio_hal.h"
 #include "board_config.h"
 
@@ -34,14 +34,14 @@
 
 uint dma_reset;
 
-#if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
+#if defined(HOJA_HAPTICS_CHAN_A_PIN)
     uint dma_cc_l, dma_trigger_l, dma_sample;
     uint pwm_slice_l;
 #endif
 
-#if defined(HOJA_HDRUMBLE_CHAN_B_PIN)
-    #ifndef HOJA_HDRUMBLE_CHAN_A_PIN
-        #error "To use channel B, HOJA_HDRUMBLE_CHAN_A_PIN must be defined too." 
+#if defined(HOJA_HAPTICS_CHAN_B_PIN)
+    #ifndef HOJA_HAPTICS_CHAN_A_PIN
+        #error "To use channel B, HOJA_HAPTICS_CHAN_A_PIN must be defined too." 
     #endif 
     uint dma_cc_r, dma_trigger_r, dma_reset_r;
     uint pwm_slice_r;
@@ -66,13 +66,13 @@ static volatile bool ready_next_sine = false;
 static void __isr __time_critical_func(_dma_handler)()
 {
     audio_buffer_idx = 1-audio_buffer_idx;
-    #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
+    #if defined(HOJA_HAPTICS_CHAN_A_PIN)
         //dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
         dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
     
 
         // Trigger right channel if we have one
-        #ifdef HOJA_HDRUMBLE_CHAN_B_PIN
+        #ifdef HOJA_HAPTICS_CHAN_B_PIN
             dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
         #endif
     
@@ -83,9 +83,9 @@ static void __isr __time_critical_func(_dma_handler)()
     uint8_t available_buffer = 1 - audio_buffer_idx;
 }
 
-void hdrumble_hal_stop()
+void haptics_hal_stop()
 {
-    #if defined(HOJA_HDRUMBLE_CHAN_A_PIN)
+    #if defined(HOJA_HAPTICS_CHAN_A_PIN)
         dma_channel_abort(dma_cc_l);
         dma_channel_abort(dma_trigger_l);
         dma_channel_abort(dma_sample);
@@ -93,14 +93,14 @@ void hdrumble_hal_stop()
         pwm_set_enabled(pwm_slice_l, false);
     #endif
 
-    #if defined(HOJA_HDRUMBLE_CHAN_B_PIN)
+    #if defined(HOJA_HAPTICS_CHAN_B_PIN)
         dma_channel_abort(dma_cc_r);
         dma_channel_abort(dma_trigger_r);
         pwm_set_enabled(pwm_slice_r, false);
     #endif
 }
 
-bool hdrumble_hal_init(uint8_t intensity)
+bool haptics_hal_init(uint8_t intensity)
 {
     static bool hal_init = false;
 
@@ -120,7 +120,7 @@ bool hdrumble_hal_init(uint8_t intensity)
     #if defined(HOJA_HAPTIC_HELPER_DRIVER_INIT)
     HOJA_HAPTIC_HELPER_DRIVER_INIT();
     #else 
-        #warning "No HD haptics helper driver defined. Using HAL only."
+        #warning "No haptics helper driver defined. Using HAL only."
     #endif
 
     // Initialize the PWM and DMA channels
@@ -133,11 +133,11 @@ bool hdrumble_hal_init(uint8_t intensity)
 
     uint32_t pwm_enable_mask = 0;
 
-    #ifdef HOJA_HDRUMBLE_CHAN_A_PIN
+    #ifdef HOJA_HAPTICS_CHAN_A_PIN
         dma_sample = dma_claim_unused_channel(true);
-        gpio_set_function(HOJA_HDRUMBLE_CHAN_A_PIN, GPIO_FUNC_PWM);
+        gpio_set_function(HOJA_HAPTICS_CHAN_A_PIN, GPIO_FUNC_PWM);
 
-        pwm_slice_l = pwm_gpio_to_slice_num(HOJA_HDRUMBLE_CHAN_A_PIN);
+        pwm_slice_l = pwm_gpio_to_slice_num(HOJA_HAPTICS_CHAN_A_PIN);
         pwm_init(pwm_slice_l, &config, false);
 
         pwm_enable_mask         |= (1U<<pwm_slice_l);
@@ -217,11 +217,11 @@ bool hdrumble_hal_init(uint8_t intensity)
         
     #endif
 
-    #ifdef HOJA_HDRUMBLE_CHAN_B_PIN
-        #warning "HDRUMBLE CHANNEL B IS ENABLED"
-        gpio_set_function(HOJA_HDRUMBLE_CHAN_B_PIN, GPIO_FUNC_PWM);
+    #ifdef HOJA_HAPTICS_CHAN_B_PIN
+        #warning "HAPTICS CHANNEL B IS ENABLED"
+        gpio_set_function(HOJA_HAPTICS_CHAN_B_PIN, GPIO_FUNC_PWM);
 
-        pwm_slice_r = pwm_gpio_to_slice_num(HOJA_HDRUMBLE_CHAN_B_PIN);
+        pwm_slice_r = pwm_gpio_to_slice_num(HOJA_HAPTICS_CHAN_B_PIN);
         pwm_init(pwm_slice_r, &config, false);
 
         pwm_enable_mask         |= (1U<<pwm_slice_r);
@@ -272,7 +272,7 @@ bool hdrumble_hal_init(uint8_t intensity)
 // Get which half of the buffer is safe to write to
 bool get_inactive_buffer_half() 
 {
-    #ifdef HOJA_HDRUMBLE_CHAN_A_PIN
+    #ifdef HOJA_HAPTICS_CHAN_A_PIN
     // Get current DMA read address
     uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>1);
     
@@ -288,7 +288,7 @@ bool get_inactive_buffer_half()
 }
 
 volatile bool _erm_simulation_enabled = false;
-void hdrumble_hal_task(uint32_t timestamp)
+void haptics_hal_task(uint32_t timestamp)
 {
     static bool inactive_half = true;
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
@@ -308,25 +308,17 @@ void hdrumble_hal_task(uint32_t timestamp)
         pcm_generate_buffer(buffered);
     }
 
-    /*
-    if (ready_next_sine)
-    {
-        ready_next_sine = false;
-        uint8_t available_buffer = 1 - audio_buffer_idx;
-        pcm_generate_buffer(audio_buffers[available_buffer]);
-    }*/
-
     if(_erm_simulation_enabled)
         erm_simulator_task(timestamp);
 }
 
-void hdrumble_hal_push_amfm(haptic_processed_s *input)
+void haptics_hal_push_amfm(haptic_processed_s *input)
 {
     _erm_simulation_enabled = false; // Unset our ERM simulation mode
     pcm_amfm_push(input);
 }
 
-void hdrumble_hal_set_standard(uint8_t intensity)
+void haptics_hal_set_standard(uint8_t intensity)
 {
     _erm_simulation_enabled = true; // Enable ERM simulation mode
     erm_simulator_set_intensity(intensity);

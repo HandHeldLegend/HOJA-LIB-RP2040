@@ -3,6 +3,8 @@
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"
 
+#include "hoja.h"
+
 #include "wired/n64.h"
 #include "wired/n64_crc.h"
 #include "utilities/interval.h"
@@ -284,13 +286,20 @@ void joybus_n64_hal_task(uint32_t timestamp)
 
     if(interval_resettable_run(timestamp, 100000, _n64_got_data, &interval_reset))
     {
-        _n64_reset_state();
-        sleep_ms(8); // Wait for reset
+      hoja_set_connected_status(0);
+      hoja_set_player_number_status(-1);
+      _n64_reset_state();
+      sleep_ms(8); // Wait for reset
     }
     
     if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
     {
-      if(_n64_got_data) _n64_got_data = false;
+      if(_n64_got_data) 
+      {
+        hoja_set_connected_status(1);
+        hoja_set_player_number_status(1);
+        _n64_got_data = false;
+      }
 
       // Update input data
       remap_get_processed_input(&buttons, &triggers);

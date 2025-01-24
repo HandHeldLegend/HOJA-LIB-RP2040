@@ -16,8 +16,8 @@ const tusb_desc_device_t opengp_device_descriptor = {
     .bDeviceProtocol = 0x00,
 
     .bMaxPacketSize0 = 64,
-    .idVendor = 0x303A, // Espressif
-    .idProduct = 0x82B8, // NOT FINAL
+    .idVendor = 0x2E8A, // Raspberry Pi
+    .idProduct = 0x10C6, // Hoja Gamepad
 
     .bcdDevice = 0x0100,
     .iManufacturer = 0x01,

@@ -1,13 +1,14 @@
 #include "devices/haptics.h"
 #include "utilities/interval.h"
 
-#include "pico/multicore.h"
 #include <string.h>
 
 #include "devices_shared_types.h"
 
 #include "utilities/settings.h"
-#include "hal/hdrumble_hal.h"
+#include "hal/haptics_hal.h"
+
+#include "usb/webusb.h"
 
 volatile uint32_t _haptic_test_remaining = 0;
 webreport_cmd_confirm_t _test_cb = NULL;
@@ -28,6 +29,9 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
 
 void haptics_set_hd(haptic_processed_s *input)
 {
+    // Ignore if we are outputting to webusb
+    if(webusb_outputting_check()) return;
+
     #if defined(HOJA_HAPTICS_PUSH_AMFM)
     HOJA_HAPTICS_PUSH_AMFM(input);
     #endif
@@ -72,7 +76,7 @@ void haptics_task(uint32_t timestamp)
         static interval_s interval = {0};
         if(interval_run(timestamp, 8000, &interval))
         {
-            haptics_set_std(255);
+            haptics_set_std(200);
             _haptic_test_remaining--;
             if(!_haptic_test_remaining)
             {

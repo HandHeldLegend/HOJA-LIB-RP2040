@@ -77,19 +77,15 @@ void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
 // Access button data with fallback
 void trigger_access_safe(trigger_data_s *out, trigger_access_t type)
 {
-    if(_trigger_try_enter())
+    switch(type)
     {
-        switch(type)
-        {
-            case TRIGGER_ACCESS_RAW_DATA:
-            memcpy(out, &_safe_raw_triggers, sizeof(trigger_data_s));
-            break;
+        case TRIGGER_ACCESS_RAW_DATA:
+        memcpy(out, &_safe_raw_triggers, sizeof(trigger_data_s));
+        break;
 
-            case TRIGGER_ACCESS_SCALED_DATA:
-            memcpy(out, &_safe_scaled_triggers, sizeof(trigger_data_s));
-            break;
-        }
-        _trigger_exit();
+        case TRIGGER_ACCESS_SCALED_DATA:
+        memcpy(out, &_safe_scaled_triggers, sizeof(trigger_data_s));
+        break;
     }
 }
 

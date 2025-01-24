@@ -166,20 +166,18 @@ const batteryInfoStatic_s   battery_static = {
     .part_number  = HOJA_BATTERY_PART_CODE,
 };
 
-#if !defined(HOJA_HD_HAPTICS_DRIVER)
-    #warning "HOJA_HD_HAPTICS_DRIVER is not defined in board_config.h. Rumble features will be disabled."
-    #define HDRUMBLE 0
-    #define SDRUMBLE 0
+#if !defined(HOJA_HAPTICS_DRIVER)
+    #warning "HOJA_HAPTICS_DRIVER is not defined in board_config.h. Rumble features will be disabled."
+    #define HAPTICS_EN 0
+    #define HAPTICS_EN 0
 #else 
-    #define HDRUMBLE 1
-    #define SDRUMBLE 1
+    #define HAPTICS_EN 1
+    #define HAPTICS_EN 1
 #endif
 
-#define RUMBLE_SUPPORT (HDRUMBLE | SDRUMBLE)
-
 const hapticInfoStatic_s    haptic_static = {
-    .haptic_hd = HDRUMBLE,
-    .haptic_sd = SDRUMBLE,
+    .haptic_hd = HAPTICS_EN,
+    .haptic_sd = HAPTICS_EN,
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)

@@ -111,27 +111,23 @@ analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
 // Access analog input data safely
 void analog_access_safe(analog_data_s *out, analog_access_t type)
 {
-    if(_analog_try_enter())
+    switch(type)
     {
-        switch(type)
-        {
-            case ANALOG_ACCESS_RAW_DATA:
-            memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
-            break; 
+        case ANALOG_ACCESS_RAW_DATA:
+        memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
+        break; 
 
-            case ANALOG_ACCESS_SCALED_DATA:
-            memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
-            break; 
+        case ANALOG_ACCESS_SCALED_DATA:
+        memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
+        break; 
 
-            case ANALOG_ACCESS_SNAPBACK_DATA:
-            memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
-            break;
+        case ANALOG_ACCESS_SNAPBACK_DATA:
+        memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
+        break;
 
-            case ANALOG_ACCESS_DEADZONE_DATA:
-            memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
-            break;
-        }
-        _analog_exit();
+        case ANALOG_ACCESS_DEADZONE_DATA:
+        memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
+        break;
     }
 }
 

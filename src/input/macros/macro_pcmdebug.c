@@ -14,9 +14,20 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
     static bool dr = false;
     static bool tl = false;
     static bool tr = false;
+    static bool zl = false;
+    static bool zr = false;
+
+    // Dpad U/D = Maximum Lo Frequency
+    // Dpad L/R = Minimum Lo Frequency
+
+    // Trigger L/R = Maximum Hi Frequency
+    // Trigger ZL/ZR = Minimum Hi Frequency
+
 
     if(interval_run(timestamp, 8000, &interval))
     {
+        // Only run if minus is pressed
+        if(!buttons->button_minus) return;
 
         if(buttons->dpad_up && !du)
         {
@@ -41,7 +52,7 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
         if(buttons->dpad_left && !dl)
         {
             dl = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, -_inc_val_pcm);
+            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO, -_inc_val_pcm);
         }
         else if (!buttons->dpad_left && dl)
         {
@@ -51,7 +62,7 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
         if(buttons->dpad_right && !dr)
         {
             dr = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI,_inc_val_pcm);
+            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO,_inc_val_pcm);
         }
         else if (!buttons->dpad_right && dr)
         {
@@ -61,7 +72,7 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
         if(buttons->trigger_l && !tl)
         {
             tl = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO, -_inc_val_pcm);
+            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, -_inc_val_pcm);
         }
         else if (!buttons->trigger_l && tl)
         {
@@ -71,7 +82,7 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
         if(buttons->trigger_r && !tr)
         {
             tr = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO, _inc_val_pcm);
+            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, _inc_val_pcm);
         }
         else if (!buttons->trigger_r && tr)
         {

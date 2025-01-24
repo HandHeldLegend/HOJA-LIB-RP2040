@@ -109,6 +109,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     {
         thisMethod = GAMEPAD_METHOD_BLUETOOTH;
     }
+    #endif
 
     // Check reboot memory for any overrides for buttons and whatnot
     boot_memory_s boot_memory = {0};
@@ -133,7 +134,10 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
             *pair = false;
             return;
         }
-        #endif
+        else if(buttons.button_plus)
+        {
+            *pair = true;
+        }
     }
     #endif
 

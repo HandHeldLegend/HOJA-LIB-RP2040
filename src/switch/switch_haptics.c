@@ -1,14 +1,9 @@
 #include "switch/switch_haptics.h"
+#include "devices/haptics.h"
 #include <string.h>
 #include "devices_shared_types.h"
 #include <math.h>
 #include "utilities/pcm.h"
-
-#if defined(HOJA_HD_HAPTICS_DRIVER) && (HOJA_HD_HAPTICS_DRIVER == HD_HAPTICS_DRIVER_HAL)
-#include "hal/hdrumble_hal.h"
-#elif defined(HOJA_HD_HAPTICS_DRIVER) && (HOJA_HD_HAPTICS_DRIVER == SD_HAPTICS_DRIVER_HAL)
-#include "hal/sdrumble_hal.h"
-#endif
 
 typedef struct 
 {
@@ -634,39 +629,20 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
-    // Avoid doing anything if we don't have this defined
-    #if !defined(HOJA_HAPTICS_PUSH_AMFM)
-    return;
-    #endif
-
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
-    static haptic_processed_s processed_last = {0};
     haptic_processed_s processed = {0};
 
     if(_raw_state.sample_count > 0) 
     {
-        for(int i = 0; i < 1; i++) 
+        for(int i = 0; i < _raw_state.sample_count; i++) 
         {
             processed.hi_amplitude_fixed        = _ExpBase2LookupHi[_raw_state.samples[i].hi_amplitude_idx];
             processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
             
-            // If the last was zero amplitude, and this was zero amplitude, skip.
-            if(!processed.hi_amplitude_fixed && !processed.lo_amplitude_fixed &&
-                !processed_last.hi_amplitude_fixed && !processed_last.lo_amplitude_fixed)
-            {
-                continue;
-            }
-            else 
-            {
-                #if defined(HOJA_HAPTICS_PUSH_AMFM)
-                HOJA_HAPTICS_PUSH_AMFM(&processed);
-                #endif
-            }
-
-            processed_last = processed;
+            haptics_set_hd(&processed);
         }
     }
 }

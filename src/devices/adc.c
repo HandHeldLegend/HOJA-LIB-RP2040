@@ -49,9 +49,8 @@ adc_read_fn_t _chan_read_fns[ADC_CH_MAX] = {NULL, NULL, NULL, NULL, NULL, NULL, 
 
 bool adc_devices_init()
 {
-    for(int i = 0; i < 7; i++)
+    for(int i = 0; i < ADC_CH_MAX; i++)
     {
-        int8_t          driver_num = -1;
         adc_read_fn_t   read_fn = NULL;
 
         adc_channel_cfg_s *cfg = &_chan_cfgs[i];
@@ -69,16 +68,19 @@ bool adc_devices_init()
                 case ADC_DRIVER_MCP3002:
                     if(mcp3002_init_channel(cfg))
                         _chan_read_fns[i] = mcp3002_read_channel;
+                    else return false;
                 break;
 
                 case ADC_DRIVER_HAL:
                     if(adc_hal_init_channel(cfg))
                         _chan_read_fns[i] = adc_hal_read_channel;
+                    else return false;
                 break;
 
                 case ADC_DRIVER_TMUX1204:
                     if(tmux1204_init_channel(cfg))
                         _chan_read_fns[i] = tmux1204_read_channel;
+                    else return false;
                 break;
             }
         }

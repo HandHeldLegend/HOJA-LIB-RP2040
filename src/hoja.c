@@ -56,6 +56,8 @@ void hoja_deinit(callback_t cb)
     _hoja_mode_stop_cb();
 
   haptics_stop();
+  hoja_set_connected_status(-1);
+  hoja_set_player_number_status(-1);
   
   #if defined(HOJA_RGB_DRIVER)
   rgb_deinit(cb);
@@ -239,6 +241,8 @@ bool _gamepad_mode_init()
   _hoja_status.gamepad_mode   = thisMode;
   _hoja_status.gamepad_method = thisMethod;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(thisMode);
+
+  hoja_set_connected_status(0); // Pending
 
   switch(thisMethod)
   {

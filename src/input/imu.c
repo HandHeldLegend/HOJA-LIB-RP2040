@@ -21,7 +21,7 @@
 // Include all IMU drivers
 #include "drivers/imu/lsm6dsr.h"
 
-#define IMU_POLLING_INTERVAL 1000 // 1KHz 
+#define IMU_POLLING_INTERVAL 2500
 #define IMU_CALIBRATE_CYCLES 4000
 
 // Define data that is safe to access
@@ -55,6 +55,7 @@ callback_t _imu_process_task = NULL;
 #define IMU_FIFO_IDX_MAX (IMU_FIFO_COUNT-1)
 int _imu_fifo_idx = 0;
 imu_data_s _imu_fifo[IMU_FIFO_COUNT];
+volatile imu_data_s _imu_data_safe = {0};
 
 quaternion_s _imu_quat_state = {.w = 1};
 #define GYRO_SENS (2000.0f / 32768.0f)
@@ -88,21 +89,19 @@ imu_data_s* _imu_fifo_last()
 
 void imu_access_safe(imu_data_s *out)
 {
-  if(_imu_try_enter())
-  {
-    memcpy(out, &_safe_imu_data, sizeof(imu_data_s));
-    _imu_exit();
-  }
+  //if(_imu_try_enter())
+  //{
+  //  memcpy(out, &_safe_imu_data, sizeof(imu_data_s));
+  //  _imu_exit();
+  //}
+
+  memcpy(out, &_imu_data_safe, sizeof(imu_data_s));
 }
 
 // Optional access Quaternion data (If available)
 void imu_quaternion_access_safe(quaternion_s *out)
 {
-  if(_imu_try_enter())
-  {
-    memcpy(out, &_safe_quaternion_data, sizeof(quaternion_s));
-    _imu_exit();
-  }
+  memcpy(out, &_safe_quaternion_data, sizeof(quaternion_s));
 }
 
 // Read IMU hardware from driver (if defined)
@@ -185,13 +184,7 @@ void _imu_fifo_push(imu_data_s *imu_data)
 
   int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
 
-  _imu_fifo[_i].ax = imu_data->ax;
-  _imu_fifo[_i].ay = imu_data->ay;
-  _imu_fifo[_i].az = imu_data->az;
-
-  _imu_fifo[_i].gx = imu_data->gx;
-  _imu_fifo[_i].gy = imu_data->gy;
-  _imu_fifo[_i].gz = imu_data->gz;
+  _imu_data_safe = *imu_data;
 
   _imu_fifo_idx = _i;
 
@@ -343,13 +336,7 @@ void imu_task(uint32_t timestamp)
       _imu_process_task = _imu_std_function;
   }
 
-  if(_imu_try_enter())
-  {
-    imu_data_s* tmp = _imu_fifo_last();
-    memcpy(&_safe_imu_data, tmp, sizeof(imu_data_s));
-    memcpy(&_safe_quaternion_data, &_imu_quat_state, sizeof(quaternion_s));
-    _imu_exit();
-  }
+  memcpy(&_safe_quaternion_data, &_imu_quat_state, sizeof(quaternion_s));
 }
 
 // IMU module initialization function

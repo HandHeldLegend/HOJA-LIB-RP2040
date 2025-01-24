@@ -28,12 +28,12 @@ auto_init_mutex(_spi_safe_mutex); // Mutex to allow thread-safe access to periph
 
 void _spi_safe_enter_blocking()
 {
-    //mutex_enter_blocking(&_spi_safe_mutex);
+    mutex_enter_blocking(&_spi_safe_mutex);
 }
 
 void _spi_safe_exit()
 {
-    //mutex_exit(&_spi_safe_mutex);
+    mutex_exit(&_spi_safe_mutex);
 }
 
 bool spi_hal_init(uint8_t instance, uint32_t clock, uint32_t mosi, uint32_t miso)

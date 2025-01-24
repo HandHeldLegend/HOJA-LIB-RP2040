@@ -78,8 +78,6 @@ bool _adc_hal_init(uint32_t gpio)
 {
     if(gpio<26 || gpio>29) return false;
 
-    uint8_t adc_gpio = gpio-26;
-
     if(!adc_init_done)
     {
         adc_init_done = true;
@@ -106,7 +104,7 @@ bool _adc_hal_init(uint32_t gpio)
         );
     }
 
-    adc_gpio_init(adc_gpio);
+    adc_gpio_init(gpio);
     return true;
 }
 

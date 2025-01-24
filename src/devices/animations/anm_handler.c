@@ -156,7 +156,7 @@ void _player_connection_manager(rgb_s *output)
     {
         allow_update = ply_blink_handler(output, status.notification_color);
     }
-    else if(status.connection_status < 0)
+    else if(status.connection_status == 0)
     {
         #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
         allow_update = ply_chase_handler(output, status.gamepad_color);

@@ -23,8 +23,8 @@
 #define FIXED_POINT_SHIFT 8
 #define FIXED_POINT_SCALE (1 << FIXED_POINT_SHIFT)
 
-int32_t _target_intensity = 0;
-int32_t _current_intensity = 0;
+volatile int32_t _target_intensity = 0;
+volatile int32_t _current_intensity = 0;
 
 // Step values
 static uint16_t     _frequency_min = 0;
@@ -33,6 +33,9 @@ static uint16_t     _amplitude_step = 0;
 
 // Set desired motor intensity
 void erm_simulator_set_intensity(uint8_t intensity) {
+
+    intensity = intensity > 220 ? 220 : intensity;
+
     if((int32_t) intensity == _target_intensity) return;
 
     _target_intensity = (int32_t) intensity;
@@ -44,8 +47,8 @@ bool _motor_sim_update(uint16_t *out_freq, uint16_t *out_amp) {
     uint16_t amp = 0;
     
     // Calculate ramp step size based on update rate and ramp time
-    int32_t ramp_step = 3;
-    int32_t fall_step = 6;
+    int32_t ramp_step = 1;
+    int32_t fall_step = 3;
     bool change = false;
 
     if(_current_intensity < _target_intensity)
@@ -84,14 +87,14 @@ void erm_simulator_task(uint32_t timestamp)
     static uint16_t     amp_fixed;
     static haptic_processed_s pcm_data = {0};
 
-    if(interval_run(timestamp, 3000, &interval))
+    if(interval_run(timestamp, 16000, &interval))
     {
         bool update = _motor_sim_update(&freq_step, &amp_fixed);
 
         pcm_data.lo_amplitude_fixed = amp_fixed;
-        pcm_data.hi_amplitude_fixed = amp_fixed;
+        pcm_data.hi_amplitude_fixed = 0;
         pcm_data.lo_frequency_increment = freq_step;
-        pcm_data.hi_frequency_increment = freq_step;
+        pcm_data.hi_frequency_increment = 0;
 
         if(update) pcm_amfm_push(&pcm_data);
     }

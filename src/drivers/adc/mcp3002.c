@@ -26,6 +26,8 @@ bool mcp3002_init_channel(adc_channel_cfg_s *cfg)
 
     // Init this GPIO
     gpio_hal_init(driver->mcp3002_cfg.cs_gpio, true, false);
+    // Set GPIO to true
+    gpio_hal_write(driver->mcp3002_cfg.cs_gpio, true);
     _mcp_3002_initialized[driver_instance] = true;
 
     return true;

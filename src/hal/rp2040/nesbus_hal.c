@@ -3,6 +3,7 @@
 #include "hardware/pio.h"
 #include "generated/nserial.pio.h"
 #include "input_shared_types.h"
+#include "hoja.h"
 
 #include "input/analog.h"
 #include "input/button.h"
@@ -98,6 +99,9 @@ void nesbus_hal_task(uint32_t timestamp)
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
+            hoja_set_connected_status(1);
+            hoja_set_player_number_status(1);
+
             remap_get_processed_input(&buttons, &triggers);
             analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
