@@ -393,8 +393,11 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
       break;
     }
     
-    hoja_set_connected_status(1);
-    hoja_set_player_number_status(set_num);
+    if(set_num > 0)
+    {
+      hoja_set_connected_status(set_num);
+    }
+
     break;
 
   default:

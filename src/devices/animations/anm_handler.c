@@ -152,29 +152,42 @@ void _player_connection_manager(rgb_s *output)
     static bool allow_update = true;
     static hoja_status_s status = {0};
 
+    
+
     if(status.notification_color.color > 0)
     {
         allow_update = ply_blink_handler(output, status.notification_color);
     }
-    else if(status.connection_status == 0)
+    else
     {
-        #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-        allow_update = ply_chase_handler(output, status.gamepad_color);
-        #else 
-        allow_update = ply_blink_handler(output, status.gamepad_color);
-        #endif
-    }
-    else 
-    {
-        if(status.player_number > -1)
+        switch(status.connection_status)
         {
-            allow_update = ply_idle_handler(output, status.player_number);
-        }
-        else 
-        {
-            allow_update = ply_idle_handler(output, -1);
-        }
+            case CONN_STATUS_INIT:
+                #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
+                // Clear all player LEDs
+                for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+                {
+                    uint8_t this_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+                    output[this_idx].color = 0;
+                }
+                #endif
+            break;
+
+            case CONN_STATUS_DISCONNECTED:
+            case CONN_STATUS_CONNECTING:
+                #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
+                allow_update = ply_chase_handler(output, status.gamepad_color);
+                #else 
+                allow_update = ply_blink_handler(output, status.gamepad_color);
+                #endif
+            break;
+
+            default:
+                allow_update = ply_idle_handler(output, status.connection_status);
+            break;
+        }        
     }
+
 
     if(allow_update)
     {

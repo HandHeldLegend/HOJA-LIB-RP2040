@@ -56,8 +56,8 @@ void hoja_deinit(callback_t cb)
     _hoja_mode_stop_cb();
 
   haptics_stop();
-  hoja_set_connected_status(-1);
-  hoja_set_player_number_status(-1);
+
+  hoja_set_connected_status(CONN_STATUS_INIT);
   
   #if defined(HOJA_RGB_DRIVER)
   rgb_deinit(cb);
@@ -126,8 +126,7 @@ rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
 }
 
 volatile hoja_status_s  _hoja_status = {
-  .connection_status = -1,
-  .player_number = -1,
+  .connection_status  = CONN_STATUS_INIT,
   .notification_color = 0,
   .gamepad_color = 0,
   .gamepad_method = 0,
@@ -135,8 +134,7 @@ volatile hoja_status_s  _hoja_status = {
   .init_status = false
 };
 
-// -1 is disconnected. 0 connecting. 1 connected.
-void hoja_set_connected_status(int status) 
+void hoja_set_connected_status(connection_status_t status) 
 {
   _hoja_status.connection_status = status;
 }
@@ -144,12 +142,6 @@ void hoja_set_connected_status(int status)
 void hoja_set_notification_status(rgb_s color)
 {
   _hoja_status.notification_color = color;
-}
-
-void hoja_set_player_number_status(int player_number) 
-{
-  player_number = (player_number > 8) ? 8 : player_number;
-  _hoja_status.player_number = player_number;
 }
 
 hoja_status_s hoja_get_status() 
@@ -242,7 +234,7 @@ bool _gamepad_mode_init()
   _hoja_status.gamepad_method = thisMethod;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(thisMode);
 
-  hoja_set_connected_status(0); // Pending
+  hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
 
   switch(thisMethod)
   {
@@ -333,8 +325,6 @@ void hoja_init()
 
   // Init gamepad mode with the method
   _gamepad_mode_init();
-
-  hoja_set_connected_status(-1);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

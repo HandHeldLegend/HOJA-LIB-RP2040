@@ -9,7 +9,7 @@
 
 #include "board_config.h"
 
-#if defined(HOJA_HDRUMBLE_DEBUG) && (HOJA_HDRUMBLE_DEBUG==1)
+#if defined(HOJA_HAPTICS_DEBUG) && (HOJA_HAPTICS_DEBUG==1)
 #include "input/macros/macro_pcmdebug.h"
 #endif
 
@@ -36,7 +36,7 @@ void macros_task(uint32_t timestamp)
     macro_pairing(timestamp, &buttons);
     #endif
 
-    #if defined(HOJA_HDRUMBLE_DEBUG) && (HOJA_HDRUMBLE_DEBUG==1)
+    #if defined(HOJA_HAPTICS_DEBUG) && (HOJA_HAPTICS_DEBUG==1)
     macro_pcmdebug(timestamp, &buttons);
     #endif
 }

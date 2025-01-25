@@ -58,6 +58,7 @@ void settings_init()
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
     {
         gamepad_config->gamepad_config_version = CFG_BLOCK_GAMEPAD_VERSION;
+        gamepad_config->gamepad_default_mode   = GAMEPAD_MODE_SWPRO;
 
         for(uint8_t i = 0; i < 6; i++)
         {

@@ -54,7 +54,7 @@ void pcm_debug_adjust_param(uint8_t param_type, float amount)
         break;
     }
 
-    pcm_init(255);
+    pcm_init(-1);
 }
 
 // Initialize the sine table
@@ -175,18 +175,30 @@ bool pcm_amfm_is_full()
 }
 
 volatile bool _pcm_init_done = false;
-void pcm_init(uint8_t intensity) 
+void pcm_init(int intensity) 
 {
+    intensity = (intensity > 255) ? 255 : intensity;
+    static uint8_t this_intensity = 0;
+
     if(!intensity)
     {
         _lo_amp_scaler = 0;
         _lo_amp_minimum = 0;
         _hi_amp_scaler = 0;
         _hi_amp_minimum = 0;
+        this_intensity = intensity;
         return;
     }
+    else if (intensity < 0)
+    {
+        // Use previous intensity
+    }
+    else 
+    {
+        this_intensity = intensity;
+    }
 
-    float scaler = (float) intensity / 255.0f;
+    float scaler = (float) this_intensity / 255.0f;
 
     // Calculate pcm clamp value (max allowed value)
     _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_VAL * _pcm_param_max);

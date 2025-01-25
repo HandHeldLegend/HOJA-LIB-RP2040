@@ -18,7 +18,7 @@ typedef enum
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
-#define CFG_BLOCK_GAMEPAD_VERSION   0x11
+#define CFG_BLOCK_GAMEPAD_VERSION   0x12
 #define CFG_BLOCK_REMAP_VERSION     0x12 
 #define CFG_BLOCK_ANALOG_VERSION    0x11
 #define CFG_BLOCK_RGB_VERSION       0x11

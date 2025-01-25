@@ -17,8 +17,7 @@
 void cb_hoja_read_buttons(button_data_s *data);
 bool cb_hoja_buttons_init();
 
-void hoja_set_connected_status(int status);
-void hoja_set_player_number_status(int player_number);
+void hoja_set_connected_status(connection_status_t status);
 void hoja_set_notification_status(rgb_s color);
 
 hoja_status_s hoja_get_status();

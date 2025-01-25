@@ -53,7 +53,7 @@ typedef enum
 
 void pcm_debug_adjust_param(uint8_t param_type, float amount);
 
-void pcm_init(uint8_t intensity);
+void pcm_init(int intensity);
 void pcm_play_sample(uint8_t *sample, uint32_t size);
 void pcm_send_pulse();
 bool pcm_amfm_push(haptic_processed_s *value);

@@ -14,6 +14,7 @@
 
 #include "devices/haptics.h"
 
+#pragma pack(push, 1)
 // We have a STRICT budget of 4096 bytes for configuration data
 typedef struct 
 {
@@ -84,6 +85,7 @@ typedef struct
     // Battery data configuration block
     uint8_t battery_configuration_block[BATTERY_CFB_SIZE];
 } settings_live_s;
+#pragma pack(pop)
 
 extern settings_live_s      live_settings;
 extern gamepadConfig_s     *gamepad_config;

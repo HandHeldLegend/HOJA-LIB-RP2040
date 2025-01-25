@@ -5,6 +5,7 @@
 #include "board_config.h"
 #include "devices/battery.h"
 #include "devices/bluetooth.h"
+#include "utilities/settings.h"
 
 void boot_get_memory(boot_memory_s *out)
 {
@@ -44,6 +45,55 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     // If we have a detected valid power source
     bool powerSource = true;
     bool wirelessSupported = false; // Whether a mode has a wireless option
+
+    switch(gamepad_config->gamepad_default_mode)
+    {
+        case 0:
+            thisMode            = GAMEPAD_MODE_SWPRO;
+            thisMethod          = GAMEPAD_METHOD_USB;
+            wirelessSupported   = true;
+        break;
+
+        case 1:
+            thisMode    = GAMEPAD_MODE_XINPUT;
+            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        break;
+
+        case 2:
+            thisMode    = GAMEPAD_MODE_GCUSB;
+            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        break;
+
+        case 3:
+            thisMode    = GAMEPAD_MODE_GAMECUBE;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        break;
+
+        case 4:
+            thisMode    = GAMEPAD_MODE_N64;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        break;
+
+        case 5:
+            thisMode    = GAMEPAD_MODE_SNES;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        break;
+
+        case 6:
+            thisMode            = GAMEPAD_MODE_OPENGP;
+            thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
+        break;
+    }
+
+    switch(thisMode)
+    {
+        case GAMEPAD_MODE_SWPRO:
+            wirelessSupported = true;
+        break;
+
+        default:
+        break;
+    }
 
     // If we have a battery driver
     // we should perform a power check and some
@@ -94,12 +144,6 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         thisMode    = GAMEPAD_MODE_GCUSB;
         thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
     }
-    else // DEFAULT
-    {
-        thisMode            = GAMEPAD_MODE_SWPRO;
-        thisMethod          = GAMEPAD_METHOD_USB;
-        wirelessSupported   = true;
-    }
 
     // Handle Bluetooth for supported devices
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
@@ -112,7 +156,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     #endif
 
     // Check reboot memory for any overrides for buttons and whatnot
-    boot_memory_s boot_memory = {0};
+    boot_memory_s   boot_memory = {0};
     boot_get_memory(&boot_memory);
     boot_clear_memory();
 

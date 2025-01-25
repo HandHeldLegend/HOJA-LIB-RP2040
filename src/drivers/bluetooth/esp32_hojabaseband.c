@@ -298,14 +298,12 @@ void _btinput_message_parse(uint8_t *data)
             if (_current_connected > 0)
             {
                 // Connected OK
-                hoja_set_connected_status(1);
-                hoja_set_player_number_status(_current_connected);
+                hoja_set_connected_status(_current_connected);
             }
             else
             {
                 // Disconnected
-                hoja_set_connected_status(0);
-                hoja_set_player_number_status(-1);
+                hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
             }
         }
     }

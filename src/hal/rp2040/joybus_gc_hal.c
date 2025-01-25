@@ -276,8 +276,7 @@ void joybus_gc_hal_task(uint32_t timestamp)
     // Reset if no new data for 150ms
     if (interval_resettable_run(timestamp, 150000, _gc_got_data, &interval_reset))
     {
-      hoja_set_connected_status(0);
-      hoja_set_player_number_status(-1);
+      hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
       _gamecube_reset_state();
     }
     
@@ -286,8 +285,7 @@ void joybus_gc_hal_task(uint32_t timestamp)
       if(_gc_got_data) 
       {
         _gc_got_data = false;
-        hoja_set_connected_status(1);
-        hoja_set_player_number_status(1);
+        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
       }
 
       // Update input data

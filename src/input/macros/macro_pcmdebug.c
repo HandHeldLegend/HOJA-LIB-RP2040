@@ -1,8 +1,13 @@
 #include "input/macros/macro_pcmdebug.h"
 #include "utilities/interval.h"
 #include "utilities/pcm.h"
+#include "board_config.h"
 
+#if defined(HOJA_HAPTICS_DEBUG_STEP)
+float _inc_val_pcm = HOJA_HAPTICS_DEBUG_STEP;
+#else 
 float _inc_val_pcm = 0.0025f;
+#endif
 
 void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
 {
@@ -18,10 +23,10 @@ void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
     static bool zr = false;
 
     // Dpad U/D = Maximum Lo Frequency
-    // Dpad L/R = Minimum Lo Frequency
 
-    // Trigger L/R = Maximum Hi Frequency
-    // Trigger ZL/ZR = Minimum Hi Frequency
+    // Dpad L/R = Minimum Lo Frequency
+    // Trigger L/R = Minimum Hi Frequency
+    
 
 
     if(interval_run(timestamp, 8000, &interval))

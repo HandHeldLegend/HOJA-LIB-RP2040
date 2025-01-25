@@ -286,8 +286,7 @@ void joybus_n64_hal_task(uint32_t timestamp)
 
     if(interval_resettable_run(timestamp, 100000, _n64_got_data, &interval_reset))
     {
-      hoja_set_connected_status(0);
-      hoja_set_player_number_status(-1);
+      hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
       _n64_reset_state();
       sleep_ms(8); // Wait for reset
     }
@@ -296,8 +295,7 @@ void joybus_n64_hal_task(uint32_t timestamp)
     {
       if(_n64_got_data) 
       {
-        hoja_set_connected_status(1);
-        hoja_set_player_number_status(1);
+        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
         _n64_got_data = false;
       }
 
