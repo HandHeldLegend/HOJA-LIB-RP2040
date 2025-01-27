@@ -180,7 +180,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         }
         else if(buttons.button_plus)
         {
-            *pair = true;
+            thisPair = true;
         }
     }
     #endif
