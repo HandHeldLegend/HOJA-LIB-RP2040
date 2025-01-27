@@ -4,9 +4,15 @@
 #include <string.h>
 
 #include "devices_shared_types.h"
-
+#include "board_config.h"
 #include "utilities/settings.h"
-#include "hal/haptics_hal.h"
+#include "switch/switch_haptics.h"
+
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER==HAPTICS_DRIVER_LRA_HAL)
+#include "hal/lra_hal.h"
+#elif defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER==HAPTICS_DRIVER_ERM_HAL)
+#include "hal/erm_hal.h"
+#endif
 
 #include "usb/webusb.h"
 
@@ -29,10 +35,9 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
 
 void haptics_set_hd(haptic_processed_s *input)
 {
+    #if defined(HOJA_HAPTICS_PUSH_AMFM)
     // Ignore if we are outputting to webusb
     if(webusb_outputting_check()) return;
-
-    #if defined(HOJA_HAPTICS_PUSH_AMFM)
     HOJA_HAPTICS_PUSH_AMFM(input);
     #endif
 }
@@ -52,6 +57,9 @@ bool haptics_init()
         haptic_config->haptic_strength = 191;
         haptic_config->haptic_triggers = 1;
     }
+
+    // Initialize the haptics
+    switch_haptics_init();
 
     #if defined(HOJA_HAPTICS_INIT)
     return HOJA_HAPTICS_INIT(haptic_config->haptic_strength);

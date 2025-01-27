@@ -1,4 +1,4 @@
-#include "hal/haptics_hal.h"
+#include "hal/lra_hal.h"
 #include "hal/gpio_hal.h"
 #include "board_config.h"
 
@@ -83,7 +83,7 @@ static void __isr __time_critical_func(_dma_handler)()
     uint8_t available_buffer = 1 - audio_buffer_idx;
 }
 
-void haptics_hal_stop()
+void lra_hal_stop()
 {
     #if defined(HOJA_HAPTICS_CHAN_A_PIN)
         dma_channel_abort(dma_cc_l);
@@ -100,12 +100,9 @@ void haptics_hal_stop()
     #endif
 }
 
-bool haptics_hal_init(uint8_t intensity)
+bool lra_hal_init(uint8_t intensity)
 {
     static bool hal_init = false;
-
-    // Initialize the haptics
-    switch_haptics_init();
 
     // Initialize the PCM
     pcm_init(intensity);
@@ -288,7 +285,7 @@ bool get_inactive_buffer_half()
 }
 
 volatile bool _erm_simulation_enabled = false;
-void haptics_hal_task(uint32_t timestamp)
+void lra_hal_task(uint32_t timestamp)
 {
     static bool inactive_half = true;
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
@@ -312,13 +309,13 @@ void haptics_hal_task(uint32_t timestamp)
         erm_simulator_task(timestamp);
 }
 
-void haptics_hal_push_amfm(haptic_processed_s *input)
+void lra_hal_push_amfm(haptic_processed_s *input)
 {
     _erm_simulation_enabled = false; // Unset our ERM simulation mode
     pcm_amfm_push(input);
 }
 
-void haptics_hal_set_standard(uint8_t intensity)
+void lra_hal_set_standard(uint8_t intensity)
 {
     _erm_simulation_enabled = true; // Enable ERM simulation mode
     erm_simulator_set_intensity(intensity);

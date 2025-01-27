@@ -96,7 +96,8 @@
     #define RGB_MAX_GROUP_NAME_LEN 8
 
     // Drivers for haptics
-    #define HAPTICS_DRIVER_HAL 1
+    #define HAPTICS_DRIVER_LRA_HAL 1
+    #define HAPTICS_DRIVER_ERM_HAL 2
 
     // NESBus Drivers
     #define NESBUS_DRIVER_HAL 1

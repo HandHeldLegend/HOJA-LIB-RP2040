@@ -65,11 +65,6 @@ uint16_t float_to_fixed(float input) {
 #define STARTING_AMPLITUDE_FLOAT    -7.9375f
 #define EXP_BASE2_LOOKUP_LENGTH     256
 
-#define LO_FREQUENCY_MINIMUM    PCM_LO_FREQUENCY_MIN
-#define HI_FREQUENCY_MINIMUM    PCM_HI_FREQUENCY_MIN
-#define LO_FREQUENCY_RANGE      PCM_LO_FREQUENCY_RANGE
-#define HI_FREQUENCY_RANGE      PCM_HI_FREQUENCY_RANGE
-
 // Q1.15 fixed-point amplitude lookup table (Post-exp2f)
 volatile uint16_t _ExpBase2LookupHi[EXP_BASE2_LOOKUP_LENGTH] = {0};
 volatile uint16_t _ExpBase2LookupLo[EXP_BASE2_LOOKUP_LENGTH] = {0};

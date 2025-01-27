@@ -109,15 +109,6 @@ void pcm_amfm_queue_init()
     _pcm_amfm_queue.count = 0;
 }
 
-void pcm_send_pulse()
-{
-    uint8_t pulse_data[4] = {0x00, 0x00, 0x05, 0xC0};
-    switch_haptics_rumble_translate(pulse_data);
-    switch_haptics_rumble_translate(pulse_data);
-    switch_haptics_rumble_translate(pulse_data);
-    switch_haptics_rumble_translate(pulse_data);
-}
-
 #define DEFAULT_HI (uint16_t)(((75.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
 #define DEFAULT_LO (uint16_t)(((35.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
 
