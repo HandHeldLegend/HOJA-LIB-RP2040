@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 callback_t _shutdown_cb = NULL;
 int _delay_steps = 10;
 
@@ -31,3 +33,5 @@ bool anm_shutdown_get_state(rgb_s *output)
 {
     memset(output, 0, sizeof(rgb_s)*RGB_DRIVER_LED_COUNT); // Set RGBs to OFF
 }
+
+#endif

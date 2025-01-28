@@ -14,6 +14,7 @@
 #include "devices/animations/anm_handler.h"
 #include "devices/animations/anm_utility.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 
 // Perform a fade animation to black, then call our callback
@@ -33,10 +34,12 @@ float _exponentialRamp(float input) {
     const float exponent = 1.5f; // Higher values increase steepness
     return powf(input, exponent);
 }
+#endif
+
 
 void rgb_init(int mode, int brightness)
 {
-    #if defined(HOJA_RGB_DRIVER)
+    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
     uint16_t loaded_brightness = 0;
@@ -116,7 +119,7 @@ void rgb_init(int mode, int brightness)
 // only performs actions if necessary
 void rgb_task(uint32_t timestamp)
 {
-    #if defined(HOJA_RGB_DRIVER)
+    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     static interval_s interval = {0};
 
     if (interval_run(timestamp, RGB_TASK_INTERVAL, &interval))

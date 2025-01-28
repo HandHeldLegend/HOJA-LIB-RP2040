@@ -7,6 +7,8 @@
 #include "utilities/settings.h"
 #include "board_config.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 uint8_t _current_chase_led = 0;
 uint8_t _chase_ticks = 0;
 bool    _chase_dir = true;
@@ -21,11 +23,10 @@ bool ply_chase_handler(rgb_s *output, rgb_s set_color)
     // Clear all player LEDs
     for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
-        uint8_t clear_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
         if(i != _current_chase_led)
-            output[clear_idx].color = 0x00;
+            output[i].color = 0x00;
         else 
-            output[clear_idx] = set_color;
+            output[i] = set_color;
     }
 
     _chase_ticks++;
@@ -60,3 +61,5 @@ bool ply_chase_handler(rgb_s *output, rgb_s set_color)
     #endif
 
 }
+
+#endif

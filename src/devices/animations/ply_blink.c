@@ -8,6 +8,8 @@
 #include "utilities/settings.h"
 #include "board_config.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 uint32_t _blink_blend = 0;
 bool     _blink_dir = false;
 rgb_s    _blink_color = {.color = 0x00};
@@ -17,18 +19,16 @@ rgb_s    _blink_black = {.color = 0x00};
 bool ply_blink_handler(rgb_s *output, rgb_s set_color)
 {
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-    // Clear all player LEDs
     for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-        rgb_s this_color = output[this_idx]; // Get the current color
+        rgb_s this_color = output[i]; // Get the current color
         if(_blink_dir)
         {
-            output[this_idx].color = anm_utility_blend(&set_color, &_blink_black, _blink_blend);
+            output[i].color = anm_utility_blend(&set_color, &_blink_black, _blink_blend);
         }
         else
         {
-            output[this_idx].color = anm_utility_blend(&_blink_black, &set_color, _blink_blend);
+            output[i].color = anm_utility_blend(&_blink_black, &set_color, _blink_blend);
         }
     }
 
@@ -51,3 +51,5 @@ bool ply_blink_handler(rgb_s *output, rgb_s set_color)
 
     return false;
 }
+
+#endif

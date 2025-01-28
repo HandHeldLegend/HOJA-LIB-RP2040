@@ -9,6 +9,8 @@
 #include "hoja_shared_types.h"
 #include "board_config.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 #define PLAYER_NUM_CHANGE_STEP_FIXED RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 uint32_t _player_change_blend = RGB_FADE_FIXED_MULT;
 
@@ -92,9 +94,8 @@ bool ply_idle_handler(rgb_s *output, int player_num)
 
     for(uint8_t i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
-        uint8_t group_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
         if(_off_flags[i])
-            output[group_idx].color = 0;
+            output[i].color = 0;
     }
 
     // Otherwise we do nothing (passthrough)
@@ -103,3 +104,5 @@ bool ply_idle_handler(rgb_s *output, int player_num)
 
     #endif
 }
+
+#endif

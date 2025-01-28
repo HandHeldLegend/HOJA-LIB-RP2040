@@ -5,7 +5,6 @@
 #include "board_config.h"
 
 // Handle RGB mode choosing compiler side
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER>0)
 #if (RGB_DRIVER_ORDER == RGB_ORDER_GRB)
 typedef struct
 {
@@ -36,7 +35,6 @@ typedef struct
         uint32_t color;
     };
 } rgb_s;
-#endif 
 #endif
 
 typedef struct

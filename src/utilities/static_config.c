@@ -223,7 +223,7 @@ bluetoothInfoStatic_s bluetooth_static = {
     #define PLAYER_GROUP HOJA_RGB_PLAYER_GROUP_IDX 
 #endif
 
-uint8_t _rgb_names[32][8] = HOJA_RGB_GROUP_NAMES;
+uint8_t _rgb_names[32][8] = RGB_GROUP_NAMES;
 
 rgbInfoStatic_s rgb_static = {
     .rgb_groups = RGB_GROUPS,

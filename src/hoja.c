@@ -57,7 +57,7 @@ void hoja_deinit(callback_t cb)
 
   haptics_stop();
 
-  hoja_set_connected_status(CONN_STATUS_INIT);
+  hoja_set_connected_status(CONN_STATUS_SHUTDOWN);
   
   #if defined(HOJA_RGB_DRIVER)
   rgb_deinit(cb);

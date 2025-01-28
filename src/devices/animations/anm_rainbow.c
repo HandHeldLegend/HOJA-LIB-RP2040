@@ -4,6 +4,8 @@
 #include "board_config.h"
 #include <string.h>
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 #define NUM_OF_COLORS_RAINBOW 8
 rgb_s _rainbow_cols[NUM_OF_COLORS_RAINBOW] = {0};
 uint8_t _rainbow_idx_this = 0;
@@ -64,3 +66,5 @@ bool anm_rainbow_handler(rgb_s* output)
     }
     return true;
 }
+
+#endif

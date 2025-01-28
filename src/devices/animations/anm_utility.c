@@ -2,6 +2,8 @@
 #include "devices/animations/anm_handler.h"
 #include "devices/rgb.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 #define CAPUINT8(value) ((value > 255) ? 255 : value)
 
 #define DITHER_MAX_LOOP 12
@@ -269,3 +271,5 @@ static inline uint32_t _urgb_u32(uint8_t r, uint8_t g, uint8_t b)
            ((uint32_t)(g) << 16) |
            (uint32_t)(b);
 }
+
+#endif

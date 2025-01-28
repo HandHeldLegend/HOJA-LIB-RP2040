@@ -6,6 +6,8 @@
 #include "utilities/settings.h"
 #include "board_config.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 int _rgb_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 rgb_s _rgb_groups[HOJA_RGB_GROUPS_NUM];
 bool _none_init = false;
@@ -55,3 +57,5 @@ bool anm_none_handler(rgb_s* output)
     _unpack_groups_to_leds(output);
     return true;
 }
+
+#endif

@@ -7,6 +7,8 @@
 
 #include "board_config.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+
 #define RGB_REMAP_IDX_NULL    -1
 #define RGB_REMAP_IDX_DPAD    4
 #define RGB_REMAP_IDX_STICK_L     5 
@@ -336,3 +338,5 @@ bool anm_react_handler(rgb_s* output)
 
     #endif 
 }
+
+#endif

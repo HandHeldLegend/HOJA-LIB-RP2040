@@ -6,6 +6,7 @@
 
 typedef enum 
 {
+    CONN_STATUS_SHUTDOWN = -3,
     CONN_STATUS_INIT = -2,
     CONN_STATUS_DISCONNECTED  = -1,
     CONN_STATUS_CONNECTING  = 0,
