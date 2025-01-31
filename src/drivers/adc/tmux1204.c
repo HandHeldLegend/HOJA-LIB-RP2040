@@ -17,8 +17,6 @@ bool tmux1204_init_channel(adc_channel_cfg_s *cfg)
 
     // Get associated driver
     adc_driver_cfg_s *driver = cfg->driver_cfg;
-    // Get TMUX1204 config
-    adc_tmux1204_cfg_t *tmux = &driver->tmux1204_cfg;
     // Get instance
     uint8_t driver_instance = driver->driver_instance;
 
@@ -26,17 +24,12 @@ bool tmux1204_init_channel(adc_channel_cfg_s *cfg)
     if(_tmux1204_initialized[driver_instance]) return true;
 
     // Get nested driver layer
-    adc_driver_cfg_s *nested = tmux->host_cfg;
-
-    // Create new channel configuration to pass through
-    adc_channel_cfg_s new_channel = {
-        .ch_local   = tmux->host_ch_local,  // Get host local channel
-        .ch_invert  = cfg->ch_invert,       // Mirror parent invert setting
-        .driver_cfg = nested                // Set nested driver
-        };
+    adc_driver_cfg_s *nested = driver->tmux1204_cfg.host_cfg;
 
     // Save this channel config for later reading use
-    _tmux1204_nested_channels[driver_instance] = new_channel;
+    _tmux1204_nested_channels[driver_instance].ch_invert    = cfg->ch_invert;
+    _tmux1204_nested_channels[driver_instance].driver_cfg   = driver->tmux1204_cfg.host_cfg;
+    _tmux1204_nested_channels[driver_instance].ch_local     = driver->tmux1204_cfg.host_ch_local;
 
     bool nested_init = false;
 
@@ -47,37 +40,30 @@ bool tmux1204_init_channel(adc_channel_cfg_s *cfg)
         return false;
 
         case ADC_DRIVER_HAL:
-        if(adc_hal_init_channel(&new_channel))
+        if(adc_hal_init_channel(&_tmux1204_nested_channels[driver_instance]))
         {
             _tmux1204_read_functions[driver_instance] = adc_hal_read_channel;
             nested_init = true;
-            return true;
         }  
         break;
 
         case ADC_DRIVER_MCP3002:
-        if(mcp3002_init_channel(&new_channel))
+        if(mcp3002_init_channel(&_tmux1204_nested_channels[driver_instance]))
         {
             _tmux1204_read_functions[driver_instance] = mcp3002_read_channel;
             nested_init = true;
-            return true;
         }  
         break;
     }
 
-    uint8_t a0_gpio = tmux->a0_gpio;
-    uint8_t a1_gpio = tmux->a1_gpio;
+    uint8_t a0_gpio = driver->tmux1204_cfg.a0_gpio;
+    uint8_t a1_gpio = driver->tmux1204_cfg.a1_gpio;
 
-    if(nested_init)
-    {
-        // Init our local GPIO
-        gpio_hal_init(a0_gpio, true, false);
-        gpio_hal_init(a1_gpio, true, false);
-        _tmux1204_initialized[driver_instance] = true;
-        return true;
-    }
-
-    return false;
+    // Init our local GPIO
+    gpio_hal_init(a0_gpio, true, false);
+    gpio_hal_init(a1_gpio, true, false);
+    _tmux1204_initialized[driver_instance] = true;
+    return true;
 }
 
 uint16_t    tmux1204_read_channel(adc_channel_cfg_s *cfg)
@@ -117,6 +103,8 @@ uint16_t    tmux1204_read_channel(adc_channel_cfg_s *cfg)
             gpio_hal_write(a1_gpio, true);
         break;
     }
+
+    sys_hal_sleep_us(1);
 
     if(_tmux1204_read_functions[driver_instance])
     {

@@ -181,6 +181,14 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
         case WEBUSB_ID_CONFIG_COMMAND:
             settings_config_command(data[1], data[2]);
         break;
+
+        case WEBUSB_LEGACY_SET_BOOTLOADER:
+            // Do nothing
+        break;
+
+        case WEBUSB_LEGACY_GET_FW_VERSION:
+            // Do nothing
+        break;
     }   
 }
 
