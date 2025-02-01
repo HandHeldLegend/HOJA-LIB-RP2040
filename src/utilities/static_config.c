@@ -168,16 +168,25 @@ const batteryInfoStatic_s   battery_static = {
 
 #if !defined(HOJA_HAPTICS_DRIVER)
     #warning "HOJA_HAPTICS_DRIVER is not defined in board_config.h. Rumble features will be disabled."
-    #define HAPTICS_EN 0
-    #define HAPTICS_EN 0
+    #define HAPTICS_HD_EN 0
+    #define HAPTICS_SD_EN 0
 #else 
-    #define HAPTICS_EN 1
-    #define HAPTICS_EN 1
+    #if (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+        #define HAPTICS_HD_EN 1
+    #else 
+        #define HAPTICS_HD_EN 0
+    #endif
+
+    #if (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_ERM_HAL)
+        #define HAPTICS_SD_EN 1
+    #else
+        #define HAPTICS_SD_EN 0
+    #endif
 #endif
 
 const hapticInfoStatic_s    haptic_static = {
-    .haptic_hd = HAPTICS_EN,
-    .haptic_sd = HAPTICS_EN,
+    .haptic_hd = HAPTICS_HD_EN,
+    .haptic_sd = HAPTICS_SD_EN,
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)

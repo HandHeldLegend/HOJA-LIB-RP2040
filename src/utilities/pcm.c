@@ -23,6 +23,7 @@ volatile uint32_t _hi_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED)
 
 uint32_t _pcm_max_safe_value    = 0; 
 uint32_t _pcm_max_safe_scaler   = 0; 
+uint32_t _pcm_sample_scaler = 0;
 
 float _pcm_max_safe_hi = 0; 
 float _pcm_max_safe_lo = 0; 
@@ -194,6 +195,8 @@ void pcm_init(int intensity)
     // Calculate pcm clamp value (max allowed value)
     _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_VAL * _pcm_param_max);
     _pcm_max_safe_scaler    = (uint32_t) (_pcm_param_max * PCM_AMPLITUDE_SHIFT_FIXED);
+
+    _pcm_sample_scaler = (uint32_t) _pcm_max_safe_value / 255;
 
     // Minimum amplitudes are based on our WRAP value
 
@@ -400,7 +403,7 @@ void pcm_generate_buffer(
         // Mix in external sample if we have any remaining
         if(_external_sample_remaining)
         {
-            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining];
+            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining] * _pcm_sample_scaler;
             _external_sample_remaining--;
         }
 
@@ -417,27 +420,10 @@ void pcm_generate_buffer(
         // Mix the two channels
         int32_t    mixed = (scaled_hi + scaled_lo);
 
-        #define RATIO_SHIFT (14)
-        #define RATIO_MULT  (1 << RATIO_SHIFT)
-        #define RATIO_FACTOR (RATIO_MULT * PCM_MAX_SAFE_VALUE)
-
-        #define CLICK_MAX_SAFE_VALUE ((uint32_t) ((PCM_MAX_SAFE_VALUE+10) > 255) ? 255 : (PCM_MAX_SAFE_VALUE+10) )
-        #define RATIO_CLICK_SHIFT (15)
-        #define RATIO_CLICK_MULT  (1 << RATIO_CLICK_SHIFT)
-        #define RATIO_CLICK_FACTOR (RATIO_CLICK_MULT * CLICK_MAX_SAFE_VALUE)
-
-        //if ((mixed+external_sample) > CLICK_MAX_SAFE_VALUE)
-        //{
-        //    // Compute the scaling factor as a fixed-point ratio
-        //    uint32_t new_ratio_2 = RATIO_CLICK_FACTOR / (mixed+external_sample);
-        //    // Scale the components proportionally
-        //    mixed = (mixed * new_ratio_2) >> RATIO_CLICK_SHIFT;
-        //    external_sample = (external_sample * new_ratio_2) >> RATIO_CLICK_SHIFT;
-        //    // Recalculate the mixed value (optional for verification)
-        //    mixed = mixed + external_sample;
-        //}
-
-        //uint8_t sample = (uint8_t)(mixed > CLICK_MAX_SAFE_VALUE ? CLICK_MAX_SAFE_VALUE : mixed);
+        if(external_sample)
+        {
+            mixed += external_sample;
+        }
 
         if(mixed < 0) mixed = 0;
 
