@@ -1,4 +1,7 @@
-#include "desc_bos.h"
+#include "usb/desc_bos.h"
+#include "tusb.h"
+#include "device/usbd.h"
+#include "hoja.h"
 
 //--------------------------------------------------------------------+
 // BOS Descriptor
@@ -67,7 +70,7 @@ uint8_t const gc_desc_bos[] = {
 
 uint8_t const *tud_descriptor_bos_cb(void)
 {
-    if (hoja_comms_current_mode() == INPUT_MODE_GCUSB) return gc_desc_bos;
+    if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB) return gc_desc_bos;
 
     return desc_bos;
 }

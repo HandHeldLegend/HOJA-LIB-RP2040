@@ -1,7 +1,7 @@
 #ifndef SWITCH_ANALOG_H
 #define SWITCH_ANALOG_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
 
 extern uint8_t switch_analog_calibration_data[18];
 

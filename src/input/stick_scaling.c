@@ -3,644 +3,734 @@
  * @brief This file contains the implementation of stick scaling functions.
  */
 
-#include "stick_scaling.h"
+#include "input/stick_scaling.h"
+#include "input/analog.h"
 
-#define STICK_INTERNAL_CENTER 2048
-#define STICK_MAX 4095
+#include "hoja.h"
 
-#define STICK_CALIBRATION_DEADZONE 125
-#define STICK_SCALE_DISTANCE STICK_INTERNAL_CENTER
+#include "hal/mutex_hal.h"
+#include "utilities/settings.h"
 
-#define CLAMP_0_MAX(value) ((value) < 0 ? 0 : ((value) > STICK_MAX ? STICK_MAX : (value)))
-#define CLAMP_FLOAT_DISTANCE(value) ((value) < 0 ? 0 : ((value) > STICK_INTERNAL_CENTER ? STICK_INTERNAL_CENTER : (value)))
+#include "settings_shared_types.h"
+#include <math.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-// Direct cardinal angles
-const float _angle_lut[8] = {0, 45, 90, 135, 180, 225, 270, 315};
+#define TOTAL_ANGLES 64
+#define ADJUSTABLE_ANGLES 16
+#define DEFAULT_ANGLES_COUNT 8
+#define ANGLE_MAP_COUNT ADJUSTABLE_ANGLES
+#define ANGLE_CHUNK (float) 5.625f
+#define HALF_ANGLE_CHUNK (float) ANGLE_CHUNK/2
+#define ANGLE_MAPPING_CHUNK (float) 22.5f 
+#define ANGLE_DEFAULT_CHUNK (float) (360.0f / 8.0f)
+#define ANALOG_MAX_DISTANCE 2048
+#define LERP(a, b, t) ((a) + (t) * ((b) - (a)))
+#define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
+#define MAX_ANGLE_ADJUSTMENT 10
+#define MINIMUM_REQUIRED_DISTANCE 1000
 
-// Our base angles for scaling
-const float _base_angles_lut[8] = {337.5, 22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5};
 
-// Precalculated distance scalers
-float _stick_l_distance_scalers[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-float _stick_r_distance_scalers[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+#define CROSSOVER_DEADZONE 750
 
-// Precalculated angle scalers
-float _stick_l_angle_scalers[8] = {1,1,1,1,1,1,1,1};
-float _stick_r_angle_scalers[8] = {1,1,1,1,1,1,1,1};
-
-int _stick_l_center_x;
-int _stick_l_center_y;
-
-int _stick_r_center_x;
-int _stick_r_center_y;
-
-uint8_t _stick_deadzone_outer_l;
-uint8_t _stick_deadzone_outer_r;
-
-typedef struct
+typedef struct 
 {
-  bool set;
-  float scale_lower;
-  float scale_upper;
-  float parting_angle;
-} angle_sub_scale_s;
+  float distance;
+  float midpoint_magnitude;
+} polygon_solved_s;
 
-angle_sub_scale_s _l_sub_angle_states[8] = {0};
-angle_sub_scale_s _r_sub_angle_states[8] = {0};
-
-
-
-float _stick_sub_angle_scale(float angle, angle_sub_scale_s *state)
+typedef struct 
 {
-  if(!state->set) return angle;
+  int max_idx; 
+  angleMap_s angle_maps[ADJUSTABLE_ANGLES];
+  polygon_solved_s polygon_mid_distances[ADJUSTABLE_ANGLES];
+  int round_distances[64];
+  analog_scaler_t scaling_mode;
+} angle_setup_s;
 
-  if(angle <= state->parting_angle)
+#define ANGLE_SETUP_DEFAULT (angle_setup_s) {.angle_maps = {0}, \
+                                             .max_idx = ADJUSTABLE_ANGLES-1, \
+                                             .round_distances = {0}, \
+                                             .scaling_mode = ANALOG_SCALER_ROUND}
+
+angle_setup_s _left_setup   = ANGLE_SETUP_DEFAULT;
+angle_setup_s _right_setup  = ANGLE_SETUP_DEFAULT;
+
+bool _sticks_calibrating = false;
+
+MUTEX_HAL_INIT(_stick_scaling_mutex);
+
+float _normalize_angle(float angle);
+float _angle_diff(float angle1, float angle2);
+int   _find_lower_index(float input_angle, angleMap_s *map);
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map);
+float _transform_angle(float input_angle, angleMap_s *map);
+
+// Reset distances 
+void _zero_distances(angle_setup_s *setup)
+{
+  for(int i = 0; i < TOTAL_ANGLES; i++)
   {
-    return angle * state->scale_lower;
-  }
-  else return ( (angle - state->parting_angle) * state->scale_upper )+22.5f;
-}
-
-/**
- * Calculates the distance between two angles in degrees.
- *
- * @param angle1 The first angle in degrees.
- * @param angle2 The second angle in degrees.
- * @return The distance between the two angles.
- */
-float _get_angle_distance(float angle1, float angle2) {
-  // Calculate the absolute difference
-  float diff = fabs(angle1 - angle2);
-
-  // Take the shorter distance considering the circular range
-  float distance = fmin(diff, 360.0 - diff);
-
-  return distance;
-}
-
-/**
- * Checks if an angle is between two given angles.
- *
- * @param angle The angle to check.
- * @param a1 The first angle of the range.
- * @param a2 The second angle of the range.
- * @return true if the angle is between a1 and a2 (inclusive), false otherwise.
- */
-bool _is_angle_between(float angle, float a1, float a2)
-{
-  // Ensure startAngle is less than endAngle
-  if (a1 <= a2) {
-      return angle >= a1 && angle <= a2;
-  } else {
-      // Handle the case where the range wraps around (e.g., startAngle = 300, endAngle = 30)
-      return angle >= a1 || angle <= a2;
+    setup->round_distances[i] = 5;
   }
 }
 
-/**
- * Returns the octant based on the processed data.
- *
- * This function takes an angle and an array of angles representing the boundaries of each octant.
- * It iterates through the array and checks if the given angle falls between two consecutive angles.
- * If the angle is found to be between two consecutive angles, the corresponding octant index is returned.
- *
- * @param angle The angle to be processed.
- * @param c_angles An array of angles representing the boundaries of each octant.
- * @return The octant index based on the processed data.
- */
-int _stick_get_processed_octant(float angle, float *c_angles)
+// Initialize angle setup to defaults
+void _angle_setup_reset_to_defaults(angle_setup_s *setup)
 {
-  int out = 0;
+  setup->max_idx = DEFAULT_ANGLES_COUNT - 1;
+  setup->scaling_mode = 0;
 
-  for(uint8_t i = 0; i<8; i++)
+  // Reset to zero
+  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
+
+  // Set up angle maps
+  for(int i = 0; i < DEFAULT_ANGLES_COUNT; i++)
   {
-    int t2 = (i<7) ? i+1 : 0;
-
-    if(_is_angle_between(angle, c_angles[i], c_angles[t2])) out = i;
+    setup->angle_maps[i].input  = i * ANGLE_DEFAULT_CHUNK;
+    setup->angle_maps[i].output = i * ANGLE_DEFAULT_CHUNK;
+    setup->angle_maps[i].distance = ANALOG_MAX_DISTANCE;
   }
 
-  return out;
+  // Set up distances 
+  for(int i = 0; i < 64; i++)
+  {
+    setup->round_distances[i] = 1432;
+  }
+
+  setup->scaling_mode = ANALOG_SCALER_ROUND;
 }
 
-/**
- * Returns an octant of 0 through 7 to indicate the cardinal direction.
- *
- * @param angle The angle in degrees.
- * @return The octant value representing the cardinal direction.
- */
-int _stick_get_octant(float angle)
-{
-  // Ensure the angle is in the range [0, 360)
-    angle = fmod(angle, 360.0);
-    if (angle < 0) {
-        angle += 360.0;
+// Comparison function for qsort
+int _compare_by_input(const void *a, const void *b) {
+    const angleMap_s *angle_a = (const angleMap_s *)a;
+    const angleMap_s *angle_b = (const angleMap_s *)b;
+
+    if (angle_a->input < angle_b->input) {
+        return -1;
+    } else if (angle_a->input > angle_b->input) {
+        return 1;
+    } else {
+        return 0;
     }
-
-    // Compute the octant
-    int octant = (int)((angle) / 45.0) % 8;
-
-    return octant;
 }
 
-
-/**
- * @brief Adjusts the given angle by the adjustment parameter and returns the appropriate angle.
- * 
- * This function takes an angle value and adjusts it by the given adjustment parameter.
- * If the adjusted angle exceeds 360 degrees, it wraps around to the range of 0 to 360 degrees.
- * If the adjusted angle is less than 0 degrees, it wraps around to the range of 0 to 360 degrees.
- * 
- * Angle order E, NE, N, NW, W, SW, S, SE
- * 
- * @param angle The original angle value.
- * @param adjustment The adjustment value to be added to the original angle.
- * @return The adjusted angle value.
- */
-float _stick_angle_adjust(float angle, float adjustment)
-{
-  // Adjust the angle by adding the adjustment parameter
-  float out = angle + adjustment;
-  
-  // Wrap the adjusted angle around to the range of 0 to 360 degrees
-  if (out > 360.0f)
-    out -= 360;
-  else if (out < 0)
-    out += 360;
-  return out;
+// Get distance to coordinates based on a 0, 0 center
+float stick_scaling_coordinate_distance(int x, int y) {
+    // Use Pythagorean theorem to calculate distance
+    // Convert to float to ensure floating-point precision
+    return sqrtf((float)(x * x + y * y));
 }
 
-/**
- * Calculates the angle in degrees given the XY coordinate pair and the calibrated center point.
- *
- * @param x The X coordinate.
- * @param y The Y coordinate.
- * @param center_x The X coordinate of the center point.
- * @param center_y The Y coordinate of the center point.
- * @return The angle in degrees.
- */
-float stick_get_angle(int x, int y, int center_x, int center_y)
+// Calculates the shortest angular distance between two angles
+float _angle_diff(float angle1, float angle2)
 {
-  float angle = atan2f((y - center_y), (x - center_x)) * 180.0f / M_PI;
+  float diff = fmodf(fabsf(angle1 - angle2), 360.0f); // Normalize difference to 0–360
+  return diff > 180.0f ? 360.0f - diff : diff;        // Use the shorter path
+}
 
-  if (angle < 0)
+// Set mapping with angle difference validation
+bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map)
+{
+  // Validate index
+  if (index < 0 || index >= ADJUSTABLE_ANGLES)
   {
-    angle += 360.0f;
-  }
-  else if (angle >= 360.0f)
-  {
-    angle -= 360.0f;
-  }
-  return angle;
-}
-
-/**
- * Calculates the distance between a coordinate pair (x, y) and a center point (center_x, center_y).
- *
- * @param x The x-coordinate of the point.
- * @param y The y-coordinate of the point.
- * @param center_x The x-coordinate of the center point.
- * @param center_y The y-coordinate of the center point.
- * @return The distance between the point and the center point.
- */
-float stick_get_distance(int x, int y, int center_x, int center_y)
-{
-  float dx = (float)x - (float)center_x;
-  float dy = (float)y - (float)center_y;
-  return sqrtf(dx * dx + dy * dy);
-}
-
-/**
- * Calculates the normalized vector components (x, y) at a given angle.
- *
- * @param angle The angle in degrees.
- * @param x     Pointer to store the x-component of the normalized vector.
- * @param y     Pointer to store the y-component of the normalized vector.
- */
-void stick_normalized_vector(float angle, float *x, float *y)
-{
-  float rad = angle * (M_PI / 180.0);
-  *x = cos(rad);
-  *y = sin(rad);
-}
-
-/**
- * Calculates the new angle and distance output based on the given input angle and distance.
- *
- * @param angle The input angle.
- * @param distance The input distance.
- * @param c_angles The array of calibrated angles.
- * @param d_scalers The array of distance scalers.
- * @param a_scalers The array of angle scalers.
- * @param sub_state The array of sub-state for angle adjustment.
- * @param out_x Pointer to store the output x-coordinate.
- * @param out_y Pointer to store the output y-coordinate.
- */
-void _stick_process_input(float angle, float distance, float *c_angles, float *d_scalers, float *a_scalers, angle_sub_scale_s *sub_state, float *out_x, float *out_y)
-{
-  // First get the octant
-  // This will determine which scalers we are using
-  // By not shifting the angle 22.5 degrees, this octant is aligned with the direct cardinals.
-  int _o = _stick_get_processed_octant(angle, c_angles);
-  // Get the second octant which is loops around if we are in octant 7
-  int _o2 = (_o < 7) ? _o+1 : 0;
-
-  // Store total distance between 
-  // calibrated angles
-  float _td = _get_angle_distance(c_angles[_o], c_angles[_o2]);
-
-  // Get how far along the angle is along the path
-  float _ad = _get_angle_distance(angle, c_angles[_o]);
-
-  // Get ratio of how far along the angle is compared to the total distance
-  float _str = _ad / _td;
-
-  // Generate appropriate scaler value
-  float _new_d_scaler = (d_scalers[_o] * (1.0f-_str)) + (d_scalers[_o2] * _str);
-  
-  // Get scaled angle
-  float _sa = _ad * a_scalers[_o];
-
-  // Perform sub-adjust if we need to.
-  if(sub_state[_o].set)
-  {
-    _sa = _stick_sub_angle_scale(_sa, &(sub_state[_o]));
+    return false;
   }
 
-  // Add scaled angle to create final angle
-  float _fa = _stick_angle_adjust(_angle_lut[_o], _sa);
+  // Normalize input and output angles
+  input_angle   = _normalize_angle(input_angle);
+  output_angle  = _normalize_angle(output_angle);
 
-  float nx = 0;
-  float ny = 0;
-
-  stick_normalized_vector(_fa, &nx, &ny);
-
-  float nd = distance * _new_d_scaler;
-  nd = (float) CLAMP_FLOAT_DISTANCE(nd);
-  nx *= nd;
-  ny *= nd;
-
-  *out_x = CLAMP_0_MAX((int)roundf(nx + STICK_INTERNAL_CENTER));
-  *out_y = CLAMP_0_MAX((int)roundf(ny + STICK_INTERNAL_CENTER));
-}
-
-// PRECALCULATE FUNCTIONS
-
-  /**
-   * Precalculates the distance scalers based on the input distances.
-   *
-   * @param distances_in The input distances.
-   * @param scalers_out The output scalers.
-   */
-  void _precalculate_distance_scalers(float *distances_in, float *scalers_out)
+  // If this is the first point, always allow
+  if (index == 0)
   {
-    for (uint8_t i = 0; i < 8; i++)
-    {
-      scalers_out[i] = (STICK_SCALE_DISTANCE) / (distances_in[i]);
-    }
-  }
-
-  /**
-   * Precalculates the angle scalers based on the input angles.
-   *
-   * @param angles_in The input angles array.
-   * @param scalers_out The output scalers array.
-   */
-  void _precalculate_angle_scalers(float *angles_in, float *scalers_out)
-  {
-    for(uint8_t i = 0; i < 8; i++)
-    {
-      int _a2 = (i<7) ? i + 1 : 0;
-      float _d = _get_angle_distance(angles_in[i], angles_in[_a2]);
-      
-      // Create a scaler to 45 degrees based on the distance
-      float _as = 45.0f/_d;
-
-      scalers_out[i] = _as;
-    }
-  }
-
-  /**
-   * Precalculates the sub-scaler states based on the input sub-angles.
-   * 
-   * @param sub_angles_in The array of sub-angles.
-   * @param state The array of angle_sub_scale_s structures to store the calculated states.
-   */
-  void _precalculate_angle_substate(float *sub_angles_in, angle_sub_scale_s *state)
-  {
-    for(uint8_t i = 0; i < 8; i++)
-    {
-      if(sub_angles_in[i] == 0)
-      {
-        // If sub-angle is 0, set scaler values to default values
-        state[i].set = false;
-        state[i].parting_angle = 22.5f;
-        state[i].scale_lower = 1;
-        state[i].scale_upper = 1;
-      }
-      else
-      {
-        // If sub-angle is not 0, calculate scaler values based on the sub-angle
-        state[i].set = true;
-        state[i].parting_angle = 22.5 + sub_angles_in[i];
-        state[i].scale_lower = (22.5f / state[i].parting_angle);
-        state[i].scale_upper = (22.5f / (45.0f - state[i].parting_angle) );
-      }
-    }
-  }
-
-// PUBLIC FUNCTIONS
-// Load stick scaling settings from global_loaded_settings
-void stick_scaling_get_settings()
-{
-  // Copy values from settings to working mem here
-  _stick_l_center_x = global_loaded_settings.lx_center.center;
-  _stick_r_center_x = global_loaded_settings.rx_center.center;
-  _stick_l_center_y = global_loaded_settings.ly_center.center;
-  _stick_r_center_y = global_loaded_settings.ry_center.center;
-}
-
-// Copies working calibration data
-// to global_loaded_settings
-void stick_scaling_set_settings()
-{
-  settings_set_centers(_stick_l_center_x, _stick_l_center_y, _stick_r_center_x, _stick_r_center_y);
-}
-
-// Performs the math to create the
-// scaling values from the loaded data
-void stick_scaling_init()
-{
-  _precalculate_angle_scalers(global_loaded_settings.l_angles, _stick_l_angle_scalers);
-  _precalculate_angle_scalers(global_loaded_settings.r_angles, _stick_r_angle_scalers);
-
-  _precalculate_distance_scalers(global_loaded_settings.l_angle_distances, _stick_l_distance_scalers);
-  _precalculate_distance_scalers(global_loaded_settings.r_angle_distances, _stick_r_distance_scalers);
-
-  _precalculate_angle_substate(global_loaded_settings.l_sub_angles, _l_sub_angle_states);
-  _precalculate_angle_substate(global_loaded_settings.r_sub_angles, _r_sub_angle_states);
-}
-
-uint16_t _stick_distances_tracker = 0x00;
-
-/**
- * @brief Resets the distances and angles for stick scaling.
- * 
- * This function resets the distances and angles used for stick scaling.
- * It sets the stick distances tracker to 0x00 and clears the arrays
- * for left and right angle distances, left and right angles.
- */
-void stick_scaling_reset_distances()
-{
-  _stick_distances_tracker = 0x00;
-  memset(global_loaded_settings.l_angle_distances, 0, sizeof(float) * 8);
-  memset(global_loaded_settings.r_angle_distances, 0, sizeof(float) * 8);
-  memset(global_loaded_settings.l_angles, 0, sizeof(float) * 8);
-  memset(global_loaded_settings.r_angles, 0, sizeof(float) * 8);
-}
-
-/**
- * @brief Captures the distances and angles of the input stick.
- *
- * This function captures the angles and distances of the input stick and updates the calibrated
- * distances and angles in the global settings. It also updates the stick distances tracker.
- *
- * @param in Pointer to the input data structure.
- * @return Returns true if all distances have been captured, false otherwise.
- */
-bool stick_scaling_capture_distances(a_data_s *in)
-{
-  // Get angles of input
-  float la = stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float ra = stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  // Adjust angles
-  float sla = _stick_angle_adjust(la, 22.5f);
-  float sra = _stick_angle_adjust(ra, 22.5f);
-
-  int lo = _stick_get_octant(sla);
-  int ro = _stick_get_octant(sra);
-
-  // Get distance of input
-  float ld = stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float rd = stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-
-  float l_a_d = fmod(la, 45);
-  if ((l_a_d < 1) || (l_a_d > 44))
-  {
-    if ((ld > global_loaded_settings.l_angle_distances[lo]) && (ld > STICK_CALIBRATION_DEADZONE))
-    {
-
-      // Update calibrated distance
-      global_loaded_settings.l_angle_distances[lo] = ld;
-
-      // Update calibrated angle
-      global_loaded_settings.l_angles[lo] = la;
-
-      _stick_distances_tracker |= (1 << lo);
-    }
-  }
-
-  float r_a_d = fmod(ra, 45);
-  if ((r_a_d < 1) || (r_a_d > 44))
-  {
-    if ((rd > global_loaded_settings.r_angle_distances[ro]) && (rd > STICK_CALIBRATION_DEADZONE))
-    {
-      // Update calibrated distance
-      global_loaded_settings.r_angle_distances[ro] = rd;
-
-      // Update calibrated angle
-      global_loaded_settings.r_angles[ro] = ra;
-
-      _stick_distances_tracker |= (1 << (ro + 8));
-    }
-  }
-
-  return (_stick_distances_tracker == 0xFFFF);
-}
-
-/**
- * @brief Captures the center values of the stick inputs.
- *
- * This function captures the center values of the stick inputs and stores them in the corresponding variables.
- *
- * @param in Pointer to the input data structure.
- */
-void stick_scaling_capture_center(a_data_s *in)
-{
-  _stick_l_center_x = in->lx;
-  _stick_l_center_y = in->ly;
-
-  _stick_r_center_x = in->rx;
-  _stick_r_center_y = in->ry;
-}
-
-/**
- * @brief Determines the octant and axis of the stick input.
- *
- * This function calculates the angles and distances of the stick inputs and determines
- * the octant and axis based on the calculated values. The octant represents the direction
- * in which the stick is tilted, while the axis represents whether it is the left stick or
- * the right stick.
- *
- * @param in Pointer to the input data structure.
- * @param axis Pointer to store the axis value (0 for left stick, 1 for right stick).
- * @param octant Pointer to store the octant value (ranging from 0 to 7).
- */
-void stick_scaling_get_octant_axis(a_data_s *in, uint8_t *axis, uint8_t *octant)
-{
-  // Get angles of input
-  float la = stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float ra = stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  // Get distance of inputs
-  float ld = stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float rd = stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  if (ld > STICK_CALIBRATION_DEADZONE)
-  {
-    int lo = _stick_get_octant(la);
-    *axis = 0;
-    *octant = (uint8_t) lo;
-  }
-  else if (rd > STICK_CALIBRATION_DEADZONE)
-  {
-    int ro = _stick_get_octant(ra);
-    *axis = 1;
-    *octant = (uint8_t) ro;
-  }
-}
-
-/**
- * @brief Calculates the axis and octant offset based on stick input values.
- *
- * This function calculates the axis and octant offset based on the stick input values.
- * It first calculates the angles of the input values using the stick center coordinates.
- * Then, it adjusts the angles by 22.5 degrees.
- * Next, it calculates the distance of the input values from the stick center coordinates.
- * If the left stick distance is greater than the deadzone threshold, it calculates the octant of the adjusted left angle.
- * If the right stick distance is greater than the deadzone threshold, it calculates the octant of the adjusted right angle.
- * Finally, it assigns the axis and octant values to the provided pointers.
- *
- * @param in Pointer to the input data structure.
- * @param axis Pointer to store the calculated axis value (0 for left stick, 1 for right stick).
- * @param octant Pointer to store the calculated octant value.
- */
-void stick_scaling_get_octant_axis_offset(a_data_s *in, uint8_t *axis, uint8_t *octant)
-{
-  // Get angles of input
-  float la = stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float ra = stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  float sla = _stick_angle_adjust(la, 22.5);
-  float sra = _stick_angle_adjust(ra, 22.5);
-
-  // Get distance of inputs
-  float ld = stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float rd = stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  if (ld > STICK_CALIBRATION_DEADZONE)
-  {
-    int lo = _stick_get_octant(sla);
-    *axis = 0;
-    *octant = (uint8_t) lo;
-  }
-  else if (rd > STICK_CALIBRATION_DEADZONE)
-  {
-    int ro = _stick_get_octant(sra);
-    *axis = 1;
-    *octant = (uint8_t) ro;
-  }
-}
-
-/**
- * @brief Captures a stick angle for octagon calibration.
- *
- * This function captures the stick angle for octagon calibration. It calculates the angles and distances of the input stick positions and adjusts them to ensure they are in the correct octant. 
- * If the distance of the left stick is greater than the deadzone threshold, it updates the angle and distance values for the corresponding octant in the global settings. 
- * If the distance of the right stick is greater than the deadzone threshold, it updates the angle and distance values for the corresponding octant in the global settings. 
- * After updating the values, it initializes the stick scaling and returns true. If neither stick distance is greater than the deadzone threshold, it returns false.
- * 
- * @param in Pointer to the input data structure.
- * @return Returns true if the stick angle was captured and updated, false otherwise.
- */
-// Captures a stick angle for octagon calibration
-bool stick_scaling_capture_angle(a_data_s *in)
-{
-  // Get angles of input
-  float la = stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float ra = stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  // Get angle adjusted to ensure we're adjusting the correct octant
-  float sla = _stick_angle_adjust(la, 22.5f);
-  float sra = _stick_angle_adjust(ra, 22.5f);
-
-  // Get distance of inputs
-  float ld = stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float rd = stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
-
-  if (ld > STICK_CALIBRATION_DEADZONE)
-  {
-    int lo = _stick_get_octant(sla);
-
-    // Set new angle
-    global_loaded_settings.l_angles[lo] = la;
-
-    // Set the new angle distance
-    global_loaded_settings.l_angle_distances[lo] = ld;
-
-    stick_scaling_init();
-
-    return true;
-  }
-  else if (rd > STICK_CALIBRATION_DEADZONE)
-  {
-    int ro = _stick_get_octant(sra);
-
-    // Set new angle
-    global_loaded_settings.r_angles[ro] = ra;
-
-    // Set the new angle distance
-    global_loaded_settings.r_angle_distances[ro] = rd;
-
-    stick_scaling_init();
-
+    map[index].input = input_angle;
+    map[index].output = output_angle;
     return true;
   }
 
-  return false;
+  // Check previous point
+  int prev_index = (index - 1 + ADJUSTABLE_ANGLES) % ADJUSTABLE_ANGLES;
+  float prev_input  = map[prev_index].input;
+  float prev_output = map[prev_index].output;
+
+  // Calculate input and output angle differences
+  float input_distance  = _angle_diff(input_angle, prev_input);
+  float output_distance = _angle_diff(output_angle, prev_output);
+
+  // Validate that both input and output differences are within ±10 degrees
+  if (input_distance >= MAX_ANGLE_ADJUSTMENT || output_distance >= MAX_ANGLE_ADJUSTMENT)
+  {
+    return false;
+  }
+
+  // Store the mapping
+  map[index].input  = input_angle;
+  map[index].output = output_angle;
+
+  return true;
 }
 
-/**
- * @brief Process the input data from the stick and scale the values accordingly.
- *
- * This function takes the input data from the stick, including the raw angles and distances,
- * and scales them based on the loaded settings and distance scalers. The processed values are
- * then stored in the output structure.
- *
- * @param in Pointer to the input data structure containing the raw stick angles and distances.
- * @param out Pointer to the output data structure where the processed stick values will be stored.
- */
-void stick_scaling_process_data(a_data_s *in, a_data_s *out)
+// Normalize angle to 0-360 range
+float _normalize_angle(float angle)
 {
-  // Get raw angles of input
-  float la = stick_get_angle(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float ra = stick_get_angle(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
+  angle = fmodf(angle, 360.0f);
+  return angle < 0 ? angle + 360.0f : angle;
+}
 
-  // Get distance of input
-  float ld = stick_get_distance(in->lx, in->ly, _stick_l_center_x, _stick_l_center_y);
-  float rd = stick_get_distance(in->rx, in->ry, _stick_r_center_x, _stick_r_center_y);
+// Find the low and high index pair that contains our angle
+void _find_containing_index_pair(float input_angle, angle_setup_s *setup, int *idx_pair)
+{
+  idx_pair[0] = -1;
+  idx_pair[1] = -1;
 
-  float lx = 0;
-  float ly = 0;
-  float rx = 0;
-  float ry = 0;
+  if(setup->angle_maps[0].input > 0)
+  {
+    if(input_angle < setup->angle_maps[0].input)
+    {
+      idx_pair[0] = (setup->max_idx);
+      idx_pair[1] = 0;
+      return;
+    }
+  }
 
-  _stick_process_input(la, ld, global_loaded_settings.l_angles, _stick_l_distance_scalers, _stick_l_angle_scalers, _l_sub_angle_states, &lx, &ly);
-  _stick_process_input(ra, rd, global_loaded_settings.r_angles, _stick_r_distance_scalers, _stick_r_angle_scalers, _r_sub_angle_states, &rx, &ry);
+  if( (input_angle >= setup->angle_maps[(setup->max_idx)].input) )
+  {
+    idx_pair[0] = (setup->max_idx);
+    idx_pair[1] = 0;
+    return;
+  }
 
-  out->lx = global_loaded_settings.lx_center.invert ? (4095 - lx) : lx;
-  out->ly = global_loaded_settings.ly_center.invert ? (4095 - ly) : ly;
-  out->rx = global_loaded_settings.rx_center.invert ? (4095 - rx) : rx;
-  out->ry = global_loaded_settings.ry_center.invert ? (4095 - ry) : ry;
+  for (int i = 0; i < (setup->max_idx); i++)
+  {
+    if( (input_angle >= setup->angle_maps[i].input) && (input_angle < setup->angle_maps[i+1].input) )
+    {
+      idx_pair[0] = i;
+      idx_pair[1] = i+1;
+      return;
+    }
+  }
+}
+
+float _angle_magnitude(float input, float lower, float upper)
+{ 
+  if(upper < lower)
+  {
+    upper += 360.0f;
+    if(input < lower) input += 360.0f;
+  }
+
+  float distance = _angle_diff(lower, upper);
+  float magnitude_distance = _angle_diff(lower, input);
+
+  return (magnitude_distance/distance);
+}
+
+float _angle_lerp(float magnitude, float lower, float upper)
+{
+  if(upper < lower)
+  {
+    upper += 360.0f;
+  }
+
+  float distance = _angle_diff(lower, upper);
+  float new_out = (distance*magnitude) + lower;
+  return _normalize_angle(new_out);
+}
+
+float _distance_lerp(float magnitude, float lower, float upper) 
+{
+  float distance = upper-lower;
+  float new_out = lower+magnitude * (upper-lower);
+  return new_out;
+}
+
+// Transform input angle based on configured mappings
+float _transform_angle(float input_angle, angleMap_s *map)
+{
+  // Normalize input angle
+  input_angle = _normalize_angle(input_angle);
+
+  // Find the lower and upper mapping indices
+  int lower_index = _find_lower_index(input_angle, map);
+  int upper_index = (lower_index + 1) % ADJUSTABLE_ANGLES;
+
+  // Get input and output angles for lower and upper points
+  float lower_input   = map[lower_index].input;
+  float lower_output  = map[lower_index].output;
+  float upper_input   = map[upper_index].input;
+  float upper_output  = map[upper_index].output;
+
+  // Handle wrap-around for input angles
+  if (upper_input < lower_input)
+  {
+    upper_input += 360.0f;
+    if (input_angle < lower_input)
+      input_angle += 360.0f;
+  }
+
+  // Linear interpolation
+  float t = (input_angle - lower_input) / (upper_input - lower_input);
+  float output_angle = lower_output + t * (upper_output - lower_output);
+
+  // Normalize output angle
+  return _normalize_angle(output_angle);
+}
+
+void _angle_distance_to_fcoordinate(float angle, float distance, float *out) 
+{    
+    // Normalize angle to 0-360 range
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    
+    // Convert angle to radians
+    float angle_radians = angle * M_PI / 180.0f;
+    
+    // Calculate X and Y coordinates
+    // Limit to -2048 to +2048 range
+    out[0] = (distance * cosf(angle_radians));
+    out[1] = (distance * sinf(angle_radians));
+    
+    // Clamp to prevent exceeding the specified range
+    out[0] = fmaxf(-2048, fminf(2047, out[0]));
+    out[1] = fmaxf(-2048, fminf(2047, out[1]));
+}
+
+float stick_scaling_coordinates_to_angle(int x, int y) 
+{
+    // Handle special cases to avoid division by zero
+    if (x == 0) {
+        // Vertical lines
+        return (y > 0) ? 90.0f : 270.0f;
+    }
+    
+    // Calculate arctangent and convert to degrees
+    float angle_radians = atan2f((float)y, (float)x);
+    
+    // Convert to degrees and normalize to 0-360 range
+    float angle_degrees = angle_radians * 180.0f / M_PI;
+    
+    // Adjust to ensure 0-360 range with positive angles
+    if (angle_degrees < 0) {
+        angle_degrees += 360.0f;
+    }
+    
+    return angle_degrees;
+}
+
+bool _calibrate_axis(int16_t *in, angle_setup_s *setup)
+{
+  // Get input distance
+  float distance  = stick_scaling_coordinate_distance(in[0], in[1]);
+  // Get input angle
+  float angle     = stick_scaling_coordinates_to_angle(in[0], in[1]);
+
+  angle   -= HALF_ANGLE_CHUNK;
+  angle   = roundf(angle/ANGLE_CHUNK);
+  int idx = (int) angle % 64;
+
+  // Assign distance if needed
+  if(distance > setup->round_distances[idx])
+  {
+    setup->round_distances[idx] = distance;
+  }
+
+  // Return true if all distances are greater than minimum
+  for(int i = 0; i < TOTAL_ANGLES; i++)
+  {
+    if(setup->round_distances[i] < 400) return false;
+  }
+
+  return true;
+}
+
+float _closest_distance_to_line(float x1, float y1, float x2, float y2) {
+    // Calculate the line equation coefficients (Ax + By + C = 0)
+    float A = y2 - y1;
+    float B = x1 - x2;
+    float C = x2 * y1 - x1 * y2;
+
+    // Calculate the distance from (0, 0) to the line
+    float distance = fabs(A * 0 + B * 0 + C) / sqrt(A * A + B * B);
+
+    return distance;
+}
+
+void _solve_polygon(float d1, float a1, float d2, float a2, polygon_solved_s *solved)
+{
+  float c1[2] = {0};
+  float c2[2] = {0};
+
+  _angle_distance_to_fcoordinate(a1, d1, c1);
+  _angle_distance_to_fcoordinate(a2, d2, c2);
+
+  // Calculate the midpoint
+  float midX = (c1[0] + c2[0]) * 0.5f;
+  float midY = (c1[1] + c2[1]) * 0.5f;
+
+  // Calculate the distance from (0,0) to the midpoint
+  solved->distance = sqrt(midX * midX + midY * midY);
+
+  // Calculate the angle from (0,0) to the midpoint (in radians)
+  float angleRadians = atan2(midY, midX);
+  float angle = _normalize_angle(angleRadians * 180.0f / M_PI);
+
+  solved->midpoint_magnitude = _angle_magnitude(angle, a1, a2);
+}
+
+void _process_axis(int16_t *in, analog_meta_s *meta_out, angle_setup_s *setup)
+{
+  // Get input distance
+  float distance = stick_scaling_coordinate_distance(in[0], in[1]);
+
+  // Get input angle
+  float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
+
+  // Get the index pair from our calibrated angles
+  // (Which indeces is our angle between?)
+  int idx_pair[2] = {-1,-1};
+  _find_containing_index_pair(angle, setup, idx_pair);
+  
+  // Only process if we have a valid pair
+  if( (idx_pair[0]>-1) && (idx_pair[1]>-1))
+  {
+    // Calculate magnitude of current angle between input angles for our angle map
+    float magnitude = _angle_magnitude(angle, setup->angle_maps[idx_pair[0]].input, setup->angle_maps[idx_pair[1]].input);
+    // Calculate new output angle based on magnitudes
+    float new_angle = _angle_lerp(magnitude, setup->angle_maps[idx_pair[0]].output, setup->angle_maps[idx_pair[1]].output);
+
+    // Variable initializations
+    float angle_floor = 0;
+    int   distance_index_lower  = 0;
+    int   distance_index_upper  = 0;
+    float distance_magnitude    = 0;
+    float target_distance       = ANALOG_MAX_DISTANCE;
+    float calibrated_distance   = 0;
+    float distance_scale_factor = 1;
+    float output_distance       = 0;
+
+    // Determine which polygon half we are in 
+    int   polygon_half        = 0;
+    float magnitude_expanded  = 0;
+    float magnitude_polygon   = 0;
+    float scaler_magnitude    = 0;
+
+    // We will calculate the new distance appropriately according to our scaling mode
+    switch(setup->scaling_mode)
+    {
+      case ANALOG_SCALER_POLYGON:
+        // Get the magnitude of the halfway point we stored
+        magnitude_polygon = setup->polygon_mid_distances[idx_pair[0]].midpoint_magnitude;
+        // Determine which half of the polygon line we are in
+        polygon_half = (magnitude >= magnitude_polygon) ? 1 : 0;
+        
+
+        // Scale up the magnitude to a full scale 
+        if(!polygon_half)
+        {
+          scaler_magnitude = 1 / magnitude_polygon;
+          magnitude_expanded = magnitude * scaler_magnitude;
+        }
+        else 
+        {
+          scaler_magnitude = 1 / (1 - magnitude_polygon);
+          magnitude_expanded = (magnitude - magnitude_polygon) * scaler_magnitude;
+        }
+
+        if(!polygon_half) 
+        {
+          target_distance       = _distance_lerp(magnitude_expanded, 
+          setup->angle_maps[idx_pair[0]].distance, 
+          setup->polygon_mid_distances[idx_pair[0]].distance);
+        }
+        else 
+        {
+          target_distance       = _distance_lerp(magnitude_expanded, 
+          setup->polygon_mid_distances[idx_pair[0]].distance,
+          setup->angle_maps[idx_pair[1]].distance);
+        }
+
+      default:
+      case ANALOG_SCALER_ROUND:
+        // Get our 64 angle index
+        if(angle >= (ANGLE_CHUNK*63))
+        {
+          distance_index_lower = 63;
+          distance_index_upper = 0;
+        }
+        else 
+        {
+          distance_index_lower  = floorf(angle / ANGLE_CHUNK);
+          distance_index_upper  = (distance_index_lower+1);
+        }
+        
+        angle_floor           = distance_index_lower*ANGLE_CHUNK;
+        
+        // Calculate the magnitude of our angle for the 64 chunks
+        distance_magnitude    = _angle_magnitude(angle, angle_floor, angle_floor+ANGLE_CHUNK);
+
+        // Calculate a calibrated distance that is interpolated from our saved actual distances
+        calibrated_distance   = _distance_lerp(distance_magnitude, 
+          setup->round_distances[distance_index_lower], 
+          setup->round_distances[distance_index_upper]);        
+      break;
+
+    }
+
+    float adjusted_distance = target_distance + 125;
+
+    distance_scale_factor = (!calibrated_distance) ? 0 : (adjusted_distance / calibrated_distance);
+    output_distance = distance*distance_scale_factor;
+
+    if(output_distance > target_distance)
+    {
+      output_distance = target_distance;
+    }
+
+    meta_out->angle     = new_angle;
+    meta_out->distance  = output_distance;
+    meta_out->target    = target_distance;
+
+    // We may not need this at all until the end!
+    //_angle_distance_to_coordinate(new_angle, output_distance, out);
+  }
+}
+
+void _unpack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
+{
+  // Set first distance
+  setup->round_distances[0] = distances->first_distance;
+   
+  for(int i = 1; i < TOTAL_ANGLES; i++)
+  {
+    setup->round_distances[i] = setup->round_distances[i-1] + (int) distances->offsets[i-1];
+  }
+}
+
+void _pack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
+{
+  // Set first distance
+  distances->first_distance = setup->round_distances[0];
+   
+  for(int i = 1; i<TOTAL_ANGLES; i++)
+  {
+    int16_t diff = (int16_t) setup->round_distances[i] - (int16_t) setup->round_distances[i-1];
+    distances->offsets[i-1] = diff;
+  }
+}
+
+// Write distance data to config block
+void _write_to_config_block()
+{
+  analogPackedDistances_s packed = {0};
+
+  _pack_stick_distances(&packed, &_left_setup);
+  memcpy(&(analog_config->l_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
+
+  _pack_stick_distances(&packed, &_right_setup);
+  memcpy(&(analog_config->r_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
+
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    analog_config->l_angle_maps[i].distance = _left_setup.angle_maps[i].distance;
+    analog_config->l_angle_maps[i].input    = _left_setup.angle_maps[i].input;
+    analog_config->l_angle_maps[i].output   = _left_setup.angle_maps[i].output;
+
+    analog_config->r_angle_maps[i].distance = _right_setup.angle_maps[i].distance;
+    analog_config->r_angle_maps[i].input    = _right_setup.angle_maps[i].input;
+    analog_config->r_angle_maps[i].output   = _right_setup.angle_maps[i].output;
+  }
+}
+   
+// Read parameters from config block
+void _read_from_config_block() 
+{
+  memcpy(_left_setup.angle_maps,   analog_config->l_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+  memcpy(_right_setup.angle_maps,  analog_config->r_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
+
+  analogPackedDistances_s tmp = {0};
+  memcpy(&tmp, &(analog_config->l_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
+  _unpack_stick_distances(&tmp, &_left_setup);
+  memcpy(&tmp, &(analog_config->r_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
+  _unpack_stick_distances(&tmp, &_right_setup);
+
+  _left_setup.scaling_mode  = analog_config->l_scaler_type;
+  _right_setup.scaling_mode = analog_config->r_scaler_type;
+
+  if(analog_config->l_snapback_type == 0xFF) analog_config->l_snapback_type = 0;
+  if(analog_config->r_snapback_type == 0xFF) analog_config->r_snapback_type = 0;
+}
+
+// Validates a setup
+void _validate_setup(angle_setup_s *setup)
+{
+  angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
+  int used_size_max = 0;
+
+  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+  {
+    if(setup->angle_maps[i].distance<=MINIMUM_REQUIRED_DISTANCE)
+    {
+      continue;
+    }
+
+    filtered_map[used_size_max].distance = setup->angle_maps[i].distance;
+    filtered_map[used_size_max].input    = setup->angle_maps[i].input;
+    filtered_map[used_size_max].output   = setup->angle_maps[i].output;
+    used_size_max++;
+  }
+
+  // Sort our angles by input
+  qsort(filtered_map, used_size_max, ANGLE_MAP_SIZE, _compare_by_input);
+
+  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
+  memcpy(setup->angle_maps, filtered_map, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
+
+  // Set up polygon solves
+  for(int i = 0; i < used_size_max; i++) {
+    _solve_polygon(setup->angle_maps[i].distance, setup->angle_maps[i].output, 
+                   setup->angle_maps[(i+1)%used_size_max].distance, setup->angle_maps[(i+1)%used_size_max].output, 
+                   &setup->polygon_mid_distances[i]);
+  }
+
+  if(used_size_max < 4) // We need 4 valid angles
+  {
+    _angle_setup_reset_to_defaults(setup);
+  }
+  else 
+  {
+    setup->max_idx = used_size_max-1;
+  }
+}
+
+void stick_scaling_calibrate_start(bool start)
+{
+  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+  if(!_sticks_calibrating && start) 
+  {
+    // Reset all to default
+    _zero_distances(&_left_setup);
+    _zero_distances(&_right_setup);
+
+    hoja_set_notification_status(COLOR_RED);
+
+    _sticks_calibrating = true;
+  }
+  else if (_sticks_calibrating && !start) 
+  {
+    hoja_set_notification_status(COLOR_BLACK);
+    _write_to_config_block();
+    _sticks_calibrating = false;
+  }
+  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+}
+
+void stick_scaling_default_check()
+{
+  if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
+  {
+    analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
+
+    // Set default deadzones
+    analog_config->l_deadzone = 350;
+    analog_config->r_deadzone = 350;
+
+    analog_config->lx_center = 2048;
+    analog_config->ly_center = 2048;
+    analog_config->rx_center = 2048;
+    analog_config->ry_center = 2048;
+
+    analog_config->lx_invert = 0;
+    analog_config->ly_invert = 0;
+    analog_config->rx_invert = 0;
+    analog_config->ry_invert = 0;
+
+    analog_config->l_snapback_type = 0;
+    analog_config->r_snapback_type = 0;
+
+    // Set to default left setup
+    _angle_setup_reset_to_defaults(&_left_setup);
+    _angle_setup_reset_to_defaults(&_right_setup);
+
+    _write_to_config_block();
+  }
+}
+
+// Input and output are based around -2048 to 2048 values with 0 as centers
+void stick_scaling_process(analog_data_s *in, analog_data_s *out)
+{
+  static int16_t in_left[2]    = {0};
+  static int16_t in_right[2]   = {0};
+
+  in_left[0] = in->lx;
+  in_left[1] = in->ly;
+
+  in_right[0] = in->rx;
+  in_right[1] = in->ry;
+
+  // Float angle and distance data
+  analog_meta_s out_left_meta  = {0};
+  analog_meta_s out_right_meta = {0};
+
+  int16_t out_left[2];
+  int16_t out_right[2];
+
+  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+  if(_sticks_calibrating)
+  {
+    bool left_done  = _calibrate_axis(in_left, &_left_setup);
+    bool right_done = _calibrate_axis(in_right, &_right_setup);
+    out_left[0] = 0;
+    out_left[1] = 0;
+    out_right[0] = 0;
+    out_right[1] = 0;
+
+    if(left_done && right_done)
+    {
+      hoja_set_notification_status(COLOR_CYAN);
+    }
+  }
+  else 
+  {
+    _process_axis(in_left,  &out_left_meta,   &_left_setup);
+    _process_axis(in_right, &out_right_meta,  &_right_setup);
+    analog_angle_distance_to_coordinate(out_left_meta.angle,  out_left_meta.distance,   out_left);
+    analog_angle_distance_to_coordinate(out_right_meta.angle, out_right_meta.distance,  out_right);
+  }
+
+  out->lx = out_left[0];
+  out->ly = out_left[1];
+  out->rx = out_right[0];
+  out->ry = out_right[1];
+
+  out->langle     = out_left_meta.angle;
+  out->ldistance  = out_left_meta.distance;
+  out->ltarget    = out_left_meta.target;
+
+  out->rangle     = out_right_meta.angle;
+  out->rdistance  = out_right_meta.distance;
+  out->rtarget    = out_right_meta.target;
+
+  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+}
+
+bool stick_scaling_init()
+{
+  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+
+  // Load from config
+  _read_from_config_block();
+
+  // Perform a default check. This applies defaults
+  // if the config block version is a mismatch
+  stick_scaling_default_check();
+
+  // Validate our settings
+  _validate_setup(&_left_setup); 
+  _validate_setup(&_right_setup); 
+
+  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+  return true;
 }

@@ -62,6 +62,7 @@ static inline pio_sm_config joybus_program_get_default_config(uint offset) {
     return c;
 }
 
+#include "hardware/clocks.h"
 static inline void joybus_set_in(bool in, PIO pio, uint sm, uint offset, pio_sm_config *c, uint pin)
 {
     // Disable SM

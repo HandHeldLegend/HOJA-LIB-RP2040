@@ -1,4 +1,4 @@
-#include "switch_analog.h"
+#include "switch/switch_analog.h"
 
 uint8_t switch_analog_calibration_data[18];
 

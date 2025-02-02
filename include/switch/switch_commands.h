@@ -1,7 +1,8 @@
 #ifndef SWITCH_COMMANDS_H
 #define SWITCH_COMMANDS_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
+#include "usb/swpro.h"
 
 #define SW_OUT_ID_RUMBLE_CMD 0x01
 #define SW_OUT_ID_INFO  0x80

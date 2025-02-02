@@ -1,13 +1,15 @@
-#ifndef DESC_BOS_H
-#define DESC_BOS_H
+#ifndef USB_DESC_BOS_H
+#define USB_DESC_BOS_H
 
-#include "hoja_includes.h"
+#include <stdint.h>
 
 enum
 {
   VENDOR_REQUEST_WEBUSB = 1,
   VENDOR_REQUEST_MICROSOFT = 2
 };
+
+#define VENDOR_REQUEST_GET_MS_OS_DESCRIPTOR 7
 
 #define ITF_NUM_VENDOR 1
 #define GC_ITF_NUM_VENDOR 0

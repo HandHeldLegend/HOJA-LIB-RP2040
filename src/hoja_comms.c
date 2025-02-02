@@ -3,7 +3,7 @@
 comms_cb_t _comms_cb = NULL;
 static input_mode_t _hoja_input_mode = 0;
 
-void hoja_comms_task(uint32_t timestamp, button_data_s * buttons, a_data_s * analog)
+void hoja_comms_task(uint32_t timestamp, button_data_s * buttons, analog_data_s * analog)
 {
     if(_comms_cb != NULL)
     {
@@ -34,7 +34,7 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
     #endif
 
     button_data_s _tmp_btn = {0};
-    a_data_s _tmp_a = {0};
+    analog_data_s _tmp_analog = {0};
 
     switch(input_mode)
     {
@@ -61,12 +61,12 @@ void hoja_comms_init(input_mode_t input_mode, input_method_t input_method)
 
         case INPUT_MODE_GAMECUBE:
             _comms_cb = gamecube_comms_task;
-            hoja_comms_task(0, &_tmp_btn, &_tmp_a);
+            hoja_comms_task(0, &_tmp_btn, &_tmp_analog);
             break;
 
         case INPUT_MODE_N64:
             _comms_cb = n64_comms_task;
-            hoja_comms_task(0, &_tmp_btn, &_tmp_a);
+            hoja_comms_task(0, &_tmp_btn, &_tmp_analog);
             break;
 
         case INPUT_MODE_SNES:

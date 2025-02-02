@@ -1,23 +1,33 @@
 #ifndef SWITCH_HAPTICS_H
 #define SWITCH_HAPTICS_H
-#include "hoja_includes.h"
+
+#include <stdint.h>
+#include <stdbool.h>
 
 #define CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 typedef enum
 {
-    Switch5BitAction_Ignore = 0x0,
-    Switch5BitAction_Default = 0x1,
-    Switch5BitAction_Substitute = 0x2,
-    Switch5BitAction_Sum = 0x3,
-} Switch5BitAction_t;
+    Action_Ignore = 0x0,
+    Action_Default = 0x1,
+    Action_Substitute = 0x2,
+    Action_Sum = 0x3,
+} Action_t;
 
 typedef struct
 {
-    Switch5BitAction_t am_action : 8;
-    Switch5BitAction_t fm_action : 8;
+    Action_t am_action : 8;
+    Action_t fm_action : 8;
     float am_offset;
     float fm_offset;
+} OLDSwitch5BitCommand_s;
+
+typedef struct
+{
+    Action_t am_action : 8;
+    Action_t fm_action : 8;
+    int16_t  am_offset; // AM Index offset
+    int16_t  fm_offset; // FM Index offset
 } Switch5BitCommand_s;
 
 // This represents the 4 uint8_t bytes of data for a single side or controller
@@ -84,6 +94,23 @@ typedef struct
     };
 } __attribute__((packed)) SwitchHapticPacket_s;
 
-void haptics_rumble_translate(const uint8_t *data);
+typedef struct 
+{
+    uint8_t hi_amplitude_idx; // Hi amplitude index
+    uint8_t lo_amplitude_idx; // Lo amplitude index
+    uint8_t hi_frequency_idx; // Hi frequency index
+    uint8_t lo_frequency_idx; // Lo frequency index
+} haptic_raw_s;
+
+typedef struct 
+{
+    uint8_t sample_count;
+    haptic_raw_s state;
+    haptic_raw_s samples[3];
+} haptic_raw_state_s;
+
+void switch_haptics_get_basic(uint8_t amplitude, uint8_t frequency, uint16_t *amp_out, uint16_t *freq_out);
+void switch_haptics_init();
+void switch_haptics_rumble_translate(const uint8_t *data);
 
 #endif

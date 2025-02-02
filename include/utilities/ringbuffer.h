@@ -1,9 +1,8 @@
-#ifndef RINGBUFFER_H
-#define RINGBUFFER_H
+#ifndef UTILITIES_RINGBUFFER_H
+#define UTILITIES_RINGBUFFER_H
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "hoja_types.h"
 
 typedef struct
 {

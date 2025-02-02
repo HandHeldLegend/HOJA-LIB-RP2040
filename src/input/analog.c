@@ -1,327 +1,323 @@
-#include "analog.h"
-#define CENTER 2048
+#include "input/analog.h"
+#include "input/stick_scaling.h"
+#include "input/snapback.h"
+#include "input/stick_deadzone.h"
+
+#include "devices/adc.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <math.h>
+#include <string.h>
+#include <stdio.h>
+
+#include "hal/mutex_hal.h"
+
+#include "usb/webusb.h"
+
+#include "utilities/interval.h"
+
+#include "switch/switch_analog.h"
+
+#include "utilities/settings.h"
+
+#include "board_config.h"
+
+// Analog smoothing
+#ifdef ADC_SMOOTHING_STRENGTH
+  #if (ADC_SMOOTHING_STRENGTH > 1)
+    #define ADC_SMOOTHING_ENABLED 1
+  #else
+    #define ADC_SMOOTHING_ENABLED 0
+  #endif
+#else
+  #warning "ADC_SMOOTHING_STRENGTH isn't defined. It's optional to smooth out analog input. Typically not recommended." 
+  #define ADC_SMOOTHING_ENABLED 0
+#endif
+
+#define ANALOG_MAX_DISTANCE 2048
+#define ANALOG_HALF_DISTANCE 2048
 #define DEADZONE_DEFAULT 100
+#define CAP_ANALOG(value) ((value>ANALOG_MAX_DISTANCE) ? ANALOG_MAX_DISTANCE : (value < (-ANALOG_MAX_DISTANCE)) ? (-ANALOG_MAX_DISTANCE) : value)
 
-uint16_t _analog_deadzone_l = DEADZONE_DEFAULT;
-uint16_t _analog_deadzone_r = DEADZONE_DEFAULT;
-
-const uint32_t _analog_interval = 200;
-
-bool _analog_calibrate = false;
-bool _analog_centered = false;
-bool _analog_all_angles_got = false;
-bool _analog_capture_angle = false;
-a_data_s *_data_in = NULL;
-a_data_s scaled_analog_data = {0};
-a_data_s *_data_out = NULL;
-a_data_s *_analog_desnapped = NULL; // Data 
-a_data_s analog_data_deadzone = {0}; // Analog data with deadzone coordinates nullified
-a_data_s *_analog_output = NULL;
-
-
-button_data_s *_buttons = NULL;
-button_data_s *_buttons_output = NULL;
-
+#if (ADC_SMOOTHING_ENABLED==1)
+#define ADC_SMOOTHING_BUFFER_SIZE ADC_SMOOTHING_STRENGTH
 typedef struct {
-    int8_t tracked_direction;
-    int last_pos;
-} analog_distance_mem_s;
+    float buffer[ADC_SMOOTHING_BUFFER_SIZE];
+    int index;
+    float sum;
+} RollingAverage;
 
-typedef struct
-{
-    bool button_fifo_full;
-    button_data_s buttons_buffer[INPUT_BUFFER_MAX];
-    int button_fifo_idx;
-} button_fifo_s;
-
-button_fifo_s _button_fifo = {0};
-
-static analog_distance_mem_s _lx_tracker_mem;
-static analog_distance_mem_s _ly_tracker_mem;
-static analog_distance_mem_s _rx_tracker_mem;
-static analog_distance_mem_s _ry_tracker_mem;
-
-void analog_send_reset()
-{
-    _lx_tracker_mem.tracked_direction = 0;
-    _ly_tracker_mem.tracked_direction = 0;
-    _rx_tracker_mem.tracked_direction = 0;
-    _ry_tracker_mem.tracked_direction = 0;
+void initRollingAverage(RollingAverage* ra) {
+    for (int i = 0; i < ADC_SMOOTHING_BUFFER_SIZE; ++i) {
+        ra->buffer[i] = 0.0f;
+    }
+    ra->index = 0;
+    ra->sum = 0.0f;
 }
 
-void analog_init(a_data_s *in, a_data_s *out, a_data_s *desnapped, button_data_s *buttons)
-{
-    _data_in    = in;
-    _data_out   = out;
-    _analog_desnapped = desnapped;
-    _buttons    = buttons;
-    stick_scaling_get_settings();
-    stick_scaling_init();
-
-    if (_buttons->button_minus && _buttons->button_plus)
-    {
-        analog_calibrate_start();
-    }
+void addSample(RollingAverage* ra, float sample) {
+    // Subtract the value being replaced from the sum
+    ra->sum -= ra->buffer[ra->index];
+    
+    // Add the new sample to the buffer and sum
+    ra->buffer[ra->index] = sample;
+    ra->sum += sample;
+    
+    // Move to the next index, wrapping around if necessary
+    ra->index = (ra->index + 1) % ADC_SMOOTHING_BUFFER_SIZE;
 }
 
-void analog_calibrate_start()
-{
-    rgb_s c = {
-        .r = 225,
-        .g = 0,
-        .b = 0,
-    };
-
-    rgb_flash(c.color, -1);
-
-    // Reset scaling distances
-    stick_scaling_reset_distances();
-
-    memset(global_loaded_settings.l_sub_angles, 0, sizeof(float)*8);
-    memset(global_loaded_settings.r_sub_angles, 0, sizeof(float)*8);
-
-    _analog_all_angles_got = false;
-    _analog_centered = false;
-    _analog_calibrate = true;
+float getAverage(RollingAverage* ra) {
+    return ra->sum / ADC_SMOOTHING_BUFFER_SIZE;
 }
-
-void analog_calibrate_stop()
-{
-    _analog_calibrate = false;
-
-    stick_scaling_set_settings();
-
-    stick_scaling_init();
-
-    //if(webusb_output_enabled())
-    //{
-    //    #define DUMP_SIZE  (1+(sizeof(float)*8))
-    //    uint8_t calibration_dump[DUMP_SIZE] = {0x69};
-    //    memcpy(&(calibration_dump[1]), global_loaded_settings.l_angle_distances, DUMP_SIZE-1);
-    //    webusb_send_debug_dump(DUMP_SIZE, calibration_dump);
-    //}
-
-    rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
-}
-
-void analog_calibrate_save()
-{
-
-    _analog_calibrate = false;
-
-    stick_scaling_set_settings();
-
-    settings_save_from_core0();
-
-    sleep_ms(200);
-
-    stick_scaling_init();
-
-    rgb_init(global_loaded_settings.rgb_mode, BRIGHTNESS_RELOAD);
-}
-
-void analog_calibrate_angle()
-{
-    stick_scaling_capture_angle(_data_in);
-}
-
-void _analog_calibrate_loop()
-{
-    if(!_analog_centered)
-    {
-        stick_scaling_capture_center(_data_in);
-        _analog_centered = true;
-    }
-    else if (stick_scaling_capture_distances(_data_in) && !_analog_all_angles_got)
-    {
-        _analog_all_angles_got = true;
- 
-        rgb_s c = {
-            .r = 0,
-            .g = 128,
-            .b = 128,
-        };
-        rgb_flash(c.color, -1);
-    }
-
-    if(_buttons->button_home)
-    {
-        analog_calibrate_save();
-    }
-}
-
-void _analog_distance_check(int in, int *out, analog_distance_mem_s *dmem)
-{
-    // Get movement direction
-    // If it's positive, we are moving UP, else DOWN
-    bool d = ( (in - dmem->last_pos) > 0 );
-
-    // Handle perfect center
-    if(in==2048)
-    {
-        *out = 2048;
-    }
-    // If we change direction...
-    else if(!dmem->tracked_direction)
-    {
-        dmem->tracked_direction = d ? 1 : -1;
-        // Set output
-        *out = in;
-    }
-    else if (dmem->tracked_direction>0)
-    {
-        if(in>dmem->last_pos)
-        {
-            *out            =   in;
-            dmem->last_pos  =   in;
-        }
-    }
-    else if (dmem->tracked_direction<0)
-    {
-        if(in<dmem->last_pos)
-        {
-            *out            =   in;
-            dmem->last_pos  =   in;
-        }
-    }
-    else *out = in;
-
-    // Set last pos
-    dmem->last_pos = in;
-}
-
-void analog_get_octoangle_data(uint8_t *axis, uint8_t *octant)
-{
-    stick_scaling_get_octant_axis_offset(_data_in, axis, octant);
-}
-
-void analog_get_subangle_data(uint8_t *axis, uint8_t *octant)
-{
-    stick_scaling_get_octant_axis(_data_in, axis, octant);
-}
-
-#define CLAMP_0_MAX(value) ((value) < 0 ? 0 : ((value) > 4095 ? 4095 : (value)))
-#define CLAMP_0_DEADZONE(value) ((value) < 0 ? 0 : ((value) > CENTER ? CENTER : (value)))
-#define SCALE_DISTANCE (float)(CENTER-DEADZONE_DEFAULT)
-#define SCALE_F (float)(CENTER/SCALE_DISTANCE)
-
-void _analog_process_deadzone(a_data_s *in, a_data_s *out)
-{
-    // Do left side
-    float ld = stick_get_distance(in->lx, in->ly, CENTER, CENTER);
-    float rd = stick_get_distance(in->rx, in->ry, CENTER, CENTER);
-
-    float left_scale_distance   = CENTER - global_loaded_settings.deadzone_left_center;
-    float right_scale_distance  = CENTER - global_loaded_settings.deadzone_right_center;
-    float scale_f_left          = (CENTER+global_loaded_settings.deadzone_left_outer)/left_scale_distance;
-    float scale_f_right         = (CENTER+global_loaded_settings.deadzone_right_outer)/right_scale_distance;
-
-    if(ld <= global_loaded_settings.deadzone_left_center)
-    {
-        out->lx = CENTER;
-        out->ly = CENTER;
-    }
-    else
-    {
-        ld -= global_loaded_settings.deadzone_left_center;
-
-        float la = stick_get_angle(in->lx, in->ly, CENTER, CENTER);
-
-        float lx = 0;
-        float ly = 0;
-
-        stick_normalized_vector(la, &lx, &ly);
-        float clamped_scaler_left = CLAMP_0_DEADZONE(ld*scale_f_left);
-        lx *= clamped_scaler_left;
-        ly *= clamped_scaler_left;
-
-        out->lx = CLAMP_0_MAX((int) roundf(lx + CENTER));
-        out->ly = CLAMP_0_MAX((int) roundf(ly + CENTER));
-    }
-
-    if(rd <= global_loaded_settings.deadzone_right_center)
-    {
-        out->rx = CENTER;
-        out->ry = CENTER;
-    }
-    else
-    {
-        rd -= global_loaded_settings.deadzone_right_center;
-
-        float ra = stick_get_angle(in->rx, in->ry, CENTER, CENTER);
-
-        float rx = 0;
-        float ry = 0;
-
-        stick_normalized_vector(ra, &rx, &ry);
-        float clamped_scaler_right = CLAMP_0_DEADZONE(rd*scale_f_right);
-        rx *= clamped_scaler_right;
-        ry *= clamped_scaler_right;
-
-        out->rx = CLAMP_0_MAX((int) roundf(rx + CENTER));
-        out->ry = CLAMP_0_MAX((int) roundf(ry + CENTER));
-    }
-}
+#endif 
 
 #define STICK_INTERNAL_CENTER 2048
+#define STICK_OPTIONAL_INVERT(val, invert) (invert ? 0xFFF - val : val)
 
+MUTEX_HAL_INIT(_analog_mutex);
+uint32_t _analog_mutex_owner = 0;
+void _analog_blocking_enter()
+{
+    MUTEX_HAL_ENTER_BLOCKING(&_analog_mutex);
+}
 
-// DEBUG
-void incrementAndReverse(int *value) {
-    static bool direction = false;
+bool _analog_try_enter()
+{
+    if(MUTEX_HAL_ENTER_TRY(&_analog_mutex, &_analog_mutex_owner))
+    {
+        return true;
+    }
+    return false;
+}
 
-    if (direction == 1) {
-        (*value)+=5;
-        if (*value >= 4095) {
-            direction = false;
-        }
-    } else {
-        (*value)-=5;
-        if (*value <= 0) {
-            direction = true;
-        }
+void _analog_exit()
+{
+    MUTEX_HAL_EXIT(&_analog_mutex);
+}
+
+analog_data_s _raw_analog_data      = {0};  // Stage 0
+analog_data_s _scaled_analog_data   = {0};  // Stage 1
+analog_data_s _snapback_analog_data = {0};  // Stage 2
+analog_data_s _deadzone_analog_data = {0};  // Stage 3
+int16_t       _center_offsets[4]    = {0};
+
+analog_data_s _safe_raw_analog_data      = {0};  // Stage 0
+analog_data_s _safe_scaled_analog_data   = {0};  // Stage 1
+analog_data_s _safe_snapback_analog_data = {0};  // Stage 2
+analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
+
+// Access analog input data safely
+void analog_access_safe(analog_data_s *out, analog_access_t type)
+{
+    switch(type)
+    {
+        case ANALOG_ACCESS_RAW_DATA:
+        memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
+        break; 
+
+        case ANALOG_ACCESS_SCALED_DATA:
+        memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
+        break; 
+
+        case ANALOG_ACCESS_SNAPBACK_DATA:
+        memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
+        break;
+
+        case ANALOG_ACCESS_DEADZONE_DATA:
+        memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
+        break;
     }
 }
+
+void analog_init()
+{
+    adc_devices_init();
+
+    switch_analog_calibration_init();
+    stick_scaling_init();
+
+    _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
+    _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;
+    _center_offsets[2] = (int16_t) STICK_INTERNAL_CENTER - analog_config->rx_center;
+    _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
+}
+
+// Read analog values
+void _analog_read_raw()
+{
+    uint16_t lx = STICK_INTERNAL_CENTER;
+    uint16_t ly = STICK_INTERNAL_CENTER;
+    uint16_t rx = STICK_INTERNAL_CENTER;
+    uint16_t ry = STICK_INTERNAL_CENTER;
+
+    #if (ADC_SMOOTHING_ENABLED==1)
+    static RollingAverage ralx = {0};
+    static RollingAverage raly = {0};
+    static RollingAverage rarx = {0};
+    static RollingAverage rary = {0};
+    #endif
+
+    lx = adc_read_lx();
+    ly = adc_read_ly();
+    rx = adc_read_rx();
+    ry = adc_read_ry();
+
+    #if (ADC_SMOOTHING_ENABLED==1)
+        addSample(&ralx, lx);
+        addSample(&raly, ly);
+        addSample(&rarx, rx);
+        addSample(&rary, ry);
+
+        // Convert data
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&ralx), analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&raly), analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rarx), analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rary), analog_config->ry_invert);
+    #else
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(lx, analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(ly, analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(rx, analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(ry, analog_config->ry_invert);
+    #endif
+}
+
+void _capture_center_offsets()
+{
+    _analog_blocking_enter();
+
+    // Read raw analog sticks
+    _analog_read_raw();
+
+    analog_config->lx_center = _raw_analog_data.lx & 0x7FFF;
+    analog_config->ly_center = _raw_analog_data.ly & 0x7FFF;
+    analog_config->rx_center = _raw_analog_data.rx & 0x7FFF;
+    analog_config->ry_center = _raw_analog_data.ry & 0x7FFF;
+
+    _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
+    _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;
+    _center_offsets[2] = (int16_t) STICK_INTERNAL_CENTER - analog_config->rx_center;
+    _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
+
+    _analog_exit();
+}
+
+void _capture_input_angle(float *left, float *right)
+{
+    _analog_blocking_enter();
+
+    // Extract angles from raw analog data and store them
+    *left   = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
+    *right  = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+
+    _analog_exit();
+}
+
+// Helper function to convert angle/distance to coordinate pair
+void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out) 
+{    
+    // Normalize angle to 0-360 range
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    
+    // Convert angle to radians
+    float angle_radians = angle * M_PI / 180.0f;
+    
+    // Calculate X and Y coordinates
+    // Limit to -2048 to +2048 range
+    out[0] = (int)(distance * cosf(angle_radians));
+    out[1] = (int)(distance * sinf(angle_radians));
+    
+    // Clamp to prevent exceeding the specified range
+    out[0] = fmaxf(-2048, fminf(2048, out[0]));
+    out[1] = fmaxf(-2048, fminf(2048, out[1]));
+}
+
+void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
+{
+    float left = 0.0f;
+    float right = 0.0f;
+    bool do_cb = false;
+
+    switch(cmd)
+    {
+        default:
+        cb(CFG_BLOCK_ANALOG, cmd, false, NULL, 0);
+        break;
+
+        case ANALOG_CMD_CALIBRATE_START:
+            // Capture centers first
+            _capture_center_offsets();
+            stick_scaling_calibrate_start(true);
+            do_cb = true;
+        break;
+
+        case ANALOG_CMD_CALIBRATE_STOP:
+            stick_scaling_calibrate_start(false);
+            do_cb = true;
+        break;
+
+        case ANALOG_CMD_CAPTURE_ANGLE:
+            // Capture angles
+            _capture_input_angle(&left, &right);
+            uint8_t buffer[8] = {0};
+            memcpy(buffer, &left, sizeof(float));
+            memcpy(buffer+4, &right, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer, 8);
+            return;
+        break;
+    }
+
+    if(do_cb)
+        cb(CFG_BLOCK_ANALOG, cmd, true, NULL, 0);
+}
+
+// 2Khz analog task
+
+#define DEBUG_ANALOG_OUTPUT 1
 
 void analog_task(uint32_t timestamp)
 {
     static interval_s interval = {0};
 
-    if (interval_run(timestamp, _analog_interval, &interval))
+    if (interval_run(timestamp, ANALOG_POLL_INTERVAL, &interval))
     {
-        // Read analog sticks
-        cb_hoja_read_analog(_data_in);
+        // Read raw analog sticks
+        _analog_read_raw();
 
-        if (_analog_calibrate)
+        // Offset data by center offsets
+        _raw_analog_data.lx += _center_offsets[0];
+        _raw_analog_data.ly += _center_offsets[1];
+        _raw_analog_data.rx += _center_offsets[2];
+        _raw_analog_data.ry += _center_offsets[3];
+
+        // Rebase data to 0 center
+        _raw_analog_data.lx -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.ly -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.rx -= ANALOG_HALF_DISTANCE;
+        _raw_analog_data.ry -= ANALOG_HALF_DISTANCE;
+
+        stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
+
+        snapback_process(&_scaled_analog_data, &_snapback_analog_data);
+
+        stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
+
+        // Cap values
+        _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);
+        _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);
+        _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);
+        _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry);
+
+        if(_analog_try_enter())
         {
-            _analog_calibrate_loop();
-        }
-        // Normal stick reading process
-        else
-        {
-            stick_scaling_process_data(_data_in, &scaled_analog_data);
-            
-            //#define SNAPBACK_DEBUG 0
-
-            #ifdef SNAPBACK_DEBUG
-                _analog_desnapped->lx = scaled_analog_data.lx;
-                _analog_desnapped->ly = scaled_analog_data.ly;
-                _analog_desnapped->rx = scaled_analog_data.rx;
-                _analog_desnapped->ry = scaled_analog_data.ry;
-            #else
-                snapback_process(timestamp, &scaled_analog_data, _analog_desnapped);
-            #endif
-            
-
-            // Process deadzones
-            _analog_process_deadzone(_analog_desnapped, &analog_data_deadzone);
-
-            // Run distance checks
-            _analog_distance_check(analog_data_deadzone.lx, &(_data_out->lx), &_lx_tracker_mem);
-            _analog_distance_check(analog_data_deadzone.rx, &(_data_out->rx), &_rx_tracker_mem);
-            _analog_distance_check(analog_data_deadzone.ly, &(_data_out->ly), &_ly_tracker_mem);
-            _analog_distance_check(analog_data_deadzone.ry, &(_data_out->ry), &_ry_tracker_mem);  
-        }
+            // Copy to safe data
+            memcpy(&_safe_deadzone_analog_data, &_deadzone_analog_data, sizeof(analog_data_s));
+            memcpy(&_safe_raw_analog_data,      &_raw_analog_data,      sizeof(analog_data_s));
+            memcpy(&_safe_scaled_analog_data,   &_scaled_analog_data,   sizeof(analog_data_s));
+            memcpy(&_safe_snapback_analog_data, &_snapback_analog_data, sizeof(analog_data_s));
+            _analog_exit();
+        } 
     }
 }
-
