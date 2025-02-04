@@ -55,8 +55,9 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         break;
 
         case 1:
-            thisMode    = GAMEPAD_MODE_XINPUT;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+            thisMode            = GAMEPAD_MODE_XINPUT;
+            thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
+            wirelessSupported   = true;
         break;
 
         case 2:
@@ -88,6 +89,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     switch(thisMode)
     {
         case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_XINPUT:
             wirelessSupported = true;
         break;
 
@@ -136,8 +138,9 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     }
     else if(buttons.button_x)
     {
-        thisMode    = GAMEPAD_MODE_XINPUT;
-        thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        thisMode            = GAMEPAD_MODE_XINPUT;
+        thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
+        wirelessSupported   = true;
     }
     else if(buttons.button_y)
     {

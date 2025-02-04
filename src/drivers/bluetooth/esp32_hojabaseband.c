@@ -13,6 +13,8 @@
 
 #include "switch/switch_haptics.h"
 
+#include "board_config.h"
+
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
@@ -381,7 +383,15 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     uint8_t pair_flag = (pairing_mode ? 0b10000000 : 0);
     uint8_t out_mode = pair_flag | (uint8_t) device_mode;
 
+    #if defined(HOJA_BT_LOGGING_DEBUG) && (HOJA_BT_LOGGING_DEBUG==1)
+    _esp32hoja_enable_uart(true);
+    #endif
+
     _esp32hoja_enable_chip(true);
+
+    #if defined(HOJA_BT_LOGGING_DEBUG) && (HOJA_BT_LOGGING_DEBUG==1)
+    sys_hal_sleep_ms(5000);
+    #endif
 
     _bt_clear_out();
 
