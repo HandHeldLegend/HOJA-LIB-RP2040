@@ -4,6 +4,7 @@
 #include "devices/haptics.h"
 
 #include "devices_shared_types.h"
+#include "hoja.h"
 
 #include "board_config.h"
 
@@ -19,6 +20,7 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
     {
         #if defined(HOJA_BLUETOOTH_INIT_LOAD)
         HOJA_BLUETOOTH_INIT_LOAD();
+        hoja_set_notification_status(COLOR_ORANGE);
         return true;
         #endif
     }

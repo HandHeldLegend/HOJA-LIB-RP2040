@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "devices/bluetooth.h"
+
 #include "utilities/static_config.h"
 #include "hal/flash_hal.h"
 
@@ -101,6 +103,11 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
     {
         case GAMEPAD_CMD_RESET_TO_BOOTLOADER:
             sys_hal_bootloader();
+        break;
+
+        case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
+            // Enable bluetooth upload
+            bluetooth_mode_start(GAMEPAD_MODE_LOAD, false);
         break;
 
         case GAMEPAD_CMD_SAVE_ALL:
