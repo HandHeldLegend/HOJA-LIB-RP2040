@@ -52,8 +52,8 @@ uint32_t _pwm_fall_amt_per_tick = 0;
 
 #define ERM_STEPS 1000
 
-#define ERM_RISE_TIME_MS 12
-#define ERM_FALL_TIME_MS 32
+#define ERM_RISE_TIME_MS 96
+#define ERM_FALL_TIME_MS 128
 
 void erm_hal_stop()
 {
@@ -82,7 +82,7 @@ bool erm_hal_init(uint8_t intensity)
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
 
     pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv(&config, 32);
+    pwm_config_set_clkdiv(&config, 16);
     pwm_config_set_wrap(&config, ERM_PWM_WRAP); // Utilize full 16 bit range
 
     gpio_set_function(HOJA_HAPTICS_CHAN_A_PIN, GPIO_FUNC_PWM);
