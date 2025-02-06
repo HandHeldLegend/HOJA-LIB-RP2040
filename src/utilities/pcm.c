@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
+#include "board_config.h"
 
 #include "switch/switch_haptics.h"
 
@@ -70,7 +71,11 @@ void _generate_sine_table()
         float sample = sinf(fi);
 
         // Convert to int16_t, rounding to nearest value
+        #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+        _pcm_sine_table[i] = (int16_t)(sample * ((float) PCM_WRAP_HALF_VAL));
+        #else
         _pcm_sine_table[i] = (int16_t)(sample * (float) PCM_WRAP_VAL);
+        #endif
 
         fi += inc;
         fi = fmodf(fi, TWO_PI);  
@@ -193,7 +198,11 @@ void pcm_init(int intensity)
     float scaler = (float) this_intensity / 255.0f;
 
     // Calculate pcm clamp value (max allowed value)
+    #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+    _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_HALF_VAL * _pcm_param_max);
+    #else
     _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_VAL * _pcm_param_max);
+    #endif
     _pcm_max_safe_scaler    = (uint32_t) (_pcm_param_max * PCM_AMPLITUDE_SHIFT_FIXED);
 
     _pcm_sample_scaler = (uint32_t) _pcm_max_safe_value / 255;
@@ -202,16 +211,26 @@ void pcm_init(int intensity)
 
     // Calculate the exact wrap value that our min amplitudes
     // rest at 
+    #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+    float lomin_pcm = (float) PCM_WRAP_HALF_VAL * _pcm_param_min_lo;
+    float himin_pcm = (float) PCM_WRAP_HALF_VAL * _pcm_param_min_hi;
+    #else
     float lomin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_lo;
     float himin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_hi;
+    #endif
 
     // Calculate remainder of range 
     float remaininghi = (float) _pcm_max_safe_value - himin_pcm;
     float remaininglo = (float) _pcm_max_safe_value - lomin_pcm;
 
     // Calculate scalers for the remaining ranges for our sine table
+    #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+    float loscale = (remaininglo / (float) PCM_WRAP_HALF_VAL) * scaler;
+    float hiscale = (remaininghi / (float) PCM_WRAP_HALF_VAL) * scaler;
+    #else
     float loscale = (remaininglo / (float) PCM_WRAP_VAL) * scaler;
     float hiscale = (remaininghi / (float) PCM_WRAP_VAL) * scaler;
+    #endif
 
     _lo_amp_scaler = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_scaler = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
@@ -318,7 +337,11 @@ void pcm_generate_buffer(
                 hi_amp_scaler += _hi_amp_minimum;
                 last_hi_amp   = current_values.hi_amplitude_fixed;
 
+                #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+                hi_amp_peak = (hi_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                #else
                 hi_amp_peak = (hi_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                #endif
             }
         }
 
@@ -336,7 +359,11 @@ void pcm_generate_buffer(
                 lo_amp_scaler += _lo_amp_minimum;
                 last_lo_amp   = current_values.lo_amplitude_fixed;
 
+                #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+                lo_amp_peak = (lo_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                #else
                 lo_amp_peak = (lo_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                #endif
             }
 
             
@@ -371,6 +398,7 @@ void pcm_generate_buffer(
                 this_lo_scaler = (this_lo_scaler * new_ratio) >> PCM_AMPLITUDE_BIT_SCALE;
             }
         }
+        #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX != HAPTICS_DUPLEX_FULL)
         else if(hi_sign != lo_sign)
         {
 
@@ -394,6 +422,7 @@ void pcm_generate_buffer(
                 }
             }
         }
+        #endif
         
         scaled_hi = ((uint32_t) sine_hi * this_hi_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
         scaled_lo = ((uint32_t) sine_lo * this_lo_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
@@ -425,7 +454,11 @@ void pcm_generate_buffer(
             mixed += external_sample;
         }
 
+        #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+        mixed += PCM_WRAP_HALF_VAL;
+        #else
         if(mixed < 0) mixed = 0;
+        #endif
 
         uint32_t outsample = ((uint32_t) mixed << 16) | (uint32_t) mixed;
         buffer[i] = outsample;
