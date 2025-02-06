@@ -285,6 +285,21 @@ void pcm_generate_buffer(
 
     static int load_sample = -1;
 
+    #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+    static bool initialized_ramp = false;
+    static uint32_t initialized_ramp_counter = 0;
+    
+    if(!initialized_ramp)
+    {
+        initialized_ramp_counter++;
+        if(initialized_ramp_counter >= PCM_WRAP_HALF_VAL)
+        {
+            initialized_ramp = true;
+            initialized_ramp_counter = 0;
+        }
+    }
+    #endif
+
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
         uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
@@ -401,7 +416,6 @@ void pcm_generate_buffer(
         #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX != HAPTICS_DUPLEX_FULL)
         else if(hi_sign != lo_sign)
         {
-
             // Here we should predict if the sine wave will be destroyed
             if(hi_sign)
             {
@@ -455,10 +469,15 @@ void pcm_generate_buffer(
         }
 
         #if defined(HOJA_HAPTICS_DUPLEX) && (HOJA_HAPTICS_DUPLEX == HAPTICS_DUPLEX_FULL)
+        static bool initialized_ramp = false;
+
+        if(!initialized_ramp)
+        mixed += (int32_t) initialized_ramp_counter;
+        else
         mixed += PCM_WRAP_HALF_VAL;
-        #else
+        #endif 
+        
         if(mixed < 0) mixed = 0;
-        #endif
 
         uint32_t outsample = ((uint32_t) mixed << 16) | (uint32_t) mixed;
         buffer[i] = outsample;
