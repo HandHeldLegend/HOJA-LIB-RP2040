@@ -11,6 +11,7 @@
 #define PCM_BUFFER_SIZE         256
 #define PCM_SAMPLES_PER_PAIR    85
 #define PCM_WRAP_VAL            6000 // (1<<14)
+#define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL/2)
 #define PCM_SAMPLE_REPETITIONS  2
 
 #define PCM_SAMPLE_RATE         11000

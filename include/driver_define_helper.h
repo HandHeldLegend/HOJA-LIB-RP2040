@@ -99,6 +99,10 @@
     #define HAPTICS_DRIVER_LRA_HAL 1
     #define HAPTICS_DRIVER_ERM_HAL 2
 
+    // Haptix full/half duplex
+    #define HAPTICS_DUPLEX_HALF 1
+    #define HAPTICS_DUPLEX_FULL 2
+
     // NESBus Drivers
     #define NESBUS_DRIVER_HAL 1
 

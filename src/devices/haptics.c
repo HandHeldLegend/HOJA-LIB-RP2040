@@ -84,7 +84,7 @@ void haptics_task(uint32_t timestamp)
         static interval_s interval = {0};
         if(interval_run(timestamp, 8000, &interval))
         {
-            haptics_set_std(200);
+            haptics_set_std(255);
             _haptic_test_remaining--;
             if(!_haptic_test_remaining)
             {
