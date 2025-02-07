@@ -50,7 +50,7 @@
     Equation 7
     V(Lra-OL_RMS) = 21.32 * (10^-3) * OD_CLAMP * sqrt(1-resonantfreq * 800 * (10^-6))
 */
-#define ODCLAMP_BYTE (uint8_t)45 // Using the equation from the DRV2604L datasheet for Open Loop mode
+#define ODCLAMP_BYTE (uint8_t)164 // Using the equation from the DRV2604L datasheet for Open Loop mode
 // First value for 3.3v at 320hz is 179
 // Alt value for 3v is uint8_t 163 (320hz)
 // Alt value for 3v at 160hz is uint8_t 150
@@ -84,11 +84,11 @@
 
 #define DATA_FORMAT_RTP_SIGNED 0
 #define DATA_FORMAT_RTP_UNSIGNED 1
-#define DATA_FORMAT_RTP (DATA_FORMAT_RTP_SIGNED << 3)
+#define DATA_FORMAT_RTP (DATA_FORMAT_RTP_UNSIGNED << 3)
 
 #define LRA_DRIVE_MODE_OPC 0 // Once per cycle
 #define LRA_DRIVE_MODE_TPC 1 // Twice per cycle
-#define LRA_DRIVE_MODE (LRA_DRIVE_MODE_TPC << 2)
+#define LRA_DRIVE_MODE (LRA_DRIVE_MODE_OPC << 2)
 
 #define N_PWM_ANALOG_PWM 0
 #define N_PWM_ANALOG_ANALOG 1
