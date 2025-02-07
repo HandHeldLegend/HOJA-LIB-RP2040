@@ -6,6 +6,7 @@
 #define MS_TO_US(ms) (ms * 1000)
 #define ANM_UTILITY_GET_FRAMES_FROM_MS(ms) (MS_TO_US(ms) / RGB_TASK_INTERVAL)
 
+void anm_utility_apply_color_safety(rgb_s *color);
 uint32_t anm_utility_pack_local_color(rgb_s color);
 rgb_s anm_utility_unpack_local_color(uint32_t color);
 uint32_t anm_utility_get_time_fixedpoint();

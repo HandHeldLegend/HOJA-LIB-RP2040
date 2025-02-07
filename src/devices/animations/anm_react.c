@@ -63,7 +63,7 @@ static inline void _handle_button(
     }
 
     // Obtain our group color
-    rgb_s group_color = anm_utility_unpack_local_color(rgb_config->rgb_colors[group_idx]);
+    rgb_s group_color = rgb_colors_safe[group_idx];
     rgb_s blend = {.color = anm_utility_blend(&group_color, &color_black, _color_fades[fade_idx])};
 
     // Write color to output according to group
@@ -103,7 +103,7 @@ static inline void _handle_dpad(
     }
 
     // Obtain our group color
-    rgb_s group_color = anm_utility_unpack_local_color(rgb_config->rgb_colors[group_idx]);
+    rgb_s group_color = rgb_colors_safe[group_idx];
     rgb_s blend = {.color = anm_utility_blend(&group_color, &color_black, _color_fades[fade_idx])};
 
     uint8_t idx_out = _rgb_react_group_leds[group_idx][dpad_idx];
@@ -129,7 +129,7 @@ bool anm_react_get_state(rgb_s *output)
     for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
         uint8_t idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-        output[idx] = anm_utility_unpack_local_color(rgb_config->rgb_colors[HOJA_RGB_PLAYER_GROUP_IDX]);
+        output[idx] = rgb_colors_safe[HOJA_RGB_PLAYER_GROUP_IDX];
     }
     #endif
 
@@ -149,7 +149,7 @@ bool anm_react_handler(rgb_s* output)
     for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
     {
         uint8_t idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
-        output[idx] = anm_utility_unpack_local_color(rgb_config->rgb_colors[HOJA_RGB_PLAYER_GROUP_IDX]);
+        output[idx] = rgb_colors_safe[HOJA_RGB_PLAYER_GROUP_IDX];
     }
     #endif
 

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "utilities/callback.h"
 #include "board_config.h"
+#include "devices_shared_types.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
@@ -14,6 +15,7 @@
 #define RGB_FLOAT_TO_FIXED(f) ((uint32_t) (f * RGB_FADE_FIXED_MULT))
 
 extern int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP];
+extern rgb_s  rgb_colors_safe[RGB_DRIVER_LED_COUNT];
 #endif
 
 void rgb_deinit(callback_t cb);

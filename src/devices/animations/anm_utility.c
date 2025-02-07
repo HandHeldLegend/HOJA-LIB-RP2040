@@ -38,6 +38,24 @@ const uint8_t gamma8[256] = {
 
 uint32_t _stored_fixed_point_time = 0;
 
+
+
+void anm_utility_apply_color_safety(rgb_s *color)
+{
+    if (!color->color)
+        return;
+
+    float total = (float)(color->r + color->g + color->b);
+
+    float rf = (float)color->r / total;
+    float gf = (float)color->g / total;
+    float bf = (float)color->b / total;
+
+    color->r = (float)color->r * rf;
+    color->g = gf * (float)color->g;
+    color->b = bf * (float)color->b;
+}
+
 uint32_t anm_utility_pack_local_color(rgb_s color)
 {
     return  
@@ -119,10 +137,8 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         {
             // First apply gamma
             //out[i].r = gamma8[in[i].r];
-
             // Apply brightness u8
             out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
-
             // Apply dither
             out[i].r += dither_amt;
         }

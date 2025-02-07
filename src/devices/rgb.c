@@ -16,6 +16,7 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
+rgb_s rgb_colors_safe[RGB_DRIVER_LED_COUNT] = {0};
 
 // Perform a fade animation to black, then call our callback
 void rgb_deinit(callback_t cb)
@@ -35,7 +36,6 @@ float _exponentialRamp(float input) {
     return powf(input, exponent);
 }
 #endif
-
 
 void rgb_init(int mode, int brightness)
 {
@@ -93,6 +93,14 @@ void rgb_init(int mode, int brightness)
 
         rgb_config->rgb_speed = 650;
         set_speed = rgb_config->rgb_speed;
+    }
+
+    // Load local colors
+    for(int i = 0; i < 32; i++)
+    {
+        rgb_s col_tmp = anm_utility_unpack_local_color(rgb_config->rgb_colors[i]);
+        anm_utility_apply_color_safety(&col_tmp);
+        rgb_colors_safe[i] = col_tmp;
     }
 
     // Clamp our stored brightness
