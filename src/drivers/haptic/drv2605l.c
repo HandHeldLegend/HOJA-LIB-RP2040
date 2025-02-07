@@ -11,19 +11,19 @@
 #define HAPTIC_BACKEMF 0
 
 #define BLANKING_TIME_BASE (1) //(1)
-#define IDISS_TIME_BASE (1)
+#define IDISS_TIME_BASE (0b1111)
 
 #define N_ERM_LRA (1 << 7)
 #define FB_BRAKE_FACTOR (7 << 4) // Disable brake
-#define LOOP_GAIN (1U << 2)
-#define HAPTIC_BEMF_GAIN 2
+#define LOOP_GAIN (0 << 2)
+#define HAPTIC_BEMF_GAIN 0
 // Write to register 0x1A
 #define FEEDBACK_CTRL_BYTE (N_ERM_LRA | FB_BRAKE_FACTOR | LOOP_GAIN | HAPTIC_BEMF_GAIN)
 #define FEEDBACK_CTRL_REGISTER 0x1A
 
 // CTRL 1 Registers START
 #define STARTUP_BOOST (0 << 7) // 1 to enable
-#define AC_COUPLE (1 << 5)
+#define AC_COUPLE (0 << 5)
 #define DRIVE_TIME (20) // Set default
 
 #define CTRL1_BYTE (STARTUP_BOOST | AC_COUPLE | DRIVE_TIME)
@@ -31,7 +31,7 @@
 // CTRL 1 Registers END
 
 // CTRL 2 Registers START
-#define BIDIR_INPUT (1 << 7)      // Enable bidirectional input for Open-loop operation (<50% input is braking applied)
+#define BIDIR_INPUT (0 << 7)      // Enable bidirectional input for Open-loop operation (<50% input is braking applied)
 #define BRAKE_STABILIZER (0 << 6) // Improve loop stability? LOL no clue.
 #define SAMPLE_TIME (3U << 4)
 #define BLANKING_TIME_LOWER ((BLANKING_TIME_BASE & 0b00000011) << 2)
@@ -50,7 +50,7 @@
     Equation 7
     V(Lra-OL_RMS) = 21.32 * (10^-3) * OD_CLAMP * sqrt(1-resonantfreq * 800 * (10^-6))
 */
-#define ODCLAMP_BYTE (uint8_t)60 // Using the equation from the DRV2604L datasheet for Open Loop mode
+#define ODCLAMP_BYTE (uint8_t)50 // Using the equation from the DRV2604L datasheet for Open Loop mode
 // First value for 3.3v at 320hz is 179
 // Alt value for 3v is uint8_t 163 (320hz)
 // Alt value for 3v at 160hz is uint8_t 150
@@ -74,13 +74,13 @@
 #define NG_THRESH_2 1 // Percent
 #define NG_THRESH_4 2
 #define NG_THRESH_8 3
-#define NG_THRESH (NG_THRESH_DISABLED << 6)
+#define NG_THRESH (NG_THRESH_2 << 6)
 
 #define ERM_OPEN_LOOP (0 << 5)
 
 #define SUPPLY_COMP_ENABLED 0
 #define SUPPLY_COMP_DISABLED 1
-#define SUPPLY_COMP_DIS (SUPPLY_COMP_ENABLED << 4)
+#define SUPPLY_COMP_DIS (SUPPLY_COMP_DISABLED << 4)
 
 #define DATA_FORMAT_RTP_SIGNED 0
 #define DATA_FORMAT_RTP_UNSIGNED 1
@@ -120,7 +120,7 @@
 // MODE Register START
 #define DEV_RESET (0 << 7)
 #define STANDBY (1 << 6)
-#define MODE (3)
+#define MODE (3) // Analog input mode
 #define MODE_BYTE (DEV_RESET | MODE)
 #define STANDBY_MODE_BYTE (DEV_RESET | STANDBY | 0x00)
 #define MODE_REGISTER 0x01
