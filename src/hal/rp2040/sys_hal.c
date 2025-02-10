@@ -7,6 +7,7 @@
 
 #include "pico/time.h"
 #include "hardware/watchdog.h"
+#include "hardware/clocks.h"
 #include "pico/bootrom.h"
 #include "pico/rand.h"
 
@@ -44,7 +45,10 @@ bool sys_hal_init()
 {
     watchdog_enable(16000, false);
     // Test overclock
-    set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true);
+    if(!set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true))
+    {
+        sys_hal_bootloader();
+    }
     return true;
 }
 

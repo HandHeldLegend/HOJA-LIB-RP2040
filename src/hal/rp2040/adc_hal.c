@@ -5,6 +5,7 @@
 
 #include "hardware/adc.h"
 #include "hardware/dma.h"
+#include "hal/sys_hal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,8 @@ uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
     if(!adc_init_done || cfg->ch_local>3) return 0;
 
     adc_select_input(cfg->ch_local);
+    // Await change
+    sys_hal_sleep_us(50);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
     adc_run(true);
 

@@ -14,6 +14,7 @@
 
 #define ws2812_wrap_target 0
 #define ws2812_wrap 3
+#define ws2812_pio_version 0
 
 static const uint16_t ws2812_program_instructions[] = {
             //     .wrap_target
@@ -29,6 +30,10 @@ static const struct pio_program ws2812_program = {
     .instructions = ws2812_program_instructions,
     .length = 4,
     .origin = -1,
+    .pio_version = ws2812_pio_version,
+#if PICO_PIO_VERSION > 0
+    .used_gpio_ranges = 0x0
+#endif
 };
 
 static inline pio_sm_config ws2812_program_get_default_config(uint offset) {

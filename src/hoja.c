@@ -223,7 +223,6 @@ void _hoja_task_1()
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init()
 {
-
   gamepad_mode_t    thisMode    = GAMEPAD_MODE_SWPRO;
   gamepad_method_t  thisMethod  = GAMEPAD_METHOD_USB;
   bool              thisPair    = false;
@@ -241,10 +240,12 @@ bool _gamepad_mode_init()
     default:
     case GAMEPAD_METHOD_USB:
       _hoja_mode_task_cb = usb_mode_task;
+      battery_set_charge_rate(125);
       usb_mode_start(thisMode);
     break;
 
     case GAMEPAD_METHOD_WIRED:
+      battery_set_charge_rate(35);
       battery_set_plug(BATTERY_PLUG_OVERRIDE);
       _hoja_mode_task_cb = wired_mode_task;
       wired_mode_start(thisMode);
@@ -252,6 +253,7 @@ bool _gamepad_mode_init()
 
     case GAMEPAD_METHOD_BLUETOOTH:
       _hoja_mode_task_cb = bluetooth_mode_task;
+      battery_set_charge_rate(125);
       _hoja_mode_stop_cb = bluetooth_mode_stop;
       bluetooth_mode_start(thisMode, thisPair);
     break;

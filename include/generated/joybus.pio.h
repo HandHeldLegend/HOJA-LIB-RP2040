@@ -14,6 +14,7 @@
 
 #define joybus_wrap_target 0
 #define joybus_wrap 24
+#define joybus_pio_version 0
 
 #define joybus_offset_joybusin 0u
 #define joybus_offset_joybusout 10u
@@ -53,6 +54,10 @@ static const struct pio_program joybus_program = {
     .instructions = joybus_program_instructions,
     .length = 25,
     .origin = -1,
+    .pio_version = joybus_pio_version,
+#if PICO_PIO_VERSION > 0
+    .used_gpio_ranges = 0x0
+#endif
 };
 
 static inline pio_sm_config joybus_program_get_default_config(uint offset) {

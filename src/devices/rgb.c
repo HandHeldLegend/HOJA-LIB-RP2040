@@ -16,7 +16,7 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s rgb_colors_safe[RGB_DRIVER_LED_COUNT] = {0};
+rgb_s rgb_colors_safe[32] = {0};
 
 // Perform a fade animation to black, then call our callback
 void rgb_deinit(callback_t cb)
@@ -77,7 +77,7 @@ void rgb_init(int mode, int brightness)
     {
         rgb_config->rgb_config_version = CFG_BLOCK_RGB_VERSION;
 
-        rgb_config->rgb_brightness = 3750;
+        rgb_config->rgb_brightness = 3000;
         loaded_brightness = rgb_config->rgb_brightness;
 
         rgb_config->rgb_mode = 0;
@@ -98,9 +98,9 @@ void rgb_init(int mode, int brightness)
     // Load local colors
     for(int i = 0; i < 32; i++)
     {
-        rgb_s col_tmp = anm_utility_unpack_local_color(rgb_config->rgb_colors[i]);
+        rgb_s col_tmp = {.color = anm_utility_unpack_local_color(rgb_config->rgb_colors[i]).color};
         anm_utility_apply_color_safety(&col_tmp);
-        rgb_colors_safe[i] = col_tmp;
+        rgb_colors_safe[i].color = col_tmp.color;
     }
 
     // Clamp our stored brightness
