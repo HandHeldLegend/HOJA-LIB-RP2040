@@ -178,7 +178,7 @@ bool xinputd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   // Received report
   else if (ep_addr == _xinputd_itf.ep_out)
   {
-    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, _xinputd_itf.epout_buf, (uint16_t) xferred_bytes);
+    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, _xinputd_itf.epout_buf, (uint16_t) xferred_bytes);
     TU_ASSERT(usbd_edpt_xfer(rhport, _xinputd_itf.ep_out, _xinputd_itf.epout_buf, sizeof(_xinputd_itf.epout_buf)));
   }
 

@@ -447,7 +447,7 @@ bool ginputd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   // Received report
   else if (ep_addr == p_hid->ep_out)
   {
-    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, (uint16_t) xferred_bytes);
+    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t) xferred_bytes);
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 
