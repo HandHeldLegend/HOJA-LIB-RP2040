@@ -33,7 +33,7 @@ const tusb_desc_device_t swpro_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-const uint8_t swpro_hid_report_descriptor[] = {
+const uint8_t swpro_hid_report_descriptor[203] = {
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
     0x15, 0x00, // Logical Minimum (0)
 
