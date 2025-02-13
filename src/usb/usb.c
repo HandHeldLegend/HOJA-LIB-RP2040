@@ -44,7 +44,7 @@ const char* global_string_descriptor[] = {
     "GC Mode" // 4 Identifier for GC Mode
 };
 
-time_callback_t _usb_task_cb = NULL;
+hid_task_tunnel_cb _usb_task_cb = NULL;
 
 uint32_t _usb_clear_owner_0;
 uint32_t _usb_clear_owner_0;
@@ -192,6 +192,11 @@ static inline bool _hoja_usb_ready()
   return _usb_ready_cb();
 }
 
+bool _usb_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
+{
+  tud_hid_report(report_id, report, len);
+}
+
 void usb_mode_task(uint32_t timestamp)
 {
   static interval_s usb_interval  = {0};
@@ -234,7 +239,7 @@ void usb_mode_task(uint32_t timestamp)
 
     _usb_unset_usb_clear();
 
-    _usb_task_cb(timestamp);
+    _usb_task_cb(timestamp, _usb_hid_tunnel);
   }
 }
 

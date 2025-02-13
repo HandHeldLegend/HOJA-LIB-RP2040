@@ -11,6 +11,7 @@
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
+#include "hoja_shared_types.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -181,7 +182,7 @@ void info_set_init()
   _switch_command_buffer[0] = 0x02;
 }
 
-void info_handler(uint8_t info_code)
+void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
 {
   clear_report();
   set_report_id(0x81);
@@ -198,8 +199,8 @@ void info_handler(uint8_t info_code)
     _switch_command_buffer[0] = info_code;
     break;
   }
-
-  tud_hid_report(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
+  
+  cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
 }
 
 void pairing_set(uint8_t phase, const uint8_t *host_address)
@@ -256,7 +257,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
 }
 
 // Handles a command, always 0x21 as a response ID
-void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
+void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   // Clear report
   clear_report();
@@ -418,18 +419,18 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
   }
   //printf("\n");
 
-  tud_hid_report(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE);
+  cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE);
 }
 
 // Handles an OUT report and responds accordingly.
-void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
+void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   switch (report_id)
   {
   // We have command data and possibly rumble
   case SW_OUT_ID_RUMBLE_CMD:
     switch_haptics_rumble_translate(&data[2]);
-    command_handler(data[10], data, len);
+    command_handler(data[10], data, len, cb);
     break;
 
   case SW_OUT_ID_RUMBLE:
@@ -437,7 +438,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
     break;
 
   case SW_OUT_ID_INFO:
-    info_handler(data[1]);
+    info_handler(data[1], cb);
     break;
 
   default:
@@ -462,11 +463,11 @@ uint8_t _unknown_thing()
 #define DEBUG_IMU_VAL 8
 
 // PUBLIC FUNCTIONS
-void switch_commands_process(sw_input_s *input_data)
+void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
 {
   if (_switch_in_command_got)
   {
-    report_handler(_switch_in_report_id, _switch_in_command_buffer, _switch_in_command_len);
+    report_handler(_switch_in_report_id, _switch_in_command_buffer, _switch_in_command_len, cb);
     _switch_in_command_got = false;
   }
   else
@@ -565,8 +566,7 @@ void switch_commands_process(sw_input_s *input_data)
       _switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
-
-      tud_hid_report(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
+      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
     }
   }
 }

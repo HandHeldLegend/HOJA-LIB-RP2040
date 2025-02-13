@@ -5,6 +5,7 @@
 #include "input/button.h"
 #include "bsp/board.h"
 #include "tusb.h"
+#include "utilities/callback.h"
 
 // GC mode definitions
 /********************************/
@@ -58,6 +59,6 @@ extern const uint8_t gc_hid_report_descriptor[];
 extern const uint8_t gc_configuration_descriptor[];
 
 void gcinput_enable(bool enable);
-void gcinput_hid_report(uint32_t timestamp);
+void gcinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
 
 #endif

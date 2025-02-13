@@ -20,7 +20,7 @@ void gcinput_enable(bool enable)
     _gc_enable = enable;
 }
 
-void gcinput_hid_report(uint32_t timestamp)
+void gcinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
 {
     static gc_input_s   data = {0};
     static uint8_t      buffer[37] = {0};

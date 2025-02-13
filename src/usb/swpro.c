@@ -1,6 +1,7 @@
 #include "usb/swpro.h"
 
 #include "switch/switch_commands.h"
+#include "utilities/callback.h"
 
 #include "tusb.h"
 #include "input/button.h"
@@ -169,7 +170,7 @@ bool blank_sent = false;
 
 uint32_t _timeout = 0;
 
-void swpro_hid_report(uint32_t timestamp)
+void swpro_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
 {
     static sw_input_s data = {0};
 
@@ -210,5 +211,5 @@ void swpro_hid_report(uint32_t timestamp)
     data.rs_x = (uint16_t) (analog.rx+2048);
     data.rs_y = (uint16_t) (analog.ry+2048);
 
-    switch_commands_process(&data);
+    switch_commands_process(&data, cb);
 }

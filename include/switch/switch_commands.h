@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "usb/swpro.h"
+#include "hoja_shared_types.h"
 
 #define SW_OUT_ID_RUMBLE_CMD 0x01
 #define SW_OUT_ID_INFO  0x80
@@ -32,7 +33,7 @@
 // Commands for setting report data
 
 void rumble_translate(const uint8_t *data);
-void switch_commands_process(sw_input_s *input_data);
+void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb);
 void switch_commands_future_handle(uint8_t command_id, const uint8_t *data, uint16_t len);
 void switch_commands_bulkset(uint8_t start_idx, uint8_t* data, uint8_t len);
 
