@@ -14,6 +14,7 @@
 
 #define nserial_wrap_target 0
 #define nserial_wrap 11
+#define nserial_pio_version 0
 
 #define nserial_offset_startserial 0u
 #define nserial_offset_clearserial 6u
@@ -41,6 +42,10 @@ static const struct pio_program nserial_program = {
     .instructions = nserial_program_instructions,
     .length = 12,
     .origin = -1,
+    .pio_version = nserial_pio_version,
+#if PICO_PIO_VERSION > 0
+    .used_gpio_ranges = 0x0
+#endif
 };
 
 static inline pio_sm_config nserial_program_get_default_config(uint offset) {

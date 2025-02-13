@@ -77,6 +77,8 @@ typedef struct
 
 } sw_input_s;
 
+#define SWPRO_REPORT_SIZE 64-1 // -1 because of report ID
+
 extern const tusb_desc_device_t swpro_device_descriptor;
 extern const uint8_t swpro_hid_report_descriptor[];
 extern const uint8_t swpro_configuration_descriptor[];

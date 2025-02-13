@@ -36,7 +36,7 @@ uint32_t _pwm_fall_amt_per_tick = 0;
 
 // Maximum safe value puts out ~ 3.2v nominal
 // DO NOT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING
-#define ERM_PWM_SAFE_MAX    40000
+#define ERM_PWM_SAFE_MAX    20000
 
 #if defined(HOJA_HAPTICS_MAX)
     #define ERM_PWM_SCALED_MAX      (uint32_t) (HOJA_HAPTICS_MAX * (float) ERM_PWM_SAFE_MAX)

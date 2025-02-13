@@ -199,7 +199,7 @@ void info_handler(uint8_t info_code)
     break;
   }
 
-  tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
+  tud_hid_report(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
 }
 
 void pairing_set(uint8_t phase, const uint8_t *host_address)
@@ -418,7 +418,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
   }
   //printf("\n");
 
-  tud_hid_report(0x21, _switch_command_buffer, 64);
+  tud_hid_report(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE);
 }
 
 // Handles an OUT report and responds accordingly.
@@ -566,7 +566,7 @@ void switch_commands_process(sw_input_s *input_data)
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
 
-      tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
+      tud_hid_report(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
     }
   }
 }

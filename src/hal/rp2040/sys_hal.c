@@ -7,6 +7,7 @@
 
 #include "pico/time.h"
 #include "hardware/watchdog.h"
+#include "hardware/clocks.h"
 #include "pico/bootrom.h"
 #include "pico/rand.h"
 
