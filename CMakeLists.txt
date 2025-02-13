@@ -8,33 +8,6 @@ file(GLOB_RECURSE MACROS_C "${CMAKE_CURRENT_LIST_DIR}/src/input/macros/*.c")
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
 
-# Pull in pico libraries that we need
-target_link_libraries(hoja_lib INTERFACE
-  pico_stdlib
-  pico_bootrom
-  pico_multicore
-  pico_platform
-  pico_rand
-  pico_float
-  pico_flash
-
-  hardware_exception
-  hardware_gpio
-  hardware_adc
-  hardware_flash
-  hardware_pio
-  hardware_dma
-  hardware_pwm
-  hardware_spi
-  hardware_sync
-  hardware_timer
-  hardware_irq
-  hardware_i2c
-
-  tinyusb_device
-  tinyusb_board
-)
-
 target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c
   
@@ -99,6 +72,33 @@ target_include_directories(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/include
   ${CMAKE_CURRENT_LIST_DIR}/include/generated 
   ${CMAKE_CURRENT_LIST_DIR}/include/hal/rp2040
+)
+
+# Pull in pico libraries that we need
+target_link_libraries(hoja_lib INTERFACE
+  pico_stdlib
+  pico_bootrom
+  pico_multicore
+  pico_platform
+  pico_rand
+  pico_float
+  pico_flash
+
+  hardware_exception
+  hardware_gpio
+  hardware_adc
+  hardware_flash
+  hardware_pio
+  hardware_dma
+  hardware_pwm
+  hardware_spi
+  hardware_sync
+  hardware_timer
+  hardware_irq
+  hardware_i2c
+
+  tinyusb_device
+  tinyusb_board
 )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/generated)
