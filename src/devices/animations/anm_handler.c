@@ -175,7 +175,7 @@ void _player_connection_manager(rgb_s *output)
             case CONN_STATUS_INIT:
                 #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
                 // Clear all player LEDs
-                for(int i = 0; i < i; i++)
+                for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
                 {
                     player_leds[i].color = 0;
                 }
