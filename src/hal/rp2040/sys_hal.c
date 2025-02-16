@@ -1,5 +1,6 @@
 #include "hal/sys_hal.h"
 #include "pico/stdlib.h"
+#include "pico/stdio.h"
 #include <stdint.h>
 
 #include "hal/mutex_hal.h"
@@ -12,6 +13,12 @@
 #include "pico/rand.h"
 
 #include "hoja_bsp.h"
+
+#include "board_config.h"
+
+#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
+#include "pico/cyw43_arch.h"
+#endif
 
 void sys_hal_reboot()
 {
@@ -43,6 +50,17 @@ void sys_hal_tick()
 
 bool sys_hal_init()
 {
+    stdio_init_all();
+
+    
+    #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
+    // If the init fails it returns true lol
+    if (cyw43_arch_init())
+    {
+        return false;
+    }
+    sys_hal_bootloader();
+    #endif
     watchdog_enable(16000, false);
     // Test overclock
     set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true);

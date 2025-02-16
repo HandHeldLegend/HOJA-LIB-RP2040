@@ -15,6 +15,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 // This C file handles various Switch gamepad commands (OUT reports)
 uint8_t _switch_in_command_buffer[64] = {0};

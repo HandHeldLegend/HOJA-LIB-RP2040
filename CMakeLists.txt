@@ -42,7 +42,6 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/trigger.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
 
-
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 

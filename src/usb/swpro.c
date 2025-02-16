@@ -14,7 +14,7 @@
 // 3. Configuration Descriptor
 // 4. TinyUSB Config
 /**--------------------------**/
-const tusb_desc_device_t swpro_device_descriptor = {
+const ext_tusb_desc_device_t swpro_device_descriptor = {
     .bLength = 18,
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB

@@ -45,8 +45,8 @@ bool battery_init()
     if(HOJA_BATTERY_INIT())
     {
         // Set initial status
-        _battery_status.val = HOJA_BATTERY_GET_STATUS();
-        _new_battery_status.val = _battery_status.val;
+        //_battery_status.val = HOJA_BATTERY_GET_STATUS();
+        //_new_battery_status.val = _battery_status.val;
         return true;
     }
     #endif 

@@ -86,17 +86,6 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         break;
     }
 
-    switch(thisMode)
-    {
-        case GAMEPAD_MODE_SWPRO:
-        case GAMEPAD_MODE_XINPUT:
-            wirelessSupported = true;
-        break;
-
-        default:
-        break;
-    }
-
     // If we have a battery driver
     // we should perform a power check and some
     // other logic
@@ -129,7 +118,6 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     {
         thisMode            = GAMEPAD_MODE_SWPRO;
         thisMethod          = GAMEPAD_METHOD_USB;
-        wirelessSupported   = true;
     }
     else if(buttons.button_b)
     {
@@ -140,12 +128,27 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     {
         thisMode            = GAMEPAD_MODE_XINPUT;
         thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
-        wirelessSupported   = true;
     }
     else if(buttons.button_y)
     {
         thisMode    = GAMEPAD_MODE_GCUSB;
         thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+    }
+
+    switch(thisMode)
+    {
+        case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_XINPUT:
+            wirelessSupported = true;
+        break;
+
+        case GAMEPAD_MODE_GAMECUBE:
+        case GAMEPAD_MODE_N64:
+            battery_set_plug(BATTERY_PLUG_OVERRIDE);
+            break;
+
+        default:
+        break;
     }
 
     // Handle Bluetooth for supported devices

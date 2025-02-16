@@ -10,6 +10,9 @@
 
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
+#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_HAL)
+    #include "hal/bluetooth_hal.h"
+    #warning "HAL BT IN USE"
 #endif
 
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
