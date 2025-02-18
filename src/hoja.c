@@ -195,7 +195,7 @@ void _hoja_task_1()
   static uint32_t c1_timestamp = 0;
 
   // Init settings hal
-  //flash_hal_init();
+  flash_hal_init();
 
   sys_hal_sleep_ms(500);
 
@@ -216,7 +216,7 @@ void _hoja_task_1()
     flash_hal_task();
 
     // Hooks tasks
-    //hooks_run_all_core1();
+    // hooks_run_all_core1();
   }
 }
 

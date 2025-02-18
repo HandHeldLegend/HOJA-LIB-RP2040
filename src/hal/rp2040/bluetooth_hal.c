@@ -19,6 +19,8 @@
 #include "usb/swpro.h"
 #include "hal/sys_hal.h"
 
+volatile bool _connected = false;
+
 const uint8_t procon_hid_descriptor[213] = {
     0x05, 0x01,                   // Usage Page (Generic Desktop Ctrls)
     0x09, 0x05,                   // Usage (Game Pad)
@@ -124,7 +126,7 @@ static const char service_name[] = "Wireless Gamepad";
 static uint8_t hid_service_buffer[700];
 static uint8_t pnp_service_buffer[200];
 static btstack_packet_callback_registration_t hci_event_callback_registration;
-static uint16_t hid_cid;
+static int hid_cid = 0;
 
 void _create_sdp_pnp_record(uint8_t *service, uint16_t vendor_id_source,
                            uint16_t vendor_id, uint16_t product_id,
@@ -424,11 +426,14 @@ void create_sdp_hid_record(uint8_t *service, const hid_sdp_record_t *params) {
 bool _bluetooth_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
 {
     static uint8_t new_report[64] = {0};
-    new_report[0] = report_id;
-    memcpy(&(new_report[1]), report, len);
+    new_report[0] = 0xA1; // Type of input report
+    new_report[1] = report_id;
+    memcpy(&(new_report[2]), report, len);
 
     if (hid_cid)
-        hid_device_send_interrupt_message(hid_cid, new_report, len + 1);
+        hid_device_send_interrupt_message(hid_cid, new_report, 48);
+
+    return true;
 }
 
 static void _bt_hid_report_handler(uint16_t cid,
@@ -436,16 +441,24 @@ static void _bt_hid_report_handler(uint16_t cid,
                                    uint16_t report_id,
                                    int report_size, uint8_t *report)
 {
-
-    if (cid == hid_cid)
+    if(report_type == HID_REPORT_TYPE_OUTPUT)
     {
-        if (report_id == SW_OUT_ID_RUMBLE)
+        if (cid == hid_cid)
         {
-            switch_haptics_rumble_translate(&report[2]);
-        }
-        else
-        {
-            switch_commands_future_handle(report[0], report, report_size);
+            printf("REPORT? %x, c: %d\n", report_id, hid_cid);
+            uint8_t tmp[64] = {0};
+
+            tmp[0] = report_id;
+            
+            if (report_id == SW_OUT_ID_RUMBLE)
+            {
+                switch_haptics_rumble_translate(&report[2]);
+            }
+            else if (report_id == SW_OUT_ID_RUMBLE_CMD)
+            {
+                memcpy(&tmp[1], report, report_size);
+                switch_commands_future_handle(report_id, tmp, report_size+1);
+            }
         }
     }
 }
@@ -466,7 +479,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
         case HCI_EVENT_USER_CONFIRMATION_REQUEST:
             // ssp: inform about user confirmation request
-            log_info("SSP User Confirmation Auto accept\n");
+            printf("SSP User Confirmation Auto accept\n");
             break;
         case HCI_EVENT_HID_META:
             switch (hci_event_hid_meta_get_subevent_code(packet))
@@ -477,15 +490,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 {
                     // outgoing connection failed
                     printf("Connection failed, status 0x%x\n", status);
+                    _connected = false;
                     hid_cid = 0;
                     return;
                 }
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
-                log_info("HID Connected\n");
+                printf("HID Connected\n");
+                _connected = true;
                 hid_device_request_can_send_now_event(hid_cid);
                 break;
             case HID_SUBEVENT_CONNECTION_CLOSED:
-                log_info("HID Disconnected\n");
+                printf("HID Disconnected\n");
+                _connected = false;
                 hid_cid = 0;
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
@@ -507,14 +523,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
 bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+    // If the init fails it returns true lol
+    if (cyw43_arch_init())
+    {
+        return false;
+    }
+    
     bd_addr_t newAddr = {0x7c,
                          0xbb,
                          0x8a,
                          (uint8_t)(get_rand_32() % 0xff),
                          (uint8_t)(get_rand_32() % 0xff),
                          (uint8_t)(get_rand_32() % 0xff)};
-
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
     gap_discoverable_control(1);
     gap_set_class_of_device(0x2508);
@@ -569,9 +589,7 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
 
     hci_power_control(HCI_POWER_ON);
 
-    
-
-    btstack_run_loop_execute();
+    //btstack_run_loop_execute();
 
     return true;
 }
@@ -583,7 +601,7 @@ void bluetooth_hal_stop()
 
 void bluetooth_hal_task(uint32_t timestamp)
 {
-    btstack_run_loop_execute();
+    sleep_ms(1);
 }
 
 uint32_t bluetooth_hal_get_fwversion()

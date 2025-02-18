@@ -23,7 +23,7 @@ uint8_t _switch_in_report_id = 0x00;
 uint16_t _switch_in_command_len = 64;
 bool _switch_in_command_got = false;
 
-uint8_t _switch_reporting_mode = 0x3F;
+uint8_t _switch_reporting_mode = 0x30;
 uint8_t _switch_imu_mode = 0x00;
 
 uint8_t _switch_command_buffer[64] = {0};

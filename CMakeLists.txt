@@ -73,6 +73,13 @@ target_include_directories(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/include/hal/rp2040
 )
 
+target_compile_definitions(hoja_lib
+  INTERFACE
+  CYW43_LWIP=0
+  PICO_FLASH_ASSUME_CORE0_SAFE=1
+  PICO_FLASH_ASSUME_CORE1_SAFE=1
+)
+
 # Pull in pico libraries that we need
 target_link_libraries(hoja_lib INTERFACE
   pico_stdlib
@@ -81,7 +88,12 @@ target_link_libraries(hoja_lib INTERFACE
   pico_platform
   pico_rand
   pico_float
-  pico_flash
+
+  pico_cyw43_arch_threadsafe_background 
+  pico_btstack_cyw43 
+  pico_btstack_hci_transport_cyw43 
+  pico_btstack_ble 
+  pico_btstack_classic 
 
   hardware_exception
   hardware_gpio
