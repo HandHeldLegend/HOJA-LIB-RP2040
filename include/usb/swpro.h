@@ -77,7 +77,9 @@ typedef struct
 
 } sw_input_s;
 
-#define SWPRO_REPORT_SIZE 64-1 // -1 because of report ID
+#define SWPRO_REPORT_SIZE_USB 64-1 // -1 because of report ID
+#define SWPRO_REPORT_SIZE_BT  48
+#define SWPRO_REPORT_SIZE_3F  11
 
 /// USB Device Descriptor
 typedef struct __attribute__ ((packed)) {
@@ -101,7 +103,8 @@ typedef struct __attribute__ ((packed)) {
   } ext_tusb_desc_device_t;
 
 extern const ext_tusb_desc_device_t swpro_device_descriptor;
-extern const uint8_t swpro_hid_report_descriptor[];
+extern const uint8_t swpro_hid_report_descriptor_usb[];
+extern const uint8_t swpro_hid_report_descriptor_bt[];
 extern const uint8_t swpro_configuration_descriptor[];
 
 void swpro_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);

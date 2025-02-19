@@ -425,7 +425,7 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
   {
   default:
   case GAMEPAD_MODE_SWPRO:
-    return swpro_hid_report_descriptor;
+    return swpro_hid_report_descriptor_usb;
     break;
 
   case GAMEPAD_MODE_GCUSB:

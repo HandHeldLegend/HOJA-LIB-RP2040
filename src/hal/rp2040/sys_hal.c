@@ -51,6 +51,7 @@ void sys_hal_tick()
 bool sys_hal_init()
 {
     watchdog_enable(16000, false);
+    timer_hw->dbgpause = 0;
     // Test overclock
     set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true);
     return true;
@@ -75,10 +76,10 @@ uint32_t sys_hal_time_us()
 {
     static uint32_t time;
 
-    //if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
+    if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
     {
         time = time_us_32();
-        //MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
+        MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
     }
 
     return time;

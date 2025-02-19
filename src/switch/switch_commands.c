@@ -128,8 +128,14 @@ void set_devinfo()
   _switch_command_buffer[17] = 0x02; // Controller ID secondary
 
   /*_switch_command_buffer[18-23] = MAC ADDRESS;*/
+  _switch_command_buffer[18] = gamepad_config->switch_mac_address[0];
+  _switch_command_buffer[19] = gamepad_config->switch_mac_address[1];
+  _switch_command_buffer[20] = gamepad_config->switch_mac_address[2];
+  _switch_command_buffer[21] = gamepad_config->switch_mac_address[3];
+  _switch_command_buffer[22] = gamepad_config->switch_mac_address[4];
+  _switch_command_buffer[23] = gamepad_config->switch_mac_address[5];
 
-  _switch_command_buffer[24] = 0x01;
+  _switch_command_buffer[24] = 0x00;
   _switch_command_buffer[25] = 0x02; // It's 2 now? Ok.
 }
 
@@ -201,7 +207,16 @@ void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
     break;
   }
   
-  cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
+  switch(hoja_get_status().gamepad_method)
+  {
+    case GAMEPAD_METHOD_USB:
+      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+    break;
+
+    case GAMEPAD_METHOD_BLUETOOTH:
+      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+    break;
+  }
 }
 
 void pairing_set(uint8_t phase, const uint8_t *host_address)
@@ -420,7 +435,16 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
   }
   //printf("\n");
 
-  cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE);
+  switch(hoja_get_status().gamepad_method)
+  {
+    case GAMEPAD_METHOD_USB:
+      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+    break;
+
+    case GAMEPAD_METHOD_BLUETOOTH:
+      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+    break;
+  }
 }
 
 // Handles an OUT report and responds accordingly.
@@ -567,7 +591,16 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
       _switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
-      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE);
+      switch(hoja_get_status().gamepad_method)
+      {
+        case GAMEPAD_METHOD_USB:
+          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+        break;
+
+        case GAMEPAD_METHOD_BLUETOOTH:
+          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+        break;
+      }
     }
   }
 }
