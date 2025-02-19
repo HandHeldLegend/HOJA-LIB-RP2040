@@ -255,7 +255,7 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     }
 
     // gap_connectable_control(1);
-    gap_discoverable_control(1);
+    
     // gap_set_bondable_mode(1);
 
     gap_set_class_of_device(0x2508);
@@ -315,6 +315,8 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     hci_power_control(HCI_POWER_ON);
 
     hci_set_bd_addr(gamepad_config->switch_mac_address);
+
+    gap_discoverable_control(1);
     //btstack_run_loop_execute();
 
     return true;
