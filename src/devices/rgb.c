@@ -95,6 +95,9 @@ void rgb_init(int mode, int brightness)
         set_speed = rgb_config->rgb_speed;
     }
 
+    // DEBUG
+    //set_mode = 3;
+
     // Load local colors
     for(int i = 0; i < 32; i++)
     {

@@ -231,7 +231,7 @@ bool _gamepad_mode_init()
   boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
 
   // Debug
-  thisMethod = GAMEPAD_METHOD_BLUETOOTH;
+  // thisMethod = GAMEPAD_METHOD_BLUETOOTH;
 
   _hoja_status.gamepad_mode   = thisMode;
   _hoja_status.gamepad_method = thisMethod;
