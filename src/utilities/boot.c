@@ -42,22 +42,17 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     gamepad_mode_t   thisMode   = GAMEPAD_MODE_SWPRO;
     bool             thisPair   = false;
 
-    // If we have a detected valid power source
-    bool powerSource = true;
-    bool wirelessSupported = false; // Whether a mode has a wireless option
-
     switch(gamepad_config->gamepad_default_mode)
     {
-        case 0:
+        default: 
+        case 0: 
             thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_USB;
-            wirelessSupported   = true;
+            thisMethod          = GAMEPAD_METHOD_AUTO;
         break;
 
         case 1:
             thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
-            wirelessSupported   = true;
+            thisMethod          = GAMEPAD_METHOD_AUTO; // Force USB for now
         break;
 
         case 2:
@@ -86,80 +81,45 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         break;
     }
 
-    // If we have a battery driver
-    // we should perform a power check and some
-    // other logic
-    #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
-    // Get plugged status
-    battery_plug_t plugged = battery_get_plug();
-    if(plugged == BATTERY_PLUG_UNPLUGGED)
+    // Button overrides
     {
-        powerSource = false;
+        // Input modes in order
+        if(buttons.dpad_left) 
+        {
+            thisMode    = GAMEPAD_MODE_SNES;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        }
+        else if(buttons.dpad_down)
+        {
+            thisMode    = GAMEPAD_MODE_N64;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        }
+        else if(buttons.dpad_right)
+        {
+            thisMode    = GAMEPAD_MODE_GAMECUBE;
+            thisMethod  = GAMEPAD_METHOD_WIRED;
+        }
+        else if(buttons.button_a)
+        {
+            thisMode            = GAMEPAD_MODE_SWPRO;
+            thisMethod          = GAMEPAD_METHOD_AUTO;
+        }
+        else if(buttons.button_b)
+        {
+            thisMode            = GAMEPAD_MODE_OPENGP;
+            thisMethod          = GAMEPAD_METHOD_USB; 
+        }
+        else if(buttons.button_x)
+        {
+            thisMode            = GAMEPAD_MODE_XINPUT;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
+        }
+        else if(buttons.button_y)
+        {
+            thisMode    = GAMEPAD_MODE_GCUSB;
+            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        }
     }
-    #endif
-
-    // Input modes in order
-    if(buttons.dpad_left) 
-    {
-        thisMode    = GAMEPAD_MODE_SNES;
-        thisMethod  = GAMEPAD_METHOD_WIRED;
-    }
-    else if(buttons.dpad_down)
-    {
-        thisMode    = GAMEPAD_MODE_N64;
-        thisMethod  = GAMEPAD_METHOD_WIRED;
-    }
-    else if(buttons.dpad_right)
-    {
-        thisMode    = GAMEPAD_MODE_GAMECUBE;
-        thisMethod  = GAMEPAD_METHOD_WIRED;
-    }
-    else if(buttons.button_a)
-    {
-        thisMode            = GAMEPAD_MODE_SWPRO;
-        thisMethod          = GAMEPAD_METHOD_USB;
-    }
-    else if(buttons.button_b)
-    {
-        thisMode            = GAMEPAD_MODE_OPENGP;
-        thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
-    }
-    else if(buttons.button_x)
-    {
-        thisMode            = GAMEPAD_MODE_XINPUT;
-        thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
-    }
-    else if(buttons.button_y)
-    {
-        thisMode    = GAMEPAD_MODE_GCUSB;
-        thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
-    }
-
-    switch(thisMode)
-    {
-        case GAMEPAD_MODE_SWPRO:
-        case GAMEPAD_MODE_XINPUT:
-            wirelessSupported = true;
-        break;
-
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_N64:
-            battery_set_plug(BATTERY_PLUG_OVERRIDE);
-            break;
-
-        default:
-        break;
-    }
-
-    // Handle Bluetooth for supported devices
-    #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
-    // Set input mode to Bluetooth if it's supported
-    // and we do not have our valid power source
-    if(!powerSource && wirelessSupported )
-    {
-        thisMethod = GAMEPAD_METHOD_BLUETOOTH;
-    }
-    #endif
 
     // Check reboot memory for any overrides for buttons and whatnot
     boot_memory_s   boot_memory = {0};

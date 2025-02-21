@@ -81,7 +81,7 @@ bool bq25180_update_status()
 
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
     uint8_t _readstatus[1] = {0};
-    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
+    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 1000);
 
     if(ret==1)
     {
@@ -147,15 +147,9 @@ bool bq25180_init()
     sys_hal_sleep_ms(100);
     if(_comms_check())
     {
+        bq25180_set_source(BATTERY_SOURCE_AUTO);
+        bq25180_set_charge_rate(35);
         bq25180_update_status();
-        if(_pmic_status.plug_status = BATTERY_PLUG_PLUGGED)
-        {
-            bq25180_set_source(BATTERY_SOURCE_AUTO);
-            bq25180_set_charge_rate(35);
-        }
-
-
-
         return true;
     }
     else return false;
@@ -176,9 +170,9 @@ bool bq25180_set_source(battery_source_t source)
 {
     // Disable pushbutton
 
-     // Broken code? Causes issues with wired only with 3.3v sources
+    // Broken code? Causes issues with wired only with 3.3v sources
     const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, 0b00000000}; // Ship mode with wake on button press/adapter insert
-    //int ret1 = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write1, 2, false);
+    int ret1 = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write1, 2, false);
 
 
     // We want to disable the onboard regulation

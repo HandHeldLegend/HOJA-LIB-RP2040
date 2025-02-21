@@ -28,7 +28,6 @@ typedef enum
     BATTERY_PLUG_UNAVAILABLE = -1,
     BATTERY_PLUG_UNPLUGGED,
     BATTERY_PLUG_PLUGGED,
-    BATTERY_PLUG_OVERRIDE, // For modes where we don't want to rely on drivers
 } battery_plug_t;
 
 typedef enum
@@ -70,7 +69,7 @@ typedef enum
     BATTERY_EVENT_CHARGE_COMPLETE,
 } battery_event_t;
 
-bool                battery_init(); 
+bool                battery_init(bool wired_override); 
 int                 battery_get_level(); 
 bool                battery_set_source(battery_source_t source); 
 void battery_set_plug(battery_plug_t plug);
