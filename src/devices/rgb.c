@@ -15,8 +15,8 @@
 #include "devices/animations/anm_utility.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s rgb_colors_safe[RGB_DRIVER_LED_COUNT] = {0};
+int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
+rgb_s rgb_colors_safe[RGB_MAX_GROUPS] = {0};
 
 // Perform a fade animation to black, then call our callback
 void rgb_deinit(callback_t cb)
@@ -85,7 +85,7 @@ void rgb_init(int mode, int brightness)
 
         uint8_t col = 0;
         const uint8_t color_count = 7;
-        for(int i = 0; i < 32; i++)
+        for(int i = 0; i < RGB_MAX_GROUPS; i++)
         {
             rgb_config->rgb_colors[i] = anm_utility_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
@@ -96,10 +96,10 @@ void rgb_init(int mode, int brightness)
     }
 
     // DEBUG
-    //set_mode = 3;
+    //set_mode = 0;
 
     // Load local colors
-    for(int i = 0; i < 32; i++)
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
     {
         rgb_s col_tmp = anm_utility_unpack_local_color(rgb_config->rgb_colors[i]);
         anm_utility_apply_color_safety(&col_tmp);
