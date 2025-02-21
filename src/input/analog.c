@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "hal/mutex_hal.h"
+#include "hal/sys_hal.h"
 
 #include "usb/webusb.h"
 
@@ -183,24 +184,33 @@ void _analog_read_raw()
     #endif
 }
 
+volatile bool _capture_centers = false;
 void _capture_center_offsets()
 {
-    _analog_blocking_enter();
-
-    // Read raw analog sticks
+    int32_t lx_sum = 0, ly_sum = 0, rx_sum = 0, ry_sum = 0;
+    
+    // Discard the first reading
     _analog_read_raw();
-
-    analog_config->lx_center = _raw_analog_data.lx & 0x7FFF;
-    analog_config->ly_center = _raw_analog_data.ly & 0x7FFF;
-    analog_config->rx_center = _raw_analog_data.rx & 0x7FFF;
-    analog_config->ry_center = _raw_analog_data.ry & 0x7FFF;
+    
+    // Average over 8 readings
+    for (int i = 0; i < 8; i++) {
+        _analog_read_raw();
+        lx_sum += _raw_analog_data.lx & 0x7FFF;
+        ly_sum += _raw_analog_data.ly & 0x7FFF;
+        rx_sum += _raw_analog_data.rx & 0x7FFF;
+        ry_sum += _raw_analog_data.ry & 0x7FFF;
+        sys_hal_sleep_ms(1);
+    }
+    
+    analog_config->lx_center = (lx_sum / 8);
+    analog_config->ly_center = (ly_sum / 8);
+    analog_config->rx_center = (rx_sum / 8);
+    analog_config->ry_center = (ry_sum / 8);
 
     _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
     _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;
     _center_offsets[2] = (int16_t) STICK_INTERNAL_CENTER - analog_config->rx_center;
     _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
-
-    _analog_exit();
 }
 
 void _capture_input_angle(float *left, float *right)
@@ -247,14 +257,14 @@ void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case ANALOG_CMD_CALIBRATE_START:
-            // Capture centers first
-            _capture_center_offsets();
+            _capture_centers = true;
             stick_scaling_calibrate_start(true);
             do_cb = true;
         break;
 
         case ANALOG_CMD_CALIBRATE_STOP:
             stick_scaling_calibrate_start(false);
+            _capture_centers = false;
             do_cb = true;
         break;
 
@@ -285,6 +295,12 @@ void analog_task(uint32_t timestamp)
     {
         // Read raw analog sticks
         _analog_read_raw();
+
+        if(_capture_centers)
+        {
+            _capture_center_offsets();
+            _capture_centers = false;
+        }
 
         // Offset data by center offsets
         _raw_analog_data.lx += _center_offsets[0];

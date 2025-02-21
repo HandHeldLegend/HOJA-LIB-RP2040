@@ -104,7 +104,7 @@ uint16_t    tmux1204_read_channel(adc_channel_cfg_s *cfg)
         break;
     }
 
-    sys_hal_sleep_us(1);
+    sys_hal_sleep_us(16);
 
     if(_tmux1204_read_functions[driver_instance])
     {
