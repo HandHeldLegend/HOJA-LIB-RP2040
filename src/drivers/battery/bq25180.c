@@ -148,7 +148,6 @@ bool bq25180_init()
     if(_comms_check())
     {
         bq25180_set_source(BATTERY_SOURCE_AUTO);
-        bq25180_set_charge_rate(35);
         bq25180_update_status();
         return true;
     }
