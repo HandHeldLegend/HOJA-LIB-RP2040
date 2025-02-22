@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "tusb.h"
+#include "utilities/callback.h"
 
 #define XID_REPORT_LEN 20
 #define REPORT_ID_XINPUT 0x00
@@ -52,6 +53,6 @@ typedef struct
 
 #define XINPUT_INPUT_SIZE sizeof(xid_input_s)
 
-void xinput_hid_report(uint32_t timestamp);
+void xinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
 
 #endif

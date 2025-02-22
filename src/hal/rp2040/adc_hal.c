@@ -27,26 +27,13 @@ static uint32_t _adc_dma_chan = 0;
 
 uint16_t _process_samples(volatile uint16_t *source) 
 {
-    uint32_t sum = source[0] & 0xFFF;
+    uint32_t sum = 0;
     
     // Main processing loop (handles samples 1 to length-2)
-    for (int i = 1; i < SAMPLES_PER_CHANNEL-1; i++) {
+    for (int i = 0; i < SAMPLES_PER_CHANNEL; i++) {
         uint16_t sample = source[i] & 0xFFF;
         sum += sample;
-        continue;
-        
-        if (ADC_HAL_CHECK_RANGE(sample, 512) ||
-            ADC_HAL_CHECK_RANGE(sample, 1536) ||
-            ADC_HAL_CHECK_RANGE(sample, 2560) ||
-            ADC_HAL_CHECK_RANGE(sample, 3584)) {
-            // At transition point - take median
-            sum += MEDIAN3(source[i-1] & 0xFFF, sample, source[i+1] & 0xFFF);
-        } else {
-            sum += sample;
-        }
     }
-
-    sum += source[SAMPLES_PER_CHANNEL-1] & 0xFFF;  // Handle last sample
     
     // Calculate 12-bit result
     uint16_t result = (uint16_t)(sum >> SAMPLES_BIT_SHIFT);

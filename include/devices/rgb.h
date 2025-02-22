@@ -13,9 +13,10 @@
 #define RGB_FADE_FIXED_SHIFT 16
 #define RGB_FADE_FIXED_MULT (uint32_t) (1<<RGB_FADE_FIXED_SHIFT)
 #define RGB_FLOAT_TO_FIXED(f) ((uint32_t) (f * RGB_FADE_FIXED_MULT))
+#define RGB_MAX_GROUPS 32
 
-extern int8_t rgb_led_groups[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP];
-extern rgb_s  rgb_colors_safe[RGB_DRIVER_LED_COUNT];
+extern int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP];
+extern rgb_s  rgb_colors_safe[RGB_MAX_GROUPS];
 #endif
 
 void rgb_deinit(callback_t cb);

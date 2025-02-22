@@ -11,9 +11,11 @@
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
+#include "hoja_shared_types.h"
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 // This C file handles various Switch gamepad commands (OUT reports)
 uint8_t _switch_in_command_buffer[64] = {0};
@@ -21,7 +23,7 @@ uint8_t _switch_in_report_id = 0x00;
 uint16_t _switch_in_command_len = 64;
 bool _switch_in_command_got = false;
 
-uint8_t _switch_reporting_mode = 0x3F;
+uint8_t _switch_reporting_mode = 0x30;
 uint8_t _switch_imu_mode = 0x00;
 
 uint8_t _switch_command_buffer[64] = {0};
@@ -126,8 +128,14 @@ void set_devinfo()
   _switch_command_buffer[17] = 0x02; // Controller ID secondary
 
   /*_switch_command_buffer[18-23] = MAC ADDRESS;*/
+  _switch_command_buffer[18] = gamepad_config->switch_mac_address[0];
+  _switch_command_buffer[19] = gamepad_config->switch_mac_address[1];
+  _switch_command_buffer[20] = gamepad_config->switch_mac_address[2];
+  _switch_command_buffer[21] = gamepad_config->switch_mac_address[3];
+  _switch_command_buffer[22] = gamepad_config->switch_mac_address[4];
+  _switch_command_buffer[23] = gamepad_config->switch_mac_address[5];
 
-  _switch_command_buffer[24] = 0x01;
+  _switch_command_buffer[24] = 0x00;
   _switch_command_buffer[25] = 0x02; // It's 2 now? Ok.
 }
 
@@ -181,7 +189,7 @@ void info_set_init()
   _switch_command_buffer[0] = 0x02;
 }
 
-void info_handler(uint8_t info_code)
+void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
 {
   clear_report();
   set_report_id(0x81);
@@ -198,8 +206,17 @@ void info_handler(uint8_t info_code)
     _switch_command_buffer[0] = info_code;
     break;
   }
+  
+  switch(hoja_get_status().gamepad_method)
+  {
+    case GAMEPAD_METHOD_USB:
+      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+    break;
 
-  tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
+    case GAMEPAD_METHOD_BLUETOOTH:
+      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+    break;
+  }
 }
 
 void pairing_set(uint8_t phase, const uint8_t *host_address)
@@ -256,7 +273,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
 }
 
 // Handles a command, always 0x21 as a response ID
-void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
+void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   // Clear report
   clear_report();
@@ -418,18 +435,27 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len)
   }
   //printf("\n");
 
-  tud_hid_report(0x21, _switch_command_buffer, 64);
+  switch(hoja_get_status().gamepad_method)
+  {
+    case GAMEPAD_METHOD_USB:
+      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+    break;
+
+    case GAMEPAD_METHOD_BLUETOOTH:
+      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+    break;
+  }
 }
 
 // Handles an OUT report and responds accordingly.
-void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
+void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   switch (report_id)
   {
   // We have command data and possibly rumble
   case SW_OUT_ID_RUMBLE_CMD:
     switch_haptics_rumble_translate(&data[2]);
-    command_handler(data[10], data, len);
+    command_handler(data[10], data, len, cb);
     break;
 
   case SW_OUT_ID_RUMBLE:
@@ -437,7 +463,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len)
     break;
 
   case SW_OUT_ID_INFO:
-    info_handler(data[1]);
+    info_handler(data[1], cb);
     break;
 
   default:
@@ -462,11 +488,11 @@ uint8_t _unknown_thing()
 #define DEBUG_IMU_VAL 8
 
 // PUBLIC FUNCTIONS
-void switch_commands_process(sw_input_s *input_data)
+void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
 {
   if (_switch_in_command_got)
   {
-    report_handler(_switch_in_report_id, _switch_in_command_buffer, _switch_in_command_len);
+    report_handler(_switch_in_report_id, _switch_in_command_buffer, _switch_in_command_len, cb);
     _switch_in_command_got = false;
   }
   else
@@ -565,8 +591,16 @@ void switch_commands_process(sw_input_s *input_data)
       _switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
+      switch(hoja_get_status().gamepad_method)
+      {
+        case GAMEPAD_METHOD_USB:
+          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+        break;
 
-      tud_hid_report(_switch_command_report_id, _switch_command_buffer, 64);
+        case GAMEPAD_METHOD_BLUETOOTH:
+          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+        break;
+      }
     }
   }
 }

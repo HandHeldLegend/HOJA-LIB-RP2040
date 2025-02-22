@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "tusb.h"
+#include "utilities/callback.h"
 
 #define REPORT_ID_OPENGP 0x01
 
@@ -84,5 +85,5 @@ extern const tusb_desc_device_t opengp_device_descriptor;
 extern const uint8_t opengp_hid_report_descriptor[];
 extern const uint8_t opengp_configuration_descriptor[];
 
-void opengp_hid_report(uint32_t timestamp);
+void opengp_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
 #endif

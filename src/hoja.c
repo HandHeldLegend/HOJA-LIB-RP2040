@@ -195,7 +195,7 @@ void _hoja_task_1()
   static uint32_t c1_timestamp = 0;
 
   // Init settings hal
-  //flash_hal_init();
+  flash_hal_init();
 
   sys_hal_sleep_ms(500);
 
@@ -216,44 +216,93 @@ void _hoja_task_1()
     flash_hal_task();
 
     // Hooks tasks
-    //hooks_run_all_core1();
+    // hooks_run_all_core1();
   }
 }
 
 // Replace with proper boot function later TODO
-bool _gamepad_mode_init()
+bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 {
+  // If we have a battery driver
+  // we should perform a power check and some
+  // other logic
+  #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
+  if(method == GAMEPAD_METHOD_AUTO)
+  {
+    // Get plugged status
+    battery_plug_t plugged = battery_get_plug();
+    if(plugged == BATTERY_PLUG_UNPLUGGED)
+    {
+      switch(mode)
+      {
+        case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_XINPUT:
+          method = GAMEPAD_METHOD_BLUETOOTH;
+        break;
 
-  gamepad_mode_t    thisMode    = GAMEPAD_MODE_SWPRO;
-  gamepad_method_t  thisMethod  = GAMEPAD_METHOD_USB;
-  bool              thisPair    = false;
+        default:
+          method = GAMEPAD_METHOD_USB;
+        break;
+      }
+    }
+    else
+    {
+        method = GAMEPAD_METHOD_USB;
+    }
+  }
+  #else
+  if(method == GAMEPAD_METHOD_AUTO)
+  {
+    method = GAMEPAD_METHOD_USB;
+  }
+  #endif
 
-  boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
+  // Debug
+  // thisMethod = GAMEPAD_METHOD_BLUETOOTH;
 
-  _hoja_status.gamepad_mode   = thisMode;
-  _hoja_status.gamepad_method = thisMethod;
-  _hoja_status.gamepad_color = _gamepad_mode_color_get(thisMode);
+  switch(mode)
+  {
+    default:
+    case GAMEPAD_MODE_SWPRO:
+    case GAMEPAD_MODE_OPENGP:
+    case GAMEPAD_MODE_XINPUT:
+    case GAMEPAD_MODE_GCUSB:
+      battery_set_charge_rate(200);
+    break;
+    
+    case GAMEPAD_MODE_SNES:
+    case GAMEPAD_MODE_GAMECUBE:
+      battery_set_charge_rate(50);
+    break;
+
+    case GAMEPAD_MODE_N64:
+      battery_set_charge_rate(0);
+    break;
+  }
+
+  _hoja_status.gamepad_mode   = mode;
+  _hoja_status.gamepad_method = method;
+  _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
 
-  switch(thisMethod)
+  switch(method)
   {
     default:
     case GAMEPAD_METHOD_USB:
       _hoja_mode_task_cb = usb_mode_task;
-      usb_mode_start(thisMode);
+      usb_mode_start(mode);
     break;
 
     case GAMEPAD_METHOD_WIRED:
-      battery_set_plug(BATTERY_PLUG_OVERRIDE);
       _hoja_mode_task_cb = wired_mode_task;
-      wired_mode_start(thisMode);
+      wired_mode_start(mode);
     break;
 
     case GAMEPAD_METHOD_BLUETOOTH:
       _hoja_mode_task_cb = bluetooth_mode_task;
       _hoja_mode_stop_cb = bluetooth_mode_stop;
-      bluetooth_mode_start(thisMode, thisPair);
+      bluetooth_mode_start(mode, pair);
     break;
   }
 
@@ -288,10 +337,10 @@ bool _system_requirements_init()
   return true;
 }
 
-bool _system_devices_init()
+bool _system_devices_init(bool wired_override)
 {
   // Battery 
-  battery_init();
+  battery_init(wired_override);
 
   // Haptics
   haptics_init();
@@ -321,10 +370,16 @@ void hoja_init()
 {
   _system_requirements_init();
   _system_input_init();
-  _system_devices_init();
+
+  gamepad_mode_t    thisMode    = GAMEPAD_MODE_SWPRO;
+  gamepad_method_t  thisMethod  = GAMEPAD_METHOD_AUTO;
+  bool              thisPair    = false;
+  boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
+
+  _system_devices_init(thisMethod==GAMEPAD_METHOD_WIRED && thisMode==GAMEPAD_MODE_N64);
 
   // Init gamepad mode with the method
-  _gamepad_mode_init();
+  _gamepad_mode_init(thisMode, thisMethod, thisPair);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

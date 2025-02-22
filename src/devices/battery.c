@@ -7,6 +7,8 @@
     #include "drivers/battery/bq25180.h"
 #endif
 
+bool _wired_override = false;
+
 battery_status_s _battery_status = {
     .battery_status = BATTERY_STATUS_UNAVAILABLE,
     .charge_status  = BATTERY_CHARGE_UNAVAILABLE,
@@ -39,8 +41,11 @@ void _battery_event_handler(battery_event_t event)
 }
 
 // Init battery PMIC
-bool battery_init()
+bool battery_init(bool wired_override)
 {
+    _wired_override = wired_override;
+    if(wired_override) return true;
+
     #if defined(HOJA_BATTERY_INIT)
     if(HOJA_BATTERY_INIT())
     {
@@ -82,6 +87,8 @@ void battery_set_plug(battery_plug_t plug)
 // Get the PMIC plugged status.
 battery_plug_t battery_get_plug()
 {
+    if(_wired_override) return BATTERY_PLUG_UNAVAILABLE;
+
     #if defined(HOJA_BATTERY_GET_STATUS)
         return _battery_status.plug_status;
     #else
@@ -109,18 +116,18 @@ battery_status_t battery_get_battery()
     #endif
 }
 
-#define BATTERY_TASK_INTERVAL 500 * 1000 // 0.5 second (microseconds)
+#define BATTERY_TASK_INTERVAL 1000 * 1000 // 0.5 second (microseconds)
 // PMIC management task.
 void battery_task(uint32_t timestamp)
 {
     #if defined(HOJA_BATTERY_DRIVER)
+    if(_wired_override) return;
+
     static interval_s interval = {0};
 
     if(interval_run(timestamp, BATTERY_TASK_INTERVAL, &interval))
     {
         if(_battery_shutdown_lockout) return;
-
-        if(_battery_status.plug_status==BATTERY_PLUG_OVERRIDE) return;
 
         // Update status
         HOJA_BATTERY_UPDATE_STATUS();

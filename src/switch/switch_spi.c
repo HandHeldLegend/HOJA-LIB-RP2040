@@ -74,10 +74,10 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
 
                 // Host BT address (Big-endian)
                 case 0x2A ... 0x2F:
-                    return gamepad_config->switch_mac_address[address-0x2A];
+                    return 0;
                     break;
                 case 0x04 ... 0x09:
-                    return gamepad_config->switch_mac_address[address-0x04];
+                    return 0;
                     break;
 
                 // Bluetooth LTK (Little-endian) NOT IMPLEMENTED YET

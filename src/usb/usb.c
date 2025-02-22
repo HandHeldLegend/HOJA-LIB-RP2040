@@ -44,7 +44,7 @@ const char* global_string_descriptor[] = {
     "GC Mode" // 4 Identifier for GC Mode
 };
 
-time_callback_t _usb_task_cb = NULL;
+hid_task_tunnel_cb _usb_task_cb = NULL;
 
 uint32_t _usb_clear_owner_0;
 uint32_t _usb_clear_owner_0;
@@ -192,6 +192,11 @@ static inline bool _hoja_usb_ready()
   return _usb_ready_cb();
 }
 
+bool _usb_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
+{
+  tud_hid_report(report_id, report, len);
+}
+
 void usb_mode_task(uint32_t timestamp)
 {
   static interval_s usb_interval  = {0};
@@ -234,7 +239,7 @@ void usb_mode_task(uint32_t timestamp)
 
     _usb_unset_usb_clear();
 
-    _usb_task_cb(timestamp);
+    _usb_task_cb(timestamp, _usb_hid_tunnel);
   }
 }
 
@@ -372,7 +377,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
   default:
     break;
   case GAMEPAD_MODE_SWPRO:
-    if (!report_id && !report_type)
+    if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
       if (buffer[0] == SW_OUT_ID_RUMBLE)
       {
@@ -386,7 +391,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     break;
 
   case GAMEPAD_MODE_GCUSB:
-    if (!report_id && !report_type)
+    if (!report_id && HID_REPORT_TYPE_OUTPUT)
     {
       if (buffer[0] == 0x11)
       {
@@ -400,7 +405,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     break;
 
   case GAMEPAD_MODE_XINPUT:
-    if (!report_id && !report_type)
+    if (!report_id && HID_REPORT_TYPE_OUTPUT)
     {
       if ((buffer[0] == 0x00) && (buffer[1] == 0x08))
       {
@@ -420,7 +425,7 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
   {
   default:
   case GAMEPAD_MODE_SWPRO:
-    return swpro_hid_report_descriptor;
+    return swpro_hid_report_descriptor_usb;
     break;
 
   case GAMEPAD_MODE_GCUSB:
@@ -501,19 +506,19 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 // Vendor Device Class CB for receiving data
-void tud_vendor_rx_cb(uint8_t itf)
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
   sys_hal_tick();
 
-  uint8_t buffer[64];
+  uint8_t nuBuffer[64];
 
-  uint32_t size = tud_vendor_n_read(0, buffer, 64);
+  uint32_t size = tud_vendor_n_read(0, nuBuffer, 64);
   tud_vendor_n_read_flush(0);
 
   //if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
   {
     //printf("WebUSB Data Received.\n");
-    webusb_command_handler(buffer, size);
+    webusb_command_handler(nuBuffer, size);
   }
 }
 
