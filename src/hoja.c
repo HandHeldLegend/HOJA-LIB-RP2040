@@ -356,7 +356,7 @@ void hoja_init()
   bool              thisPair    = false;
   boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
 
-  _system_devices_init(thisMethod==GAMEPAD_METHOD_WIRED && thisMode==GAMEPAD_MODE_N64);
+  _system_devices_init(thisMethod==GAMEPAD_METHOD_WIRED);
 
   // Init gamepad mode with the method
   _gamepad_mode_init(thisMode, thisMethod, thisPair);

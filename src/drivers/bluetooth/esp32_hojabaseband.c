@@ -424,7 +424,7 @@ void esp32hoja_task(uint32_t timestamp)
     
     static bool read_write = true;
 
-    if(interval_run(timestamp, 2000, &interval))
+    if(interval_run(timestamp, 1000, &interval))
     {
         memset(data_out, 0x80, 24); // Reset buffer to 0x80 for blank
 
@@ -468,7 +468,7 @@ void esp32hoja_task(uint32_t timestamp)
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
 
-            int write = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 1000);
+            int write = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 32000);
             if (write == HOJA_I2C_MSG_SIZE_OUT)
             {
                 _bt_clear_out();
@@ -477,7 +477,7 @@ void esp32hoja_task(uint32_t timestamp)
         }  
         else
         {
-            int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 1000);
+            int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 32000);
             
             if (read == HOJA_I2C_MSG_SIZE_IN)
             {

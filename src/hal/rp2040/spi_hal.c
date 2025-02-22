@@ -40,7 +40,7 @@ bool spi_hal_init(uint8_t instance, uint32_t clock, uint32_t mosi, uint32_t miso
 {
     if(instance>=SPI_HAL_MAX_INSTANCES) return false;
 
-    spi_init(_spi_instances[instance], 3000 * 1000);
+    spi_init(_spi_instances[instance], 4000 * 1000);
     gpio_set_function(clock,    GPIO_FUNC_SPI);
     gpio_set_function(mosi,     GPIO_FUNC_SPI);
     gpio_set_function(miso,     GPIO_FUNC_SPI);

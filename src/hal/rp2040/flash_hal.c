@@ -17,7 +17,7 @@
 #else 
 // Calculate the last available sectors
 #define LAST_FLASH_SECTOR (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
-#define FLASH_START_OFFSET (LAST_FLASH_SECTOR)
+#define FLASH_START_OFFSET (1200 * 1024) // LEGACY
 #endif 
 
 volatile bool _flash_go = false;

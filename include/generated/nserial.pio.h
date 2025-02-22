@@ -22,18 +22,18 @@
 
 static const uint16_t nserial_program_instructions[] = {
             //     .wrap_target
-    0x80a0, //  0: pull   block                      
-    0x6001, //  1: out    pins, 1                    
-    0x2020, //  2: wait   0 pin, 0                   
-    0x20a0, //  3: wait   1 pin, 0                   
-    0x6001, //  4: out    pins, 1                    
-    0x0002, //  5: jmp    2                          
-    0xa0e3, //  6: mov    osr, null                  
-    0x0000, //  7: jmp    0                          
-    0x2020, //  8: wait   0 pin, 0                   
-    0x20a0, //  9: wait   1 pin, 0                   
-    0xc000, // 10: irq    nowait 0                   
-    0x0008, // 11: jmp    8                          
+    0x80a0, //  0: pull   block
+    0x6001, //  1: out    pins, 1
+    0x2020, //  2: wait   0 pin, 0
+    0x20a0, //  3: wait   1 pin, 0
+    0x6001, //  4: out    pins, 1
+    0x0002, //  5: jmp    2
+    0xa0e3, //  6: mov    osr, null
+    0x0000, //  7: jmp    0
+    0x2020, //  8: wait   0 pin, 0
+    0x20a0, //  9: wait   1 pin, 0
+    0xc000, // 10: irq    nowait 0
+    0x0008, // 11: jmp    8
             //     .wrap
 };
 
