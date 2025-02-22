@@ -260,26 +260,6 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   // Debug
   // thisMethod = GAMEPAD_METHOD_BLUETOOTH;
 
-  switch(mode)
-  {
-    default:
-    case GAMEPAD_MODE_SWPRO:
-    case GAMEPAD_MODE_OPENGP:
-    case GAMEPAD_MODE_XINPUT:
-    case GAMEPAD_MODE_GCUSB:
-      battery_set_charge_rate(200);
-    break;
-    
-    case GAMEPAD_MODE_SNES:
-    case GAMEPAD_MODE_GAMECUBE:
-      battery_set_charge_rate(50);
-    break;
-
-    case GAMEPAD_MODE_N64:
-      battery_set_charge_rate(0);
-    break;
-  }
-
   _hoja_status.gamepad_mode   = mode;
   _hoja_status.gamepad_method = method;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
