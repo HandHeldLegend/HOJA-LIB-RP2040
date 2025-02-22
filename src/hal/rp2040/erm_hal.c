@@ -52,7 +52,7 @@ uint32_t _pwm_fall_amt_per_tick = 0;
 
 #define ERM_STEPS 1000
 
-#define ERM_RISE_TIME_MS 96
+#define ERM_RISE_TIME_MS 32
 #define ERM_FALL_TIME_MS 128
 
 void erm_hal_stop()
