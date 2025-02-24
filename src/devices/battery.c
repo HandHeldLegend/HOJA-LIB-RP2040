@@ -1,5 +1,6 @@
 #include "devices/battery.h"
 #include "utilities/interval.h"
+#include "utilities/settings.h"
 #include "hoja.h"
 #include "board_config.h"
 
@@ -16,6 +17,20 @@ battery_status_s _battery_status = {
     };
 
 battery_status_s _new_battery_status = {0};
+
+#define BATTERY_LEVEL_INTERVAL_US 5000*1000 // 5 seconds
+#define INTERVALS_PER_HOUR (3600 / (BATTERY_LEVEL_INTERVAL_US / 1000000))
+#define DANGER_BATTERY_VOLTAGE 3.25f
+
+typedef struct 
+{
+    float charge_level_ma;
+    uint32_t charge_rate_ma;
+    float charge_rate_per_interval;
+    float discharge_rate_per_interval;
+} charge_status_s;
+
+charge_status_s _charge_status = {0};
 
 bool _battery_shutdown_lockout = false;
 
@@ -37,14 +52,81 @@ void _battery_event_handler(battery_event_t event)
 
         case BATTERY_EVENT_CHARGE_START:
         break;
+
+        case BATTERY_EVENT_BATTERY_DEAD:
+        break;
     }
 }
 
-// Init battery PMIC
-bool battery_init(bool wired_override)
+int _battery_update_charge()
+{
+    uint16_t raw_voltage = HOJA_BATTERY_GET_VOLTAGE();
+    // Convert to a voltage value (we use a voltage divider on this pin)
+    float voltage = ((float)raw_voltage * 3.3f / 4095.0f) * 2.0f;
+
+    if(voltage <= DANGER_BATTERY_VOLTAGE)
+    {
+        _battery_event_handler(BATTERY_EVENT_BATTERY_DEAD);
+        hoja_set_notification_status(COLOR_RED);
+        return -1;
+    }
+
+    switch(_battery_status.charge_status)
+    {
+        case BATTERY_CHARGE_CHARGING:
+            _charge_status.charge_level_ma += _charge_status.charge_rate_per_interval;
+            if(_charge_status.charge_level_ma >= HOJA_BATTERY_CAPACITY_MAH)
+            {
+                _charge_status.charge_level_ma = HOJA_BATTERY_CAPACITY_MAH;
+            }
+        break;
+
+        case BATTERY_CHARGE_DISCHARGING:
+            _charge_status.charge_level_ma -= _charge_status.discharge_rate_per_interval;
+            if(_charge_status.charge_level_ma <= 0)
+            {
+                _charge_status.charge_level_ma = 0;
+            }
+        break;
+
+        case BATTERY_CHARGE_DONE:
+            _charge_status.charge_level_ma = HOJA_BATTERY_CAPACITY_MAH;
+        break;
+
+        case BATTERY_CHARGE_IDLE:
+        default:
+        break;
+
+        case BATTERY_CHARGE_UNAVAILABLE:
+            return -2;
+        break;
+    } 
+
+    // Convert and update our status 
+    _battery_status.charge_percent = (battery_status_t)((_charge_status.charge_level_ma / HOJA_BATTERY_CAPACITY_MAH) * 100.0f);
+
+    return 0;
+}
+
+// Init battery PMIC, returns battery_init_t status
+int battery_init(bool wired_override)
 {
     _wired_override = wired_override;
-    if(wired_override) return true;
+    if(wired_override) return BATTERY_INIT_WIRED_OVERRIDE;
+
+    if(battery_config->battery_config_version != CFG_BLOCK_BATTERY_VERSION)
+    {
+        battery_config->battery_config_version = CFG_BLOCK_BATTERY_VERSION;
+        battery_config->charge_level_percent = 100.0f;
+    }
+
+    // Set battery percent status from loaded config value
+    _charge_status.charge_level_ma = (float)HOJA_BATTERY_CAPACITY_MAH * (battery_config->charge_level_percent / 100.0f);
+
+    #if defined(HOJA_BATTERY_CONSUME_RATE)
+    // Calculate discharge rate (HOJA_BATTERY_CONSUME_RATE is how much the device consumes in mA in an hour)
+    _charge_status.discharge_rate_per_interval = (float)HOJA_BATTERY_CONSUME_RATE / INTERVALS_PER_HOUR;
+    #endif
 
     #if defined(HOJA_BATTERY_INIT)
     if(HOJA_BATTERY_INIT())
@@ -52,17 +134,21 @@ bool battery_init(bool wired_override)
         // Set initial status
         _battery_status.val = HOJA_BATTERY_GET_STATUS();
         _new_battery_status.val = _battery_status.val;
-        return true;
+
+        if(_battery_update_charge() == -1) return BATTERY_INIT_LOW_VOLTAGE;
+
+        return BATTERY_INIT_OK;
     }
     #endif 
-    return false;
+
+    return BATTERY_INIT_NOT_SUPPORTED;
 }
 
 // Get current battery level. Returns -1 if unsupported.
 int battery_get_level()
 {
-    #if defined(HOJA_BATTERY_GET_LEVEL)
-    return HOJA_BATTERY_GET_LEVEL();
+    #if defined(HOJA_BATTERY_GET_VOLTAGE)
+
     #else 
     return -1;
     #endif 
@@ -116,6 +202,11 @@ battery_status_t battery_get_battery()
     #endif
 }
 
+battery_status_s battery_get_status()
+{
+    return _battery_status;
+}
+
 #define BATTERY_TASK_INTERVAL 1000 * 1000 // 0.5 second (microseconds)
 // PMIC management task.
 void battery_task(uint32_t timestamp)
@@ -124,6 +215,7 @@ void battery_task(uint32_t timestamp)
     if(_wired_override) return;
 
     static interval_s interval = {0};
+    static interval_s voltage_interval = {0};
 
     if(interval_run(timestamp, BATTERY_TASK_INTERVAL, &interval))
     {
@@ -184,6 +276,13 @@ void battery_task(uint32_t timestamp)
         // Update battery status to new status
         _battery_status.val = _new_battery_status.val;
     }
+
+    #if defined(HOJA_BATTERY_GET_VOLTAGE)
+    if(interval_run(timestamp, BATTERY_LEVEL_INTERVAL_US, &voltage_interval))
+    {
+        _battery_update_charge();
+    }
+    #endif
     
     #endif 
 }
@@ -192,6 +291,11 @@ void battery_task(uint32_t timestamp)
 bool battery_set_charge_rate(uint16_t rate_ma)
 {
     #if defined(HOJA_BATTERY_SET_CHARGE_RATE)
+    _charge_status.charge_rate_ma = rate_ma;
+
+    // Calculate charge rate per interval
+    _charge_status.charge_rate_per_interval = (float)rate_ma / INTERVALS_PER_HOUR;
+
     return HOJA_BATTERY_SET_CHARGE_RATE(rate_ma);
     #else 
     return false;

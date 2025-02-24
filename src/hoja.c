@@ -229,9 +229,9 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
   if(method == GAMEPAD_METHOD_AUTO)
   {
-    // Get plugged status
-    battery_plug_t plugged = battery_get_plug();
-    if(plugged == BATTERY_PLUG_UNPLUGGED)
+    battery_status_s stat = battery_get_status();
+
+    if(stat.plug_status == BATTERY_PLUG_UNPLUGGED)
     {
       switch(mode)
       {
@@ -257,8 +257,8 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   }
   #endif
 
-  // Debug
-  // thisMethod = GAMEPAD_METHOD_BLUETOOTH;
+  //debug 
+  //method = GAMEPAD_METHOD_BLUETOOTH;
 
   _hoja_status.gamepad_mode   = mode;
   _hoja_status.gamepad_method = method;
@@ -320,7 +320,7 @@ bool _system_requirements_init()
 bool _system_devices_init(bool wired_override)
 {
   // Battery 
-  battery_init(wired_override);
+  int bat_return = battery_init(wired_override);
 
   // Haptics
   haptics_init();

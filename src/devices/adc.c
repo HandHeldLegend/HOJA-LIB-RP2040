@@ -34,15 +34,15 @@
     #define HOJA_ADC_RT_CFG BLANK_ADC_CFG
 #endif 
 
-#if !defined(HOJA_ADC_BAT_CFG)
-    #define HOJA_ADC_BAT_CFG BLANK_ADC_CFG
+#if !defined(HOJA_BATTERY_ADC_CFG)
+    #define HOJA_BATTERY_ADC_CFG BLANK_ADC_CFG
 #endif 
 
 adc_channel_cfg_s _chan_cfgs[ADC_CH_MAX] = {
     HOJA_ADC_LX_CFG, HOJA_ADC_LY_CFG, 
     HOJA_ADC_RX_CFG, HOJA_ADC_RY_CFG,
     HOJA_ADC_LT_CFG, HOJA_ADC_RT_CFG,
-    HOJA_ADC_BAT_CFG
+    HOJA_BATTERY_ADC_CFG
     };
 
 adc_read_fn_t _chan_read_fns[ADC_CH_MAX] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -139,5 +139,5 @@ uint16_t adc_read_rt()
 uint16_t adc_read_battery()
 {
     int v = _read_adc_instance(6);
-    return (v > -1) ? v : 0;
+    return (v > -1) ? v : 0xFFF;
 }

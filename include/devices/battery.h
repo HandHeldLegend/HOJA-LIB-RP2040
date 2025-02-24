@@ -14,6 +14,14 @@
     //#endif
 #endif
 
+typedef enum 
+{
+    BATTERY_INIT_OK,
+    BATTERY_INIT_NOT_SUPPORTED,
+    BATTERY_INIT_LOW_VOLTAGE,
+    BATTERY_INIT_WIRED_OVERRIDE
+} battery_init_t;
+
 typedef enum
 {
     BATTERY_CHARGE_UNAVAILABLE = -1,
@@ -46,7 +54,7 @@ typedef struct
             int8_t plug_status;
             int8_t charge_status;
             int8_t battery_status;
-            int8_t reserved;
+            int8_t charge_percent; // 0-100
         };
         uint32_t val;
     }; 
@@ -69,10 +77,11 @@ typedef enum
     BATTERY_EVENT_CHARGE_COMPLETE,
 } battery_event_t;
 
-bool                battery_init(bool wired_override); 
+int                 battery_init(bool wired_override); 
 int                 battery_get_level(); 
 bool                battery_set_source(battery_source_t source); 
 void battery_set_plug(battery_plug_t plug);
+battery_status_s    battery_get_status();
 battery_plug_t      battery_get_plug();   
 battery_charge_t    battery_get_charge();  
 battery_status_t    battery_get_battery(); 

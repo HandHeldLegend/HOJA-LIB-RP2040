@@ -96,6 +96,7 @@ extern triggerConfig_s     *trigger_config;
 extern imuConfig_s         *imu_config;
 extern hapticConfig_s      *haptic_config;
 extern userConfig_s        *user_config;
+extern batteryConfig_s     *battery_config;
 
 void settings_init();
 void settings_commit_blocks(setting_callback_t cb);
