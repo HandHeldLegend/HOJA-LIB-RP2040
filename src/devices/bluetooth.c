@@ -4,6 +4,8 @@
 #include "devices/haptics.h"
 #include "devices/battery.h"
 
+#include "hal/sys_hal.h"
+
 #include "devices_shared_types.h"
 #include "hoja.h"
 

@@ -270,16 +270,19 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   {
     default:
     case GAMEPAD_METHOD_USB:
+      battery_set_charge_rate(225);
       _hoja_mode_task_cb = usb_mode_task;
       usb_mode_start(mode);
     break;
 
     case GAMEPAD_METHOD_WIRED:
+      battery_set_charge_rate(50);
       _hoja_mode_task_cb = wired_mode_task;
       wired_mode_start(mode);
     break;
 
     case GAMEPAD_METHOD_BLUETOOTH:
+      battery_set_charge_rate(250);
       _hoja_mode_task_cb = bluetooth_mode_task;
       _hoja_mode_stop_cb = bluetooth_mode_stop;
       bluetooth_mode_start(mode, pair);

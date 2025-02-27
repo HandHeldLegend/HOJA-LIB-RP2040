@@ -20,7 +20,12 @@ battery_status_s _new_battery_status = {0};
 
 #define BATTERY_LEVEL_INTERVAL_US 5000*1000 // 5 seconds
 #define INTERVALS_PER_HOUR (3600 / (BATTERY_LEVEL_INTERVAL_US / 1000000))
-#define DANGER_BATTERY_VOLTAGE 3.25f
+
+// When I measure past the divider, it's 2v when the system is powered on
+// The battery voltage is 4.2v when I measure this. The ratio is 
+
+#define VOLTAGE_MEASURE_OFFSET 0.125f
+#define DANGER_BATTERY_VOLTAGE 3.55f // 3.5v is the minimum voltage for the battery to be considered "alive"
 
 typedef struct 
 {
@@ -48,6 +53,7 @@ void _battery_event_handler(battery_event_t event)
         break;
 
         case BATTERY_EVENT_CHARGE_COMPLETE:
+
         break;
 
         case BATTERY_EVENT_CHARGE_START:
@@ -60,9 +66,11 @@ void _battery_event_handler(battery_event_t event)
 
 int _battery_update_charge()
 {
+    #if defined(HOJA_BATTERY_GET_VOLTAGE)
+
     uint16_t raw_voltage = HOJA_BATTERY_GET_VOLTAGE();
     // Convert to a voltage value (we use a voltage divider on this pin)
-    float voltage = ((float)raw_voltage * 3.3f / 4095.0f) * 2.0f;
+    float voltage = ( ( ((float)raw_voltage / 4095.0f) *  3.3f ) * 2.0f ) + VOLTAGE_MEASURE_OFFSET;
 
     if(voltage <= DANGER_BATTERY_VOLTAGE)
     {
@@ -104,7 +112,10 @@ int _battery_update_charge()
 
     // Convert and update our status 
     _battery_status.charge_percent = (battery_status_t)((_charge_status.charge_level_ma / HOJA_BATTERY_CAPACITY_MAH) * 100.0f);
-
+    _battery_status.charge_percent = (_battery_status.charge_percent < 5.1f) ? 5.1f : _battery_status.charge_percent;
+    #else 
+    _battery_status.charge_percent = 100;
+    #endif
     return 0;
 }
 
@@ -306,6 +317,9 @@ bool battery_set_charge_rate(uint16_t rate_ma)
 void battery_set_ship_mode()
 {
     #if defined(HOJA_BATTERY_SET_SHIP_MODE)
+    // Save battery charge percent 
+    battery_config->charge_level_percent = _battery_status.charge_percent;
+    settings_commit_blocks();
     HOJA_BATTERY_SET_SHIP_MODE();
     #endif
     return;
