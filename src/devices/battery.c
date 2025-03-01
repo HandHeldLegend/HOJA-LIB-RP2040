@@ -25,7 +25,7 @@ battery_status_s _new_battery_status = {0};
 // The battery voltage is 4.2v when I measure this. The ratio is 
 
 #define VOLTAGE_MEASURE_OFFSET 0.125f
-#define DANGER_BATTERY_VOLTAGE 3.55f // 3.5v is the minimum voltage for the battery to be considered "alive"
+#define DANGER_BATTERY_VOLTAGE 3.575f // 3.5v is the minimum voltage for the battery to be considered "alive"
 
 typedef struct 
 {
@@ -74,9 +74,11 @@ int _battery_update_charge()
 
     if(voltage <= DANGER_BATTERY_VOLTAGE)
     {
-        _battery_event_handler(BATTERY_EVENT_BATTERY_DEAD);
-        hoja_set_notification_status(COLOR_RED);
-        return -1;
+        if(_battery_status.plug_status == BATTERY_PLUG_UNPLUGGED)
+        {
+            _battery_event_handler(BATTERY_EVENT_BATTERY_DEAD);
+            return -1;
+        }
     }
 
     switch(_battery_status.charge_status)
@@ -131,8 +133,10 @@ int battery_init(bool wired_override)
         battery_config->charge_level_percent = 100.0f;
     }
 
+    #if defined(HOJA_BATTERY_CAPACITY_MAH)
     // Set battery percent status from loaded config value
     _charge_status.charge_level_ma = (float)HOJA_BATTERY_CAPACITY_MAH * (battery_config->charge_level_percent / 100.0f);
+    #endif
 
     #if defined(HOJA_BATTERY_CONSUME_RATE)
     // Calculate discharge rate (HOJA_BATTERY_CONSUME_RATE is how much the device consumes in mA in an hour)
@@ -146,12 +150,12 @@ int battery_init(bool wired_override)
         _battery_status.val = HOJA_BATTERY_GET_STATUS();
         _new_battery_status.val = _battery_status.val;
 
-        if(_battery_update_charge() == -1) return BATTERY_INIT_LOW_VOLTAGE;
+        _battery_update_charge();
 
         return BATTERY_INIT_OK;
     }
     #endif 
-
+    
     return BATTERY_INIT_NOT_SUPPORTED;
 }
 
@@ -219,6 +223,11 @@ battery_status_s battery_get_status()
 }
 
 #define BATTERY_TASK_INTERVAL 1000 * 1000 // 0.5 second (microseconds)
+
+bool _lowbat_timeout_shutdown = false;
+#define LOWBAT_TIMEOUT_US 5000 * 1000
+
+
 // PMIC management task.
 void battery_task(uint32_t timestamp)
 {
@@ -227,6 +236,7 @@ void battery_task(uint32_t timestamp)
 
     static interval_s interval = {0};
     static interval_s voltage_interval = {0};
+    static int _shutdown_reset = 0;
 
     if(interval_run(timestamp, BATTERY_TASK_INTERVAL, &interval))
     {
@@ -292,6 +302,24 @@ void battery_task(uint32_t timestamp)
     if(interval_run(timestamp, BATTERY_LEVEL_INTERVAL_US, &voltage_interval))
     {
         _battery_update_charge();
+
+        if(_battery_status.charge_percent < 5)
+        {
+            _lowbat_timeout_shutdown = true;
+            hoja_set_notification_status(COLOR_RED);
+            if(!_shutdown_reset)
+                _shutdown_reset = 1;
+        }
+    }
+
+    if(_lowbat_timeout_shutdown)
+    {
+        static interval_s lowbat_interval = {0};
+        if(interval_resettable_run(timestamp, LOWBAT_TIMEOUT_US, (_shutdown_reset==1), &lowbat_interval))
+        {
+            hoja_deinit(hoja_shutdown);
+        }
+        _shutdown_reset = 2;
     }
     #endif
     

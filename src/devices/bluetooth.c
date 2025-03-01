@@ -18,8 +18,7 @@
     #warning "HAL BT IN USE"
 #endif
 
-bool _lowbat_timeout_shutdown = false;
-#define LOWBAT_TIMEOUT_US 5000 * 1000
+
 
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
 {
@@ -38,9 +37,7 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
 
     if(bat_stat.charge_percent < 5)
     {
-        _lowbat_timeout_shutdown = true;
-        hoja_set_notification_status(COLOR_RED);
-        return true;
+        return false;
     }
 
     // All other bluetooth modes init normally
@@ -63,20 +60,9 @@ void bluetooth_mode_stop()
 
 void bluetooth_mode_task(uint32_t timestamp)
 {
-    if(_lowbat_timeout_shutdown)
-    {
-        static interval_s lowbat_interval = {0};
-        if(interval_run(timestamp, LOWBAT_TIMEOUT_US, &lowbat_interval))
-        {
-            hoja_deinit(hoja_shutdown);
-        }
-    }
-    else 
-    {
-        #if defined(HOJA_BLUETOOTH_TASK)
-        HOJA_BLUETOOTH_TASK(timestamp);
-        #endif
-    }
+    #if defined(HOJA_BLUETOOTH_TASK)
+    HOJA_BLUETOOTH_TASK(timestamp);
+    #endif
 }   
 
 // Pass this as our callback handler
