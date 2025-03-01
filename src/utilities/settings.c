@@ -85,7 +85,8 @@ void settings_init()
 
 MUTEX_HAL_INIT(_settings_mutex);
 
-void _settings_commit_blocks()
+
+void settings_commit_blocks()
 {
     // Check which core we're on
     // Get mutex
@@ -111,7 +112,7 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
         break;
 
         case GAMEPAD_CMD_SAVE_ALL:
-            _settings_commit_blocks();
+            settings_commit_blocks();
             cb(CFG_BLOCK_GAMEPAD, command, true, NULL, 0);
             
         break;

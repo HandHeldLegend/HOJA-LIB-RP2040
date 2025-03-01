@@ -26,7 +26,7 @@ typedef enum
 #define CFG_BLOCK_IMU_VERSION       0x11
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
-#define CFG_BLOCK_BATTERY_VERSION   0x11
+#define CFG_BLOCK_BATTERY_VERSION   0x12
 
 typedef enum 
 {

@@ -293,10 +293,15 @@ void swpro_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
     data.t_zl = buttons.trigger_zl;
     data.t_zr = buttons.trigger_zr;
 
-    data.ls_x = (uint16_t) (analog.lx+2048);
+    data.ls_x = (uint16_t) (analog.lx+2048); 
     data.ls_y = (uint16_t) (analog.ly+2048);
     data.rs_x = (uint16_t) (analog.rx+2048);
     data.rs_y = (uint16_t) (analog.ry+2048);
+
+    data.ls_x = (data.ls_x > 4095) ? 4095 : data.ls_x;
+    data.ls_y = (data.ls_y > 4095) ? 4095 : data.ls_y;
+    data.rs_x = (data.rs_x > 4095) ? 4095 : data.rs_x;
+    data.rs_y = (data.rs_y > 4095) ? 4095 : data.rs_y;
 
     switch_commands_process(&data, cb);
 }

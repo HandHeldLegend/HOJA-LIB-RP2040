@@ -101,5 +101,5 @@ bool adc_hal_init_channel(adc_channel_cfg_s *cfg)
 
     // Initialize GPIO for HAL ADC
     uint32_t gpio = cfg->ch_local + 26;
-    return _adc_hal_init(gpio);
+    return  _adc_hal_init(gpio);
 }

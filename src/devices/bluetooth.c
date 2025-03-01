@@ -2,6 +2,9 @@
 #include "hoja_shared_types.h"
 #include "devices/rgb.h"
 #include "devices/haptics.h"
+#include "devices/battery.h"
+
+#include "hal/sys_hal.h"
 
 #include "devices_shared_types.h"
 #include "hoja.h"
@@ -15,6 +18,8 @@
     #warning "HAL BT IN USE"
 #endif
 
+
+
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
 {
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
@@ -26,6 +31,13 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
         hoja_set_notification_status(COLOR_ORANGE);
         return true;
         #endif
+    }
+
+    battery_status_s bat_stat = battery_get_status();
+
+    if(bat_stat.charge_percent < 5)
+    {
+        return false;
     }
 
     // All other bluetooth modes init normally
@@ -43,6 +55,8 @@ void bluetooth_mode_stop()
     HOJA_BLUETOOTH_STOP();
     #endif
 }
+
+
 
 void bluetooth_mode_task(uint32_t timestamp)
 {
