@@ -459,7 +459,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_re
     break;
 
   case SW_OUT_ID_RUMBLE:
-    switch_haptics_rumble_translate(&data[2]);
+    // switch_haptics_rumble_translate(&data[2]);
     break;
 
   case SW_OUT_ID_INFO:
@@ -588,7 +588,8 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
       _switch_command_buffer[8] = (input_data->rs_x & 0xFF);
       _switch_command_buffer[9] = (input_data->rs_x & 0xF00) >> 8;
       _switch_command_buffer[10] = (input_data->rs_y & 0xFF0) >> 4;
-      _switch_command_buffer[11] = _unknown_thing();
+      
+      //_switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
       switch(hoja_get_status().gamepad_method)

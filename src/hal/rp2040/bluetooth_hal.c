@@ -169,10 +169,11 @@ static void _bt_hid_report_handler(uint16_t cid,
 
             if (report_id == SW_OUT_ID_RUMBLE)
             {
-                switch_haptics_rumble_translate(&report[2]);
+                switch_haptics_rumble_translate(&report[1]);
             }
             else if (report_id == SW_OUT_ID_RUMBLE_CMD)
             {
+                //switch_haptics_rumble_translate(&report[1]);
                 memcpy(&tmp[1], report, report_size);
                 switch_commands_future_handle(report_id, tmp, report_size + 1);
             }
@@ -317,7 +318,7 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     hci_set_bd_addr(gamepad_config->switch_mac_address);
 
     gap_discoverable_control(1);
-    //btstack_run_loop_execute();
+    // btstack_run_loop_execute();
 
     return true;
 }
@@ -328,7 +329,7 @@ void bluetooth_hal_stop()
 
 void bluetooth_hal_task(uint32_t timestamp)
 {
-    //sleep_ms(4);
+    //sleep_ms(2);
 }
 
 uint32_t bluetooth_hal_get_fwversion()

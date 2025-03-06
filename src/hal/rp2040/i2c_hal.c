@@ -149,7 +149,7 @@ static int _oldi2c_write_blocking_internal(i2c_inst_t *i2c, uint8_t addr, const 
 }
 
 static int _oldi2c_read_blocking_internal(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop,
-                                      check_timeout_fn timeout_check, timeout_state_t *ts)
+                                          check_timeout_fn timeout_check, timeout_state_t *ts)
 {
   i2c->hw->enable = 0;
   i2c->hw->tar = addr;
@@ -164,6 +164,11 @@ static int _oldi2c_read_blocking_internal(i2c_inst_t *i2c, uint8_t addr, uint8_t
   {
     bool first = byte_ctr == 0;
     bool last = byte_ctr == ilen - 1;
+    if (timeout_check)
+    {
+      timeout_check(ts, true); // for per iteration checks, this will reset the timeout
+    }
+
     while (!i2c_get_write_available(i2c))
       tight_loop_contents();
 
@@ -175,7 +180,16 @@ static int _oldi2c_read_blocking_internal(i2c_inst_t *i2c, uint8_t addr, uint8_t
     do
     {
       abort_reason = i2c->hw->tx_abrt_source;
-      abort = (bool)i2c->hw->clr_tx_abrt;
+      
+      if (i2c->hw->raw_intr_stat & I2C_IC_RAW_INTR_STAT_TX_ABRT_BITS)
+      {
+        abort = true;
+        i2c->hw->clr_tx_abrt;
+      }
+
+      // Adding this one line seems to fix our issue :|
+      abort = (bool) i2c->hw->clr_tx_abrt;
+
       if (timeout_check)
       {
         timeout = timeout_check(ts, false);
@@ -203,7 +217,7 @@ static int _oldi2c_read_blocking_internal(i2c_inst_t *i2c, uint8_t addr, uint8_t
     }
     else
     {
-      //            panic("Unknown abort from I2C instance @%08x: %08x\n", (uint32_t) i2c->hw, abort_reason);
+      // panic("Unknown abort from I2C instance @%08x: %08x\n", (uint32_t) i2c->hw, abort_reason);
       rval = PICO_ERROR_GENERIC;
     }
   }
@@ -216,23 +230,27 @@ static int _oldi2c_read_blocking_internal(i2c_inst_t *i2c, uint8_t addr, uint8_t
   return rval;
 }
 
-int _oldi2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop, absolute_time_t until) {
+int _oldi2c_read_blocking_until(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop, absolute_time_t until)
+{
   timeout_state_t ts;
   return _oldi2c_read_blocking_internal(i2c, addr, dst, len, nostop, init_single_timeout_until(&ts, until), &ts);
 }
 
-static inline int _oldi2c_read_timeout_us(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop, uint timeout_us) {
+static inline int _oldi2c_read_timeout_us(i2c_inst_t *i2c, uint8_t addr, uint8_t *dst, size_t len, bool nostop, uint timeout_us)
+{
   absolute_time_t t = make_timeout_time_us(timeout_us);
   return _oldi2c_read_blocking_until(i2c, addr, dst, len, nostop, t);
 }
 
 int _oldi2c_write_blocking_until(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, bool nostop,
-  absolute_time_t until) {
-timeout_state_t ts;
-return _oldi2c_write_blocking_internal(i2c, addr, src, len, nostop, init_single_timeout_until(&ts, until), &ts);
+                                 absolute_time_t until)
+{
+  timeout_state_t ts;
+  return _oldi2c_write_blocking_internal(i2c, addr, src, len, nostop, init_single_timeout_until(&ts, until), &ts);
 }
 
-static inline int _oldi2c_write_timeout_us(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, bool nostop, uint timeout_us) {
+static inline int _oldi2c_write_timeout_us(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, bool nostop, uint timeout_us)
+{
   absolute_time_t t = make_timeout_time_us(timeout_us);
   return _oldi2c_write_blocking_until(i2c, addr, src, len, nostop, t);
 }
@@ -273,7 +291,8 @@ int i2c_hal_write_timeout_us(uint8_t instance, uint8_t addr, const uint8_t *src,
   int ret = 0;
 
   _i2c_safe_enter_blocking();
-  ret = _oldi2c_write_timeout_us(_i2c_instances[instance], addr, src, len, nostop, timeout_us);
+  ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, len, nostop, timeout_us);
+  // ret = _oldi2c_write_timeout_us(_i2c_instances[instance], addr, src, len, nostop, timeout_us);
   _i2c_safe_exit();
 
   return ret;
@@ -287,6 +306,7 @@ int i2c_hal_read_timeout_us(uint8_t instance, uint8_t addr, uint8_t *dst, size_t
 
   _i2c_safe_enter_blocking();
   ret = _oldi2c_read_timeout_us(_i2c_instances[instance], addr, dst, len, nostop, timeout_us);
+  // ret = i2c_read_timeout_us(_i2c_instances[instance], addr, dst, len, nostop, timeout_us);
   _i2c_safe_exit();
 
   return ret;
