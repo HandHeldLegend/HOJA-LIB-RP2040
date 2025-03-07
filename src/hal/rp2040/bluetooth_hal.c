@@ -368,7 +368,7 @@ void bluetooth_hal_stop()
 
 void bluetooth_hal_task(uint32_t timestamp)
 {
-    //sleep_ms(2);
+    sleep_ms(2);
 }
 
 uint32_t bluetooth_hal_get_fwversion()
