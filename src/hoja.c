@@ -193,7 +193,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 #endif
 
   // debug
-  //method = GAMEPAD_METHOD_BLUETOOTH;
+  // method = GAMEPAD_METHOD_BLUETOOTH;
 
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_method = method;
@@ -280,7 +280,7 @@ void _hoja_task_0()
   // We can lock core 0 for writing to flash
   flash_hal_init();
 
-  for(;;)
+  for (;;)
   {
     c0_timestamp = sys_hal_time_us();
 

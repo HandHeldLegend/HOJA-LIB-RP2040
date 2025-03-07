@@ -71,7 +71,8 @@
     typedef uint16_t(*adc_read_fn_t)(adc_channel_cfg_s *cfg);
     
     // IMU Drivers
-    #define IMU_DRIVER_LSM6DSR 1
+    #define IMU_DRIVER_LSM6DSR_SPI 1
+    #define IMU_DRIVER_LSM6DSR_I2C 2
 
     // Haptic helper Drivers 
     #define HAPTIC_HELPER_DRIVER_DRV2605L 1
