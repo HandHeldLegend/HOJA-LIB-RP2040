@@ -12,6 +12,7 @@
 #include "btstack.h"
 #include "btstack_run_loop.h"
 #include "btstack_event.h"
+#include "btstack_tlv.h"
 
 #include <string.h>
 
@@ -134,9 +135,22 @@ static const char service_name[] = "Wireless Gamepad";
 static uint8_t hid_service_buffer[700]      = {0};
 static uint8_t pnp_service_buffer[700]      = {0};
 static btstack_packet_callback_registration_t hci_event_callback_registration;
-static int hid_cid = 0;
+static uint16_t hid_cid = 0;
 
 volatile bool _hid_can_send = false;
+
+// Compare addresses and return true if they are the same
+bool _comapre_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
+{
+    for (int i = 0; i < 6; i++)
+    {
+        if (addr1[i] != addr2[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 bool _bluetooth_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
 {
@@ -208,11 +222,24 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 {
                     // outgoing connection failed
                     printf("Connection failed, status 0x%x\n", status);
+                    gap_discoverable_control(1);
                     _connected = false;
                     hid_cid = 0;
                     return;
                 }
+
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
+                bd_addr_t addr; 
+                hid_subevent_connection_opened_get_bd_addr(packet, addr);
+
+                bool comp = _comapre_mac_addr(addr, gamepad_config->host_mac_switch);
+                if(!comp)
+                {
+                    // New address, save 
+                    memcpy(gamepad_config->host_mac_switch, addr, 6);
+                    settings_commit_blocks();
+                }
+
                 printf("HID Connected\n");
                 _connected = true;
                 hid_device_request_can_send_now_event(hid_cid);
@@ -317,7 +344,19 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
 
     hci_set_bd_addr(gamepad_config->switch_mac_address);
 
-    gap_discoverable_control(1);
+    if(pairing_mode)
+    {
+        gap_delete_all_link_keys();
+        gap_discoverable_control(1);
+    }
+    else 
+    {
+        if(gamepad_config->host_mac_switch[0] != 0xFF && gamepad_config->host_mac_switch[1] != 0xFF)
+        {
+            hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
+        }
+    }
+    
     // btstack_run_loop_execute();
 
     return true;

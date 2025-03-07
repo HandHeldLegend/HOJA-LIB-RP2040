@@ -359,7 +359,7 @@ bool imu_init()
   #endif 
 
   #if defined(HOJA_IMU_CHAN_B_INIT)
-  HOJA_IMU_CHAN_B_INIT()
+  HOJA_IMU_CHAN_B_INIT();
   #endif
 
   return true;
