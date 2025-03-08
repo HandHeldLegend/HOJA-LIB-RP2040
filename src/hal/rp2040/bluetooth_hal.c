@@ -18,8 +18,11 @@
 
 #include "switch/switch_commands.h"
 #include "utilities/settings.h"
+#include "utilities/interval.h"
 #include "usb/swpro.h"
 #include "hal/sys_hal.h"
+
+#include "hoja.h"
 
 volatile bool _connected = false;
 
@@ -137,7 +140,10 @@ static uint8_t pnp_service_buffer[700]      = {0};
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static uint16_t hid_cid = 0;
 
-volatile bool _hid_can_send = false;
+static uint32_t last_hid_report_timestamp_ms = 0;
+static interval_s hid_report_interval = {0};
+// Timer structure for scheduling delayed HID report requests
+static btstack_timer_source_t hid_timer;
 
 // Compare addresses and return true if they are the same
 bool _comapre_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
@@ -195,6 +201,17 @@ static void _bt_hid_report_handler(uint16_t cid,
     }
 }
 
+volatile bool _pairing_mode = false;
+
+// Timer handler to request can send now event after delay
+static void hid_timer_handler(btstack_timer_source_t *ts) {
+    // Avoid compiler warning for unused parameter
+    (void)ts;
+    
+    // Request another CAN_SEND_NOW event
+    hid_device_request_can_send_now_event(hid_cid);
+}
+
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
 {
     UNUSED(channel);
@@ -207,6 +224,24 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         case BTSTACK_EVENT_STATE:
             if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING)
                 return;
+
+            if(!hid_cid)
+            {
+                hci_set_bd_addr(gamepad_config->switch_mac_address);
+
+                if(_pairing_mode)
+                {
+                    gap_delete_all_link_keys();
+                    gap_discoverable_control(1);
+                }
+                else 
+                {
+                    if(gamepad_config->host_mac_switch[0] != 0xFF && gamepad_config->host_mac_switch[1] != 0xFF)
+                    {
+                        hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
+                    }
+                }
+            }
             break;
 
         case HCI_EVENT_USER_CONFIRMATION_REQUEST:
@@ -237,6 +272,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 {
                     // New address, save 
                     memcpy(gamepad_config->host_mac_switch, addr, 6);
+                    hoja_set_notification_status(COLOR_GREEN);
                     settings_commit_blocks();
                 }
 
@@ -252,9 +288,25 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid != 0)
                 { 
-                    // Solves crash when disconnecting gamepad on android
-                    swpro_hid_report(0, _bluetooth_hal_hid_tunnel);
-                    hid_device_request_can_send_now_event(hid_cid);
+                    uint32_t current_time_ms = btstack_run_loop_get_time_ms();
+                    uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
+
+                    if(time_elapsed >= 8)
+                    {
+                        swpro_hid_report(0, _bluetooth_hal_hid_tunnel);
+                        last_hid_report_timestamp_ms = current_time_ms;
+                        hid_device_request_can_send_now_event(hid_cid);
+                    }
+                    else 
+                    {
+                        // Not enough time has passed, schedule another send event after delay
+                        uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
+                        uint32_t delay = 8 - time_elapsed;
+                        btstack_run_loop_set_timer(&hid_timer, delay);
+                        btstack_run_loop_set_timer_handler(&hid_timer, &hid_timer_handler);
+                        btstack_run_loop_add_timer(&hid_timer);
+                    }
+
                 }
                 break;
             case HID_SUBEVENT_SNIFF_SUBRATING_PARAMS:
@@ -281,13 +333,12 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     {
         return false;
     }
-
-    // gap_connectable_control(1);
     
-    // gap_set_bondable_mode(1);
+    gap_set_bondable_mode(1);
 
     gap_set_class_of_device(0x2508);
     gap_set_local_name("Pro Controller");
+
     gap_set_default_link_policy_settings(LM_LINK_POLICY_ENABLE_ROLE_SWITCH |
                                          LM_LINK_POLICY_ENABLE_SNIFF_MODE);
     gap_set_allow_role_switch(true);
@@ -296,7 +347,11 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
 
     // L2CAP
     l2cap_init();
+    
     sm_init();
+    //sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
+    //sm_set_authentication_requirements(0);
+
     // SDP Server
     sdp_init();
 
@@ -340,22 +395,9 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     hid_device_register_packet_handler(&_bt_hal_packet_handler);
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
 
+    _pairing_mode = pairing_mode;
+
     hci_power_control(HCI_POWER_ON);
-
-    hci_set_bd_addr(gamepad_config->switch_mac_address);
-
-    if(pairing_mode)
-    {
-        gap_delete_all_link_keys();
-        gap_discoverable_control(1);
-    }
-    else 
-    {
-        if(gamepad_config->host_mac_switch[0] != 0xFF && gamepad_config->host_mac_switch[1] != 0xFF)
-        {
-            hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
-        }
-    }
     
     // btstack_run_loop_execute();
 
@@ -367,7 +409,7 @@ void bluetooth_hal_stop()
 }
 
 void bluetooth_hal_task(uint32_t timestamp)
-{
+{   
     sleep_ms(2);
 }
 
