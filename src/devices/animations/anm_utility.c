@@ -100,8 +100,6 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
     uint8_t brightness_u8 = brightness/6;
 
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-
     // If we have 0 brightness, always illuminate our player
     // status LEDs
     if(!brightness)
@@ -112,6 +110,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             out[i].color = 0;
         }
 
+        #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
         for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
         {
             uint8_t w = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
@@ -125,10 +124,27 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             out[w].b = (in[w].b * 8 + 127) >> 8;
             out[w].b += dither_amt;
         }
+        #endif 
+
+        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
+        for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+        {
+            uint8_t w = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+
+            out[w].r = (in[w].r * 8 + 127) >> 8;
+            out[w].r += dither_amt;
+
+            out[w].g = (in[w].g * 8 + 127) >> 8;
+            out[w].g += dither_amt;
+
+            out[w].b = (in[w].b * 8 + 127) >> 8;
+            out[w].b += dither_amt;
+        }
+        #endif 
+
         repeating = (repeating+1)%DITHER_MAX_LOOP;
         return;
     }
-    #endif 
 
     for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
     {
@@ -287,5 +303,4 @@ static inline uint32_t _urgb_u32(uint8_t r, uint8_t g, uint8_t b)
            ((uint32_t)(g) << 16) |
            (uint32_t)(b);
 }
-
 #endif

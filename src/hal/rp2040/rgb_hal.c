@@ -60,11 +60,6 @@ void rgb_hal_update(rgb_s *data)
         memcpy(_rgb_states, data, sizeof(uint32_t) * RGB_DRIVER_LED_COUNT);
 
     dma_channel_transfer_from_buffer_now(_rgb_dma_chan, _rgb_states, RGB_DRIVER_LED_COUNT);
-
-    //for (uint8_t i = 0; i < RGB_DRIVER_LED_COUNT; i++)
-    //{
-    //    pio_sm_put_blocking(RGB_PIO_IN_USE, (uint) _rgb_state_machine, _rgb_states[i]);
-    //}
 }
 
 #endif

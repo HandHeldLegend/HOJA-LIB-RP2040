@@ -16,7 +16,7 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s rgb_colors_safe[RGB_MAX_GROUPS] = {0};
+rgb_s  rgb_colors_safe[RGB_MAX_GROUPS] = {0};
 
 // Perform a fade animation to black, then call our callback
 void rgb_deinit(callback_t cb)
@@ -56,7 +56,7 @@ void rgb_init(int mode, int brightness)
 
     set_speed = rgb_config->rgb_speed;
 
-    if(mode<0)
+    if(mode < 0)
     {
         set_mode = rgb_config->rgb_mode;
     }
@@ -64,7 +64,7 @@ void rgb_init(int mode, int brightness)
         set_mode = mode;
     }
 
-    if(brightness<0)
+    if(brightness < 0)
     {
         loaded_brightness = rgb_config->rgb_brightness;
     }

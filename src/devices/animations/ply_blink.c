@@ -10,46 +10,173 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
-uint32_t _blink_blend = 0;
-bool     _blink_dir = false;
+typedef enum 
+{
+    BLINK_DIR_BLACK,
+    BLINK_DIR_BRIGHT,
+} blink_dir_t;
+
 rgb_s    _blink_color = {.color = 0x00};
 rgb_s    _blink_black = {.color = 0x00};
+
 #define PLAYER_BLINK_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 
-bool ply_blink_handler(rgb_s *output, rgb_s set_color)
+bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    static rgb_s       ss_color = {.color = 0};
+    static blink_dir_t blink_dir = BLINK_DIR_BLACK;
+    static uint32_t    blink_blend = 0;
+
+    // If our current stored color is blank and fading to black (new notification)
+    if(!ss_color.color && blink_dir == BLINK_DIR_BLACK)
     {
-        rgb_s this_color = output[i]; // Get the current color
-        if(_blink_dir)
+        for(int i = 0; i < size; i++)
         {
-            output[i].color = anm_utility_blend(&set_color, &_blink_black, _blink_blend);
+            rgb_s this_color = output[i]; // Get the current color
+            output[i].color = anm_utility_blend(&this_color, &_blink_black, blink_blend);
         }
-        else
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
         {
-            output[i].color = anm_utility_blend(&_blink_black, &set_color, _blink_blend);
+            blink_blend = 0;
+            ss_color.color = set_color.color;
+            blink_dir = BLINK_DIR_BRIGHT;
         }
     }
-
-    _blink_blend += PLAYER_BLINK_TIME_FIXED;
-    if(_blink_blend >= RGB_FADE_FIXED_MULT)
-    {
-        if(_blink_dir)
+    else if (ss_color.color && blink_dir == BLINK_DIR_BRIGHT)
+    {   
+        for(int i = 0; i < size; i++)
         {
-            _blink_blend = 0;
-            _blink_dir = false;
+            output[i].color = anm_utility_blend(&_blink_black, &ss_color, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BLACK;
+        }
+    }
+    else if(ss_color.color && blink_dir == BLINK_DIR_BLACK)
+    {
+        for(int i = 0; i < size; i++)
+        {
+            output[i].color = anm_utility_blend(&ss_color, &_blink_black, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            ss_color.color = 0;
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BRIGHT;
+        }
+    }
+    else
+    {
+        for(int i = 0; i < size; i++)
+        {
+            rgb_s this_color = output[i]; // Get the current color
+            output[i].color = anm_utility_blend(&_blink_black, &this_color, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BLACK;
             return true;
         }
-
-        _blink_blend = 0;
-        _blink_dir = true;
     }
-    return false;
-
-    #endif
 
     return false;
+}
+
+bool ply_blink_handler(rgb_s *output, uint8_t size, rgb_s set_color)
+{
+    static rgb_s       ss_color = {.color = 0};
+    static blink_dir_t blink_dir = BLINK_DIR_BLACK;
+    static uint32_t    blink_blend = 0;
+
+    if((ss_color.color != set_color.color) && 
+    (!blink_blend) && (blink_dir == BLINK_DIR_BRIGHT))
+    {
+        ss_color.color = set_color.color;
+    }
+
+    // If our current stored color is blank and fading to black (new notification)
+    if(!ss_color.color && blink_dir == BLINK_DIR_BLACK)
+    {
+        for(int i = 0; i < size; i++)
+        {
+            rgb_s this_color = output[i]; // Get the current color
+            output[i].color = anm_utility_blend(&this_color, &_blink_black, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BRIGHT;
+        }
+    }
+    else if (ss_color.color && blink_dir == BLINK_DIR_BRIGHT)
+    {   
+        for(int i = 0; i < size; i++)
+        {
+            output[i].color = anm_utility_blend(&_blink_black, &ss_color, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BLACK;
+            return true;
+        }
+    }
+    else if(ss_color.color && blink_dir == BLINK_DIR_BLACK)
+    {
+        for(int i = 0; i < size; i++)
+        {
+            output[i].color = anm_utility_blend(&ss_color, &_blink_black, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BRIGHT;
+        }
+    }
+    else
+    {
+        for(int i = 0; i < size; i++)
+        {
+            rgb_s this_color = output[i]; // Get the current color
+            output[i].color = anm_utility_blend(&_blink_black, &this_color, blink_blend);
+        }
+
+        blink_blend += PLAYER_BLINK_TIME_FIXED;
+    
+        if(blink_blend >= RGB_FADE_FIXED_MULT)
+        {
+            blink_blend = 0;
+            blink_dir = BLINK_DIR_BLACK;
+            return true;
+        }
+    }
+
+    return false;
+
 }
 
 #endif

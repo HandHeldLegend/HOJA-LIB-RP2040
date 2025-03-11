@@ -108,8 +108,11 @@ bool _ani_queue_fade_handler()
     return false;
 }
 
+bool _rgb_shutting_down = false;
+
 void anm_handler_shutdown(callback_t cb)
 {
+    _rgb_shutting_down = true;
     anm_shutdown_set_cb(cb);
     _ani_main_fn = anm_shutdown_handler;
     _ani_fn_get_state = anm_shutdown_get_state;
@@ -158,6 +161,50 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     }
 }
 
+bool _notification_single_shot = false;
+rgb_s _notification_single_shot_color = {0};
+
+void _notification_manager(rgb_s *output)
+{
+    #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
+    rgb_s notif_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
+
+    // Get the current notif LEDs
+    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    {
+        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        notif_leds[i] = output[this_idx];
+    }
+
+    static bool loop_lock = false;
+    hoja_status_s this_status = hoja_get_status();
+
+    if(this_status.ss_notif_pending && !loop_lock)
+    {
+        if(ply_blink_handler_ss(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.ss_notif_color))
+        {
+            hoja_clr_ss_notif();
+        }
+    }
+    else if(this_status.notification_color.color != 0)
+    {
+        loop_lock = true;
+        if(ply_blink_handler(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.notification_color))
+        {
+            loop_lock = false;
+        }
+    }
+
+    // Write the player LED colors to the output
+    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+    {
+        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        output[this_idx] = notif_leds[i];
+    }
+    
+    #endif
+}
+
 void _player_connection_manager(rgb_s *output) 
 {
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
@@ -172,42 +219,31 @@ void _player_connection_manager(rgb_s *output)
         player_leds[i] = output[this_idx];
     }
 
-    if(status.notification_color.color > 0)
+    switch(status.connection_status)
     {
-        allow_update = ply_blink_handler(player_leds, status.notification_color);
-    }
-    else
-    {
-        switch(status.connection_status)
-        {
-            case CONN_STATUS_INIT:
-                #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
-                // Clear all player LEDs
-                for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
-                {
-                    player_leds[i].color = 0;
-                }
-                #endif
-            break;
+        case CONN_STATUS_INIT:
+            #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
+            // Clear all player LEDs
+            for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+            {
+                player_leds[i].color = 0;
+            }
+            #endif
+        break;
 
-            case CONN_STATUS_DISCONNECTED:
-            case CONN_STATUS_CONNECTING:
-                #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-                allow_update = ply_chase_handler(player_leds, status.gamepad_color);
-                #else 
-                allow_update = ply_blink_handler(player_leds, status.gamepad_color);
-                #endif
-            break;
+        case CONN_STATUS_DISCONNECTED:
+        case CONN_STATUS_CONNECTING:
+            #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
+            allow_update = ply_chase_handler(player_leds, status.gamepad_color);
+            #else 
+            allow_update = ply_blink_handler(player_leds, status.gamepad_color);
+            #endif
+        break;
 
-            case CONN_STATUS_SHUTDOWN:
-                allow_update = ply_shutdown_handler(player_leds);
-            break;
-
-            default:
-                allow_update = ply_idle_handler(player_leds, status.connection_status);
-            break;
-        }        
-    }
+        default:
+            allow_update = ply_idle_handler(player_leds, status.connection_status);
+        break;
+    }  
 
     if(allow_update)
     {
@@ -238,10 +274,14 @@ void anm_handler_tick()
     else if(_ani_main_fn != NULL)
     {
         _ani_main_fn(_current_ani_leds);
+
     }
 
-    // Ensure these show no matter the brightness
-    _player_connection_manager(_current_ani_leds);
+    if(!_rgb_shutting_down)
+    {
+        _player_connection_manager(_current_ani_leds);
+        _notification_manager(_current_ani_leds);
+    }
 
     // Process brightness/gamma
     anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);

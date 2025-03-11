@@ -19,6 +19,8 @@ bool cb_hoja_buttons_init();
 
 void hoja_set_connected_status(connection_status_t status);
 void hoja_set_notification_status(rgb_s color);
+void hoja_set_ss_notif(rgb_s color);
+void hoja_clr_ss_notif();
 
 hoja_status_s hoja_get_status();
 

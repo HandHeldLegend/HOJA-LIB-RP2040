@@ -146,6 +146,17 @@ void hoja_set_notification_status(rgb_s color)
   _hoja_status.notification_color = color;
 }
 
+void hoja_clr_ss_notif()
+{
+  _hoja_status.ss_notif_pending = false;
+}
+
+void hoja_set_ss_notif(rgb_s color)
+{
+  _hoja_status.ss_notif_pending = true;
+  _hoja_status.ss_notif_color = color;
+}
+
 hoja_status_s hoja_get_status()
 {
   return _hoja_status;
@@ -261,6 +272,9 @@ void _hoja_task_1()
       _hoja_mode_task_cb(c1_timestamp);
     }
 
+    // Handle haptics
+    haptics_task(c1_timestamp);
+
     // RGB task
     rgb_task(c1_timestamp);
 
@@ -283,9 +297,6 @@ void _hoja_task_0()
   for (;;)
   {
     c0_timestamp = sys_hal_time_us();
-
-    // Handle haptics
-    haptics_task(c0_timestamp);
 
     // Analog task
     analog_task(c0_timestamp);
