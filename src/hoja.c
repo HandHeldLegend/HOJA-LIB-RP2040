@@ -73,8 +73,11 @@ void hoja_shutdown()
   _hoja_mode_task_cb = NULL;
 
   battery_set_ship_mode();
+
   for (;;)
   {
+    sys_hal_sleep_ms(1000);
+    sys_hal_reboot();
   }
 }
 
@@ -211,6 +214,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
+  hoja_set_ss_notif(_hoja_status.gamepad_color);
 
   switch (method)
   {

@@ -20,6 +20,7 @@ rgb_s    _blink_color = {.color = 0x00};
 rgb_s    _blink_black = {.color = 0x00};
 
 #define PLAYER_BLINK_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
+#define PLAYER_ONESHOT_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(300) )
 
 bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
 {
@@ -36,7 +37,7 @@ bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
             output[i].color = anm_utility_blend(&this_color, &_blink_black, blink_blend);
         }
 
-        blink_blend += PLAYER_BLINK_TIME_FIXED;
+        blink_blend += PLAYER_ONESHOT_TIME_FIXED;
     
         if(blink_blend >= RGB_FADE_FIXED_MULT)
         {
@@ -52,7 +53,7 @@ bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
             output[i].color = anm_utility_blend(&_blink_black, &ss_color, blink_blend);
         }
 
-        blink_blend += PLAYER_BLINK_TIME_FIXED;
+        blink_blend += PLAYER_ONESHOT_TIME_FIXED;
     
         if(blink_blend >= RGB_FADE_FIXED_MULT)
         {
@@ -67,7 +68,7 @@ bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
             output[i].color = anm_utility_blend(&ss_color, &_blink_black, blink_blend);
         }
 
-        blink_blend += PLAYER_BLINK_TIME_FIXED;
+        blink_blend += PLAYER_ONESHOT_TIME_FIXED;
     
         if(blink_blend >= RGB_FADE_FIXED_MULT)
         {
@@ -84,7 +85,7 @@ bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)
             output[i].color = anm_utility_blend(&_blink_black, &this_color, blink_blend);
         }
 
-        blink_blend += PLAYER_BLINK_TIME_FIXED;
+        blink_blend += PLAYER_ONESHOT_TIME_FIXED;
     
         if(blink_blend >= RGB_FADE_FIXED_MULT)
         {

@@ -4,6 +4,7 @@
 
 #include "input/macros/macro_shutdown.h"
 #include "input/macros/macro_pairing.h"
+#include "input/macros/macro_tourney.h"
 
 #include "devices/battery.h"
 
@@ -39,4 +40,6 @@ void macros_task(uint32_t timestamp)
     #if defined(HOJA_HAPTICS_DEBUG) && (HOJA_HAPTICS_DEBUG==1)
     macro_pcmdebug(timestamp, &buttons);
     #endif
+
+    macro_tourney(timestamp, &buttons);
 }

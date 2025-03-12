@@ -19,6 +19,12 @@ button_data_s _safe_raw_button_data;
 button_data_s _boot_button_data;
 button_data_s _raw_button_data;
 volatile bool _first_run = false;
+bool _tourney_lockout = false;
+
+void button_tourney_lockout_enable(bool enable)
+{
+    _tourney_lockout = enable;
+}
 
 void _button_blocking_enter()
 {
@@ -102,6 +108,19 @@ void button_task(uint32_t timestamp)
     {
         // Read raw buttons
         cb_hoja_read_buttons(&_raw_button_data);
+
+        if(_tourney_lockout)
+        {
+            _raw_button_data.dpad_down = 0;
+            _raw_button_data.dpad_left = 0;
+            _raw_button_data.dpad_right = 0;
+            _raw_button_data.dpad_up = 0;
+
+            _raw_button_data.button_home = 0;
+            _raw_button_data.button_capture = 0;
+            _raw_button_data.button_plus = 0;
+            _raw_button_data.button_minus = 0;
+        }
 
         if(_button_try_enter())
         {
