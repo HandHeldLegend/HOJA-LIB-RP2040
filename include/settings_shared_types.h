@@ -173,13 +173,15 @@ typedef struct
         uint8_t     reserved[363];
 } analogConfig_s;
 
+#define RGB_BRIGHTNESS_MAX 4096
+
 typedef struct 
 {
     uint8_t     rgb_config_version;
     uint8_t     rgb_mode;
     uint16_t    rgb_speed; // RGB Speed in ms
     uint32_t    rgb_colors[32]; // Store 32 RGB colors
-    uint16_t    rgb_brightness;
+    uint16_t    rgb_brightness; // 4096 range
     uint8_t     reserved[122];
 } rgbConfig_s;
 

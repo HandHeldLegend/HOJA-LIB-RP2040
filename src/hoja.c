@@ -21,6 +21,7 @@
 #include "input/imu.h"
 #include "input/trigger.h"
 #include "input/macros.h"
+#include "input/idle_manager.h"
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
@@ -287,6 +288,9 @@ void _hoja_task_1()
 
     // Update sys tick
     sys_hal_tick();
+
+    // Idle manager
+    idle_manager_task(c1_timestamp);
   }
 }
 
@@ -339,16 +343,24 @@ bool _system_requirements_init()
   return true;
 }
 
-bool _system_devices_init(bool wired_override)
+bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  int bat_return = battery_init(wired_override);
+  int bat_return = battery_init(method==GAMEPAD_METHOD_WIRED);
 
   // Haptics
   haptics_init();
 
+  int bright = -1;
+  
+  if(method==GAMEPAD_METHOD_BLUETOOTH || method==GAMEPAD_METHOD_WIRED)
+  {
+    const int halfbright = (RGB_BRIGHTNESS_MAX/3);
+    bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
+  }
+
   // RGB
-  rgb_init(-1, -1);
+  rgb_init(-1, bright);
   return true;
 }
 
@@ -375,7 +387,7 @@ void hoja_init()
 
   boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
 
-  _system_devices_init(thisMethod == GAMEPAD_METHOD_WIRED);
+  _system_devices_init(thisMethod, thisMode);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

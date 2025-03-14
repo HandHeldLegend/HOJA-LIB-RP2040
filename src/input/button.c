@@ -1,6 +1,7 @@
 #include "input/button.h"
 #include "input/remap.h"
 #include "input/trigger.h"
+#include "input/idle_manager.h"
 
 #include <string.h>
 
@@ -98,6 +99,20 @@ bool button_init()
     return true;
 }
 
+bool _are_buttons_different(button_data_s *current)
+{
+    static button_data_s last_buttons = {0};
+    bool return_val = false;
+
+    if(current->buttons_all != last_buttons.buttons_all) return_val = true;
+    if(current->buttons_system != last_buttons.buttons_system) return_val = true;
+
+    last_buttons.buttons_all = current->buttons_all;
+    last_buttons.buttons_system = current->buttons_system;
+
+    return return_val;
+}
+
 #define BUTTON_READ_RATE_US 333 // 333us read rate. Double the 1khz maximum USB input rate.
 
 void button_task(uint32_t timestamp)
@@ -121,6 +136,8 @@ void button_task(uint32_t timestamp)
             _raw_button_data.button_plus = 0;
             _raw_button_data.button_minus = 0;
         }
+
+        if(_are_buttons_different(&_raw_button_data)) idle_manager_heartbeat();
 
         if(_button_try_enter())
         {

@@ -44,6 +44,9 @@ void stick_deadzone_process(analog_data_s *in, analog_data_s *out)
     int16_t l_dist_new = _process_deadzone(&lmeta, analog_config->l_deadzone);
     int16_t r_dist_new = _process_deadzone(&rmeta, analog_config->r_deadzone);
 
+    out->ldistance = l_dist_new;
+    out->rdistance = r_dist_new;
+
     if(l_dist_new)
         analog_angle_distance_to_coordinate(in->langle, l_dist_new, outl);
 

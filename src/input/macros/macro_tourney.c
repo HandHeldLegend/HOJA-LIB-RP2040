@@ -2,6 +2,7 @@
 #include "input/button.h"
 #include "hal/sys_hal.h"
 #include "devices/battery.h"
+#include "devices/rgb.h"
 #include "utilities/interval.h"
 #include "utilities/boot.h"
 #include "hoja_shared_types.h"

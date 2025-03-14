@@ -19,6 +19,7 @@
 #include "devices/animations/anm_rainbow.h"
 #include "devices/animations/anm_react.h"
 #include "devices/animations/anm_shutdown.h"
+#include "devices/animations/anm_idle.h"
 
 // Player LED animation modes
 #include "devices/animations/ply_chase.h"
@@ -56,6 +57,7 @@ typedef enum
     RGB_ANIM_REACT,     // React to user input
     RGB_ANIM_FAIRY,     // Play a random animation between user preset colors
     RGB_ANIM_BREATHE,   // Looping animation using stored colors
+    RGB_ANIM_IDLE,      // Idle animation where no LEDs are shown
 } rgb_anim_t;
 
 typedef enum 
@@ -75,6 +77,7 @@ rgb_s    _adjusted_ani_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 
 uint16_t _anim_brightness = 0;
+uint32_t _anim_speed = 0;
 int _current_mode = -1;
 
 bool _fade = false;
@@ -84,6 +87,20 @@ void _ani_queue_fade_start()
     _ani_fn_get_state(_fade_end);
     _fade_progress = 0;
     _fade = true;
+
+    static bool first_boot = false;
+    if(!first_boot)
+    {
+        // Set notif to black if it exists
+        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
+        for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+        {
+            uint8_t group_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+            _fade_end[group_idx].color = 0;
+            
+        }
+        #endif
+    }
 }
 
 bool _ani_queue_fade_handler()
@@ -121,6 +138,7 @@ void anm_handler_shutdown(callback_t cb)
 
 void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t animation_time_ms)
 {
+    _anim_speed = animation_time_ms;
     anm_utility_set_time_ms(animation_time_ms);
 
     _anim_brightness = brightness;
@@ -134,31 +152,30 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
         case RGB_ANIM_NONE:
             _ani_main_fn = anm_none_handler;
             _ani_fn_get_state = anm_none_get_state;
-            _ani_queue_fade_start();
-            return;
         break;
 
         case RGB_ANIM_RAINBOW:
             _ani_main_fn = anm_rainbow_handler;
             _ani_fn_get_state = anm_rainbow_get_state;
-            _ani_queue_fade_start();
-            return;
         break;
 
         case RGB_ANIM_REACT:
             _ani_main_fn = anm_react_handler;
             _ani_fn_get_state = anm_react_get_state;
-            _ani_queue_fade_start();
-            return;
         break;
 
         case RGB_ANIM_FAIRY:
             _ani_main_fn = anm_fairy_handler;
             _ani_fn_get_state = anm_fairy_get_state;
-            _ani_queue_fade_start();
-            return;
+        break;
+
+        case RGB_ANIM_IDLE:
+            _ani_main_fn = anm_idle_handler;
+            _ani_fn_get_state = anm_idle_get_state;
         break;
     }
+
+    _ani_queue_fade_start();
 }
 
 bool _notification_single_shot = false;
@@ -170,7 +187,7 @@ void _notification_manager(rgb_s *output)
     rgb_s notif_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
 
     // Get the current notif LEDs
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
     {
         uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
         notif_leds[i] = output[this_idx];
@@ -207,28 +224,35 @@ void _notification_manager(rgb_s *output)
 
 void _player_connection_manager(rgb_s *output) 
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
+    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) || defined(HOJA_RGB_NOTIF_GROUP_IDX)
     static bool allow_update = true;
     static hoja_status_s status = {0};
+
+    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) 
     rgb_s player_leds[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
+    uint8_t player_leds_count = HOJA_RGB_PLAYER_GROUP_SIZE;
+    uint8_t player_group_idx = HOJA_RGB_PLAYER_GROUP_IDX;
+    #elif defined(HOJA_RGB_NOTIF_GROUP_IDX)
+    rgb_s player_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
+    uint8_t player_leds_count = HOJA_RGB_NOTIF_GROUP_SIZE;
+    uint8_t player_group_idx = HOJA_RGB_NOTIF_GROUP_IDX;
+    #endif
 
     // Get the current player LEDs
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(int i = 0; i < player_leds_count; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[player_group_idx][i];
         player_leds[i] = output[this_idx];
     }
 
     switch(status.connection_status)
     {
         case CONN_STATUS_INIT:
-            #if defined(HOJA_RGB_PLAYER_GROUP_SIZE)
             // Clear all player LEDs
-            for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+            for(int i = 0; i < player_leds_count; i++)
             {
                 player_leds[i].color = 0;
             }
-            #endif
         break;
 
         case CONN_STATUS_DISCONNECTED:
@@ -236,7 +260,7 @@ void _player_connection_manager(rgb_s *output)
             #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
             allow_update = ply_chase_handler(player_leds, status.gamepad_color);
             #else 
-            allow_update = ply_blink_handler(player_leds, status.gamepad_color);
+            allow_update = ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
             #endif
         break;
 
@@ -251,12 +275,35 @@ void _player_connection_manager(rgb_s *output)
     }
 
     // Write the player LED colors to the output
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(int i = 0; i < player_leds_count; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[player_group_idx][i];
         output[this_idx] = player_leds[i];
     }
     #endif
+}
+
+bool _anm_idle_enable = false;
+bool _anm_idle_active = false;
+void anm_set_idle_enable(bool enable)
+{
+    static int store_mode = 0;
+    static int store_bright = 0;
+    
+    if(enable && !_anm_idle_active)
+    {
+        _anm_idle_active = true;
+        store_mode = _current_mode;
+        store_bright = _anim_brightness;
+        anm_handler_setup_mode(RGB_ANIM_IDLE, 500, _anim_speed);
+        _anm_idle_enable = enable;
+    }
+    else if (!enable && _anm_idle_active)
+    {
+        anm_handler_setup_mode(store_mode, store_bright, _anim_speed);
+        _anm_idle_active = false;
+        _anm_idle_enable = enable;
+    }
 }
 
 // Call this once per frame
@@ -274,12 +321,12 @@ void anm_handler_tick()
     else if(_ani_main_fn != NULL)
     {
         _ani_main_fn(_current_ani_leds);
-
     }
 
     if(!_rgb_shutting_down)
     {
-        _player_connection_manager(_current_ani_leds);
+        if(!_anm_idle_active)
+            _player_connection_manager(_current_ani_leds);
         _notification_manager(_current_ani_leds);
     }
 
