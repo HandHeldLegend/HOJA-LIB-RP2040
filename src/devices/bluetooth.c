@@ -35,7 +35,7 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
 
     battery_status_s bat_stat = battery_get_status();
 
-    if(bat_stat.charge_percent < 5)
+    if(bat_stat.battery_level == BATTERY_LEVEL_CRITICAL)
     {
         return false;
     }
@@ -67,20 +67,25 @@ void bluetooth_mode_task(uint32_t timestamp)
 
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
-{
-    static uint8_t connection_status = 0;
-    //hoja_rumble_msg_s rumble_msg_left = {0};
-    //hoja_rumble_msg_s rumble_msg_right = {0};
-
-    uint8_t l = msg->data[0];
-    uint8_t r = msg->data[1];
-
-    float la = (float) l / 255.0f;
-    float ra = (float) r / 255.0f;
-    
+{   
     switch(msg->type)
     {
         case BTCB_POWER_CODE:
+            switch(msg->data[0])
+            {
+                // Shut off
+                case 0:
+                hoja_deinit(hoja_shutdown);
+                break;
+
+                // Critical power detect
+                case 1:
+                battery_set_critical_shutdown();
+                break;
+
+                default:
+                break;
+            }
         break;
 
         case BTCB_CONNECTION_STATUS:

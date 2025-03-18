@@ -45,16 +45,30 @@ typedef enum
     BATTERY_STATUS_CONNECTED
 } battery_status_t;
 
+typedef enum 
+{
+    BATTERY_LEVEL_UNAVAILABLE = -1,
+    BATTERY_LEVEL_CRITICAL,
+    BATTERY_LEVEL_LOW,
+    BATTERY_LEVEL_MID,
+    BATTERY_LEVEL_HIGH
+} battery_level_t;
+
+#define VOLTAGE_LEVEL_CRITICAL  3.575f
+#define VOLTAGE_LEVEL_LOW       3.65f
+#define VOLTAGE_LEVEL_MID       3.8f
+#define VOLTAGE_LEVEL_HI        3.81f
+
 typedef struct
 {
     union 
     {
         struct 
         {
-            int8_t plug_status;
-            int8_t charge_status;
-            int8_t battery_status;
-            int8_t charge_percent; // 0-100
+            int8_t plug_status; 
+            int8_t charge_status; 
+            int8_t battery_status; 
+            int8_t battery_level; 
         };
         uint32_t val;
     }; 
@@ -77,10 +91,11 @@ typedef enum
     BATTERY_EVENT_CHARGE_COMPLETE,
 } battery_event_t;
 
+void                battery_set_critical_shutdown();
 int                 battery_init(bool wired_override); 
-int                 battery_get_level(); 
+battery_level_t     battery_get_level(); 
 bool                battery_set_source(battery_source_t source); 
-void battery_set_plug(battery_plug_t plug);
+void                battery_set_plug(battery_plug_t plug);
 battery_status_s    battery_get_status();
 battery_plug_t      battery_get_plug();   
 battery_charge_t    battery_get_charge();  

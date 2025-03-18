@@ -7,11 +7,13 @@
 
 #include "devices/haptics.h"
 #include "devices/rgb.h"
+#include "devices/battery.h"
 
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
 #include "hoja_shared_types.h"
+#include "devices_shared_types.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -92,21 +94,67 @@ void set_timer()
 
 void set_battconn()
 {
-  typedef union
-  {
-    struct
-    {
-      uint8_t connection : 4;
-      uint8_t bat_lvl : 4;
-    };
-    uint8_t bat_status;
-  } bat_status_u;
+  #if defined(HOJA_BATTERY_DRIVER)
+  battery_status_s stat = battery_get_status();
 
   bat_status_u s = {
-      .bat_lvl = 8,
-      .connection = 1};
+    .bat_lvl    = 2,
+    .charging   = 1,
+    .connection = 0
+  };
+
+  switch(stat.charge_status)
+  {
+    case BATTERY_CHARGE_CHARGING:
+    s.charging = 1;
+    break;
+
+    default:
+    s.charging = 0;
+    break;
+  }
+
+  switch(stat.battery_level)
+  {
+    case BATTERY_LEVEL_CRITICAL:
+    s.bat_lvl = 0;
+    break;
+
+    case BATTERY_LEVEL_LOW:
+    s.bat_lvl = 1;
+    break;
+
+    case BATTERY_LEVEL_MID:
+    s.bat_lvl = 2;
+    break;
+
+    default:
+    case BATTERY_LEVEL_HIGH:
+    s.bat_lvl = 3;
+    break;
+  }
+
+  switch(stat.plug_status)
+  {
+    case BATTERY_PLUG_PLUGGED:
+    default:
+    s.connection = 1;
+    break;
+
+    case BATTERY_PLUG_UNPLUGGED:
+    s.connection = 0;
+    break;
+  }
+  #else
+  bat_status_u s = {
+    .bat_lvl    = 4,
+    .charging   = 0,
+    .connection = 1
+  };
+  #endif
+  
   // Always set to USB connected
-  _switch_command_buffer[1] = s.bat_status;
+  _switch_command_buffer[1] = s.val;
 }
 
 void set_devinfo()

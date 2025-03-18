@@ -39,7 +39,9 @@ float _exponentialRamp(float input) {
 
 void rgb_set_idle(bool enable)
 {
+    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     anm_set_idle_enable(enable);
+    #endif
 }
 
 void rgb_init(int mode, int brightness)

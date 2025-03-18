@@ -52,6 +52,17 @@ typedef struct
     uint16_t    lo_frequency_increment;
 } haptic_processed_s;
 
+typedef union
+{
+    struct
+    {
+        uint8_t connection : 4;
+        uint8_t charging : 1;
+        uint8_t bat_lvl : 3;
+    };
+    uint8_t val;
+} bat_status_u;
+
 #define COLOR_RED    (rgb_s) {.r = 0xFF, .g = 0x00, .b = 0x00}
 #define COLOR_ORANGE (rgb_s) {.r = 0xFF, .g = 0x4d, .b = 0x00}
 #define COLOR_YELLOW (rgb_s) {.r = 0xFF, .g = 0xE6, .b = 0x00}
