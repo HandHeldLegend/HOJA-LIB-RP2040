@@ -152,8 +152,6 @@ typedef struct
     int16_t gx;
     int16_t gy;
     int16_t gz;
-
-    uint8_t power_flags;
 } __attribute__ ((packed)) i2cinput_input_s;
 
 #define I2CINPUT_INPUT_SIZE sizeof(i2cinput_input_s)
@@ -504,12 +502,7 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.ay = imu_tmp.ay;
             input_data.az = imu_tmp.az;
 
-            bat_status_u bat = {0};
-            bat.bat_lvl = 0;
-            bat.charging = 0;
-            bat.connection = 0;
-
-            input_data.power_flags = bat.val;
+            //input_data.power_flags = bat.val;
 
             uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
             data_out[1] = crc;
@@ -525,7 +518,7 @@ void esp32hoja_task(uint32_t timestamp)
         }  
         else
         {
-            int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 1000);
+            int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 32000);
             
             if (read == HOJA_I2C_MSG_SIZE_IN)
             {
