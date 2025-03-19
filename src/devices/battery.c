@@ -1,4 +1,5 @@
 #include "devices/battery.h"
+#include "devices/rgb.h"
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 #include "hoja.h"
@@ -19,12 +20,16 @@ battery_status_s _battery_status = {
 
 battery_status_s _new_battery_status = {0};
 
-#define BATTERY_LEVEL_INTERVAL_US 5000*1000 // 5 seconds
+#define BATTERY_LEVEL_INTERVAL_US 1000*1000 // 1 second
 
 // When I measure past the divider, it's 2v when the system is powered on
 // The battery voltage is 4.2v when I measure this. The ratio is 
 
+#if defined(HOJA_BATTERY_VOLTAGE_MEASURE_OFFSET)
+#define VOLTAGE_MEASURE_OFFSET HOJA_BATTERY_VOLTAGE_MEASURE_OFFSET
+#else
 #define VOLTAGE_MEASURE_OFFSET 0.125f
+#endif
 
 bool _battery_shutdown_lockout = false;
 
@@ -74,6 +79,7 @@ int _battery_update_charge()
     }
     else if(voltage <= VOLTAGE_LEVEL_MID)
     {
+        hoja_set_notification_status(COLOR_GREEN);
         _battery_status.battery_level = BATTERY_LEVEL_MID;
     }
     else 
@@ -181,16 +187,18 @@ battery_status_s battery_get_status()
 
 bool _lowbat_timeout_shutdown = false;
 static int _shutdown_reset = 0;
-#define LOWBAT_TIMEOUT_US 5000 * 1000
+#define LOWBAT_TIMEOUT_US 6500 * 1000
 
 // This will set the battery loop to indicate critical power
 // initiating a shut-down and blinking the LED red for notifications
 void battery_set_critical_shutdown()
 {
+    if(_lowbat_timeout_shutdown) return;
+
     _lowbat_timeout_shutdown = true;
+    rgb_set_idle(true);
     hoja_set_notification_status(COLOR_RED);
-    if(!_shutdown_reset)
-        _shutdown_reset = 1;
+    _shutdown_reset = 1; 
 }
 
 // PMIC management task.
@@ -267,6 +275,8 @@ void battery_task(uint32_t timestamp)
     if(interval_run(timestamp, BATTERY_LEVEL_INTERVAL_US, &voltage_interval))
     {
         _battery_update_charge();
+
+        if((_battery_status.plug_status == BATTERY_PLUG_PLUGGED) || (_battery_status.plug_status == BATTERY_CHARGE_UNAVAILABLE)) return;
 
         if(_battery_status.battery_level == BATTERY_LEVEL_CRITICAL)
         {

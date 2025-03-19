@@ -98,7 +98,7 @@ void set_battconn()
   battery_status_s stat = battery_get_status();
 
   bat_status_u s = {
-    .bat_lvl    = 2,
+    .bat_lvl    = 4,
     .charging   = 1,
     .connection = 0
   };
@@ -117,7 +117,7 @@ void set_battconn()
   switch(stat.battery_level)
   {
     case BATTERY_LEVEL_CRITICAL:
-    s.bat_lvl = 0;
+    s.bat_lvl = 1;
     break;
 
     case BATTERY_LEVEL_LOW:
@@ -130,19 +130,7 @@ void set_battconn()
 
     default:
     case BATTERY_LEVEL_HIGH:
-    s.bat_lvl = 3;
-    break;
-  }
-
-  switch(stat.plug_status)
-  {
-    case BATTERY_PLUG_PLUGGED:
-    default:
-    s.connection = 1;
-    break;
-
-    case BATTERY_PLUG_UNPLUGGED:
-    s.connection = 0;
+    s.bat_lvl = 4;
     break;
   }
   #else
@@ -152,6 +140,7 @@ void set_battconn()
     .connection = 1
   };
   #endif
+  
   
   // Always set to USB connected
   _switch_command_buffer[1] = s.val;

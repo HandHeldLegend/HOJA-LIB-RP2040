@@ -19,7 +19,7 @@ typedef enum
 rgb_s    _blink_color = {.color = 0x00};
 rgb_s    _blink_black = {.color = 0x00};
 
-#define PLAYER_BLINK_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(1300) )
+#define PLAYER_BLINK_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(700) )
 #define PLAYER_ONESHOT_TIME_FIXED  RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(350) )
 
 bool ply_blink_handler_ss(rgb_s *output, uint8_t size, rgb_s set_color)

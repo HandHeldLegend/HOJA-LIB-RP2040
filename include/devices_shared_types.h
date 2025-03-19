@@ -56,7 +56,9 @@ typedef union
 {
     struct
     {
-        uint8_t connection : 4;
+        uint8_t power_source : 1;
+        uint8_t connection : 2;
+        uint8_t reserved : 1;
         uint8_t charging : 1;
         uint8_t bat_lvl : 3;
     };
