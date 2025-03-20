@@ -79,7 +79,6 @@ int _battery_update_charge()
     }
     else if(voltage <= VOLTAGE_LEVEL_MID)
     {
-        hoja_set_notification_status(COLOR_GREEN);
         _battery_status.battery_level = BATTERY_LEVEL_MID;
     }
     else 
@@ -111,7 +110,8 @@ int battery_init(bool wired_override)
         _battery_status.val = HOJA_BATTERY_GET_STATUS();
         _new_battery_status.val = _battery_status.val;
 
-        _battery_update_charge();
+        if(_battery_status.plug_status != BATTERY_PLUG_UNAVAILABLE)
+            _battery_update_charge();
 
         return BATTERY_INIT_OK;
     }
@@ -274,15 +274,16 @@ void battery_task(uint32_t timestamp)
     #if defined(HOJA_BATTERY_GET_VOLTAGE)
     if(interval_run(timestamp, BATTERY_LEVEL_INTERVAL_US, &voltage_interval))
     {
-        _battery_update_charge();
-
         if((_battery_status.plug_status == BATTERY_PLUG_PLUGGED) || (_battery_status.plug_status == BATTERY_CHARGE_UNAVAILABLE)) return;
+
+        _battery_update_charge();
 
         if(_battery_status.battery_level == BATTERY_LEVEL_CRITICAL)
         {
             battery_set_critical_shutdown();
         }
     }
+    #endif
 
     if(_lowbat_timeout_shutdown)
     {
@@ -293,7 +294,6 @@ void battery_task(uint32_t timestamp)
         }
         _shutdown_reset = 2;
     }
-    #endif
     
     #endif 
 }

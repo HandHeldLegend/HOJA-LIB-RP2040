@@ -78,8 +78,13 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
                 hoja_deinit(hoja_shutdown);
                 break;
 
-                // Critical power detect
+                // Reboot (not implemented yet)
                 case 1:
+                hoja_deinit(hoja_shutdown);
+                break;
+
+                // Critical battery power
+                case 2:
                 battery_set_critical_shutdown();
                 break;
 

@@ -10,6 +10,7 @@
 #include "hal/i2c_hal.h"
 
 #include "devices_shared_types.h"
+#include "devices/battery.h"
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
@@ -51,6 +52,13 @@ typedef struct
     uint8_t mode;
     uint8_t mac[6];
 } i2cinput_init_s;
+
+typedef enum 
+{
+    POWER_CODE_OFF = 0, 
+    POWER_CODE_RESET = 1,
+    POWER_CODE_CRITICAL = 2,
+} i2c_power_code_t;
 
 // Status return data types
 typedef enum
@@ -152,6 +160,8 @@ typedef struct
     int16_t gx;
     int16_t gy;
     int16_t gz;
+
+    uint8_t power_stat;
 } __attribute__ ((packed)) i2cinput_input_s;
 
 #define I2CINPUT_INPUT_SIZE sizeof(i2cinput_input_s)
@@ -324,7 +334,7 @@ void _btinput_message_parse(uint8_t *data)
 
         btcb_msg.type = BTCB_POWER_CODE;
 
-        if (power_code == 0)
+        if (power_code == POWER_CODE_OFF)
         {
             if(_bluetooth_cb)
             {
@@ -332,11 +342,19 @@ void _btinput_message_parse(uint8_t *data)
                 _bluetooth_cb(&btcb_msg);
             }
         }
-        else if (power_code == 1)
+        else if (power_code == POWER_CODE_RESET)
         {
             if(_bluetooth_cb)
             {
                 btcb_msg.data[0] = 1;
+                _bluetooth_cb(&btcb_msg);
+            }
+        }
+        else if(power_code == POWER_CODE_CRITICAL)
+        {
+            if(_bluetooth_cb)
+            {
+                btcb_msg.data[0] = 2;
                 _bluetooth_cb(&btcb_msg);
             }
         }
@@ -400,11 +418,11 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[2] = out_mode;
 
     #if defined(BLUETOOTH_DRIVER_BATMON_ENABLE) && (BLUETOOTH_DRIVER_BATMON_ENABLE==1)
-        #if !defined(BLUETOOTH_DRIVER_BATMON_ADC_CH)
-        #error "BLUETOOTH_DRIVER_BATMON_ADC_CH must be defined if BLUETOOTH_DRIVER_BATMON_ENABLE==1"
+        #if !defined(BLUETOOTH_DRIVER_BATMON_ADC_GPIO)
+        #error "BLUETOOTH_DRIVER_BATMON_ADC_GPIO must be defined if BLUETOOTH_DRIVER_BATMON_ENABLE==1"
         #else 
         data_out[3] = true;
-        data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_CH;
+        data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
         #endif
     #else 
         data_out[3] = false;
@@ -502,9 +520,50 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.ay = imu_tmp.ay;
             input_data.az = imu_tmp.az;
 
-            //input_data.power_flags = bat.val;
+            // Power status
+            {
+                battery_status_s stat = battery_get_status();
+                bat_status_u s = {
+                    .bat_lvl    = 4,
+                    .charging   = 1,
+                    .connection = 0
+                };
+            
+                switch(stat.charge_status)
+                {
+                    case BATTERY_CHARGE_CHARGING:
+                    s.charging = 1;
+                    break;
+                
+                    default:
+                    s.charging = 0;
+                    break;
+                }
+            
+                switch(stat.battery_level)
+                {
+                    case BATTERY_LEVEL_CRITICAL:
+                    s.bat_lvl = 1;
+                    break;
+                
+                    case BATTERY_LEVEL_LOW:
+                    s.bat_lvl = 1;
+                    break;
+                
+                    case BATTERY_LEVEL_MID:
+                    s.bat_lvl = 2;
+                    break;
+                
+                    default:
+                    case BATTERY_LEVEL_HIGH:
+                    s.bat_lvl = 4;
+                    break;
+                }
 
-            uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
+                input_data.power_stat = s.val;
+            }
+
+            uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s)-1); // Subtract 1 for size because of legacy compatibility for baseband
             data_out[1] = crc;
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));
