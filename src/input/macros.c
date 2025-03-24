@@ -41,5 +41,8 @@ void macros_task(uint32_t timestamp)
     macro_pcmdebug(timestamp, &buttons);
     #endif
 
+    #if defined(HOJA_DISABLE_TOURNEY_MACRO) && (HOJA_DISABLE_TOURNEY_MACRO==1)
+    #else
     macro_tourney(timestamp, &buttons);
+    #endif
 }
