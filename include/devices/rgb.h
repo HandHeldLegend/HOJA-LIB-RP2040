@@ -19,6 +19,7 @@ extern int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP];
 extern rgb_s  rgb_colors_safe[RGB_MAX_GROUPS];
 #endif
 
+void rgb_set_idle(bool enable); 
 void rgb_deinit(callback_t cb);
 void rgb_init(int mode, int brightness);
 void rgb_task(uint32_t timestamp);

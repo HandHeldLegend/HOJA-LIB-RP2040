@@ -1,5 +1,9 @@
 #include "devices/animations/anm_shutdown.h"
 #include "devices/animations/anm_handler.h"
+
+#include "hal/rgb_hal.h"
+#include "hal/sys_hal.h"
+
 #include <stddef.h>
 #include <string.h>
 

@@ -56,6 +56,8 @@ typedef struct
     bool   init_status;
     rgb_s  notification_color;
     rgb_s  gamepad_color;
+    bool   ss_notif_pending; // Single-shot notification pending
+    rgb_s  ss_notif_color; // Single-shot notification color
 } hoja_status_s;
 
 #endif

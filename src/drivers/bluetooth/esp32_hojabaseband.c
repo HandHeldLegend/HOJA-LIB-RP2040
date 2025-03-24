@@ -9,7 +9,11 @@
 #include "hal/sys_hal.h"
 #include "hal/i2c_hal.h"
 
+#include "devices_shared_types.h"
+#include "devices/battery.h"
+
 #include "utilities/interval.h"
+#include "utilities/settings.h"
 
 #include "switch/switch_haptics.h"
 
@@ -48,6 +52,13 @@ typedef struct
     uint8_t mode;
     uint8_t mac[6];
 } i2cinput_init_s;
+
+typedef enum 
+{
+    POWER_CODE_OFF = 0, 
+    POWER_CODE_RESET = 1,
+    POWER_CODE_CRITICAL = 2,
+} i2c_power_code_t;
 
 // Status return data types
 typedef enum
@@ -149,7 +160,11 @@ typedef struct
     int16_t gx;
     int16_t gy;
     int16_t gz;
+
+    uint8_t power_stat;
 } __attribute__ ((packed)) i2cinput_input_s;
+
+#define I2CINPUT_INPUT_SIZE sizeof(i2cinput_input_s)
 
 // Polynomial for CRC-8 (x^8 + x^2 + x + 1)
 #define CRC8_POLYNOMIAL 0x07
@@ -251,6 +266,8 @@ void _btinput_message_parse(uint8_t *data)
     bool packet_updated = false;
     i2cinput_status_s status = {0};
 
+    bluetooth_cb_msg_s btcb_msg = {0};
+
     const uint8_t attempts_reset = 25;
     static uint8_t attempts_remaining = attempts_reset;
 
@@ -315,15 +332,31 @@ void _btinput_message_parse(uint8_t *data)
     {
         uint8_t power_code = status.data[0];
 
-        if (power_code == 0)
+        btcb_msg.type = BTCB_POWER_CODE;
+
+        if (power_code == POWER_CODE_OFF)
         {
-            // Shut down
-            hoja_deinit(hoja_shutdown);
+            if(_bluetooth_cb)
+            {
+                btcb_msg.data[0] = 0;
+                _bluetooth_cb(&btcb_msg);
+            }
         }
-        else if (power_code == 1)
+        else if (power_code == POWER_CODE_RESET)
         {
-            // Reboot
-            hoja_deinit(hoja_shutdown);
+            if(_bluetooth_cb)
+            {
+                btcb_msg.data[0] = 1;
+                _bluetooth_cb(&btcb_msg);
+            }
+        }
+        else if(power_code == POWER_CODE_CRITICAL)
+        {
+            if(_bluetooth_cb)
+            {
+                btcb_msg.data[0] = 2;
+                _bluetooth_cb(&btcb_msg);
+            }
         }
     }
     break;
@@ -339,20 +372,6 @@ void _btinput_message_parse(uint8_t *data)
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
         haptics_set_std(l>r? l : r);
-    }
-    break;
-
-    case I2C_STATUS_MAC_UPDATE:
-    {
-        // Paired to Nintendo Switch
-        //printf("New BT Switch Pairing Completed.");
-        //global_loaded_settings.switch_host_address[0] = status.data[0];
-        //global_loaded_settings.switch_host_address[1] = status.data[1];
-        //global_loaded_settings.switch_host_address[2] = status.data[2];
-        //global_loaded_settings.switch_host_address[3] = status.data[3];
-        //global_loaded_settings.switch_host_address[4] = status.data[4];
-        //global_loaded_settings.switch_host_address[5] = status.data[5];
-        //settings_save_from_core0();
     }
     break;
     }
@@ -397,6 +416,44 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 
     data_out[0] = I2C_CMD_START;
     data_out[2] = out_mode;
+
+    #if defined(BLUETOOTH_DRIVER_BATMON_ENABLE) && (BLUETOOTH_DRIVER_BATMON_ENABLE==1)
+        #if !defined(BLUETOOTH_DRIVER_BATMON_ADC_GPIO)
+        #error "BLUETOOTH_DRIVER_BATMON_ADC_GPIO must be defined if BLUETOOTH_DRIVER_BATMON_ENABLE==1"
+        #else 
+        data_out[3] = true;
+        data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
+        #endif
+    #else 
+        data_out[3] = false;
+        data_out[4] = 0;
+    #endif
+
+    // RGB Data
+    #define GET_RED(val) ((val & 0xFF0000) >> 16)
+    #define GET_GREEN(val) ((val & 0xFF00) >> 8)
+    #define GET_BLUE(val) ((val & 0xFF))
+    uint32_t col;
+
+    col = gamepad_config->gamepad_color_grip_left;
+    data_out[5] = GET_RED(col);
+    data_out[6] = GET_GREEN(col);
+    data_out[7] = GET_BLUE(col);
+
+    col = gamepad_config->gamepad_color_grip_right;
+    data_out[8] = GET_RED(col);
+    data_out[9] = GET_GREEN(col);
+    data_out[10] = GET_BLUE(col);
+
+    col = gamepad_config->gamepad_color_body;
+    data_out[11] = GET_RED(col);
+    data_out[12] = GET_GREEN(col);
+    data_out[13] = GET_BLUE(col);
+
+    col = gamepad_config->gamepad_color_buttons;
+    data_out[14] = GET_RED(col);
+    data_out[15] = GET_GREEN(col);
+    data_out[16] = GET_BLUE(col);
 
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), 13);
@@ -463,7 +520,50 @@ void esp32hoja_task(uint32_t timestamp)
             input_data.ay = imu_tmp.ay;
             input_data.az = imu_tmp.az;
 
-            uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s));
+            // Power status
+            {
+                battery_status_s stat = battery_get_status();
+                bat_status_u s = {
+                    .bat_lvl    = 4,
+                    .charging   = 1,
+                    .connection = 0
+                };
+            
+                switch(stat.charge_status)
+                {
+                    case BATTERY_CHARGE_CHARGING:
+                    s.charging = 1;
+                    break;
+                
+                    default:
+                    s.charging = 0;
+                    break;
+                }
+            
+                switch(stat.battery_level)
+                {
+                    case BATTERY_LEVEL_CRITICAL:
+                    s.bat_lvl = 1;
+                    break;
+                
+                    case BATTERY_LEVEL_LOW:
+                    s.bat_lvl = 1;
+                    break;
+                
+                    case BATTERY_LEVEL_MID:
+                    s.bat_lvl = 2;
+                    break;
+                
+                    default:
+                    case BATTERY_LEVEL_HIGH:
+                    s.bat_lvl = 4;
+                    break;
+                }
+
+                input_data.power_stat = s.val;
+            }
+
+            uint8_t crc = _crc8_compute((uint8_t *)&input_data, sizeof(i2cinput_input_s)-1); // Subtract 1 for size because of legacy compatibility for baseband
             data_out[1] = crc;
 
             memcpy(&(data_out[3]), &input_data, sizeof(i2cinput_input_s));

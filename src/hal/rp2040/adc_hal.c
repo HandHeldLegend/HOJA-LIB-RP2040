@@ -5,6 +5,7 @@
 
 #include "hardware/adc.h"
 #include "hardware/dma.h"
+#include "pico/multicore.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,8 @@ static uint32_t _adc_dma_chan = 0;
 #define min(a,b) ((a) < (b) ? (a) : (b))
 // Fast median of 3 that avoids temp variables and branches
 #define MEDIAN3(a,b,c) max(min(max(a,b), c), min(a,b))
+
+auto_init_mutex(_adc_safe_mutex); // Mutex to allow thread-safe access to peripheral
 
 uint16_t _process_samples(volatile uint16_t *source) 
 {
@@ -47,6 +50,8 @@ uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
 {
     if(!adc_init_done || cfg->ch_local>3) return 0;
 
+    mutex_enter_blocking(&_adc_safe_mutex);
+
     adc_select_input(cfg->ch_local);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
     adc_run(true);
@@ -57,13 +62,17 @@ uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
     adc_fifo_drain();
 
     _current_adc_values[cfg->ch_local] = _process_samples(_dma_adc_buffer);
-    
+
+    mutex_exit(&_adc_safe_mutex);
+
     return cfg->ch_invert ? (0xFFF - _current_adc_values[cfg->ch_local]) : _current_adc_values[cfg->ch_local];
 }
 
 bool _adc_hal_init(uint32_t gpio)
 {
     if(gpio<26 || gpio>29) return false;
+
+    mutex_enter_blocking(&_adc_safe_mutex);
 
     if(!adc_init_done)
     {
@@ -92,6 +101,9 @@ bool _adc_hal_init(uint32_t gpio)
     }
 
     adc_gpio_init(gpio);
+
+    mutex_exit(&_adc_safe_mutex);
+    
     return true;
 }
 

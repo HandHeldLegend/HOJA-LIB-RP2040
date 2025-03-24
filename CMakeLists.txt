@@ -41,6 +41,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/trigger.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/idle_manager.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
 
@@ -76,15 +77,14 @@ target_include_directories(hoja_lib INTERFACE
 target_compile_definitions(hoja_lib
   INTERFACE
   CYW43_LWIP=0
-  PICO_FLASH_ASSUME_CORE0_SAFE=1
-  PICO_FLASH_ASSUME_CORE1_SAFE=1
 )
 
 # Pull in pico libraries that we need
 target_link_libraries(hoja_lib INTERFACE
-  pico_stdlib
-  pico_bootrom
-  pico_multicore
+  pico_stdlib 
+  pico_bootrom 
+  pico_multicore 
+  pico_flash 
   pico_platform
   pico_rand
   pico_float

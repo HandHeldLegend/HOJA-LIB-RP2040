@@ -173,13 +173,15 @@ typedef struct
         uint8_t     reserved[363];
 } analogConfig_s;
 
+#define RGB_BRIGHTNESS_MAX 4096
+
 typedef struct 
 {
     uint8_t     rgb_config_version;
     uint8_t     rgb_mode;
     uint16_t    rgb_speed; // RGB Speed in ms
     uint32_t    rgb_colors[32]; // Store 32 RGB colors
-    uint16_t    rgb_brightness;
+    uint16_t    rgb_brightness; // 4096 range
     uint8_t     reserved[122];
 } rgbConfig_s;
 
@@ -187,12 +189,14 @@ typedef struct
 {
     uint8_t  gamepad_config_version;
     uint8_t  gamepad_default_mode;
-    uint8_t  switch_mac_address[6];
+    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
     uint32_t gamepad_color_grip_left;
     uint32_t gamepad_color_grip_right;
-    uint8_t  reserved[40];
+    uint8_t  host_mac_switch[6]; // Mac address of the Switch we are paired to
+    uint8_t  host_mac_xinput[6]; // Mac address of the XInput device we are paired to
+    uint8_t  reserved[28];
 } gamepadConfig_s;
 
 // Remapping struct used to determine

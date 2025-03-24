@@ -2,6 +2,7 @@
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
 #include "input/stick_deadzone.h"
+#include "input/idle_manager.h"
 
 #include "devices/adc.h"
 
@@ -283,6 +284,21 @@ void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
         cb(CFG_BLOCK_ANALOG, cmd, true, NULL, 0);
 }
 
+bool _is_analog_dist_changed(analog_data_s *current)
+{
+    static uint16_t dist_l = 0;
+    static uint16_t dist_r = 0;
+    bool return_value = false;
+
+    if(dist_l != current->ldistance) return_value = true;
+    if(dist_r != current->rdistance) return_value = true;
+
+    dist_l = current->ldistance;
+    dist_r = current->rdistance;
+
+    return return_value;
+}
+
 // 2Khz analog task
 
 #define DEBUG_ANALOG_OUTPUT 1
@@ -319,6 +335,8 @@ void analog_task(uint32_t timestamp)
         snapback_process(&_scaled_analog_data, &_snapback_analog_data);
 
         stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
+
+        if(_is_analog_dist_changed(&_deadzone_analog_data)) idle_manager_heartbeat();
 
         // Cap values
         _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);

@@ -7,11 +7,13 @@
 
 #include "devices/haptics.h"
 #include "devices/rgb.h"
+#include "devices/battery.h"
 
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
 #include "hoja_shared_types.h"
+#include "devices_shared_types.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -92,21 +94,56 @@ void set_timer()
 
 void set_battconn()
 {
-  typedef union
-  {
-    struct
-    {
-      uint8_t connection : 4;
-      uint8_t bat_lvl : 4;
-    };
-    uint8_t bat_status;
-  } bat_status_u;
+  #if defined(HOJA_BATTERY_DRIVER)
+  battery_status_s stat = battery_get_status();
 
   bat_status_u s = {
-      .bat_lvl = 8,
-      .connection = 1};
+    .bat_lvl    = 4,
+    .charging   = 1,
+    .connection = 0
+  };
+
+  switch(stat.charge_status)
+  {
+    case BATTERY_CHARGE_CHARGING:
+    s.charging = 1;
+    break;
+
+    default:
+    s.charging = 0;
+    break;
+  }
+
+  switch(stat.battery_level)
+  {
+    case BATTERY_LEVEL_CRITICAL:
+    s.bat_lvl = 1;
+    break;
+
+    case BATTERY_LEVEL_LOW:
+    s.bat_lvl = 1;
+    break;
+
+    case BATTERY_LEVEL_MID:
+    s.bat_lvl = 2;
+    break;
+
+    default:
+    case BATTERY_LEVEL_HIGH:
+    s.bat_lvl = 4;
+    break;
+  }
+  #else
+  bat_status_u s = {
+    .bat_lvl    = 4,
+    .charging   = 0,
+    .connection = 1
+  };
+  #endif
+  
+  
   // Always set to USB connected
-  _switch_command_buffer[1] = s.bat_status;
+  _switch_command_buffer[1] = s.val;
 }
 
 void set_devinfo()
@@ -459,7 +496,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_re
     break;
 
   case SW_OUT_ID_RUMBLE:
-    switch_haptics_rumble_translate(&data[2]);
+    // switch_haptics_rumble_translate(&data[2]);
     break;
 
   case SW_OUT_ID_INFO:
@@ -588,7 +625,8 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
       _switch_command_buffer[8] = (input_data->rs_x & 0xFF);
       _switch_command_buffer[9] = (input_data->rs_x & 0xF00) >> 8;
       _switch_command_buffer[10] = (input_data->rs_y & 0xFF0) >> 4;
-      _switch_command_buffer[11] = _unknown_thing();
+      
+      //_switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
       switch(hoja_get_status().gamepad_method)

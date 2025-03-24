@@ -51,13 +51,19 @@ bool flash_hal_write(uint8_t *data, uint32_t size, uint32_t page)
     _write_offset = _get_sector_offset_write(page);
     _flash_go = true;
 
-    // Block until it's done
-    while(_flash_go)
-    {
-        sleep_us(1);
-    }
-
     return true;
+}
+
+void _flash_safe_write(void * params)
+{
+    // Create blank page data
+    uint8_t thisPage[FLASH_SECTOR_SIZE] = {0x00};
+    // Copy settings into our page buffer
+    memcpy(thisPage, _write_from, _write_size);
+    // Erase the settings flash sector
+    flash_range_erase(_write_offset, FLASH_SECTOR_SIZE);
+    // Program the flash sector with our page
+    flash_range_program(_write_offset, thisPage, FLASH_SECTOR_SIZE);
 }
 
 bool flash_hal_read(uint8_t *out, uint32_t size, uint32_t page) 
@@ -74,15 +80,9 @@ bool flash_hal_read(uint8_t *out, uint32_t size, uint32_t page)
 void flash_hal_init()
 {
     uint core = get_core_num();
-
-    if(core==1)
+    if(core==0)
     {
-        // Nothing
-        return;
-    }
-    else 
-    {
-        multicore_lockout_victim_init();
+        flash_safe_execute_core_init();
     }
 }
 
@@ -90,33 +90,14 @@ void flash_hal_init()
 // our flash flag is set
 void flash_hal_task()
 {
-    uint core = get_core_num();
-    if(core==1)
+    if(_flash_go)
     {
-        if(_flash_go)
-        {
-            multicore_lockout_start_blocking();
-            // Store interrupts status and disable
-            uint32_t ints = save_and_disable_interrupts();
-            // Create blank page data
-            uint8_t thisPage[FLASH_SECTOR_SIZE] = {0x00};
-            // Copy settings into our page buffer
-            memcpy(thisPage, _write_from, _write_size);
-            // Erase the settings flash sector
-            flash_range_erase(_write_offset, FLASH_SECTOR_SIZE);
-            // Program the flash sector with our page
-            flash_range_program(_write_offset, thisPage, FLASH_SECTOR_SIZE);
+        flash_safe_execute(_flash_safe_write, NULL, UINT32_MAX);
 
-            // Restore interrups
-            restore_interrupts(ints);
+        _write_from = NULL;
+        _write_size = 0;
+        _write_offset = 0;
 
-            _write_from = NULL;
-            _write_size = 0;
-            _write_offset = 0;
-
-            _flash_go = false;
-
-            multicore_lockout_end_blocking();
-        }
+        _flash_go = false;
     }
 }
