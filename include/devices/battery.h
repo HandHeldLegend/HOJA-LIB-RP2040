@@ -54,8 +54,8 @@ typedef enum
     BATTERY_LEVEL_HIGH
 } battery_level_t;
 
-#define VOLTAGE_LEVEL_CRITICAL  3.575f
-#define VOLTAGE_LEVEL_LOW       3.65f
+#define VOLTAGE_LEVEL_CRITICAL  3.125f
+#define VOLTAGE_LEVEL_LOW       3.3f
 #define VOLTAGE_LEVEL_MID       3.975f
 
 typedef struct
