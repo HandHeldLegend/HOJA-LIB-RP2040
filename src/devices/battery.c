@@ -274,7 +274,11 @@ void battery_task(uint32_t timestamp)
     #if defined(HOJA_BATTERY_GET_VOLTAGE)
     if(interval_run(timestamp, BATTERY_LEVEL_INTERVAL_US, &voltage_interval))
     {
-        if((_battery_status.plug_status == BATTERY_PLUG_PLUGGED) || (_battery_status.plug_status == BATTERY_CHARGE_UNAVAILABLE)) return;
+        if((_battery_status.plug_status == BATTERY_PLUG_PLUGGED) || (_battery_status.plug_status == BATTERY_CHARGE_UNAVAILABLE)) 
+        {
+            _battery_status.battery_level = BATTERY_LEVEL_HIGH;
+            return;
+        }
 
         _battery_update_charge();
 
