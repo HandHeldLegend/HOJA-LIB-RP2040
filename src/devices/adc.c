@@ -6,6 +6,7 @@
 
 #include "drivers/adc/mcp3002.h"
 #include "drivers/adc/tmux1204.h"
+#include "drivers/adc/ads7142.h"
 #include "hal/adc_hal.h"
 
 #define BLANK_ADC_CFG {.ch_local = -1}
@@ -82,6 +83,11 @@ bool adc_devices_init()
                         _chan_read_fns[i] = tmux1204_read_channel;
                     else return false;
                 break;
+
+                case ADC_DRIVER_ADS7142:
+                    if(ads7142_init_channel(cfg))
+                        _chan_read_fns[i] = ads7142_read_channel;
+                    else return false;
             }
         }
     }

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 bool        adc_devices_init();
 
 uint16_t    adc_read_lx();

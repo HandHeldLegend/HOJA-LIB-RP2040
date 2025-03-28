@@ -18,6 +18,7 @@
         ADC_DRIVER_HAL,
         ADC_DRIVER_MCP3002,
         ADC_DRIVER_TMUX1204,
+        ADC_DRIVER_ADS7142
     } adc_driver_t;
 
     /**
@@ -35,6 +36,10 @@
         int8_t  cs_gpio;
         int8_t  spi_instance;
     } adc_mcp3002_cfg_t;
+
+    typedef struct { 
+        int8_t i2c_instance;
+    } adc_ads7142_cfg_t;
 
     // Forward declare the driver config struct
     typedef struct adc_driver_cfg_s adc_driver_cfg_s;
@@ -59,6 +64,7 @@
             adc_hal_cfg_t       hal_cfg;
             adc_mcp3002_cfg_t   mcp3002_cfg;
             adc_tmux1204_cfg_t  tmux1204_cfg;
+            adc_ads7142_cfg_t   ads7142_cfg;
         };
     };
 
