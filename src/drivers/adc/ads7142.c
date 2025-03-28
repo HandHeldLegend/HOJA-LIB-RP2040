@@ -47,6 +47,7 @@ bool ads7142_init_channel(adc_channel_cfg_s *cfg)
     _ads7142_write_register(i2c_instance, ADS7142_ADDR, 0x24, 0x03);
 
     // OPMODE_SEL
+    // High Precision Mode with AUTO Sequencing enabled (0x7)
     _ads7142_write_register(i2c_instance, ADS7142_ADDR, 0x1C, 0x07);
 
     // AUTO_SEQ_CHEN 
@@ -103,6 +104,7 @@ uint16_t ads7142_read_channel(adc_channel_cfg_s *cfg)
         _ads7142_write_register(i2c_instance, ADS7142_ADDR, 0x1E, 0x01);
     }
     
+    return_value >>= 4;
     bool ch_invert = cfg->ch_invert;
 
     return (ch_invert) ? (0xFFF -  return_value) : return_value;
