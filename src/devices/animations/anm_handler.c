@@ -138,6 +138,8 @@ void anm_handler_shutdown(callback_t cb)
 
 void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t animation_time_ms)
 {
+    if(_rgb_shutting_down) return;
+    
     _anim_speed = animation_time_ms;
     anm_utility_set_time_ms(animation_time_ms);
 
@@ -193,10 +195,10 @@ void _notification_manager(rgb_s *output)
         notif_leds[i] = output[this_idx];
     }
 
-    static bool loop_lock = false;
+
     hoja_status_s this_status = hoja_get_status();
 
-    if(this_status.ss_notif_pending && !loop_lock)
+    if(this_status.ss_notif_pending)
     {
         if(ply_blink_handler_ss(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.ss_notif_color))
         {
@@ -205,10 +207,9 @@ void _notification_manager(rgb_s *output)
     }
     else if(this_status.notification_color.color != 0)
     {
-        loop_lock = true;
         if(ply_blink_handler(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.notification_color))
         {
-            loop_lock = false;
+
         }
     }
 
@@ -283,8 +284,7 @@ void _player_connection_manager(rgb_s *output)
     #endif
 }
 
-bool _anm_idle_enable = false;
-bool _anm_idle_active = false;
+volatile bool _anm_idle_active = false;
 void anm_set_idle_enable(bool enable)
 {
     static int store_mode = 0;
@@ -292,17 +292,16 @@ void anm_set_idle_enable(bool enable)
     
     if(enable && !_anm_idle_active)
     {
-        _anm_idle_active = true;
         store_mode = _current_mode;
         store_bright = _anim_brightness;
         anm_handler_setup_mode(RGB_ANIM_IDLE, 500, _anim_speed);
-        _anm_idle_enable = enable;
+        _anm_idle_active = true;
+
     }
     else if (!enable && _anm_idle_active)
     {
         anm_handler_setup_mode(store_mode, store_bright, _anim_speed);
         _anm_idle_active = false;
-        _anm_idle_enable = enable;
     }
 }
 
@@ -327,6 +326,7 @@ void anm_handler_tick()
     {
         if(!_anm_idle_active)
             _player_connection_manager(_current_ani_leds);
+
         _notification_manager(_current_ani_leds);
     }
 
