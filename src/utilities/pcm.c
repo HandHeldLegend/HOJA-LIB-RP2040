@@ -18,8 +18,7 @@ int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
 volatile uint32_t _lo_amp_minimum = 0;
 volatile uint32_t _hi_amp_minimum  = 0;
 
-volatile uint32_t _lo_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
-volatile uint32_t _hi_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+float _global_fixed_scaler = 1.0f;
 
 uint32_t _pcm_max_safe_value    = 0; 
 uint32_t _pcm_max_safe_scaler   = 0; 
@@ -174,9 +173,7 @@ void pcm_init(int intensity)
 
     if(!intensity)
     {
-        _lo_amp_scaler = 0;
         _lo_amp_minimum = 0;
-        _hi_amp_scaler = 0;
         _hi_amp_minimum = 0;
         this_intensity = intensity;
         return;
@@ -191,6 +188,7 @@ void pcm_init(int intensity)
     }
 
     float scaler = (float) this_intensity / 255.0f;
+    _global_fixed_scaler = scaler;
 
     // Calculate pcm clamp value (max allowed value)
     _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_VAL * _pcm_param_max);
@@ -208,13 +206,6 @@ void pcm_init(int intensity)
     // Calculate remainder of range 
     float remaininghi = (float) _pcm_max_safe_value - himin_pcm;
     float remaininglo = (float) _pcm_max_safe_value - lomin_pcm;
-
-    // Calculate scalers for the remaining ranges for our sine table
-    float loscale = (remaininglo / (float) PCM_WRAP_VAL) * scaler;
-    float hiscale = (remaininghi / (float) PCM_WRAP_VAL) * scaler;
-
-    _lo_amp_scaler = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
-    _hi_amp_scaler = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
 
     _lo_amp_minimum  = (uint32_t) (_pcm_param_min_lo * PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_minimum  = (uint32_t) (_pcm_param_min_hi * PCM_AMPLITUDE_SHIFT_FIXED);
@@ -248,7 +239,7 @@ void pcm_play_sample(uint8_t *sample, uint32_t size)
     _external_sample_size = size;
 }
 
-// Generate 255 samples of PCM data
+// Generate PCM_BUFFER_SIZE samples of PCM data
 void pcm_generate_buffer(
     uint32_t *buffer // Output buffer
 )
@@ -273,6 +264,10 @@ void pcm_generate_buffer(
 
         static uint32_t hi_frequency_increment = 200;
         static uint32_t lo_frequency_increment = 200;
+        static uint32_t hi_amp_scaler = 0;
+        static uint32_t lo_amp_scaler = 0;
+        static uint32_t hi_amp_peak = 0;
+        static uint32_t lo_amp_peak = 0;
 
         if(!processing_sample)
         {
@@ -289,57 +284,44 @@ void pcm_generate_buffer(
                 */
                 hi_frequency_increment = current_values.hi_frequency_increment;
 
+                if(current_values.hi_amplitude_fixed)
+                {
+                    float tmphia = _global_fixed_scaler * (float) current_values.hi_amplitude_fixed;
+                    current_values.hi_amplitude_fixed = (uint32_t) tmphia;
+
+                    hi_amp_scaler = current_values.hi_amplitude_fixed + _hi_amp_minimum;
+                    hi_amp_peak = (current_values.hi_amplitude_fixed * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                }
+                else 
+                {
+                    hi_amp_scaler = 0;
+                    hi_amp_peak = 0;
+                }
+
+                // If we have a low amplitude, we need to set the scaler
+                // to the minimum value
+                if(current_values.lo_amplitude_fixed)
+                {
+                    float tmpla = _global_fixed_scaler * (float) current_values.lo_amplitude_fixed;
+                    current_values.lo_amplitude_fixed = (uint32_t) tmpla;
+
+                    lo_amp_scaler = current_values.lo_amplitude_fixed + _lo_amp_minimum;
+                    lo_amp_peak = (current_values.lo_amplitude_fixed * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                }
+                else 
+                {
+                    lo_amp_scaler = 0;
+                    lo_amp_peak = 0;
+                }
+
                 /*
                     Low frequency is used for Jump, Smash attack, 
                     Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
                 */
                 lo_frequency_increment = current_values.lo_frequency_increment;
+
+                lo_amp_scaler = current_values.lo_amplitude_fixed;
             }
-        }
-
-        static uint32_t hi_amp_scaler = 0;
-        static uint32_t lo_amp_scaler = 0;
-        static uint32_t hi_amp_peak = 0;
-        static uint32_t lo_amp_peak = 0;
-
-        // We can calulate the peak and scaler
-        // once each time the amplitude changes
-        if(current_values.hi_amplitude_fixed != last_hi_amp)
-        {
-            if(!current_values.hi_amplitude_fixed) 
-            {
-                hi_amp_scaler = 0;
-                last_hi_amp = 0;
-                hi_amp_peak = 0;
-            }
-            else 
-            {
-                hi_amp_scaler = (current_values.hi_amplitude_fixed * _hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-                hi_amp_scaler += _hi_amp_minimum;
-                last_hi_amp   = current_values.hi_amplitude_fixed;
-
-                hi_amp_peak = (hi_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
-        }
-
-        if(current_values.lo_amplitude_fixed != last_lo_amp)
-        {
-            if(!current_values.lo_amplitude_fixed) 
-            {
-                lo_amp_scaler = 0;
-                last_lo_amp = 0;
-                lo_amp_peak = 0;
-            }
-            else 
-            {
-                lo_amp_scaler = (current_values.lo_amplitude_fixed * _lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-                lo_amp_scaler += _lo_amp_minimum;
-                last_lo_amp   = current_values.lo_amplitude_fixed;
-
-                lo_amp_peak = (lo_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
-
-            
         }
 
         uint32_t this_hi_scaler = hi_amp_scaler;

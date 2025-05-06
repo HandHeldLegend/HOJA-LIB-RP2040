@@ -34,7 +34,7 @@ static uint16_t     _amplitude_step = 0;
 // Set desired motor intensity
 void erm_simulator_set_intensity(uint8_t intensity) {
 
-    intensity = intensity > 220 ? 220 : intensity;
+    intensity = intensity > 255 ? 255 : intensity;
 
     if((int32_t) intensity == _target_intensity) return;
 
@@ -66,7 +66,7 @@ bool _motor_sim_update(uint16_t *out_freq, uint16_t *out_amp) {
     _current_intensity = (_current_intensity < _target_intensity) ? _target_intensity : _current_intensity;
     _current_intensity = (_current_intensity > _target_intensity) ? _target_intensity : _current_intensity;
 
-    switch_haptics_get_basic(_current_intensity, _current_intensity>>2, out_amp, out_freq);
+    switch_haptics_get_basic(_current_intensity, 64, out_amp, out_freq);
 
     return change;
 }
@@ -92,9 +92,9 @@ void erm_simulator_task(uint32_t timestamp)
         bool update = _motor_sim_update(&freq_step, &amp_fixed);
 
         pcm_data.lo_amplitude_fixed = amp_fixed;
-        pcm_data.hi_amplitude_fixed = 0;
+        pcm_data.hi_amplitude_fixed = amp_fixed;
         pcm_data.lo_frequency_increment = freq_step;
-        pcm_data.hi_frequency_increment = 0;
+        pcm_data.hi_frequency_increment = freq_step;
 
         if(update) pcm_amfm_push(&pcm_data);
     }
