@@ -5,8 +5,6 @@
 #include <math.h>
 #include "utilities/pcm.h"
 
-#include "usb/webusb.h"
-
 typedef struct 
 {
     int16_t default_amplitude;
@@ -87,8 +85,6 @@ void _initialize_exp_base2_lookup() {
 // Frequency sine increment values are Q8.8 fixed-point
 static uint16_t _haptics_hi_freq_increment[128];
 static uint16_t _haptics_lo_freq_increment[128];
-
-
 
 // Function to return values from our pre-determined lookup table
 void switch_haptics_get_basic(uint8_t amplitude, uint8_t frequency, uint16_t *amp_out, uint16_t *freq_out)
@@ -337,39 +333,6 @@ static inline uint8_t _apply_command_freq(Action_t action,
         default: // Action_Default
             return (uint8_t) _haptic_defaults.default_frequency;
     }
-}
-
-void switch_haptics_arbitrary_playback(uint8_t intensity)
-{
-    uint8_t translated_intensity = 34;
-    uint8_t translated_intensity_lo = 36;
-
-    uint8_t dbg_ahi = _haptics_amplitude_index[translated_intensity];
-    uint8_t dbg_alo = _haptics_amplitude_index[translated_intensity_lo];
-    uint8_t dbg_hi = 64;
-    uint8_t dbg_lo = 64;
-
-    if(!intensity)
-    {
-        // Stop the haptics
-        haptic_processed_s data = {
-            .hi_amplitude_fixed = 0,
-            .lo_amplitude_fixed = 0,
-            .hi_frequency_increment = 0,
-            .lo_frequency_increment = 0
-        };
-        haptics_set_hd(&data);
-        return;
-    }
-
-    haptic_processed_s data = {
-        .hi_amplitude_fixed = _ExpBase2LookupHi[dbg_ahi],
-        .lo_amplitude_fixed = _ExpBase2LookupLo[dbg_alo],
-        .hi_frequency_increment = _haptics_hi_freq_increment[dbg_hi],
-        .lo_frequency_increment = _haptics_lo_freq_increment[dbg_lo]
-    };
-
-    haptics_set_hd(&data);
 }
 
 
@@ -659,9 +622,6 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
     };
 }
 
-// Test data is 0x0, 0x45, 0x40, 0x52 
-// This is what the Switch sends when you enable Controller Vibration and it sends a test signal
-
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
@@ -677,12 +637,6 @@ void switch_haptics_rumble_translate(const uint8_t *data)
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
             
-            // Check for webusb use
-            if (webusb_outputting_check())
-            {
-               return;
-            }
-
             haptics_set_hd(&processed);
         }
     }

@@ -13,11 +13,8 @@
 
 short sign_axis(int16_t input_axis)
 {   
-    int output = (input_axis * 17);
-    // Clamp output to short range
-    if(output > 32767) output = 32767;
-    if(output < -32768) output = -32768;
-    return (short)output;
+    // Scale up to x16 (2048 to 32768 range)
+    return (short)(input_axis * 16);
 }
 
 void xinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
