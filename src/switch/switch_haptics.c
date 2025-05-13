@@ -4,6 +4,7 @@
 #include "devices_shared_types.h"
 #include <math.h>
 #include "utilities/pcm.h"
+#include "usb/webusb.h"
 
 typedef struct 
 {
@@ -622,8 +623,69 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
     };
 }
 
+void switch_haptics_arbitrary_playback(uint8_t intensity)
+{
+
+    uint8_t scale = intensity>>1;
+
+    uint8_t translated_intensity = scale;
+    uint8_t translated_intensity_lo = scale+2;
+
+    translated_intensity_lo = (translated_intensity_lo > 127) ? 127 : translated_intensity_lo;
+
+    uint8_t freq_offset = 0;
+    uint8_t target_freq = 64;
+
+    if(translated_intensity == 36)
+    {
+        freq_offset = 0;
+    }
+    else if (translated_intensity < 36)
+    {
+        uint8_t remainder = 36 - translated_intensity;
+        freq_offset = (remainder > 36) ? 36 : remainder;
+        target_freq -= freq_offset;
+    }
+    else if (translated_intensity > 36)
+    {
+        uint8_t remainder = translated_intensity - 36;
+        freq_offset = (remainder > 36) ? 36 : remainder;
+        target_freq += freq_offset;
+    }
+
+    uint8_t dbg_ahi = _haptics_amplitude_index[translated_intensity];
+    uint8_t dbg_alo = _haptics_amplitude_index[translated_intensity_lo];
+    uint8_t dbg_hi = 64;
+    uint8_t dbg_lo = 64;
+
+    if(!intensity)
+    {
+        // Stop the haptics
+        haptic_processed_s data = {
+            .hi_amplitude_fixed = 0,
+            .lo_amplitude_fixed = 0,
+            .hi_frequency_increment = 0,
+            .lo_frequency_increment = 0
+        };
+        haptics_set_hd(&data);
+        return;
+    }
+
+    haptic_processed_s data = {
+        .hi_amplitude_fixed = _ExpBase2LookupHi[dbg_ahi],
+        .lo_amplitude_fixed = _ExpBase2LookupLo[dbg_alo],
+        .hi_frequency_increment = _haptics_hi_freq_increment[dbg_hi],
+        .lo_frequency_increment = _haptics_lo_freq_increment[dbg_lo]
+    };
+
+    haptics_set_hd(&data);
+}
+
 void switch_haptics_rumble_translate(const uint8_t *data)
 {
+    // Ignore if we are outputting to webusb
+    if(webusb_outputting_check()) return;
+
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
     haptic_processed_s processed = {0};

@@ -15,23 +15,15 @@
 #endif
 
 int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
-volatile uint32_t _lo_amp_minimum = 0;
-volatile uint32_t _hi_amp_minimum  = 0;
+volatile uint32_t _lo_amp_scaler_fixed_min = 0;
+volatile uint32_t _hi_amp_scaler_fixed_min  = 0;
 
-volatile uint32_t _lo_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
-volatile uint32_t _hi_amp_scaler = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+volatile uint32_t _lo_amp_scaler_fixed = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+volatile uint32_t _hi_amp_scaler_fixed = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
 
-uint32_t _pcm_max_safe_value    = 0; 
-uint32_t _pcm_max_safe_scaler   = 0; 
-uint32_t _pcm_sample_scaler = 0;
+volatile uint32_t _amp_scaler_max_safe = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
 
-float _pcm_max_safe_hi = 0; 
-float _pcm_max_safe_lo = 0; 
-
-float _pcm_param_min_hi = PCM_LO_FREQUENCY_MIN;
-float _pcm_param_min_lo = PCM_LO_FREQUENCY_MIN;
-
-float _pcm_param_max = PCM_MAX_SAFE_RATIO;
+volatile uint32_t _external_sample_scaler = 0;
 
 #define TWO_PI 2.0f * M_PI
 
@@ -40,18 +32,18 @@ void pcm_debug_adjust_param(uint8_t param_type, float amount)
     switch(param_type)
     {
         case PCM_DEBUG_PARAM_MIN_HI:
-            _pcm_param_min_hi += amount;
-            _pcm_param_min_hi = (_pcm_param_min_hi > 1) ? 1 : (_pcm_param_min_hi < 0) ? 0 : _pcm_param_min_hi;
+            //_pcm_param_min_hi += amount;
+            //_pcm_param_min_hi = (_pcm_param_min_hi > 1) ? 1 : (_pcm_param_min_hi < 0) ? 0 : _pcm_param_min_hi;
         break;
 
         case PCM_DEBUG_PARAM_MAX:
-            _pcm_param_max += amount;
-            _pcm_param_max = (_pcm_param_max > 1) ? 1 : (_pcm_param_max < 0) ? 0 : _pcm_param_max;
+            //_pcm_param_max += amount;
+            //_pcm_param_max = (_pcm_param_max > 1) ? 1 : (_pcm_param_max < 0) ? 0 : _pcm_param_max;
         break;
 
         case PCM_DEBUG_PARAM_MIN_LO:
-            _pcm_param_min_lo += amount;
-            _pcm_param_min_lo = (_pcm_param_min_lo > 1) ? 1 : (_pcm_param_min_lo < 0) ? 0 : _pcm_param_min_lo;
+            //_pcm_param_min_lo += amount;
+            //_pcm_param_min_lo = (_pcm_param_min_lo > 1) ? 1 : (_pcm_param_min_lo < 0) ? 0 : _pcm_param_min_lo;
         break;
     }
 
@@ -174,10 +166,10 @@ void pcm_init(int intensity)
 
     if(!intensity)
     {
-        _lo_amp_scaler = 0;
-        _lo_amp_minimum = 0;
-        _hi_amp_scaler = 0;
-        _hi_amp_minimum = 0;
+        _lo_amp_scaler_fixed = 0;
+        _lo_amp_scaler_fixed_min = 0;
+        _hi_amp_scaler_fixed = 0;
+        _hi_amp_scaler_fixed_min = 0;
         this_intensity = intensity;
         return;
     }
@@ -190,34 +182,43 @@ void pcm_init(int intensity)
         this_intensity = intensity;
     }
 
+    // The scaler based on our user config setting
     float scaler = (float) this_intensity / 255.0f;
 
-    // Calculate pcm clamp value (max allowed value)
-    _pcm_max_safe_value     = (uint32_t) ((float) PCM_WRAP_VAL * _pcm_param_max);
-    _pcm_max_safe_scaler    = (uint32_t) (_pcm_param_max * PCM_AMPLITUDE_SHIFT_FIXED);
+    // Calculate the scaled maximum wrap value. We also factor in the user config scaler and board config
+    float max_scaled_wrap = ((float) PCM_WRAP_VAL * scaler * PCM_MAX_SAFE_RATIO);
 
-    _pcm_sample_scaler = (uint32_t) _pcm_max_safe_value / 255;
+    // Calculate the fixed point maximum wrap value scaler
+    float max_safe_scaler = scaler * PCM_MAX_SAFE_RATIO;
+    _amp_scaler_max_safe = (uint32_t) (max_safe_scaler * PCM_AMPLITUDE_SHIFT_FIXED);
 
-    // Minimum amplitudes are based on our WRAP value
-
-    // Calculate the exact wrap value that our min amplitudes
-    // rest at 
-    float lomin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_lo;
-    float himin_pcm = (float) PCM_WRAP_VAL * _pcm_param_min_hi;
+    // Calculate the exact wrap value that our min amplitudes rest at
+    // This should always be calcuated using the full PCM_WRAP_VAL because
+    // the sine table is generated using the full range
+    float pcm_wrap_minimum_lo = (float) PCM_WRAP_VAL * PCM_LO_FREQUENCY_MIN;
+    float pcm_wrap_minimum_hi = (float) PCM_WRAP_VAL * PCM_HI_FREQUENCY_MIN;
 
     // Calculate remainder of range 
-    float remaininghi = (float) _pcm_max_safe_value - himin_pcm;
-    float remaininglo = (float) _pcm_max_safe_value - lomin_pcm;
+    float remaininghi = max_scaled_wrap - pcm_wrap_minimum_hi;
+    float remaininglo = max_scaled_wrap - pcm_wrap_minimum_lo;
 
     // Calculate scalers for the remaining ranges for our sine table
-    float loscale = (remaininglo / (float) PCM_WRAP_VAL) * scaler;
-    float hiscale = (remaininghi / (float) PCM_WRAP_VAL) * scaler;
+    float loscale = (remaininglo / (float) PCM_WRAP_VAL);
+    float hiscale = (remaininghi / (float) PCM_WRAP_VAL);
 
-    _lo_amp_scaler = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
-    _hi_amp_scaler = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
+    // Calculate the max scaler for external samples (trigger feedback)
+    _external_sample_scaler = (uint32_t) max_scaled_wrap / 255;
 
-    _lo_amp_minimum  = (uint32_t) (_pcm_param_min_lo * PCM_AMPLITUDE_SHIFT_FIXED);
-    _hi_amp_minimum  = (uint32_t) (_pcm_param_min_hi * PCM_AMPLITUDE_SHIFT_FIXED);
+    // Calculate the fixed point scalers for our lo and hi amplitudes
+    _lo_amp_scaler_fixed = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
+    _hi_amp_scaler_fixed = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
+
+    float tmpminloscaler = pcm_wrap_minimum_lo / (float) PCM_WRAP_VAL;
+    float tmpminhiscaler = pcm_wrap_minimum_hi / (float) PCM_WRAP_VAL;
+
+    // Calculate the fixed point minimums for our lo and hi amplitudes
+    _lo_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminloscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
+    _hi_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminhiscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
 
     if(_pcm_init_done) return;
     _pcm_init_done = true;
@@ -274,6 +275,11 @@ void pcm_generate_buffer(
         static uint32_t hi_frequency_increment = 200;
         static uint32_t lo_frequency_increment = 200;
 
+        static uint32_t hi_amp_scaler = 0;
+        static uint32_t lo_amp_scaler = 0;
+        static uint32_t hi_amp_peak = 0;
+        static uint32_t lo_amp_peak = 0;
+
         if(!processing_sample)
         {
             // Get new values from queue
@@ -294,13 +300,10 @@ void pcm_generate_buffer(
                     Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
                 */
                 lo_frequency_increment = current_values.lo_frequency_increment;
+
+
             }
         }
-
-        static uint32_t hi_amp_scaler = 0;
-        static uint32_t lo_amp_scaler = 0;
-        static uint32_t hi_amp_peak = 0;
-        static uint32_t lo_amp_peak = 0;
 
         // We can calulate the peak and scaler
         // once each time the amplitude changes
@@ -314,8 +317,8 @@ void pcm_generate_buffer(
             }
             else 
             {
-                hi_amp_scaler = (current_values.hi_amplitude_fixed * _hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-                hi_amp_scaler += _hi_amp_minimum;
+                hi_amp_scaler = (current_values.hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+                hi_amp_scaler += _hi_amp_scaler_fixed_min;
                 last_hi_amp   = current_values.hi_amplitude_fixed;
 
                 hi_amp_peak = (hi_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
@@ -332,8 +335,8 @@ void pcm_generate_buffer(
             }
             else 
             {
-                lo_amp_scaler = (current_values.lo_amplitude_fixed * _lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-                lo_amp_scaler += _lo_amp_minimum;
+                lo_amp_scaler = (current_values.lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+                lo_amp_scaler += _lo_amp_scaler_fixed_min;
                 last_lo_amp   = current_values.lo_amplitude_fixed;
 
                 lo_amp_peak = (lo_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
@@ -362,10 +365,10 @@ void pcm_generate_buffer(
             // Both signs are the same, we can check 
             // if we need to perform scaling to prevent clipping
             uint32_t combined_amp = this_hi_scaler + this_lo_scaler;
-            if(combined_amp > _pcm_max_safe_scaler)
+            if(combined_amp > _amp_scaler_max_safe)
             {
                 // Compute the scaling factor as a fixed-point ratio
-                uint32_t new_ratio = _pcm_max_safe_scaler / combined_amp;
+                uint32_t new_ratio = _amp_scaler_max_safe / combined_amp;
                 // Scale the components proportionally
                 this_hi_scaler = (this_hi_scaler * new_ratio) >> PCM_AMPLITUDE_BIT_SCALE;
                 this_lo_scaler = (this_lo_scaler * new_ratio) >> PCM_AMPLITUDE_BIT_SCALE;
@@ -403,7 +406,7 @@ void pcm_generate_buffer(
         // Mix in external sample if we have any remaining
         if(_external_sample_remaining)
         {
-            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining] * _pcm_sample_scaler;
+            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining] * _external_sample_scaler;
             _external_sample_remaining--;
         }
 

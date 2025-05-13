@@ -395,7 +395,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        haptics_set_std((buffer[1] & 0x1) ? 235 : 0);
+        haptics_set_std((buffer[1] & 0x1) ? 200 : 0);
       }
       else if (buffer[0] == 0x13)
       {
