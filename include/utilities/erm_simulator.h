@@ -4,6 +4,6 @@
 
 void erm_simulator_init();
 void erm_simulator_set_intensity(uint8_t intensity);
-void erm_simulator_task(uint32_t timestamp);
+void erm_simulator_task(uint64_t timestamp);
 
 #endif 

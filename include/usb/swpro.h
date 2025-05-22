@@ -107,6 +107,6 @@ extern const uint8_t swpro_hid_report_descriptor_usb[];
 extern const uint8_t swpro_hid_report_descriptor_bt[];
 extern const uint8_t swpro_configuration_descriptor[];
 
-void swpro_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
+void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb);
 
 #endif

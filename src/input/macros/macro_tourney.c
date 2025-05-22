@@ -10,7 +10,7 @@
 
 #define PAIRING_TOURNEY_INTERVAL_US 3000
 
-void macro_tourney(uint32_t timestamp, button_data_s *buttons)
+void macro_tourney(uint64_t timestamp, button_data_s *buttons)
 {
     static interval_s interval = {0};
     static bool holding = false;

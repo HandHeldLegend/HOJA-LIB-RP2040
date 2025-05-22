@@ -71,7 +71,7 @@ void haptics_stop()
     #endif
 }
 
-void haptics_task(uint32_t timestamp)
+void haptics_task(uint64_t timestamp)
 {
     #if defined(HOJA_HAPTICS_TASK)
     HOJA_HAPTICS_TASK(timestamp);

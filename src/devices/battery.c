@@ -202,7 +202,7 @@ void battery_set_critical_shutdown()
 }
 
 // PMIC management task.
-void battery_task(uint32_t timestamp)
+void battery_task(uint64_t timestamp)
 {
     #if defined(HOJA_BATTERY_DRIVER)
     if(_wired_override) return;

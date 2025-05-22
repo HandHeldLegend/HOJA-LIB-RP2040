@@ -14,7 +14,7 @@ bool nesbus_wired_start()
   return true;
 }
 
-void nesbus_wired_task(uint32_t timestamp)
+void nesbus_wired_task(uint64_t timestamp)
 {
   #if defined(HOJA_NESBUS_TASK)
   HOJA_NESBUS_TASK(timestamp);

@@ -20,7 +20,7 @@ static uint16_t     _amplitude_step = 0;
 // Set desired motor intensity
 void erm_simulator_set_intensity(uint8_t intensity) {
     intensity = intensity > 220 ? 220 : intensity;
-    intensity >>= 1;
+    intensity >>= 2;
     
     int32_t adjusted_intensity = intensity << ERM_SHIFT_VAL; // Shift left by 4 bits to get the 12-bit value
 
@@ -61,7 +61,7 @@ void erm_simulator_init()
     return;
 }
 
-void erm_simulator_task(uint32_t timestamp)
+void erm_simulator_task(uint64_t timestamp)
 {   
     interval_s interval = {0};
 

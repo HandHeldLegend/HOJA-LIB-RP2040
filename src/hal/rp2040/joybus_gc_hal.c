@@ -262,7 +262,7 @@ bool joybus_gc_hal_init()
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
-void joybus_gc_hal_task(uint32_t timestamp)
+void joybus_gc_hal_task(uint64_t timestamp)
 {
     static interval_s     interval_reset    = {0};
     static interval_s     interval    = {0};

@@ -43,7 +43,7 @@ typedef struct
 
 bool nesbus_hal_init();
 void nesbus_hal_stop();
-void nesbus_hal_task(uint32_t timestamp);
+void nesbus_hal_task(uint64_t timestamp);
 
 #endif
 

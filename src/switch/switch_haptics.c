@@ -625,8 +625,7 @@ void _haptics_decode_samples(const SwitchHapticPacket_s *encoded)
 
 void switch_haptics_arbitrary_playback(uint8_t intensity)
 {
-
-    uint8_t scale = intensity>>1;
+    uint8_t scale = intensity>>3;
 
     uint8_t translated_intensity = scale;
     uint8_t translated_intensity_lo = scale+2;

@@ -74,7 +74,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
 }
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
-void webusb_send_rawinput(uint32_t timestamp)
+void webusb_send_rawinput(uint64_t timestamp)
 {
     static interval_s interval_ready = {0};
     static interval_s interval = {0};

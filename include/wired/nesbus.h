@@ -5,6 +5,6 @@
 #include <stdbool.h>
 
 bool nesbus_wired_start();
-void nesbus_wired_task(uint32_t timestamp);
+void nesbus_wired_task(uint64_t timestamp);
 
 #endif

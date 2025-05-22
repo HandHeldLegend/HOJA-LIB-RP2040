@@ -5,6 +5,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons);
+void macro_pcmdebug(uint64_t timestamp, button_data_s *buttons);
 
 #endif

@@ -303,7 +303,7 @@ bool _is_analog_dist_changed(analog_data_s *current)
 
 #define DEBUG_ANALOG_OUTPUT 1
 
-void analog_task(uint32_t timestamp)
+void analog_task(uint64_t timestamp)
 {
     static interval_s interval = {0};
 

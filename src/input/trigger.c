@@ -139,7 +139,7 @@ uint16_t _trigger_scale_input(uint16_t input, uint16_t deadzone, uint32_t scaler
     return (uint16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
 }
 
-void trigger_task(uint32_t timestamp)
+void trigger_task(uint64_t timestamp)
 {
     //#if defined(HOJA_ADC_CHAN_RT_READ) || defined(HOJA_ADC_CHAN_LT_READ)
     static interval_s interval = {0};

@@ -96,7 +96,7 @@ typedef struct
     };
 } gamecube_input_s;
 
-void gamecube_wired_task(uint32_t timestamp);
+void gamecube_wired_task(uint64_t timestamp);
 bool gamecube_wired_start();
 
 #endif

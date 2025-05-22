@@ -310,7 +310,7 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 }
 
 // IMU module operational task
-void imu_task(uint32_t timestamp)
+void imu_task(uint64_t timestamp)
 {
   static interval_s interval = {0};
 

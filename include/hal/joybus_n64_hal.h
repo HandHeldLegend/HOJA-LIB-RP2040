@@ -20,7 +20,7 @@
 
 void joybus_n64_hal_stop();
 bool joybus_n64_hal_init();
-void joybus_n64_hal_task(uint32_t timestamp);
+void joybus_n64_hal_task(uint64_t timestamp);
 
 #endif
 

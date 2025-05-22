@@ -14,7 +14,7 @@ typedef enum
 } trigger_access_t;
 
 void trigger_access_safe(trigger_data_s *out, trigger_access_t type);
-void trigger_task(uint32_t timestamp);
+void trigger_task(uint64_t timestamp);
 
 void trigger_config_cmd(trigger_cmd_t cmd, webreport_cmd_confirm_t cb);
 bool trigger_init();

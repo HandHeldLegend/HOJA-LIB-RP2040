@@ -58,7 +58,7 @@ void bluetooth_mode_stop()
 
 
 
-void bluetooth_mode_task(uint32_t timestamp)
+void bluetooth_mode_task(uint64_t timestamp)
 {
     #if defined(HOJA_BLUETOOTH_TASK)
     HOJA_BLUETOOTH_TASK(timestamp);

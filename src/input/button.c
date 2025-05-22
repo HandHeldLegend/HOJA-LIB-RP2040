@@ -115,7 +115,7 @@ bool _are_buttons_different(button_data_s *current)
 
 #define BUTTON_READ_RATE_US 333 // 333us read rate. Double the 1khz maximum USB input rate.
 
-void button_task(uint32_t timestamp)
+void button_task(uint64_t timestamp)
 {
     static interval_s interval = {0};
 

@@ -17,7 +17,7 @@ short sign_axis(int16_t input_axis)
     return (short)(input_axis * 16);
 }
 
-void xinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
+void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static xid_input_s data = {0};
     static analog_data_s analog_data = {0};

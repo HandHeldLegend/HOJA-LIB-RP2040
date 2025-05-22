@@ -257,7 +257,7 @@ bool blank_sent = false;
 
 uint32_t _timeout = 0;
 
-void swpro_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
+void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static sw_input_s data = {0};
 

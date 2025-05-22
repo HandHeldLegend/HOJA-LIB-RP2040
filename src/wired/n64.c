@@ -6,7 +6,7 @@
     #include "hal/joybus_n64_hal.h"
 #endif
 
-void n64_wired_task(uint32_t timestamp)
+void n64_wired_task(uint64_t timestamp)
 {
   #if defined(HOJA_JOYBUS_N64_TASK)
   HOJA_JOYBUS_N64_TASK(timestamp);

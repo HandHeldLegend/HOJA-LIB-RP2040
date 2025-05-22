@@ -85,5 +85,5 @@ extern const tusb_desc_device_t opengp_device_descriptor;
 extern const uint8_t opengp_hid_report_descriptor[];
 extern const uint8_t opengp_configuration_descriptor[];
 
-void opengp_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
+void opengp_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb);
 #endif

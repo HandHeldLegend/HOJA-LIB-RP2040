@@ -160,7 +160,7 @@ uint8_t _dpad_direction(uint8_t up, uint8_t down, uint8_t left, uint8_t right)
     }
 }
 
-void opengp_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb)
+void opengp_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static uint8_t report_data[64] = {0};
     static opengp_input_s data = {0};

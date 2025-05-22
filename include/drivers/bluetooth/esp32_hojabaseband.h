@@ -48,7 +48,7 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
 
 void esp32hoja_stop();
 
-void esp32hoja_task(uint32_t timestamp);
+void esp32hoja_task(uint64_t timestamp);
 
 int esp32hoja_hwtest();
 
