@@ -22,6 +22,6 @@ extern rgb_s  rgb_colors_safe[RGB_MAX_GROUPS];
 void rgb_set_idle(bool enable); 
 void rgb_deinit(callback_t cb);
 void rgb_init(int mode, int brightness);
-void rgb_task(uint32_t timestamp);
+void rgb_task(uint64_t timestamp);
 
 #endif

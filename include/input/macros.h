@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-void macros_task(uint32_t timestamp);
+void macros_task(uint64_t timestamp);
 
 #endif

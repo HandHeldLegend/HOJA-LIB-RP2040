@@ -273,7 +273,7 @@ bool joybus_n64_hal_init()
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
-void joybus_n64_hal_task(uint32_t timestamp)
+void joybus_n64_hal_task(uint64_t timestamp)
 {   
     static interval_s       interval_reset = {0};
     static interval_s       interval    = {0};

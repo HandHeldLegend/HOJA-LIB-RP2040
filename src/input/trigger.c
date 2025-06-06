@@ -44,6 +44,21 @@ void _trigger_exit()
 
 void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
 {
+    static uint16_t ltstatic = 0;
+    static uint16_t rtstatic = 0;
+
+    const uint16_t min_static_val = (49 << 4);
+
+    if(trigger_config->right_static_output_value < min_static_val)
+        trigger_config->right_static_output_value = min_static_val;
+    else 
+        rtstatic = trigger_config->right_static_output_value;
+
+    if(trigger_config->left_static_output_value < min_static_val)
+        trigger_config->left_static_output_value = min_static_val;
+    else
+        ltstatic = trigger_config->left_static_output_value;
+
     switch(trigger_config->trigger_mode_gamecube)
     {
         default:
@@ -53,14 +68,14 @@ void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
         case GC_SP_MODE_LT:
             t_state->left_analog = 0;
 
-            t_state->left_analog |= (b_state->trigger_l) ? (trigger_config->left_static_output_value) : 0;
+            t_state->left_analog |= (b_state->trigger_l) ? (ltstatic) : 0;
             t_state->left_analog |= (b_state->trigger_zl) ? MAX_ANALOG_OUT : 0;
         break;
 
         case GC_SP_MODE_RT:
             t_state->right_analog = 0;
 
-            t_state->right_analog |= (b_state->trigger_l) ? (trigger_config->right_static_output_value) : 0;
+            t_state->right_analog |= (b_state->trigger_l) ? (rtstatic) : 0;
             t_state->right_analog |= (b_state->trigger_zr) ? MAX_ANALOG_OUT : 0;
         break;
 
@@ -139,7 +154,7 @@ uint16_t _trigger_scale_input(uint16_t input, uint16_t deadzone, uint32_t scaler
     return (uint16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
 }
 
-void trigger_task(uint32_t timestamp)
+void trigger_task(uint64_t timestamp)
 {
     //#if defined(HOJA_ADC_CHAN_RT_READ) || defined(HOJA_ADC_CHAN_LT_READ)
     static interval_s interval = {0};

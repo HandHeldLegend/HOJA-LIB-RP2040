@@ -109,6 +109,7 @@ typedef struct
     haptic_raw_s samples[3];
 } haptic_raw_state_s;
 
+void switch_haptics_arbitrary_playback(uint8_t intensity);
 void switch_haptics_get_basic(uint8_t amplitude, uint8_t frequency, uint16_t *amp_out, uint16_t *freq_out);
 void switch_haptics_init();
 void switch_haptics_rumble_translate(const uint8_t *data);

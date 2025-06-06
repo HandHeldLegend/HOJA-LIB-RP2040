@@ -82,7 +82,7 @@ bool nesbus_hal_init()
     _nspi_running = true;
 }
 
-void nesbus_hal_task(uint32_t timestamp)
+void nesbus_hal_task(uint64_t timestamp)
 {   
     static nesbus_input_s   buffer  = {.value = 0xFFFF};
     static button_data_s    buttons = {0};

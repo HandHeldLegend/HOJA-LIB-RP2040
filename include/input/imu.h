@@ -22,7 +22,7 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb);
 void imu_access_safe(imu_data_s *out);
 void imu_quaternion_access_safe(quaternion_s *out);
 
-void imu_task(uint32_t timestamp);
+void imu_task(uint64_t timestamp);
 
 
 #endif

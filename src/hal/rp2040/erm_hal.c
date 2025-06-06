@@ -109,7 +109,7 @@ uint32_t _target_level  = 0;
 uint32_t _max_target_level     = 0;
 bool     _max_set              = false;
 
-void erm_hal_task(uint32_t timestamp)
+void erm_hal_task(uint64_t timestamp)
 {
     static interval_s interval = {0};
     static uint32_t this_level = 0;

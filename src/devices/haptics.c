@@ -36,8 +36,6 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
 void haptics_set_hd(haptic_processed_s *input)
 {
     #if defined(HOJA_HAPTICS_PUSH_AMFM)
-    // Ignore if we are outputting to webusb
-    if(webusb_outputting_check()) return;
     HOJA_HAPTICS_PUSH_AMFM(input);
     #endif
 }
@@ -73,7 +71,7 @@ void haptics_stop()
     #endif
 }
 
-void haptics_task(uint32_t timestamp)
+void haptics_task(uint64_t timestamp)
 {
     #if defined(HOJA_HAPTICS_TASK)
     HOJA_HAPTICS_TASK(timestamp);
@@ -84,11 +82,11 @@ void haptics_task(uint32_t timestamp)
         static interval_s interval = {0};
         if(interval_run(timestamp, 8000, &interval))
         {
-            haptics_set_std(255);
+            switch_haptics_arbitrary_playback(72);
             _haptic_test_remaining--;
             if(!_haptic_test_remaining)
             {
-                haptics_set_std(0);
+                switch_haptics_arbitrary_playback(0);
                 if(_test_cb)
                     _test_cb(CFG_BLOCK_HAPTIC, HAPTIC_CMD_TEST_STRENGTH, true, NULL, 0);
             }

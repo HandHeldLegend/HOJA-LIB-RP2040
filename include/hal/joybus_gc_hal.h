@@ -21,7 +21,7 @@
 
 void joybus_gc_hal_stop();
 bool joybus_gc_hal_init();
-void joybus_gc_hal_task(uint32_t timestamp);
+void joybus_gc_hal_task(uint64_t timestamp);
 
 #endif
 #endif

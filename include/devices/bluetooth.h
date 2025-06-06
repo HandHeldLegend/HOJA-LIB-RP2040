@@ -30,7 +30,7 @@ typedef void (*bluetooth_cb_t)(bluetooth_cb_msg_s *msg);
 void bluetooth_mode_stop();
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode);
 
-void bluetooth_mode_task(uint32_t timestamp);
+void bluetooth_mode_task(uint64_t timestamp);
 
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg);

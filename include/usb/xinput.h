@@ -53,6 +53,6 @@ typedef struct
 
 #define XINPUT_INPUT_SIZE sizeof(xid_input_s)
 
-void xinput_hid_report(uint32_t timestamp, hid_report_tunnel_cb cb);
+void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb);
 
 #endif

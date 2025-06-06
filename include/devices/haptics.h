@@ -25,6 +25,6 @@ void haptics_set_hd(haptic_processed_s *input);
 void haptics_set_std(uint8_t amplitude);
 void haptics_stop();
 bool haptics_init();
-void haptics_task(uint32_t timestamp);
+void haptics_task(uint64_t timestamp);
 
 #endif

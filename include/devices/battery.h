@@ -99,7 +99,7 @@ battery_status_s    battery_get_status();
 battery_plug_t      battery_get_plug();   
 battery_charge_t    battery_get_charge();  
 battery_status_t    battery_get_battery(); 
-void                battery_task(uint32_t timestamp); 
+void                battery_task(uint64_t timestamp); 
 bool                battery_set_charge_rate(uint16_t rate_ma); 
 void                battery_set_ship_mode(); 
 

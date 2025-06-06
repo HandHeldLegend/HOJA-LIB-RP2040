@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include "hoja.h"
 
-void usb_mode_task(uint32_t timestamp);
+void usb_mode_task(uint64_t timestamp);
 
 bool usb_mode_start(gamepad_mode_t mode);
 

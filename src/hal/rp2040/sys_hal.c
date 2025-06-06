@@ -69,18 +69,29 @@ void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void)
 }
 
 uint32_t _time_owner = 0;
+static uint64_t _time_global = 0;
+
 MUTEX_HAL_INIT(_sys_hal_time_mutex);
-uint32_t sys_hal_time_us()
+uint64_t sys_hal_time_us()
 {
-    static uint32_t time;
+    static uint64_t time; 
+    static uint64_t time_last = 0;
+    static uint64_t delta_accumulated = 0;
 
     if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
     {
-        time = time_us_32();
+        time = time_us_64();
+        _time_global = time;
+
         MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
     }
 
     return time;
+}
+
+uint64_t sys_hal_time_ms()
+{
+    return _time_global / 1000;
 }
 
 uint32_t sys_hal_random()

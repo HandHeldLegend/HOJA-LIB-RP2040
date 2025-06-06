@@ -14,7 +14,7 @@
 #include "input/macros/macro_pcmdebug.h"
 #endif
 
-void macros_task(uint32_t timestamp)
+void macros_task(uint64_t timestamp)
 {
     static button_data_s buttons = {0};
     static interval_s interval = {0};

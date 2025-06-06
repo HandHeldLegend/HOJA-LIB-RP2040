@@ -52,6 +52,6 @@ typedef struct
 } n64_input_s;
 
 bool n64_wired_start();
-void n64_wired_task(uint32_t timestamp);
+void n64_wired_task(uint64_t timestamp);
 
 #endif 

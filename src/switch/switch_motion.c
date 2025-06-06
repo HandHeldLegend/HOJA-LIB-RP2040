@@ -8,8 +8,7 @@
 
 void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
 {
-  static uint32_t last_time;
-  uint32_t time;
+  static uint64_t time_ms;
   static uint32_t accumulated_delta = 0;
   static uint32_t q_timestamp = 0;
 
@@ -33,7 +32,7 @@ void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
   }
 
   // Insert into the last sample components, do bit operations to account for split data
-  out->last_sample_0 = quaternion_30bit_components[0] >> 10;
+  out->last_sample_0  = quaternion_30bit_components[0] >> 10;
 
   out->last_sample_1l = ((quaternion_30bit_components[1] >> 10) & 0x7F);
   out->last_sample_1h = ((quaternion_30bit_components[1] >> 10) & 0x1FFF80) >> 7;
@@ -51,40 +50,12 @@ void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
   out->delta_mid_avg_2 = 0;
 
   // Timestamps handling is still a bit unclear, these are the values that motion_data in no drifting 
-  out->timestamp_start_l = q_timestamp & 0x1;
-  out->timestamp_start_h = (q_timestamp  >> 1) & 0x3FF;
+  time_ms = sys_hal_time_ms();
+  out->timestamp_start_l = time_ms & 0x1;
+  out->timestamp_start_h = (time_ms  >> 1) & 0x3FF;
   out->timestamp_count = 3;
 
   out->accel_0.x = in->ax;
   out->accel_0.y = in->ay;
   out->accel_0.z = in->az;
-
-  time = sys_hal_time_us();
-  uint32_t delta = 0;
-  uint32_t whole = 0;
-
-  // Increment only by changed time
-  if (time < last_time)
-  {
-    delta = (0xFFFFFFFF - last_time) + time;
-  }
-  else if (time >= last_time)
-  {
-    delta = time - last_time;
-  }
-
-  last_time = time;
-
-  accumulated_delta += delta;
-
-  if(accumulated_delta > 1000)
-  {
-    whole = accumulated_delta;
-    accumulated_delta %= 1000;
-    whole -= accumulated_delta;
-    whole /= 1000; // Convert to ms
-    // Increment for the next cycle
-    q_timestamp += whole;
-    q_timestamp %= 0x7FF;
-  }
 }

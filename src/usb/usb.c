@@ -197,7 +197,7 @@ bool _usb_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
   tud_hid_report(report_id, report, len);
 }
 
-void usb_mode_task(uint32_t timestamp)
+void usb_mode_task(uint64_t timestamp)
 {
   static interval_s usb_interval  = {0};
   static uint32_t frame_storage   = 0;
@@ -395,7 +395,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        haptics_set_std((buffer[1] & 0x1) ? 235 : 0);
+        haptics_set_std((buffer[1] & 0x1) ? 220 : 0);
       }
       else if (buffer[0] == 0x13)
       {

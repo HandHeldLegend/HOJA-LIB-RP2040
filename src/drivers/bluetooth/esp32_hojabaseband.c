@@ -474,7 +474,7 @@ void esp32hoja_stop()
     _esp32hoja_enable_chip(false);
 }
 
-void esp32hoja_task(uint32_t timestamp)
+void esp32hoja_task(uint64_t timestamp)
 {
     static interval_s       interval    = {0};
     static i2cinput_input_s input_data  = {0};

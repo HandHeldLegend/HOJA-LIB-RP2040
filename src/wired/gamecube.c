@@ -6,7 +6,7 @@
     #include "hal/joybus_gc_hal.h"
 #endif
 
-void gamecube_wired_task(uint32_t timestamp)
+void gamecube_wired_task(uint64_t timestamp)
 {
   #if defined(HOJA_JOYBUS_GC_TASK)
   HOJA_JOYBUS_GC_TASK(timestamp);

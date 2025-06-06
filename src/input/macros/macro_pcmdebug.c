@@ -9,7 +9,7 @@ float _inc_val_pcm = HOJA_HAPTICS_DEBUG_STEP;
 float _inc_val_pcm = 0.0025f;
 #endif
 
-void macro_pcmdebug(uint32_t timestamp, button_data_s *buttons)
+void macro_pcmdebug(uint64_t timestamp, button_data_s *buttons)
 {
     static interval_s interval = {0};
 
