@@ -272,7 +272,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 {
                     // New address, save 
                     memcpy(gamepad_config->host_mac_switch, addr, 6);
-                    hoja_set_notification_status(COLOR_GREEN);
+                    // hoja_set_notification_status(COLOR_GREEN);
                     settings_commit_blocks();
                 }
 
