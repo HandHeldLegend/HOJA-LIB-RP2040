@@ -18,7 +18,7 @@ void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
   uint8_t max_index = 0;
   for(uint8_t i = 1; i < 4; i++)
   {
-    if(in->raw[i] > fabsf(in->raw[max_index]))
+    if(fabsf(in->raw[i]) > fabsf(in->raw[max_index]))
       max_index = i;
   }
 

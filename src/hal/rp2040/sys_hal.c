@@ -80,6 +80,10 @@ uint64_t sys_hal_time_us()
 
     if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
     {
+        // DEBUG
+        // const uint64_t start_time = UINT32_MAX - 10000000; // 10 seconds before overflow
+        // time = time_us_64() + start_time;
+
         time = time_us_64();
         _time_global = time;
 

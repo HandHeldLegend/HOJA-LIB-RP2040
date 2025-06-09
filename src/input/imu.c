@@ -139,9 +139,9 @@ void _imu_quat_normalize(quaternion_s *data)
   data->w *= norm_inverse;
 }
 
-void _imu_update_quaternion(imu_data_s *imu_data, uint32_t timestamp) {
+void _imu_update_quaternion(imu_data_s *imu_data, uint64_t timestamp) {
     // Previous timestamp (in microseconds)
-    static uint32_t prev_timestamp = 0;
+    static uint64_t prev_timestamp = 0;
 
     float dt = fabsf((float)timestamp - (float)prev_timestamp);
     // Update the previous timestamp
@@ -180,7 +180,7 @@ void _imu_update_quaternion(imu_data_s *imu_data, uint32_t timestamp) {
 // Add data to our FIFO
 void _imu_fifo_push(imu_data_s *imu_data)
 { 
-  static uint32_t timestamp = 0;
+  static uint64_t timestamp = 0;
 
   int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
 
