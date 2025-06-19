@@ -619,13 +619,17 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
       // Set sticks directly from hoja_analog_data
       // Saves cycles :)
       _switch_command_buffer[5] = (input_data->ls_x & 0xFF);
+
       _switch_command_buffer[6] = (input_data->ls_x & 0xF00) >> 8;
-      // ns_input_report[7] |= (g_stick_data.lsy & 0xF) << 4;
+      _switch_command_buffer[6] |= (input_data->ls_y & 0xF) << 4;
+
       _switch_command_buffer[7] = (input_data->ls_y & 0xFF0) >> 4;
       _switch_command_buffer[8] = (input_data->rs_x & 0xFF);
+
       _switch_command_buffer[9] = (input_data->rs_x & 0xF00) >> 8;
+      _switch_command_buffer[9] |= (input_data->rs_y & 0xF) << 4;
+
       _switch_command_buffer[10] = (input_data->rs_y & 0xFF0) >> 4;
-      
       //_switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);

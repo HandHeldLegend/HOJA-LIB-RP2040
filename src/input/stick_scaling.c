@@ -479,7 +479,7 @@ void _process_axis(int16_t *in, analog_meta_s *meta_out, angle_setup_s *setup)
 
     }
 
-    float adjusted_distance = target_distance + 125;
+    float adjusted_distance = target_distance + 64;
 
     distance_scale_factor = (!calibrated_distance) ? 0 : (adjusted_distance / calibrated_distance);
     output_distance = distance*distance_scale_factor;
@@ -629,6 +629,10 @@ void stick_scaling_calibrate_start(bool start)
 
 void stick_scaling_default_check()
 {
+  // Check if the analog outer deadzone blocks are valid
+  if(analog_config->l_deadzone_outer == 0xFFFF) analog_config->l_deadzone_outer = 0;
+  if(analog_config->r_deadzone_outer == 0xFFFF) analog_config->r_deadzone_outer = 0;
+
   if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
   {
     analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
@@ -636,6 +640,9 @@ void stick_scaling_default_check()
     // Set default deadzones
     analog_config->l_deadzone = 350;
     analog_config->r_deadzone = 350;
+
+    analog_config->l_deadzone_outer = 0;
+    analog_config->r_deadzone_outer = 0;
 
     analog_config->lx_center = 2048;
     analog_config->ly_center = 2048;

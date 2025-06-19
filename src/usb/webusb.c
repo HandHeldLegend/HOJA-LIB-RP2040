@@ -138,6 +138,20 @@ void webusb_send_rawinput(uint64_t timestamp)
         memcpy(&webusb_input_report[24], &imu.gy, 2);
         memcpy(&webusb_input_report[26], &imu.gz, 2);
 
+        analog_access_safe(&analog, ANALOG_ACCESS_DEADZONE_DATA);
+        lx = (uint16_t) (analog.lx + 2048);
+        ly = (uint16_t) (analog.ly + 2048);
+        rx = (uint16_t) (analog.rx + 2048);
+        ry = (uint16_t) (analog.ry + 2048);
+        webusb_input_report[28] = (lx & 0xFF00) >> 8;
+        webusb_input_report[29] = (lx & 0xFF);
+        webusb_input_report[30] = (ly & 0xFF00) >> 8;
+        webusb_input_report[31] = (ly & 0xFF);
+        webusb_input_report[32] = (rx & 0xFF00) >> 8;
+        webusb_input_report[33] = (rx & 0xFF);
+        webusb_input_report[34] = (ry & 0xFF00) >> 8;
+        webusb_input_report[35] = (ry & 0xFF);
+
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);
 
