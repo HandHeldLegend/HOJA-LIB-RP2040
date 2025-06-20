@@ -633,6 +633,10 @@ void stick_scaling_default_check()
   if(analog_config->l_deadzone_outer == 0xFFFF) analog_config->l_deadzone_outer = 0;
   if(analog_config->r_deadzone_outer == 0xFFFF) analog_config->r_deadzone_outer = 0;
 
+  // Check snapback intensities
+  if(analog_config->l_snapback_intensity == 0xFFFF) analog_config->l_snapback_intensity = 600; // 60.0hz
+  if(analog_config->r_snapback_intensity == 0xFFFF) analog_config->r_snapback_intensity = 600;
+
   if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
   {
     analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;

@@ -53,7 +53,6 @@ bool webusb_ready_blocking(int timeout)
 }
 
 
-
 uint8_t _webusb_out_buffer[64] = {0x00};
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {

@@ -78,12 +78,20 @@ typedef struct
     float langle;       // Current value angle
     uint16_t ldistance;    // Current value distance
     uint16_t ltarget;      // Current value target distance (scaling)
-    bool lcrossover; // dot product bool indicates crossover
     float rangle;
     uint16_t rdistance;
     uint16_t rtarget;
-    bool rcrossover;  
 } analog_data_s;
+
+typedef struct 
+{
+    int16_t x;
+    int16_t y;
+    float angle;
+    uint16_t distance;  // Distance from center
+    uint16_t target;    // Target distance (scaling)
+    uint8_t axis_idx;
+} analog_axis_s;
 
 typedef struct 
 {
