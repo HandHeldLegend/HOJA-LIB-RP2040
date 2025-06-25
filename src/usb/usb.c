@@ -28,20 +28,22 @@
 #include "switch/switch_haptics.h"
 #include "devices_shared_types.h"
 
+#include "devices/rgb.h"
+
 typedef enum
 {
-    USBRATE_8 = 8333,
-    USBRATE_4 = 4166,
-    USBRATE_1 = 500,
+  USBRATE_8 = 8333,
+  USBRATE_4 = 4166,
+  USBRATE_1 = 500,
 } usb_rate_t;
 
-const char* global_string_descriptor[] = {
+const char *global_string_descriptor[] = {
     // array of pointer to string descriptors
-    (char[]){0x09, 0x04},                // 0: is supported language is English (0x0409)
-    HOJA_MANUFACTURER,              // 1: Manufacturer
-    HOJA_PRODUCT,        // 2: Product
-    "000000",           // 3: Serials, should use chip ID
-    "GC Mode" // 4 Identifier for GC Mode
+    (char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
+    HOJA_MANUFACTURER,    // 1: Manufacturer
+    HOJA_PRODUCT,         // 2: Product
+    "000000",             // 3: Serials, should use chip ID
+    "Hoja Gamepad"        // 4 Identifier for GC Mode
 };
 
 hid_task_tunnel_cb _usb_task_cb = NULL;
@@ -62,7 +64,7 @@ void _usb_enter_blocking()
 
 bool _usb_enter_try()
 {
-  if(MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_mutex, 10))
+  if (MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_mutex, 10))
   {
     return true;
   }
@@ -92,7 +94,7 @@ bool _usb_get_usb_clear(uint32_t timestamp)
 {
   bool clear = false;
 
-  if(_usb_enter_try())
+  if (_usb_enter_try())
   {
     clear = _usb_clear;
     _usb_exit();
@@ -152,32 +154,32 @@ bool usb_mode_start(gamepad_mode_t mode)
   default:
   case GAMEPAD_MODE_SWPRO:
     _usb_set_interval(USBRATE_8);
-    _usb_task_cb  = swpro_hid_report;
+    _usb_task_cb = swpro_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
 
   case GAMEPAD_MODE_XINPUT:
     _usb_set_interval(USBRATE_1);
-    _usb_task_cb  = xinput_hid_report;
+    _usb_task_cb = xinput_hid_report;
     _usb_ready_cb = tud_xinput_ready;
     break;
 
   case GAMEPAD_MODE_OPENGP:
     _usb_set_interval(USBRATE_1);
-    _usb_task_cb  = opengp_hid_report;
+    _usb_task_cb = opengp_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
 
-  //case GAMEPAD_MODE_DS4:
-  //  imu_set_enabled(true);
-  //  _hoja_usb_set_interval(USBRATE_4);
-  //  _usb_task_cb = ds4_hid_report;
-  //  _usb_ready_cb = tud_hid_ready;
-  //  break;
+    // case GAMEPAD_MODE_DS4:
+    //   imu_set_enabled(true);
+    //   _hoja_usb_set_interval(USBRATE_4);
+    //   _usb_task_cb = ds4_hid_report;
+    //   _usb_ready_cb = tud_hid_ready;
+    //   break;
 
   case GAMEPAD_MODE_GCUSB:
     _usb_set_interval(USBRATE_1);
-    _usb_task_cb  = gcinput_hid_report;
+    _usb_task_cb = gcinput_hid_report;
     _usb_ready_cb = tud_ginput_ready;
     break;
   }
@@ -199,8 +201,8 @@ bool _usb_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
 
 void usb_mode_task(uint64_t timestamp)
 {
-  static interval_s usb_interval  = {0};
-  static uint32_t frame_storage   = 0;
+  static interval_s usb_interval = {0};
+  static uint32_t frame_storage = 0;
 
   // This flag gets set when we check our frame data
   static bool frame_requirement_met = false;
@@ -243,7 +245,6 @@ void usb_mode_task(uint64_t timestamp)
   }
 }
 
-
 /***********************************************/
 /********* TinyUSB HID callbacks ***************/
 
@@ -269,13 +270,12 @@ uint8_t const *tud_descriptor_device_cb(void)
     break;
 
   case GAMEPAD_MODE_OPENGP:
-    hoja_set_connected_status(CONN_STATUS_PLAYER_1);
     return (uint8_t const *)&opengp_device_descriptor;
     break;
 
-  //case GAMEPAD_MODE_DS4:
-  //  return (uint8_t const *)&ds4_device_descriptor;
-  //  break;
+    // case GAMEPAD_MODE_DS4:
+    //   return (uint8_t const *)&ds4_device_descriptor;
+    //   break;
   }
 }
 
@@ -304,9 +304,9 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
     return (uint8_t const *)&opengp_configuration_descriptor;
     break;
 
-  //case GAMEPAD_MODE_DS4:
-  //  return (uint8_t const *)&ds4_configuration_descriptor;
-  //  break;
+    // case GAMEPAD_MODE_DS4:
+    //   return (uint8_t const *)&ds4_configuration_descriptor;
+    //   break;
   }
 }
 
@@ -318,6 +318,19 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
   (void)instance;
   (void)report_id;
   (void)reqlen;
+
+  if(report_type == HID_REPORT_TYPE_FEATURE)
+  {
+    if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_OPENGP)
+    {
+      switch(report_id)
+      {
+        case REPORT_ID_OPENGP_FEATURE_FEATFLAGS:
+          return opengc_hid_get_featureflags(buffer, reqlen);
+        break;
+      }
+    }
+  }
 
   return 0;
 }
@@ -351,18 +364,11 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     break;
 
   case GAMEPAD_MODE_OPENGP:
-    if ((report[0] == REPORT_ID_OPENGP))
+    if (report[0] == REPORT_ID_OPENGP)
     {
       _usb_set_usb_clear();
     }
     break;
-
-  //case GAMEPAD_MODE_DS4:
-  //  if ((report[0] == REPORT_ID_DS4))
-  //  {
-  //    hoja_usb_set_usb_clear();
-  //  }
-  //  break;
   }
 }
 
@@ -376,6 +382,27 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
   {
   default:
     break;
+
+  case GAMEPAD_MODE_OPENGP:
+    if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
+    {
+      if (buffer[0] == REPORT_ID_OPENGP_HAPTICS)
+      {
+
+      }
+    }
+
+    if(report_type == HID_REPORT_TYPE_FEATURE)
+    {
+      if(report_id == REPORT_ID_OPENGP_FEATURE_PLAYERLED)
+      {
+        uint8_t player_num = buffer[0];
+        player_num = (player_num > 8) ? 8 : player_num; // Cap at 8
+        hoja_set_connected_status(player_num);
+      }
+    }
+    break;
+
   case GAMEPAD_MODE_SWPRO:
     if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
@@ -436,9 +463,9 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
     return opengp_hid_report_descriptor;
     break;
 
-  //case GAMEPAD_MODE_DS4:
-  //  return ds4_hid_report_descriptor;
-  //  break;
+    // case GAMEPAD_MODE_DS4:
+    //   return ds4_hid_report_descriptor;
+    //   break;
   }
   return NULL;
 }
@@ -506,7 +533,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 // Vendor Device Class CB for receiving data
-void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const *buffer, uint16_t bufsize)
 {
   sys_hal_tick();
 
@@ -515,9 +542,9 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
   uint32_t size = tud_vendor_n_read(0, nuBuffer, 64);
   tud_vendor_n_read_flush(0);
 
-  //if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
+  // if (hoja_gamepad_mode_get() == GAMEPAD_MODE_SWPRO)
   {
-    //printf("WebUSB Data Received.\n");
+    // printf("WebUSB Data Received.\n");
     webusb_command_handler(nuBuffer, size);
   }
 }
