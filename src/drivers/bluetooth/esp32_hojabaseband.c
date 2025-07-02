@@ -371,7 +371,7 @@ void _btinput_message_parse(uint8_t *data)
     {
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
-        haptics_set_std(l>r? l : r);
+        haptics_set_std(l>r? l : r, false);
     }
     break;
     }
@@ -507,6 +507,12 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.ly = (uint16_t) (analog.ly+2048);
             input_data.rx = (uint16_t) (analog.rx+2048);
             input_data.ry = (uint16_t) (analog.ry+2048);
+
+            // Clamp values between 0 and 4095
+            input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
+            input_data.ly = (input_data.ly > 4095) ? 4095 : input_data.ly;
+            input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
+            input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
 
             input_data.lt = (uint16_t) triggers.left_analog;
             input_data.rt = (uint16_t) triggers.right_analog;

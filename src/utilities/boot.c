@@ -76,7 +76,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         break;
 
         case 6:
-            thisMode            = GAMEPAD_MODE_OPENGP;
+            thisMode            = GAMEPAD_MODE_SINPUT;
             thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
         break;
     }
@@ -106,7 +106,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         }
         else if(buttons.button_b)
         {
-            thisMode            = GAMEPAD_MODE_OPENGP;
+            thisMode            = GAMEPAD_MODE_SINPUT;
             thisMethod          = GAMEPAD_METHOD_USB; 
         }
         else if(buttons.button_x)

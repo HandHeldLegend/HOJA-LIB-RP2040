@@ -124,6 +124,9 @@ bool lra_hal_init(uint8_t intensity)
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
     float clock_div = ( (float) f_clk_sys * 1000.0f) / PWM_WRAP / (float) SAMPLE_RATE / (float) REPETITION_RATE;
 
+    // Clock div equation should basically equal 1
+    //clock_div = 1.0f;
+
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv(&config, clock_div);
     pwm_config_set_wrap(&config, PWM_WRAP);
@@ -304,9 +307,6 @@ void lra_hal_task(uint32_t timestamp)
 
         pcm_generate_buffer(buffered);
     }
-
-    if(_erm_simulation_enabled)
-        erm_simulator_task(timestamp);
 }
 
 void lra_hal_push_amfm(haptic_processed_s *input)
@@ -315,8 +315,7 @@ void lra_hal_push_amfm(haptic_processed_s *input)
     pcm_amfm_push(input);
 }
 
-void lra_hal_set_standard(uint8_t intensity)
+void lra_hal_set_standard(uint8_t intensity, bool brake)
 {
-    _erm_simulation_enabled = true; // Enable ERM simulation mode
-    erm_simulator_set_intensity(intensity);
+    pcm_erm_set(intensity, brake); // Set ERM state with brake off
 }

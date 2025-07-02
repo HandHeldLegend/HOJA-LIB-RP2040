@@ -27,13 +27,6 @@ haptic_defaults_s _haptic_defaults = {
     .max_frequency      = 127
 };
 
-
-uint16_t float_to_fixed(float input) {
-   uint16_t tmp = (uint16_t)(input * PCM_AMPLITUDE_SHIFT_FIXED);
-   if(input>0 && !tmp) tmp = 1;
-   return tmp;
-}
-
 /* We used to use this ExpBase lookup table made with this data
     #define EXP_BASE2_RANGE_START (-8.0f)
     #define EXP_BASE2_RANGE_END (2.0f)
@@ -74,8 +67,8 @@ void _initialize_exp_base2_lookup() {
     for (int i = 0; i < EXP_BASE2_LOOKUP_LENGTH; ++i) {
         float f = AMPLITUDE_RANGE_START + i * AMPLITUDE_INTERVAL;
         if (f >= STARTING_AMPLITUDE_FLOAT) {
-            _ExpBase2LookupHi[i] = float_to_fixed(exp2f(f));
-            _ExpBase2LookupLo[i] = float_to_fixed(exp2f(f));
+            _ExpBase2LookupHi[i] = pcm_amplitude_to_fixedpoint(exp2f(f));
+            _ExpBase2LookupLo[i] = pcm_amplitude_to_fixedpoint(exp2f(f));
         } else {
             _ExpBase2LookupHi[i] = 0;
             _ExpBase2LookupLo[i] = 0;
@@ -116,14 +109,8 @@ void _init_frequency_phase_increment_tables(void) {
         // Calculate actual frequency
         double freq = 160.0 * exp2f(linear);
         
-        // Calculate phase increment float
-        float increment = (freq * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE; 
-
-        // Scale to fixed point
-        uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5);
-        
         // Store as fixed point
-        _haptics_lo_freq_increment[i] = fixed_increment;
+        _haptics_lo_freq_increment[i] = pcm_frequency_to_fixedpoint_increment((float) freq);
     }
     
     // Initialize high frequency table (320Hz center)
@@ -134,14 +121,8 @@ void _init_frequency_phase_increment_tables(void) {
         // Calculate actual frequency
         double freq = 320.0 * exp2f(linear);
 
-        // Calculate phase increment float
-        float increment = (freq * PCM_SINE_TABLE_SIZE) / (PCM_SAMPLE_RATE); 
-
-        // Scale to fixed point
-        uint16_t fixed_increment = (uint16_t)(increment * PCM_FREQUENCY_SHIFT_FIXED + 0.5);
-
         // Store as fixed point
-        _haptics_hi_freq_increment[i] = fixed_increment;
+        _haptics_hi_freq_increment[i] = pcm_frequency_to_fixedpoint_increment((float) freq);
     }
 }
 

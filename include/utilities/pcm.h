@@ -8,13 +8,15 @@
 
 #include "board_config.h"
 
+#define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
+
 #define PCM_BUFFER_SIZE         256
-#define PCM_SAMPLES_PER_PAIR    85
-#define PCM_WRAP_VAL            6000 // (1<<14)
+#define PCM_SAMPLES_PER_PAIR    120
+#define PCM_WRAP_VAL            4096 // (1<<14)
 #define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL/2)
 #define PCM_SAMPLE_REPETITIONS  2
 
-#define PCM_SAMPLE_RATE         11000
+#define PCM_SAMPLE_RATE         16000
 #define PCM_SINE_TABLE_SIZE     4096
 
 #if defined(HOJA_HAPTICS_MAX)
@@ -54,6 +56,15 @@ typedef enum
 
 void pcm_debug_adjust_param(uint8_t param_type, float amount);
 
+int16_t pcm_raw_queue_count();
+int16_t pcm_raw_queue_push(int16_t *data, uint16_t len);
+
+void pcm_erm_set(uint8_t intensity, bool brake);
+
+// PCM UTILITIES FOR EASIER USE
+// Returns a Q8.8 fixed point increment value for a given frequency
+uint16_t pcm_frequency_to_fixedpoint_increment(float frequency);
+uint16_t pcm_amplitude_to_fixedpoint(float amplitude);
 void pcm_init(int intensity);
 void pcm_play_sample(uint8_t *sample, uint32_t size);
 void pcm_send_pulse();

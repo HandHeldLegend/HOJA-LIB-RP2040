@@ -49,6 +49,7 @@ pio_sm_config _gamecube_c;
 volatile bool _gc_got_data = false;
 bool _gc_running = false;
 bool _gc_rumble = false;
+bool _gc_brake  = false;
 
 uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
@@ -170,6 +171,7 @@ void __time_critical_func(_gamecube_command_handler)()
       else if(!_byteCounter)
       {
         _gc_rumble = (dat&1) ? true : false;
+        _gc_brake  = (dat&2) ? true : false;
         _byteCounter = BYTECOUNT_UNKNOWN;
         joybus_set_in(false, GC_PIO_IN_USE, PIO_SM, _gamecube_offset, &_gamecube_c, JOYBUS_GC_DRIVER_DATA_PIN);
         while(c--)
@@ -298,7 +300,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
       if (_gc_rumble != _rumblestate)
       {
         _rumblestate = _gc_rumble;
-        haptics_set_std(_rumblestate ? 235 : 0);
+        haptics_set_std(_rumblestate ? 255 : 0, _gc_brake);
       }
 
       // Our buttons are always the same formatting

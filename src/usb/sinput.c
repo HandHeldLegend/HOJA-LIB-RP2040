@@ -1,4 +1,4 @@
-#include "usb/opengp.h"
+#include "usb/sinput.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -6,10 +6,13 @@
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/remap.h"
+#include "input/imu.h"
+#include "input/trigger.h"
 
+#include "utilities/pcm.h"
 #include "utilities/static_config.h"
 
-const tusb_desc_device_t opengp_device_descriptor = {
+const tusb_desc_device_t sinput_device_descriptor = {
     .bLength = 18,
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
@@ -28,7 +31,7 @@ const tusb_desc_device_t opengp_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-const uint8_t opengp_hid_report_descriptor[] = {
+const uint8_t sinput_hid_report_descriptor[] = {
 
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
     0x15, 0x00, // Logical Minimum (0)
@@ -179,27 +182,94 @@ const uint8_t opengp_hid_report_descriptor[] = {
     0xC0                           // End Collection 
 };
 
-const uint8_t opengp_configuration_descriptor[] = {
+const uint8_t sinput_configuration_descriptor[] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, 41, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 350),
 
     // Interface
     9, TUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, TUSB_CLASS_HID, 0x00, 0x00, 0x00,
     // HID Descriptor
-    9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(opengp_hid_report_descriptor)),
+    9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(sinput_hid_report_descriptor)),
     // Endpoint Descriptor
     7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 1,
     // Endpoint Descriptor
     7, TUSB_DESC_ENDPOINT, 0x01, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4
 };
 
-volatile bool    _opengp_pending_command = false; // Flag to indicate if a command is pending
-uint8_t _opengp_command_future[63] = {0}; // Buffer for command future data
+#define CLAMP(x, low, high) ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
+
+static const int step_table[89] = {
+     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31,
+    34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143,
+    157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
+    724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
+    3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+    15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+};
+
+static const int index_table[16] = {
+    -1, -1, -1, -1, 2, 4, 6, 8,
+    -1, -1, -1, -1, 2, 4, 6, 8
+};
+
+void _decode_adpcm_buffer(const uint8_t *adpcm_data, uint8_t adpcm_len, int16_t *output, uint8_t *samples_decoded) {
+    if (adpcm_len < 2 || !output || !samples_decoded) return;
+
+    // Extract predictor seed
+    int predictor = (int16_t)((adpcm_data[1] << 8) | adpcm_data[0]);
+    int index = 0;
+    size_t out_idx = 0;
+
+    for (size_t i = 2; i < adpcm_len; ++i) {
+        uint8_t byte = adpcm_data[i];
+        for (int n = 0; n < 2; ++n) {
+            uint8_t nibble = (n == 0) ? (byte & 0x0F) : (byte >> 4);
+            int step = step_table[index];
+
+            int diff = step >> 3;
+            if (nibble & 1) diff += step >> 2;
+            if (nibble & 2) diff += step >> 1;
+            if (nibble & 4) diff += step;
+            if (nibble & 8) diff = -diff;
+
+            predictor += diff;
+            predictor = CLAMP(predictor, -32768, 32767);
+
+            output[out_idx++] = predictor;
+
+            index += index_table[nibble & 0x0F];
+            index = CLAMP(index, 0, 88);
+        }
+    }
+
+    *samples_decoded = (uint8_t)out_idx;
+}
+
+void sinput_hid_process_pcm(const uint8_t *data, uint16_t len)
+{
+    // data[0] is the report ID (0x02 for PCM data)
+    // data[1] is the type of haptic data
+    
+    uint8_t adpcm_length = data[2]; // Length of ADPCM data
+    // Extract ADPCM data (skip report ID byte)
+    const uint8_t *adpcm_data = &data[3];
+    
+    // Decode ADPCM to PCM
+    int16_t decoded_samples[120]; // Maximum possible decoded samples
+    uint8_t samples_decoded = 0;
+    
+    _decode_adpcm_buffer(adpcm_data, adpcm_length, decoded_samples, &samples_decoded);
+    
+    if(samples_decoded > 0)
+    {
+        pcm_raw_queue_push(decoded_samples, samples_decoded);
+    }
+}
 
 // Feature Report ID 0x03 - Get Feature Flags
-uint16_t opengc_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen)
+uint16_t sinput_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen)
 {
-    opengp_featureflags_u feature_flags = {0};
+    sinput_featureflags_u feature_flags = {0};
 
     uint16_t accel_g_range      = 8; // 8G 
     uint16_t gyro_dps_range     = 2000; // 2000 degrees per second
@@ -220,32 +290,33 @@ uint16_t opengc_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen)
     buffer[0] = feature_flags.value; // Feature flags value      
     buffer[1] = 0x00; // Reserved byte
 
-    buffer[2] = 0x00; // Version API (unused for now)
-    buffer[3] = 0x00; // Version API (unused for now)
+    buffer[2] = 0x00; // Gamepad Sub-type (leave as zero in most cases)
+    buffer[3] = 0x00; // Reserved byte
 
-    memcpy(&buffer[4], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
-    memcpy(&buffer[6], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
+    buffer[4] = 0x00; // Reserved API version
+    buffer[5] = 0x00; // Reserved
+
+    memcpy(&buffer[6], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
+    memcpy(&buffer[8], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
     // Copy device name
-    memcpy(&buffer[8], device_static.name, 16); // Device name (up to 32 bytes, but we use 16 for now)
+    memcpy(&buffer[10], device_static.name, 16); // Device name (up to 32 bytes, but we use 16 for now)
     
     return reqlen;
 }
 
-void _opengp_hid_command_handler(hid_report_tunnel_cb cb)
-{
-    
-
-    
-}
-
-void opengp_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
+void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static uint8_t report_data[64] = {0};
-    static opengp_input_s data = {0};
+    static sinput_input_s data = {0};
     static button_data_s buttons = {0};
     static analog_data_s analog  = {0};
     static trigger_data_s triggers = {0};
+    imu_data_s imu = {0};
+
+    static uint64_t last_timestamp = 0;
+
+    uint64_t delta_timestamp = timestamp - last_timestamp;
 
     // Update input data
     remap_get_processed_input(&buttons, &triggers);
@@ -256,8 +327,58 @@ void opengp_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_x = analog.rx * 16;
     data.right_y = analog.ry * -16;
 
-    memcpy(report_data, &data, sizeof(opengp_input_s));
+    imu_access_safe(&imu);
 
-    // typedef bool (*hid_report_tunnel_cb)(uint8_t report_id, const void *report, uint16_t len)
-    cb(0x01, report_data, sizeof(opengp_input_s));
+    data.accel_x = imu.ax; 
+    data.accel_y = imu.ay;
+    data.accel_z = imu.az;
+
+    data.gyro_x = imu.gx;
+    data.gyro_y = imu.gy;
+    data.gyro_z = imu.gz;
+
+    data.gyro_elapsed_time = delta_timestamp & 0xFFFF; // Store elapsed time in microseconds
+
+    // Buttons
+    data.button_a = buttons.button_a;
+    data.button_b = buttons.button_b;
+    data.button_x = buttons.button_x;
+    data.button_y = buttons.button_y;
+
+    data.button_stick_left = buttons.button_stick_left;
+    data.button_stick_right = buttons.button_stick_right;
+
+    data.button_plus = buttons.button_plus;
+    data.button_minus = buttons.button_minus;
+    data.button_home = buttons.button_home;
+    data.button_capture = buttons.button_capture;
+
+    data.dpad_up = buttons.dpad_up;
+    data.dpad_down = buttons.dpad_down;
+    data.dpad_left = buttons.dpad_left;
+    data.dpad_right = buttons.dpad_right;
+
+    data.button_l = buttons.trigger_l;
+    data.button_r = buttons.trigger_r;
+
+    data.button_zl = buttons.trigger_zl;
+    data.button_zr = buttons.trigger_zr;
+
+    //data.trigger_gl = buttons.trigger_gl;
+    //data.trigger_gr = buttons.trigger_gr;
+
+    data.button_power = buttons.button_shipping;
+
+    int32_t trigger = -32768;
+
+    data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
+    data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
+
+    memcpy(report_data, &data, sizeof(sinput_input_s));
+
+    // If the PCM buffer is more than half full, set the buffer status to 0x01, otherwise set to 0x00
+    report_data[33] = (pcm_raw_queue_count() > (PCM_RAW_QUEUE_SIZE >> 1)) ? 0x01 : 0; 
+
+    last_timestamp = timestamp;
+    cb(0x01, report_data, sizeof(sinput_input_s));
 }

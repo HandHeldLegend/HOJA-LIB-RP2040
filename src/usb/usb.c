@@ -22,7 +22,7 @@
 #include "usb/swpro.h"
 #include "usb/xinput.h"
 #include "usb/gcinput.h"
-#include "usb/opengp.h"
+#include "usb/sinput.h"
 
 #include "switch/switch_commands.h"
 #include "switch/switch_haptics.h"
@@ -164,9 +164,9 @@ bool usb_mode_start(gamepad_mode_t mode)
     _usb_ready_cb = tud_xinput_ready;
     break;
 
-  case GAMEPAD_MODE_OPENGP:
+  case GAMEPAD_MODE_SINPUT:
     _usb_set_interval(USBRATE_1);
-    _usb_task_cb = opengp_hid_report;
+    _usb_task_cb = sinput_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
 
@@ -269,8 +269,8 @@ uint8_t const *tud_descriptor_device_cb(void)
     return (uint8_t const *)&ginput_device_descriptor;
     break;
 
-  case GAMEPAD_MODE_OPENGP:
-    return (uint8_t const *)&opengp_device_descriptor;
+  case GAMEPAD_MODE_SINPUT:
+    return (uint8_t const *)&sinput_device_descriptor;
     break;
 
     // case GAMEPAD_MODE_DS4:
@@ -300,8 +300,8 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
     return (uint8_t const *)&ginput_configuration_descriptor;
     break;
 
-  case GAMEPAD_MODE_OPENGP:
-    return (uint8_t const *)&opengp_configuration_descriptor;
+  case GAMEPAD_MODE_SINPUT:
+    return (uint8_t const *)&sinput_configuration_descriptor;
     break;
 
     // case GAMEPAD_MODE_DS4:
@@ -321,12 +321,12 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 
   if(report_type == HID_REPORT_TYPE_FEATURE)
   {
-    if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_OPENGP)
+    if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_SINPUT)
     {
       switch(report_id)
       {
-        case REPORT_ID_OPENGP_FEATURE_FEATFLAGS:
-          return opengc_hid_get_featureflags(buffer, reqlen);
+        case REPORT_ID_SINPUT_FEATURE_FEATFLAGS:
+          return sinput_hid_get_featureflags(buffer, reqlen);
         break;
       }
     }
@@ -363,8 +363,8 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     }
     break;
 
-  case GAMEPAD_MODE_OPENGP:
-    if (report[0] == REPORT_ID_OPENGP)
+  case GAMEPAD_MODE_SINPUT:
+    if (report[0] == REPORT_ID_SINPUT)
     {
       _usb_set_usb_clear();
     }
@@ -383,18 +383,18 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
   default:
     break;
 
-  case GAMEPAD_MODE_OPENGP:
+  case GAMEPAD_MODE_SINPUT:
     if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
-      if (buffer[0] == REPORT_ID_OPENGP_HAPTICS)
+      if (buffer[0] == REPORT_ID_SINPUT_HAPTICS)
       {
-
+        sinput_hid_process_pcm(buffer, bufsize);
       }
     }
 
     if(report_type == HID_REPORT_TYPE_FEATURE)
     {
-      if(report_id == REPORT_ID_OPENGP_FEATURE_PLAYERLED)
+      if(report_id == REPORT_ID_SINPUT_FEATURE_PLAYERLED)
       {
         uint8_t player_num = buffer[0];
         player_num = (player_num > 8) ? 8 : player_num; // Cap at 8
@@ -422,7 +422,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if (buffer[0] == 0x11)
       {
-        haptics_set_std((buffer[1] & 0x1) ? 220 : 0);
+        haptics_set_std((buffer[1] & 0x1) ? 255 : 0, (buffer[1] & 0x2) ? true : false);
       }
       else if (buffer[0] == 0x13)
       {
@@ -436,7 +436,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     {
       if ((buffer[0] == 0x00) && (buffer[1] == 0x08))
       {
-        haptics_set_std((buffer[3] > buffer[4]) ? buffer[3] : buffer[4]);
+        haptics_set_std((buffer[3] > buffer[4]) ? buffer[3] : buffer[4], false);
       }
     }
     break;
@@ -459,8 +459,8 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
     return gc_hid_report_descriptor;
     break;
 
-  case GAMEPAD_MODE_OPENGP:
-    return opengp_hid_report_descriptor;
+  case GAMEPAD_MODE_SINPUT:
+    return sinput_hid_report_descriptor;
     break;
 
     // case GAMEPAD_MODE_DS4:

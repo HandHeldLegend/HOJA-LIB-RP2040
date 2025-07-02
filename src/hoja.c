@@ -102,7 +102,7 @@ rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
     return COLOR_WHITE;
     break;
 
-  case GAMEPAD_MODE_OPENGP:
+  case GAMEPAD_MODE_SINPUT:
     return COLOR_BLUE;
     break;
 

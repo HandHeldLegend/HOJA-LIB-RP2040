@@ -40,10 +40,10 @@ void haptics_set_hd(haptic_processed_s *input)
     #endif
 }
 
-void haptics_set_std(uint8_t amplitude)
+void haptics_set_std(uint8_t amplitude, bool brake)
 {
     #if defined(HOJA_HAPTICS_SET_STD)
-    HOJA_HAPTICS_SET_STD(amplitude);
+    HOJA_HAPTICS_SET_STD(amplitude, brake);
     #endif
 }
 
@@ -82,11 +82,15 @@ void haptics_task(uint64_t timestamp)
         static interval_s interval = {0};
         if(interval_run(timestamp, 8000, &interval))
         {
-            switch_haptics_arbitrary_playback(72);
+            #if defined(HOJA_HAPTICS_SET_STD)
+            HOJA_HAPTICS_SET_STD(255, false);
+            #endif
             _haptic_test_remaining--;
             if(!_haptic_test_remaining)
             {
-                switch_haptics_arbitrary_playback(0);
+                #if defined(HOJA_HAPTICS_SET_STD)
+                HOJA_HAPTICS_SET_STD(0, false);
+                #endif
                 if(_test_cb)
                     _test_cb(CFG_BLOCK_HAPTIC, HAPTIC_CMD_TEST_STRENGTH, true, NULL, 0);
             }
