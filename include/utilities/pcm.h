@@ -12,9 +12,12 @@
 
 #define PCM_BUFFER_SIZE         256
 #define PCM_SAMPLES_PER_PAIR    120
-#define PCM_WRAP_VAL            4096 // (1<<14)
+#define PCM_SAMPLE_CHUNK_3      (PCM_SAMPLES_PER_PAIR / 3)
+#define PCM_SAMPLE_CHUNK_2      (PCM_SAMPLES_PER_PAIR / 2)
+#define PCM_WRAP_VAL            2770 //4096 
+
 #define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL/2)
-#define PCM_SAMPLE_REPETITIONS  2
+#define PCM_SAMPLE_REPETITIONS  3 //2
 
 #define PCM_SAMPLE_RATE         16000
 #define PCM_SINE_TABLE_SIZE     4096

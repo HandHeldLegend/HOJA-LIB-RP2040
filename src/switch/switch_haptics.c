@@ -678,6 +678,7 @@ void switch_haptics_rumble_translate(const uint8_t *data)
             processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
             processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
             processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
+            processed.sample_len = _raw_state.sample_count;
             
             haptics_set_hd(&processed);
         }

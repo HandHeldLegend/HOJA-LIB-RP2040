@@ -25,6 +25,9 @@ volatile uint32_t _amp_scaler_max_safe = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_
 
 volatile uint32_t _external_sample_scaler = 0;
 
+volatile float _pcm_param_min_lo = PCM_LO_FREQUENCY_MIN; // Minimum low frequency parameter
+volatile float _pcm_param_min_hi = PCM_HI_FREQUENCY_MIN; // Minimum high frequency parameter
+
 #define TWO_PI 2.0f * M_PI
 
 void pcm_debug_adjust_param(uint8_t param_type, float amount)
@@ -32,18 +35,13 @@ void pcm_debug_adjust_param(uint8_t param_type, float amount)
     switch(param_type)
     {
         case PCM_DEBUG_PARAM_MIN_HI:
-            //_pcm_param_min_hi += amount;
-            //_pcm_param_min_hi = (_pcm_param_min_hi > 1) ? 1 : (_pcm_param_min_hi < 0) ? 0 : _pcm_param_min_hi;
-        break;
-
-        case PCM_DEBUG_PARAM_MAX:
-            //_pcm_param_max += amount;
-            //_pcm_param_max = (_pcm_param_max > 1) ? 1 : (_pcm_param_max < 0) ? 0 : _pcm_param_max;
+            _pcm_param_min_hi += amount;
+            _pcm_param_min_hi = (_pcm_param_min_hi > 1) ? 1 : (_pcm_param_min_hi < 0) ? 0 : _pcm_param_min_hi;
         break;
 
         case PCM_DEBUG_PARAM_MIN_LO:
-            //_pcm_param_min_lo += amount;
-            //_pcm_param_min_lo = (_pcm_param_min_lo > 1) ? 1 : (_pcm_param_min_lo < 0) ? 0 : _pcm_param_min_lo;
+            _pcm_param_min_lo += amount;
+            _pcm_param_min_lo = (_pcm_param_min_lo > 1) ? 1 : (_pcm_param_min_lo < 0) ? 0 : _pcm_param_min_lo;
         break;
     }
 
@@ -350,8 +348,8 @@ void pcm_init(int intensity)
     // Calculate the exact wrap value that our min amplitudes rest at
     // This should always be calcuated using the full PCM_WRAP_VAL because
     // the sine table is generated using the full range
-    float pcm_wrap_minimum_lo = (float) PCM_WRAP_VAL * PCM_LO_FREQUENCY_MIN;
-    float pcm_wrap_minimum_hi = (float) PCM_WRAP_VAL * PCM_HI_FREQUENCY_MIN;
+    float pcm_wrap_minimum_lo = (float) PCM_WRAP_VAL * _pcm_param_min_lo;
+    float pcm_wrap_minimum_hi = (float) PCM_WRAP_VAL * _pcm_param_min_hi;
 
     // Calculate remainder of range 
     float remaininghi = max_scaled_wrap - pcm_wrap_minimum_hi;
@@ -445,6 +443,8 @@ void pcm_generate_buffer(
 
     static haptic_processed_s   current_values  = {0};
 
+    static uint8_t samples_remaining = 0;
+
     static int load_sample = -1;
 
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
@@ -472,6 +472,26 @@ void pcm_generate_buffer(
             if (!pcm_amfm_is_empty())
             {
                 pcm_amfm_pop(&current_values);
+
+                switch(current_values.sample_len)
+                {
+                    default:
+                    // Lasts a whole ~8ms
+                    case 1:
+                        samples_remaining = PCM_SAMPLES_PER_PAIR;
+                        break;
+
+                    // Lasts a whole ~4ms
+                    case 2:
+                        samples_remaining = PCM_SAMPLE_CHUNK_2;
+                        break;
+
+                    // Lasts a whole ~2.6ms
+                    case 3:
+                        samples_remaining = PCM_SAMPLE_CHUNK_3;
+                        break;
+                }
+
                 processing_sample = true;
                 current_sample_idx = 0;
 
@@ -482,7 +502,7 @@ void pcm_generate_buffer(
                 hi_frequency_increment = current_values.hi_frequency_increment;
 
                 /*
-                    Low frequency is used for Jump, Smash attack, 
+                    Low frequency is used for Jump, Smash attack, Normal attack
                     Attack hit, Tilt IMPACT, Dash, Walk, Special, Shield, Air dodge
                 */
                 lo_frequency_increment = current_values.lo_frequency_increment;
@@ -642,7 +662,7 @@ void pcm_generate_buffer(
         if(processing_sample)
         {
             current_sample_idx++;
-            if(current_sample_idx >= PCM_SAMPLES_PER_PAIR)
+            if(current_sample_idx >= samples_remaining)
             {
                 processing_sample = false;
             }
