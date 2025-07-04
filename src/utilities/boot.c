@@ -42,6 +42,9 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     gamepad_mode_t   thisMode   = GAMEPAD_MODE_SWPRO;
     bool             thisPair   = false;
 
+    // DEBUG
+    //gamepad_config->gamepad_default_mode = GAMEPAD_MODE_SINPUT;
+
     switch(gamepad_config->gamepad_default_mode)
     {
         default: 
@@ -78,6 +81,9 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         case 6:
             thisMode            = GAMEPAD_MODE_SINPUT;
             thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
+
+            // DEBUG
+            //thisMethod = GAMEPAD_METHOD_BLUETOOTH;
         break;
     }
 

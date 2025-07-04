@@ -10,7 +10,7 @@
 #define HOJA_BLUETOOTH_TASK(timestamp) bluetooth_hal_task(timestamp)
 
 bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
-void bluetooth_hal_task(uint32_t timestamp);
+void bluetooth_hal_task(uint64_t timestamp);
 
 #endif
 #endif 

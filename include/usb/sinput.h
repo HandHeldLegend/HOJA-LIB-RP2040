@@ -2,13 +2,16 @@
 #define USB_SINPUT_H
 
 #include <stdint.h>
-#include "tusb.h"
 #include "utilities/callback.h"
+#include "hoja_shared_types.h"
 
-#define REPORT_ID_SINPUT 0x01                   // Input Report ID, used for SINPUT input data
-#define REPORT_ID_SINPUT_HAPTICS 0x02           // Output Haptic Report ID, used for haptics commands and data
-#define REPORT_ID_SINPUT_FEATURE_FEATFLAGS 0x03 // Output Command Report ID, used for SINPUT commands
-#define REPORT_ID_SINPUT_FEATURE_PLAYERLED 0x04 // Input Command Report ID, used for SINPUT command responses
+#define REPORT_ID_SINPUT_INPUT  0x01 // Input Report ID, used for SINPUT input data
+#define REPORT_ID_SINPUT_OUTPUT 0x02 // Output Haptic Report ID, used for haptics and commands
+
+
+#define SINPUT_COMMAND_HAPTIC       0x01
+#define SINPUT_COMMAND_FEATUREFLAGS 0x02
+#define SINPUT_COMMAND_PLAYERLED    0x03
 
 #pragma pack(push, 1) // Ensure byte alignment
 // Input report (Report ID: 1)
@@ -77,11 +80,61 @@ typedef struct
     int16_t gyro_x;             // Gyroscope X
     int16_t gyro_y;             // Gyroscope Y
     int16_t gyro_z;             // Gyroscope Z
-    uint8_t pcm_buffer_status;  // PCM buffer status (0x00 = empty, 0x01 = half full, 0x02 = full)
-    uint8_t reserved_bulk[30];  // Reserved bytes (33-63)
+
+    uint8_t command_id; // Response Command Byte Indication (0 if no response data)
+    uint8_t reserved_bulk[30];  // Reserved for command data
 } sinput_input_s;
 #pragma pack(pop)
 
+#pragma pack(push, 1) // Ensure byte alignment
+typedef struct 
+{
+    uint8_t type;
+
+    union 
+    {
+        // Frequency Amplitude pairs
+        struct 
+        {
+            struct
+            {
+                uint16_t frequency_1;
+                uint16_t amplitude_1;
+                uint16_t frequency_2;
+                uint16_t amplitude_2;
+            } left;
+
+            struct
+            {
+                uint16_t frequency_1;
+                uint16_t amplitude_1;
+                uint16_t frequency_2;
+                uint16_t amplitude_2;
+            } right;
+            
+        } type_1;
+
+        // Basic ERM simulation model
+        struct 
+        {
+            struct 
+            {
+                uint8_t amplitude;
+                bool    brake;
+            } left;
+
+            struct 
+            {
+                uint8_t amplitude;
+                bool    brake;
+            } right;
+            
+        } type_2; 
+    };
+} sinput_haptic_s;
+#pragma pack(pop)
+
+#pragma pack(push, 1) // Ensure byte alignment
 typedef union
 {
     struct
@@ -97,23 +150,12 @@ typedef union
     };
     uint8_t value;
 } sinput_featureflags_u;
+#pragma pack(pop)
 
-typedef struct
-{
-    uint8_t report_id;       // 0x03
-    uint8_t vendor_data[63]; // Vendor-specific data
-} output_report_03_t;
-
-#define HAPTIC_SAMPLES_SIZE sizeof(sinput_haptic_sample_s)
-#define HAPTIC_REPORT_SIZE  sizeof(sinput_haptic_report_t)
-
-extern const tusb_desc_device_t sinput_device_descriptor;
-extern const uint8_t sinput_hid_report_descriptor[];
+extern const ext_tusb_desc_device_t sinput_device_descriptor;
+extern const uint8_t sinput_hid_report_descriptor[203];
 extern const uint8_t sinput_configuration_descriptor[];
 
-void sinput_hid_process_pcm(const uint8_t *data, uint16_t len);
-
-uint16_t sinput_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen);
-
+void sinput_hid_handle_command(const uint8_t *data);
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb);
 #endif

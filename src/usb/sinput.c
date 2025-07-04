@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "tusb.h"
+#include "hoja.h"
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/remap.h"
@@ -12,7 +13,9 @@
 #include "utilities/pcm.h"
 #include "utilities/static_config.h"
 
-const tusb_desc_device_t sinput_device_descriptor = {
+#include "board_config.h"
+
+const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bLength = 18,
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
@@ -22,7 +25,12 @@ const tusb_desc_device_t sinput_device_descriptor = {
 
     .bMaxPacketSize0 = 64,
     .idVendor = 0x2E8A, // Raspberry Pi
+    
+    #if defined(HOJA_USB_PID)
+    .idProduct = HOJA_USB_PID, // board_config PID
+    #else
     .idProduct = 0x10C6, // Hoja Gamepad
+    #endif
 
     .bcdDevice = 0x0100,
     .iManufacturer = 0x01,
@@ -31,7 +39,7 @@ const tusb_desc_device_t sinput_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-const uint8_t sinput_hid_report_descriptor[] = {
+const uint8_t sinput_hid_report_descriptor[203] = {
 
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
     0x15, 0x00, // Logical Minimum (0)
@@ -160,27 +168,11 @@ const uint8_t sinput_hid_report_descriptor[] = {
     0x75, 0x08,                    //   Report Size (8 bits)
     0x95, 0x3F,                    //   Report Count (63) - 64 bytes minus report ID
     0x91, 0x02,                    //   Output (Data,Var,Abs)
-    
-    // FEATURE REPORT ID 0x03 - Vendor device information data (64 bytes)
-    0x85, 0x03,                    //   Report ID (3)
-    0x09, 0x05,                    //   Usage (Vendor Usage 5)
-    0x15, 0x00,                    //   Logical Minimum (0)
-    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
-    0x75, 0x08,                    //   Report Size (8 bits)
-    0x95, 0x3F,                    //   Report Count (63) - 64 bytes minus report ID
-    0xB1, 0x02,                    //   Feature (Data,Var,Abs)
-
-    // FEATURE REPORT ID 0x04 - Vendor LED data (64 bytes)
-    0x85, 0x04,                    //   Report ID (4)
-    0x09, 0x05,                    //   Usage (Vendor Usage 5)
-    0x15, 0x00,                    //   Logical Minimum (0)
-    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
-    0x75, 0x08,                    //   Report Size (8 bits)
-    0x95, 0x3F,                    //   Report Count (63) - 64 bytes minus report ID
-    0xB1, 0x02,                    //   Feature (Data,Var,Abs)
 
     0xC0                           // End Collection 
 };
+
+
 
 const uint8_t sinput_configuration_descriptor[] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
@@ -196,85 +188,66 @@ const uint8_t sinput_configuration_descriptor[] = {
     7, TUSB_DESC_ENDPOINT, 0x01, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4
 };
 
-#define CLAMP(x, low, high) ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
-
-static const int step_table[89] = {
-     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31,
-    34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143,
-    157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
-    724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
-    3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
-    15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
-};
-
-static const int index_table[16] = {
-    -1, -1, -1, -1, 2, 4, 6, 8,
-    -1, -1, -1, -1, 2, 4, 6, 8
-};
-
-void _decode_adpcm_buffer(const uint8_t *adpcm_data, uint8_t adpcm_len, int16_t *output, uint8_t *samples_decoded) {
-    if (adpcm_len < 2 || !output || !samples_decoded) return;
-
-    // Extract predictor seed
-    int predictor = (int16_t)((adpcm_data[1] << 8) | adpcm_data[0]);
-    int index = 0;
-    size_t out_idx = 0;
-
-    for (size_t i = 2; i < adpcm_len; ++i) {
-        uint8_t byte = adpcm_data[i];
-        for (int n = 0; n < 2; ++n) {
-            uint8_t nibble = (n == 0) ? (byte & 0x0F) : (byte >> 4);
-            int step = step_table[index];
-
-            int diff = step >> 3;
-            if (nibble & 1) diff += step >> 2;
-            if (nibble & 2) diff += step >> 1;
-            if (nibble & 4) diff += step;
-            if (nibble & 8) diff = -diff;
-
-            predictor += diff;
-            predictor = CLAMP(predictor, -32768, 32767);
-
-            output[out_idx++] = predictor;
-
-            index += index_table[nibble & 0x0F];
-            index = CLAMP(index, 0, 88);
-        }
-    }
-
-    *samples_decoded = (uint8_t)out_idx;
-}
-
-void sinput_hid_process_pcm(const uint8_t *data, uint16_t len)
+void _sinput_cmd_haptics(const uint8_t *data)
 {
-    // data[0] is the report ID (0x02 for PCM data)
-    // data[1] is the type of haptic data
-    
-    uint8_t adpcm_length = data[2]; // Length of ADPCM data
-    // Extract ADPCM data (skip report ID byte)
-    const uint8_t *adpcm_data = &data[3];
-    
-    // Decode ADPCM to PCM
-    int16_t decoded_samples[120]; // Maximum possible decoded samples
-    uint8_t samples_decoded = 0;
-    
-    _decode_adpcm_buffer(adpcm_data, adpcm_length, decoded_samples, &samples_decoded);
-    
-    if(samples_decoded > 0)
+    haptic_processed_s val = {0};
+
+    sinput_haptic_s haptic = {0};
+
+    memcpy(&haptic, data, sizeof(sinput_haptic_s));
+
+    switch (haptic.type)
     {
-        pcm_raw_queue_push(decoded_samples, samples_decoded);
-    }
+        default:
+        break;
+
+        case 1:
+            float a1_base = (float) (haptic.type_1.left.amplitude_1 > haptic.type_1.right.amplitude_1 ? haptic.type_1.left.amplitude_1 : haptic.type_1.right.amplitude_1);
+            float a2_base = (float) (haptic.type_1.left.amplitude_2 > haptic.type_1.right.amplitude_2 ? haptic.type_1.left.amplitude_2 : haptic.type_1.right.amplitude_2);
+            
+            float amp_1 = a1_base > 0 ? (float) a1_base / (float) UINT16_MAX : 0;
+            float amp_2 = a2_base > 0 ? (float) a2_base / (float) UINT16_MAX : 0;
+        
+            val.hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
+            val.lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
+        
+            val.hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_1);
+            val.lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_2);
+        
+            pcm_amfm_push(&val);
+        break;
+
+        case 2:
+            bool left_right = haptic.type_2.left.amplitude > haptic.type_2.right.amplitude ? false : true; 
+
+            uint8_t amp = 0;
+            bool brake = 0;
+
+            if(left_right)
+            {
+                amp = haptic.type_2.right.amplitude;
+                brake = haptic.type_2.right.brake;
+            }
+            else 
+            {
+                amp = haptic.type_2.left.amplitude;
+                brake = haptic.type_2.left.brake;
+            }
+
+            pcm_erm_set(amp, brake);
+        break;
+    } 
 }
 
-// Feature Report ID 0x03 - Get Feature Flags
-uint16_t sinput_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen)
+// Get Feature Flags
+void _sinput_cmd_get_featureflags(uint8_t *buffer)
 {
     sinput_featureflags_u feature_flags = {0};
 
     uint16_t accel_g_range      = 8; // 8G 
     uint16_t gyro_dps_range     = 2000; // 2000 degrees per second
 
-    feature_flags.value = 0x00000000; // Set default feature flags
+    feature_flags.value = 0x00; // Set default feature flags
 
     feature_flags.accelerometer_supported   = (imu_static.axis_accel_a) ? 1 : 0;
     feature_flags.gyroscope_supported       = (imu_static.axis_gyro_a) ? 1 : 0;
@@ -298,11 +271,34 @@ uint16_t sinput_hid_get_featureflags(uint8_t *buffer, uint16_t reqlen)
 
     memcpy(&buffer[6], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[8], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
+}
 
-    // Copy device name
-    memcpy(&buffer[10], device_static.name, 16); // Device name (up to 32 bytes, but we use 16 for now)
-    
-    return reqlen;
+volatile uint8_t _sinput_current_command = 0;
+uint8_t _sinput_current_command_reply[30] = {0};
+
+void sinput_hid_handle_command(const uint8_t *data)
+{
+    switch(data[0])
+    {
+        default:
+        break;
+
+        case SINPUT_COMMAND_HAPTIC:
+        _sinput_cmd_haptics(&(data[1]));
+        break;
+
+        case SINPUT_COMMAND_FEATUREFLAGS:
+        memset(_sinput_current_command_reply, 0, sizeof(_sinput_current_command_reply));
+        _sinput_cmd_get_featureflags(_sinput_current_command_reply);
+        _sinput_current_command = data[0];
+        break;
+
+        case SINPUT_COMMAND_PLAYERLED:
+        uint8_t player_num = data[1];
+        player_num = (player_num > 8) ? 8 : player_num; // Cap at 8
+        hoja_set_connected_status(player_num);
+        break;
+    }
 }
 
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
@@ -364,20 +360,36 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_zl = buttons.trigger_zl;
     data.button_zr = buttons.trigger_zr;
 
-    //data.trigger_gl = buttons.trigger_gl;
-    //data.trigger_gr = buttons.trigger_gr;
+    data.button_gl = buttons.trigger_gl;
+    data.button_gr = buttons.trigger_gr;
 
     data.button_power = buttons.button_shipping;
 
     int32_t trigger = -32768;
 
-    data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
-    data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
+    if(analog_static.axis_lt)
+        data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
+    else 
+        data.trigger_l = -32768;
+
+    if(analog_static.axis_rt)
+        data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
+    else 
+        data.trigger_r = -32768;
+
+    if(_sinput_current_command != 0)
+    {
+        data.command_id = _sinput_current_command;
+        memcpy(data.reserved_bulk, _sinput_current_command_reply, sizeof(_sinput_current_command_reply));
+        _sinput_current_command = 0;
+    }
+    else 
+    {
+        data.command_id = 0;
+        memset(data.reserved_bulk, 0, sizeof(data.reserved_bulk));
+    }
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
-
-    // If the PCM buffer is more than half full, set the buffer status to 0x01, otherwise set to 0x00
-    report_data[33] = (pcm_raw_queue_count() > (PCM_RAW_QUEUE_SIZE >> 1)) ? 0x01 : 0; 
 
     last_timestamp = timestamp;
     cb(0x01, report_data, sizeof(sinput_input_s));

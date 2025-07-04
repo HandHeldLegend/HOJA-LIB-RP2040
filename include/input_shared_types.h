@@ -54,7 +54,8 @@ typedef struct
             uint8_t button_shipping : 1;
             uint8_t button_sync     : 1;
             uint8_t button_unbind   : 1;
-            uint8_t padding         : 2;
+            uint8_t trigger_gl      : 1;
+            uint8_t trigger_gr      : 1;
         };
         uint8_t buttons_system;
     };

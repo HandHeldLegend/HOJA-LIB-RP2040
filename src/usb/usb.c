@@ -318,19 +318,7 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
   (void)instance;
   (void)report_id;
   (void)reqlen;
-
-  if(report_type == HID_REPORT_TYPE_FEATURE)
-  {
-    if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_SINPUT)
-    {
-      switch(report_id)
-      {
-        case REPORT_ID_SINPUT_FEATURE_FEATFLAGS:
-          return sinput_hid_get_featureflags(buffer, reqlen);
-        break;
-      }
-    }
-  }
+  (void)report_type;
 
   return 0;
 }
@@ -364,7 +352,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     break;
 
   case GAMEPAD_MODE_SINPUT:
-    if (report[0] == REPORT_ID_SINPUT)
+    if (report[0] == REPORT_ID_SINPUT_INPUT)
     {
       _usb_set_usb_clear();
     }
@@ -386,19 +374,9 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
   case GAMEPAD_MODE_SINPUT:
     if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
-      if (buffer[0] == REPORT_ID_SINPUT_HAPTICS)
+      if (buffer[0] == REPORT_ID_SINPUT_OUTPUT)
       {
-        sinput_hid_process_pcm(buffer, bufsize);
-      }
-    }
-
-    if(report_type == HID_REPORT_TYPE_FEATURE)
-    {
-      if(report_id == REPORT_ID_SINPUT_FEATURE_PLAYERLED)
-      {
-        uint8_t player_num = buffer[0];
-        player_num = (player_num > 8) ? 8 : player_num; // Cap at 8
-        hoja_set_connected_status(player_num);
+        sinput_hid_handle_command(&buffer[1]);
       }
     }
     break;

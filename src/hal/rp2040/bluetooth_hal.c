@@ -18,13 +18,18 @@
 
 #include "switch/switch_commands.h"
 #include "utilities/settings.h"
+#include "utilities/static_config.h"
 #include "utilities/interval.h"
 #include "usb/swpro.h"
+#include "usb/sinput.h"
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
 
+#define BT_HAL_TARGET_POLLING_RATE_MS 6
+
 volatile bool _connected = false;
+volatile uint64_t _bt_hal_timer = 0;
 
 static const uint8_t switch_bt_report_descriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
@@ -146,7 +151,7 @@ static interval_s hid_report_interval = {0};
 static btstack_timer_source_t hid_timer;
 
 // Compare addresses and return true if they are the same
-bool _comapre_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
+bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
 {
     for (int i = 0; i < 6; i++)
     {
@@ -187,16 +192,29 @@ static void _bt_hid_report_handler(uint16_t cid,
 
             tmp[0] = report_id;
 
-            if (report_id == SW_OUT_ID_RUMBLE)
+            switch(hoja_get_status().gamepad_mode)
             {
-                switch_haptics_rumble_translate(&report[1]);
+                default:
+                if (report_id == SW_OUT_ID_RUMBLE)
+                {
+                    switch_haptics_rumble_translate(&report[1]);
+                }
+                else if (report_id == SW_OUT_ID_RUMBLE_CMD)
+                {
+                    //switch_haptics_rumble_translate(&report[1]);
+                    memcpy(&tmp[1], report, report_size);
+                    switch_commands_future_handle(report_id, tmp, report_size + 1);
+                }
+                break;
+
+                case GAMEPAD_MODE_SINPUT:
+                if(report_id == REPORT_ID_SINPUT_OUTPUT)
+                {
+                    sinput_hid_handle_command(report);
+                }
+                break;
             }
-            else if (report_id == SW_OUT_ID_RUMBLE_CMD)
-            {
-                //switch_haptics_rumble_translate(&report[1]);
-                memcpy(&tmp[1], report, report_size);
-                switch_commands_future_handle(report_id, tmp, report_size + 1);
-            }
+
         }
     }
 }
@@ -267,7 +285,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 bd_addr_t addr; 
                 hid_subevent_connection_opened_get_bd_addr(packet, addr);
 
-                bool comp = _comapre_mac_addr(addr, gamepad_config->host_mac_switch);
+                bool comp = _compare_mac_addr(addr, gamepad_config->host_mac_switch);
                 if(!comp)
                 {
                     // New address, save 
@@ -291,9 +309,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     uint32_t current_time_ms = btstack_run_loop_get_time_ms();
                     uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
 
-                    if(time_elapsed >= 8)
+                    if(time_elapsed >= BT_HAL_TARGET_POLLING_RATE_MS)
                     {
-                        swpro_hid_report(0, _bluetooth_hal_hid_tunnel);
+                        switch(hoja_get_status().gamepad_mode)
+                        {
+                            default:
+                            swpro_hid_report(0, _bluetooth_hal_hid_tunnel);
+                            break;
+
+                            case GAMEPAD_MODE_SINPUT:
+                            sinput_hid_report(sys_hal_time_us(), _bluetooth_hal_hid_tunnel);
+                        }
+                        
                         last_hid_report_timestamp_ms = current_time_ms;
                         hid_device_request_can_send_now_event(hid_cid);
                     }
@@ -301,7 +328,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     {
                         // Not enough time has passed, schedule another send event after delay
                         uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
-                        uint32_t delay = 8 - time_elapsed;
+                        uint32_t delay = BT_HAL_TARGET_POLLING_RATE_MS - time_elapsed;
                         btstack_run_loop_set_timer(&hid_timer, delay);
                         btstack_run_loop_set_timer_handler(&hid_timer, &hid_timer_handler);
                         btstack_run_loop_add_timer(&hid_timer);
@@ -316,6 +343,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     printf("Sniff: %d, %d\n", max, min);
                 }
                 break;
+
             default:
                 break;
             }
@@ -328,6 +356,36 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
 bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+
+    uint16_t this_vid = 0;
+    uint16_t this_pid = 0;
+    const char *this_name = NULL;
+    const uint8_t *this_descriptor = NULL;
+    uint16_t this_descriptor_size = 0;
+
+    switch(device_mode)
+    {
+        default:
+            this_name = "Pro Controller";
+            this_vid = 0x057E;
+            this_pid = 0x2009;
+            this_descriptor = switch_bt_report_descriptor;
+            this_descriptor_size = sizeof(switch_bt_report_descriptor);
+        break;
+
+        case GAMEPAD_MODE_SINPUT:
+            this_name = device_static.name;
+            this_vid = 0x2E8A;
+            #if defined(HOJA_USB_PID)
+            this_pid = HOJA_USB_PID, // board_config PID
+            #else
+            this_pid = 0x10C6, // Hoja Gamepad
+            #endif
+            this_descriptor = sinput_hid_report_descriptor;
+            this_descriptor_size = sizeof(sinput_hid_report_descriptor);
+        break;
+    }
+
     // If the init fails it returns true lol
     if (cyw43_arch_init())
     {
@@ -337,7 +395,7 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     gap_set_bondable_mode(1);
 
     gap_set_class_of_device(0x2508);
-    gap_set_local_name("Pro Controller");
+    gap_set_local_name(this_name);
 
     gap_set_default_link_policy_settings(LM_LINK_POLICY_ENABLE_ROLE_SWITCH |
                                          LM_LINK_POLICY_ENABLE_SNIFF_MODE);
@@ -366,9 +424,9 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
         .hid_ssr_host_max_latency = 0xFFFF,  // SSR Max Latency
         .hid_ssr_host_min_timeout = 0xFFFF,  // SSR Host Min Timeout
         .hid_supervision_timeout  = 3200,    // HID Supervision Timeout
-        .hid_descriptor           = switch_bt_report_descriptor, // HID Descriptor
-        .hid_descriptor_size      = sizeof(switch_bt_report_descriptor), // HID Descriptor Length
-        .device_name              = hid_device_name
+        .hid_descriptor           = this_descriptor, // HID Descriptor
+        .hid_descriptor_size      = this_descriptor_size, // HID Descriptor Length
+        .device_name              = this_name
     }; // Device Name
 
     // Register SDP services
@@ -379,15 +437,16 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     sdp_register_service(hid_service_buffer);
 
     memset(pnp_service_buffer, 0, sizeof(pnp_service_buffer));
+
     device_id_create_sdp_record(pnp_service_buffer, sdp_create_service_record_handle(), DEVICE_ID_VENDOR_ID_SOURCE_USB, 
-        0x057E, 0x2009, 0x0100);
+        this_vid, this_pid, 0x0100);
     //_create_sdp_pnp_record(pnp_service_buffer, 
     //    DEVICE_ID_VENDOR_ID_SOURCE_BLUETOOTH, 0x057E, 0x2009, 0x0100);
     sdp_register_service(pnp_service_buffer);
 
     // HID Device
-    hid_device_init(0, sizeof(switch_bt_report_descriptor),
-        switch_bt_report_descriptor);
+    hid_device_init(0, this_descriptor_size,
+        this_descriptor);
 
     hci_event_callback_registration.callback = &_bt_hal_packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
@@ -408,7 +467,7 @@ void bluetooth_hal_stop()
 {
 }
 
-void bluetooth_hal_task(uint32_t timestamp)
+void bluetooth_hal_task(uint64_t timestamp)
 {   
     sleep_ms(2);
 }

@@ -199,7 +199,7 @@ typedef struct
     uint32_t gamepad_color_grip_left;
     uint32_t gamepad_color_grip_right;
     uint8_t  host_mac_switch[6]; // Mac address of the Switch we are paired to
-    uint8_t  host_mac_xinput[6]; // Mac address of the XInput device we are paired to
+    uint8_t  host_mac_sinput[6]; // Mac address of the SInput device we are paired to
     uint8_t  reserved[28];
 } gamepadConfig_s;
 
