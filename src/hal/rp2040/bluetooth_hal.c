@@ -208,9 +208,9 @@ static void _bt_hid_report_handler(uint16_t cid,
                 break;
 
                 case GAMEPAD_MODE_SINPUT:
-                if(report_id == REPORT_ID_SINPUT_OUTPUT)
+                if(report_id == REPORT_ID_SINPUT_OUTPUT_CMDDAT)
                 {
-                    sinput_hid_handle_command(report);
+                    sinput_hid_handle_command_future(report);
                 }
                 break;
             }

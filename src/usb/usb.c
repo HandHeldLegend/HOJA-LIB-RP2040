@@ -352,7 +352,7 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     break;
 
   case GAMEPAD_MODE_SINPUT:
-    if (report[0] == REPORT_ID_SINPUT_INPUT)
+    if ( (report[0] == REPORT_ID_SINPUT_INPUT) || (report[0] == REPORT_ID_SINPUT_INPUT_CMDDAT) )
     {
       _usb_set_usb_clear();
     }
@@ -374,9 +374,9 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
   case GAMEPAD_MODE_SINPUT:
     if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
-      if (buffer[0] == REPORT_ID_SINPUT_OUTPUT)
+      if (buffer[0] == REPORT_ID_SINPUT_OUTPUT_CMDDAT)
       {
-        sinput_hid_handle_command(&buffer[1]);
+        sinput_hid_handle_command_future(&buffer[1]);
       }
     }
     break;

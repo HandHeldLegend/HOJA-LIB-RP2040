@@ -6,12 +6,15 @@
 #include "hoja_shared_types.h"
 
 #define REPORT_ID_SINPUT_INPUT  0x01 // Input Report ID, used for SINPUT input data
-#define REPORT_ID_SINPUT_OUTPUT 0x02 // Output Haptic Report ID, used for haptics and commands
-
+#define REPORT_ID_SINPUT_INPUT_CMDDAT  0x02 // Input report ID for command replies
+#define REPORT_ID_SINPUT_OUTPUT_CMDDAT 0x03 // Output Haptic Report ID, used for haptics and commands
 
 #define SINPUT_COMMAND_HAPTIC       0x01
 #define SINPUT_COMMAND_FEATUREFLAGS 0x02
 #define SINPUT_COMMAND_PLAYERLED    0x03
+
+#define SINPUT_REPORT_LEN_COMMAND 48 
+#define SINPUT_REPORT_LEN_INPUT   64
 
 #pragma pack(push, 1) // Ensure byte alignment
 // Input report (Report ID: 1)
@@ -81,10 +84,11 @@ typedef struct
     int16_t gyro_y;             // Gyroscope Y
     int16_t gyro_z;             // Gyroscope Z
 
-    uint8_t command_id; // Response Command Byte Indication (0 if no response data)
-    uint8_t reserved_bulk[30];  // Reserved for command data
+    uint8_t reserved_bulk[31];  // Reserved for command data
 } sinput_input_s;
 #pragma pack(pop)
+
+#define SINPUT_INPUT_SIZE sizeof(sinput_input_s)
 
 #pragma pack(push, 1) // Ensure byte alignment
 typedef struct 
@@ -134,6 +138,8 @@ typedef struct
 } sinput_haptic_s;
 #pragma pack(pop)
 
+#define SINPUT_HAPTIC_SIZE sizeof(sinput_haptic_s)
+
 #pragma pack(push, 1) // Ensure byte alignment
 typedef union
 {
@@ -153,9 +159,10 @@ typedef union
 #pragma pack(pop)
 
 extern const ext_tusb_desc_device_t sinput_device_descriptor;
-extern const uint8_t sinput_hid_report_descriptor[203];
+extern const uint8_t sinput_hid_report_descriptor[139];
 extern const uint8_t sinput_configuration_descriptor[];
 
-void sinput_hid_handle_command(const uint8_t *data);
+void sinput_cmd_haptics(const uint8_t *data);
+void sinput_hid_handle_command_future(const uint8_t *data);
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb);
 #endif

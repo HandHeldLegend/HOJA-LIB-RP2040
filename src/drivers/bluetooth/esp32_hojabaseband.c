@@ -15,6 +15,8 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
+#include "usb/sinput.h"
+
 #include "switch/switch_haptics.h"
 
 #include "board_config.h"
@@ -39,6 +41,7 @@
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
+#define I2C_START_CMD_CRC_LEN 13
 
 // The size of messages coming from the ESP32
 #define HOJA_I2C_MSG_SIZE_IN 24
@@ -70,6 +73,7 @@ typedef enum
     I2C_STATUS_CONNECTED_STATUS, // Connected status change
     I2C_STATUS_POWER_CODE, // Change power setting
     I2C_STATUS_MAC_UPDATE, // Update HOST save MAC address
+    I2C_STATUS_HAPTIC_SINPUT, // SINPUT haptics
 } i2cinput_status_t;
 
 typedef enum
@@ -83,9 +87,12 @@ typedef enum
 typedef struct
 {
     uint8_t cmd;
-    uint32_t rand_seed; // Random data to help our CRC
-    uint8_t data[10]; // Buffer for related data
+    uint16_t rand_seed; // Random data to help our CRC
+    uint8_t data[19]; // Buffer for related data   
 } __attribute__ ((packed)) i2cinput_status_s;
+
+// 22 bytes
+#define I2CINPUT_STATUS_SIZE sizeof(i2cinput_status_s)
 
 typedef enum
 {
@@ -142,7 +149,11 @@ typedef struct
             uint8_t button_capture  : 1;
             uint8_t button_home     : 1;
             uint8_t button_safemode : 1;
-            uint8_t padding         : 5;
+            uint8_t button_shipping : 1;
+            uint8_t button_sync     : 1;
+            uint8_t button_unbind   : 1;
+            uint8_t trigger_gl      : 1;
+            uint8_t trigger_gr      : 1;
         };
         uint8_t buttons_system;
     };
@@ -374,6 +385,12 @@ void _btinput_message_parse(uint8_t *data)
         haptics_set_std(l>r? l : r, false);
     }
     break;
+
+    case I2C_STATUS_HAPTIC_SINPUT:
+    {
+        sinput_cmd_haptics(&(status.data[0]));
+    }
+    break;
     }
 
 }
@@ -455,8 +472,31 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[15] = GET_GREEN(col);
     data_out[16] = GET_BLUE(col);
 
+    // New VID/PID section for SInput mode
+    uint16_t vid = 0;
+    uint16_t pid = 0;
+
+    #if defined(HOJA_USB_VID)
+    vid = HOJA_USB_VID;
+    #else
+    vid = 0x2E8A; // Raspberry Pi
+    #endif
+    
+    #if defined(HOJA_USB_PID)
+    pid = HOJA_USB_PID; // board_config PID
+    #else
+    pid = 0x10C6; // Hoja Gamepad
+    #endif
+
+    data_out[17] = (vid >> 8);
+    data_out[18] = (vid & 0xFF);
+
+    data_out[19] = (pid >> 8);
+    data_out[20] = (pid & 0xFF);
+    // end VID/PID section
+
     // Calculate CRC
-    uint8_t crc = _crc8_compute(&(data_out[2]), 13);
+    uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
     data_out[1] = crc;
 
     int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 150000);

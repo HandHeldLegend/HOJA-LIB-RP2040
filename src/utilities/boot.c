@@ -42,9 +42,6 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     gamepad_mode_t   thisMode   = GAMEPAD_MODE_SWPRO;
     bool             thisPair   = false;
 
-    // DEBUG
-    //gamepad_config->gamepad_default_mode = GAMEPAD_MODE_SINPUT;
-
     switch(gamepad_config->gamepad_default_mode)
     {
         default: 
@@ -59,31 +56,28 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         break;
 
         case 2:
-            thisMode    = GAMEPAD_MODE_GCUSB;
+            thisMode    = GAMEPAD_MODE_GCUSB; 
             thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
         break;
 
         case 3:
-            thisMode    = GAMEPAD_MODE_GAMECUBE;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = GAMEPAD_MODE_GAMECUBE; 
+            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 4:
-            thisMode    = GAMEPAD_MODE_N64;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = GAMEPAD_MODE_N64; 
+            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 5:
-            thisMode    = GAMEPAD_MODE_SNES;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = GAMEPAD_MODE_SNES; 
+            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 6:
             thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_USB; // Force USB for now
-
-            // DEBUG
-            //thisMethod = GAMEPAD_METHOD_BLUETOOTH;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
         break;
     }
 
@@ -113,7 +107,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         else if(buttons.button_b)
         {
             thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_USB; 
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
         }
         else if(buttons.button_x)
         {

@@ -24,7 +24,12 @@ const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bDeviceProtocol = 0x00,
 
     .bMaxPacketSize0 = 64,
+
+    #if defined(HOJA_USB_VID)
+    .idVendor = HOJA_USB_VID,
+    #else
     .idVendor = 0x2E8A, // Raspberry Pi
+    #endif
     
     #if defined(HOJA_USB_PID)
     .idProduct = HOJA_USB_PID, // board_config PID
@@ -39,19 +44,15 @@ const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-const uint8_t sinput_hid_report_descriptor[203] = {
-
-    0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
-    0x15, 0x00, // Logical Minimum (0)
-
-    // INPUT REPORT ID 0x01 - Standard Gamepad (64 bytes, 1ms interval)
-
+const uint8_t sinput_hid_report_descriptor[139] = {
+    0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
     0x09, 0x05,                    // Usage (Gamepad)
     0xA1, 0x01,                    // Collection (Application)
-
+    
+    // INPUT REPORT ID 0x01 - Main gamepad data
     0x85, 0x01,                    //   Report ID (1)
     
-    // Vendor bytes (bytes 1-2) - Skip for DirectInput
+    // Padding bytes (bytes 2-3) - Plug status and Charge Percent (0-100)
     0x06, 0x00, 0xFF,              //   Usage Page (Vendor Defined)
     0x09, 0x01,                    //   Usage (Vendor Usage 1)
     0x15, 0x00,                    //   Logical Minimum (0)
@@ -59,120 +60,85 @@ const uint8_t sinput_hid_report_descriptor[203] = {
     0x75, 0x08,                    //   Report Size (8)
     0x95, 0x02,                    //   Report Count (2)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Buttons (bytes 3-6) - 32 buttons total
-    0x05, 0x09,                    //   Usage Page (Button)
-    0x19, 0x01,                    //   Usage Minimum (Button 1)
-    0x29, 0x20,                    //   Usage Maximum (Button 32)
-    0x15, 0x00,                    //   Logical Minimum (0)
-    0x25, 0x01,                    //   Logical Maximum (1)
-    0x75, 0x01,                    //   Report Size (1)
-    0x95, 0x20,                    //   Report Count (32)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // --- 32 buttons ---
+    0x05, 0x09,        // Usage Page (Button)
+    0x19, 0x01,        //   Usage Minimum (Button 1)
+    0x29, 0x20,        //   Usage Maximum (Button 32)
+    0x15, 0x00,        //   Logical Min (0)
+    0x25, 0x01,        //   Logical Max (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x20,        //   Report Count (32)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
     
     // Analog Sticks and Triggers
-    0x05, 0x01,                    //   Usage Page (Generic Desktop)
-    
-    // Left Stick X (bytes 7-8)
+    0x05, 0x01,                    // Usage Page (Generic Desktop)
+    // Left Stick X (bytes 8-9)
     0x09, 0x30,                    //   Usage (X)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Left Stick Y (bytes 9-10)
+    // Left Stick Y (bytes 10-11)
     0x09, 0x31,                    //   Usage (Y)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Right Stick X (bytes 11-12)
+    // Right Stick X (bytes 12-13)
     0x09, 0x32,                    //   Usage (Z)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Right Stick Y (bytes 13-14)
+    // Right Stick Y (bytes 14-15)
     0x09, 0x35,                    //   Usage (Rz)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Left Trigger (bytes 15-16)
+    // Right Trigger (bytes 18-19)
     0x09, 0x33,                    //   Usage (Rx)
+    // Left Trigger  (bytes 16-17)
+    0x09, 0x34,                     //  Usage (Ry)
     0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
     0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
     0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
+    0x95, 0x06,                    //   Report Count (6)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
     
-    // Right Trigger (bytes 17-18)
-    0x09, 0x34,                    //   Usage (Ry)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x01,                    //   Report Count (1)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    // Padding/Reserved data (bytes 20-63) - 44 bytes
+    // This includes gyro/accel data and counter that apps can use if supported
+    0x06, 0x00, 0xFF,              // Usage Page (Vendor Defined)
     
-    // Gyro Elapsed Time (bytes 19-20)
-    0x09, 0x3D,                    //   Usage (Start)
+    // Motion Input Delta (Microseconds, time since last USB report)
+    0x09, 0x20,                    //   Usage (Vendor Usage 0x20)
     0x15, 0x00,                    //   Logical Minimum (0)
-    0x27, 0xFF, 0xFF, 0x00, 0x00,  //   Logical Maximum (65535)
+    0x26, 0xFF, 0xFF,              //   Logical Maximum (655535)
     0x75, 0x10,                    //   Report Size (16)
     0x95, 0x01,                    //   Report Count (1)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Motion Sensors (bytes 21-32) - Accelerometer and Gyroscope
-    0x05, 0x20,                    //   Usage Page (Sensor)
-    0x09, 0x73,                    //   Usage (Motion: Accelerometer 3D)
-    
-    // Accel X, Y, Z (bytes 21-26)
+
+    // Motion Input Accelerometer XYZ (Gs) and Gyroscope XYZ (Degrees Per Second)
+    0x09, 0x21,                    //   Usage (Vendor Usage 0x21)
     0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
     0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
     0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x03,                    //   Report Count (3)
+    0x95, 0x06,                    //   Report Count (6)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Gyro X, Y, Z (bytes 27-32)
-    0x09, 0x76,                    //   Usage (Motion: Gyrometer 3D)
-    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
-    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
-    0x75, 0x10,                    //   Report Size (16)
-    0x95, 0x03,                    //   Report Count (3)
-    0x81, 0x02,                    //   Input (Data,Var,Abs)
-    
-    // Reserved bytes (33-63) - 31 bytes
-    0x05, 0x01,                    //   Usage Page (Generic Desktop)
-    0x09, 0x00,                    //   Usage (Reserved)
+
+    // Reserved padding (31 bytes blank for now)
+    0x09, 0x22,                    //   Usage (Vendor Usage 0x22)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
     0x75, 0x08,                    //   Report Size (8)
     0x95, 0x1F,                    //   Report Count (31)
-    0x81, 0x03,                    //   Input (Const,Var,Abs)
-    // End of Input Report for Gamepad
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
     
-    // VENDOR REPORTS - Use vendor-defined usage page
-    0x06, 0x00, 0xFF,              // Usage Page (Vendor Defined 0xFF00)
-    0x09, 0x01,                    // Usage (Vendor Usage 1)
-    
-    // OUTPUT REPORT ID 0x02 - Vendor haptic data (64 bytes, 4ms interval)
+    // INPUT REPORT ID 0x02 - Vendor COMMAND data
     0x85, 0x02,                    //   Report ID (2)
-    0x09, 0x03,                    //   Usage (Vendor Usage 3)
+    0x09, 0x23,                    //   Usage (Vendor Usage 0x23)
     0x15, 0x00,                    //   Logical Minimum (0)
     0x26, 0xFF, 0x00,              //   Logical Maximum (255)
     0x75, 0x08,                    //   Report Size (8 bits)
     0x95, 0x3F,                    //   Report Count (63) - 64 bytes minus report ID
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // OUTPUT REPORT ID 0x03 - Vendor COMMAND data
+    0x85, 0x03,                    //   Report ID (3)
+    0x09, 0x24,                    //   Usage (Vendor Usage 0x24)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x75, 0x08,                    //   Report Size (8 bits)
+    0x95, 0x2F,                    //   Report Count (47) - 48 bytes minus report ID
     0x91, 0x02,                    //   Output (Data,Var,Abs)
 
     0xC0                           // End Collection 
 };
-
-
 
 const uint8_t sinput_configuration_descriptor[] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
@@ -188,7 +154,7 @@ const uint8_t sinput_configuration_descriptor[] = {
     7, TUSB_DESC_ENDPOINT, 0x01, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(64), 4
 };
 
-void _sinput_cmd_haptics(const uint8_t *data)
+void sinput_cmd_haptics(const uint8_t *data)
 {
     haptic_processed_s val = {0};
 
@@ -274,9 +240,8 @@ void _sinput_cmd_get_featureflags(uint8_t *buffer)
 }
 
 volatile uint8_t _sinput_current_command = 0;
-uint8_t _sinput_current_command_reply[30] = {0};
 
-void sinput_hid_handle_command(const uint8_t *data)
+void sinput_hid_handle_command_future(const uint8_t *data)
 {
     switch(data[0])
     {
@@ -284,12 +249,10 @@ void sinput_hid_handle_command(const uint8_t *data)
         break;
 
         case SINPUT_COMMAND_HAPTIC:
-        _sinput_cmd_haptics(&(data[1]));
+        sinput_cmd_haptics(&(data[1]));
         break;
 
         case SINPUT_COMMAND_FEATUREFLAGS:
-        memset(_sinput_current_command_reply, 0, sizeof(_sinput_current_command_reply));
-        _sinput_cmd_get_featureflags(_sinput_current_command_reply);
         _sinput_current_command = data[0];
         break;
 
@@ -299,6 +262,26 @@ void sinput_hid_handle_command(const uint8_t *data)
         hoja_set_connected_status(player_num);
         break;
     }
+}
+
+void _sinput_hid_handle_command(uint8_t command, const uint8_t *data, hid_report_tunnel_cb cb)
+{
+    uint8_t _sinput_current_command_reply[63] = {command};
+
+    switch(command)
+    {
+        default:
+        break;
+
+        case SINPUT_COMMAND_FEATUREFLAGS:
+        _sinput_cmd_get_featureflags(&_sinput_current_command_reply[1]);
+        cb(REPORT_ID_SINPUT_INPUT_CMDDAT, _sinput_current_command_reply, 63);
+        
+        break;
+    }
+
+    // Clear command
+    _sinput_current_command = 0;
 }
 
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
@@ -349,9 +332,9 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_home = buttons.button_home;
     data.button_capture = buttons.button_capture;
 
-    data.dpad_up = buttons.dpad_up;
-    data.dpad_down = buttons.dpad_down;
-    data.dpad_left = buttons.dpad_left;
+    data.dpad_down  = buttons.dpad_down;
+    data.dpad_up    = buttons.dpad_up;
+    data.dpad_left  = buttons.dpad_left;
     data.dpad_right = buttons.dpad_right;
 
     data.button_l = buttons.trigger_l;
@@ -377,20 +360,15 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     else 
         data.trigger_r = -32768;
 
-    if(_sinput_current_command != 0)
-    {
-        data.command_id = _sinput_current_command;
-        memcpy(data.reserved_bulk, _sinput_current_command_reply, sizeof(_sinput_current_command_reply));
-        _sinput_current_command = 0;
-    }
-    else 
-    {
-        data.command_id = 0;
-        memset(data.reserved_bulk, 0, sizeof(data.reserved_bulk));
-    }
+    
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 
     last_timestamp = timestamp;
-    cb(0x01, report_data, sizeof(sinput_input_s));
+
+    if(_sinput_current_command != 0)
+    {
+        _sinput_hid_handle_command(_sinput_current_command, NULL, cb);
+    }
+    else cb(0x01, report_data, sizeof(sinput_input_s));
 }

@@ -9,8 +9,6 @@
 void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
 {
   static uint64_t time_ms;
-  static uint32_t accumulated_delta = 0;
-  static uint32_t q_timestamp = 0;
 
   out->mode = 2;
 
