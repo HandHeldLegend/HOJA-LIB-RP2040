@@ -13,6 +13,8 @@
 #include "utilities/pcm.h"
 #include "utilities/static_config.h"
 
+#include "devices/battery.h"
+
 #include "board_config.h"
 
 const ext_tusb_desc_device_t sinput_device_descriptor = {
@@ -300,6 +302,11 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     // Update input data
     remap_get_processed_input(&buttons, &triggers);
     analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+
+    battery_status_s stat = battery_get_status();
+
+    data.plug_status = 1; // Plugged
+    data.charge_percent = 100; // 100 Percent
 
     data.left_x = analog.lx * 16;
     data.left_y = analog.ly * -16;
