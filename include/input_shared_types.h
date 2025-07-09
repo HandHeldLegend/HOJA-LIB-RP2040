@@ -139,6 +139,7 @@ typedef enum
     REMAP_TRIGGER_SWAPPED,
     REMAP_TRIGGER_MISMATCH,
     REMAP_TRIGGER_DIGITALONLY,
+    REMAP_TRIGGER_SINPUT, // Special SInput trigger mode
 } remap_trigger_t;
 
 // IMU data structure

@@ -27,13 +27,13 @@ typedef struct
     {
         struct
         {
-            uint8_t button_b : 1;
-            uint8_t button_a : 1;
-            uint8_t button_y : 1;
-            uint8_t button_x : 1;
-            uint8_t dpad_up : 1;
-            uint8_t dpad_down : 1;
-            uint8_t dpad_left : 1;
+            uint8_t button_south : 1;
+            uint8_t button_east  : 1;
+            uint8_t button_west  : 1;
+            uint8_t button_north : 1;
+            uint8_t dpad_up    : 1;
+            uint8_t dpad_down  : 1;
+            uint8_t dpad_left  : 1;
             uint8_t dpad_right : 1;
         };
         uint8_t buttons_1;
@@ -45,12 +45,12 @@ typedef struct
         {
             uint8_t button_stick_left : 1;
             uint8_t button_stick_right : 1;
-            uint8_t button_l : 1;
-            uint8_t button_r : 1;
-            uint8_t button_zl : 1;
-            uint8_t button_zr : 1;
-            uint8_t button_gl : 1;
-            uint8_t button_gr : 1;
+            uint8_t button_l_shoulder : 1;
+            uint8_t button_r_shoulder : 1;
+            uint8_t button_l_trigger : 1;
+            uint8_t button_r_trigger : 1;
+            uint8_t button_l_paddle_1 : 1;
+            uint8_t button_r_paddle_1 : 1;
         };
         uint8_t buttons_2;
     };
@@ -59,12 +59,14 @@ typedef struct
     {
         struct
         {
-            uint8_t button_plus : 1;
-            uint8_t button_minus : 1;
-            uint8_t button_home : 1;
-            uint8_t button_capture : 1;
-            uint8_t button_power : 1;
-            uint8_t reserved_b3 : 3; // Reserved bits
+            uint8_t button_start  : 1;
+            uint8_t button_select : 1;
+            uint8_t button_guide  : 1;
+            uint8_t button_share  : 1;
+            uint8_t button_power  : 1;
+            uint8_t button_l_paddle_2 : 1;
+            uint8_t button_r_paddle_2 : 1;
+            uint8_t reserved_b3 : 1; // Reserved bits
         };
         uint8_t buttons_3;
     };

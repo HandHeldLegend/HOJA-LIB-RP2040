@@ -327,70 +327,39 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.gyro_elapsed_time = delta_timestamp & 0xFFFF; // Store elapsed time in microseconds
 
     // Buttons
-    data.button_a = buttons.button_a;
-    data.button_b = buttons.button_b;
-    data.button_x = buttons.button_x;
-    data.button_y = buttons.button_y;
+    data.button_east  = buttons.button_a;
+    data.button_south = buttons.button_b;
+    data.button_north = buttons.button_x;
+    data.button_west  = buttons.button_y;
 
     data.button_stick_left = buttons.button_stick_left;
     data.button_stick_right = buttons.button_stick_right;
 
-    data.button_plus = buttons.button_plus;
-    data.button_minus = buttons.button_minus;
-    data.button_home = buttons.button_home;
-    data.button_capture = buttons.button_capture;
+    data.button_start  = buttons.button_plus;
+    data.button_select = buttons.button_minus;
+    data.button_guide  = buttons.button_home;
+    data.button_share  = buttons.button_capture;
 
     data.dpad_down  = buttons.dpad_down;
     data.dpad_up    = buttons.dpad_up;
     data.dpad_left  = buttons.dpad_left;
     data.dpad_right = buttons.dpad_right;
 
-    data.button_l = buttons.trigger_l;
-    data.button_r = buttons.trigger_r;
+    data.button_l_shoulder = buttons.trigger_l;
+    data.button_r_shoulder = buttons.trigger_r;
 
-    
-    data.button_zr = buttons.trigger_zr;
+    data.button_l_trigger  = buttons.trigger_zl;
+    data.button_r_trigger  = buttons.trigger_zr;
 
-    data.button_gl = buttons.trigger_gl;
-    data.button_gr = buttons.trigger_gr;
+    data.button_l_paddle_1 = buttons.trigger_gl;
+    data.button_r_paddle_1 = buttons.trigger_gr;
 
     data.button_power = buttons.button_shipping;
 
     int32_t trigger = INT16_MIN;
 
-    if(analog_static.axis_lt)
-    {
-        if(trigger_config->left_disabled)
-        {
-            data.trigger_l = buttons.trigger_zl ? INT16_MAX : INT16_MIN;
-        }
-        else 
-        {
-            data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
-        }
-    }
-    else 
-    {
-        data.trigger_l = INT16_MIN;
-    }
-    data.button_zl = buttons.trigger_zl;
-
-    if(analog_static.axis_rt)
-    {
-        if(trigger_config->right_disabled)
-        {
-            data.trigger_r = buttons.trigger_zr ? INT16_MAX : INT16_MIN;
-        }
-        else 
-        {
-            data.trigger_r = trigger + ((triggers.right_analog)   * 16);    // Scale to 16-bit
-        }
-    }
-    else 
-    {
-        data.trigger_r = INT16_MIN;
-    }
-    data.button_zr = buttons.trigger_zr;
+    data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
+    data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 

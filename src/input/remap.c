@@ -109,6 +109,28 @@ void _trigger_remap_postprocess(
     triggers_out->right_analog     = triggers_in->left_analog;
     triggers_out->right_hairpin    = triggers_in->left_hairpin;
     break;
+
+    case REMAP_TRIGGER_SINPUT:
+    // If we have analog trigger support...
+    if(analog_static.axis_lt)
+    {
+        if(trigger_config->left_disabled)
+        {
+          // Never send analog input data
+          triggers_out->left_analog = 0;
+        }
+        else 
+        {
+            triggers_out->left_analog = triggers_in->left_analog;
+            state->trigger_gl = state->trigger_zl;
+            state->trigger_zl = 0;
+        }
+    }
+    else 
+    {
+      triggers_out->left_analog = 0;
+    }
+    break;
   }
 
   switch(right_type)
@@ -128,6 +150,28 @@ void _trigger_remap_postprocess(
     case REMAP_TRIGGER_SWAPPED:
     triggers_out->left_analog     = triggers_in->right_analog;
     triggers_out->left_hairpin    = triggers_in->right_hairpin;
+    break;
+
+    case REMAP_TRIGGER_SINPUT:
+    // If we have analog trigger support...
+    if(analog_static.axis_rt)
+    {
+        if(trigger_config->right_disabled)
+        {
+          // Never send analog input data
+          triggers_out->right_analog = 0;
+        }
+        else 
+        {
+            triggers_out->right_analog = triggers_in->right_analog;
+            state->trigger_gr = state->trigger_zr;
+            state->trigger_zr = 0;
+        }
+    }
+    else 
+    {
+      triggers_out->right_analog = 0;
+    }
     break;
   }
 
@@ -259,6 +303,9 @@ void _remap_load_remap()
 
     case GAMEPAD_MODE_SINPUT:
       profile_idx = 5;
+      _ltrigger_type = REMAP_TRIGGER_SINPUT;
+      _rtrigger_type = REMAP_TRIGGER_SINPUT;
+      return;
       break;
   }
 
