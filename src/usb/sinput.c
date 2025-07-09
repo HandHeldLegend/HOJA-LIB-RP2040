@@ -12,6 +12,7 @@
 
 #include "utilities/pcm.h"
 #include "utilities/static_config.h"
+#include "utilities/settings.h"
 
 #include "devices/battery.h"
 
@@ -347,7 +348,7 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_l = buttons.trigger_l;
     data.button_r = buttons.trigger_r;
 
-    data.button_zl = buttons.trigger_zl;
+    
     data.button_zr = buttons.trigger_zr;
 
     data.button_gl = buttons.trigger_gl;
@@ -355,19 +356,41 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.button_power = buttons.button_shipping;
 
-    int32_t trigger = -32768;
+    int32_t trigger = INT16_MIN;
 
     if(analog_static.axis_lt)
-        data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
+    {
+        if(trigger_config->left_disabled)
+        {
+            data.trigger_l = buttons.trigger_zl ? INT16_MAX : INT16_MIN;
+        }
+        else 
+        {
+            data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
+        }
+    }
     else 
-        data.trigger_l = -32768;
+    {
+        data.trigger_l = INT16_MIN;
+    }
+    data.button_zl = buttons.trigger_zl;
 
     if(analog_static.axis_rt)
-        data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
+    {
+        if(trigger_config->right_disabled)
+        {
+            data.trigger_r = buttons.trigger_zr ? INT16_MAX : INT16_MIN;
+        }
+        else 
+        {
+            data.trigger_r = trigger + ((triggers.right_analog)   * 16);    // Scale to 16-bit
+        }
+    }
     else 
-        data.trigger_r = -32768;
-
-    
+    {
+        data.trigger_r = INT16_MIN;
+    }
+    data.button_zr = buttons.trigger_zr;
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 
