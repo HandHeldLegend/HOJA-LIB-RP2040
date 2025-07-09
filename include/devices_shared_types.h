@@ -50,6 +50,7 @@ typedef struct
     uint16_t    lo_amplitude_fixed;
     uint16_t    hi_frequency_increment;
     uint16_t    lo_frequency_increment;
+    uint8_t     sample_len; // How many sample chunks
 } haptic_processed_s;
 
 typedef union

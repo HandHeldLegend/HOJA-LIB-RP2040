@@ -64,7 +64,7 @@ typedef struct
     {
         struct 
         {
-            int8_t plug_status; 
+            int8_t plug_status; // Plug Status Format (0 = Unplugged, 1 = Plugged)
             int8_t charge_status; 
             int8_t battery_status; 
             int8_t battery_level; 

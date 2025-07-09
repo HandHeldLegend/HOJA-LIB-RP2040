@@ -34,25 +34,6 @@ void macro_pcmdebug(uint64_t timestamp, button_data_s *buttons)
         // Only run if minus is pressed
         if(!buttons->button_minus) return;
 
-        if(buttons->dpad_up && !du)
-        {
-            du = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MAX, _inc_val_pcm);
-        }
-        else if (!buttons->dpad_up && du)
-        {
-            du = false;
-        }
-
-        if(buttons->dpad_down && !dd)
-        {
-            dd = true;
-            pcm_debug_adjust_param(PCM_DEBUG_PARAM_MAX, -_inc_val_pcm);
-        }
-        else if (!buttons->dpad_down && dd)
-        {
-            dd = false;
-        }
 
         if(buttons->dpad_left && !dl)
         {
@@ -74,22 +55,22 @@ void macro_pcmdebug(uint64_t timestamp, button_data_s *buttons)
             dr = false;
         }
 
-        if(buttons->trigger_l && !tl)
+        if(buttons->dpad_down && !tl)
         {
             tl = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, -_inc_val_pcm);
         }
-        else if (!buttons->trigger_l && tl)
+        else if (!buttons->dpad_down && tl)
         {
             tl = false;
         }
 
-        if(buttons->trigger_r && !tr)
+        if(buttons->dpad_up && !tr)
         {
             tr = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, _inc_val_pcm);
         }
-        else if (!buttons->trigger_r && tr)
+        else if (!buttons->dpad_up && tr)
         {
             tr = false;
         }

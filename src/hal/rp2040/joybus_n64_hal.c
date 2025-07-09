@@ -307,7 +307,7 @@ void joybus_n64_hal_task(uint64_t timestamp)
       if(_n64_rumble != _rumblestate)
       {
           _rumblestate = _n64_rumble;
-          haptics_set_std(_rumblestate ? 235 : 0);
+          haptics_set_std(_rumblestate ? 255 : 0, false);
       }
       
       _out_buffer.button_a = buttons.button_a;

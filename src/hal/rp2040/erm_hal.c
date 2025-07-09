@@ -164,8 +164,9 @@ void erm_hal_task(uint64_t timestamp)
     }
 }
 
-void erm_hal_set_standard(uint8_t intensity)
+void erm_hal_set_standard(uint8_t intensity, bool brake)
 {
+    (void) brake;
     if(!intensity) 
     {
         _target_level = 0;
@@ -193,7 +194,7 @@ void erm_hal_push_amfm(haptic_processed_s *input)
     
     if(!working_amp) 
     {
-        erm_hal_set_standard(0);
+        erm_hal_set_standard(0, false);
         return;
     }
 
@@ -201,7 +202,7 @@ void erm_hal_push_amfm(haptic_processed_s *input)
     new_intensity += 155;
     new_intensity = new_intensity > 255 ? 255 : new_intensity;
 
-    erm_hal_set_standard((uint8_t) new_intensity);
+    erm_hal_set_standard((uint8_t) new_intensity, false);
         
 }
 

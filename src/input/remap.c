@@ -256,6 +256,10 @@ void _remap_load_remap()
     case GAMEPAD_MODE_GAMECUBE:
       profile_idx = 4;
       break;
+
+    case GAMEPAD_MODE_SINPUT:
+      profile_idx = 5;
+      break;
   }
 
   _remap_unpack_remap(profile_idx, &_remap_profile);

@@ -11,7 +11,7 @@
 
 #if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER==HAPTICS_DRIVER_ERM_HAL)
 
-#define HOJA_HAPTICS_SET_STD(intensity) erm_hal_set_standard(intensity)
+#define HOJA_HAPTICS_SET_STD(intensity, brake) erm_hal_set_standard(intensity, brake)
 
 #define HOJA_HAPTICS_PUSH_AMFM(input) erm_hal_push_amfm(input)
 
@@ -23,7 +23,7 @@ void erm_hal_stop();
 bool erm_hal_init(uint8_t intensity);
 void erm_hal_task(uint64_t timestamp);
 void erm_hal_push_amfm(haptic_processed_s *input);
-void erm_hal_set_standard(uint8_t intensity);
+void erm_hal_set_standard(uint8_t intensity, bool brake);
 
 #endif
 
