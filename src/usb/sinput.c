@@ -287,6 +287,15 @@ void _sinput_hid_handle_command(uint8_t command, const uint8_t *data, hid_report
     _sinput_current_command = 0;
 }
 
+int16_t scale_u12_to_s16(uint16_t val)
+{
+    if (val > 4095) val = 4095; // Clamp just in case
+
+    // Scale: map [0, 4095] → [INT16_MIN, INT16_MAX]
+    // The range of INT16 is 65535, so multiply first to preserve precision
+    return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
+}
+
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static uint8_t report_data[64] = {0};
@@ -356,10 +365,8 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.button_power = buttons.button_shipping;
 
-    int32_t trigger = INT16_MIN;
-
-    data.trigger_l = trigger + ((triggers.left_analog)   * 16);    // Scale to 16-bit
-    data.trigger_r = trigger + ((triggers.right_analog)  * 16);    // Scale to 16-bit
+    data.trigger_l = scale_u12_to_s16(triggers.left_analog);
+    data.trigger_r = scale_u12_to_s16(triggers.right_analog);
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 

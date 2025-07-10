@@ -66,12 +66,30 @@ typedef struct
             uint8_t button_power  : 1;
             uint8_t button_l_paddle_2 : 1;
             uint8_t button_r_paddle_2 : 1;
-            uint8_t reserved_b3 : 1; // Reserved bits
+            uint8_t button_touchpad : 1;
         };
         uint8_t buttons_3;
     };
 
-    uint8_t buttons_reserved;
+    union
+    {
+        struct
+        {
+            uint8_t button_misc_3  : 1;
+            uint8_t button_misc_4  : 1;
+            uint8_t button_misc_5  : 1;
+            uint8_t button_misc_6  : 1;
+            
+            // Misc 7 through 10 is unused by
+            // SDL currently!
+            uint8_t button_misc_7  : 1; 
+            uint8_t button_misc_8  : 1;
+            uint8_t button_misc_9  : 1;
+            uint8_t button_misc_10 : 1;
+        };
+        uint8_t buttons_4;
+    };
+
     int16_t left_x;             // Left stick X
     int16_t left_y;             // Left stick Y
     int16_t right_x;            // Right stick X
