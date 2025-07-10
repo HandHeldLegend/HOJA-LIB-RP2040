@@ -133,6 +133,11 @@ void set_battconn()
     s.bat_lvl = 4;
     break;
   }
+
+  if(hoja_get_status().gamepad_method == GAMEPAD_METHOD_USB)
+  {
+    s.bat_lvl = 4;
+  }
   #else
   bat_status_u s = {
     .bat_lvl    = 4,
