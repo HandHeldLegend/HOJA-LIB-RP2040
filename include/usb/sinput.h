@@ -10,7 +10,7 @@
 #define REPORT_ID_SINPUT_OUTPUT_CMDDAT 0x03 // Output Haptic Report ID, used for haptics and commands
 
 #define SINPUT_COMMAND_HAPTIC       0x01
-#define SINPUT_COMMAND_FEATUREFLAGS 0x02
+#define SINPUT_COMMAND_FEATURES     0x02
 #define SINPUT_COMMAND_PLAYERLED    0x03
 
 #define SINPUT_REPORT_LEN_COMMAND 48 
@@ -23,14 +23,12 @@ typedef struct
     uint8_t plug_status;    // Plug Status Format
     uint8_t charge_percent; // 0-100
 
-    union
-    {
-        struct
-        {
-            uint8_t button_south : 1;
-            uint8_t button_east  : 1;
-            uint8_t button_west  : 1;
-            uint8_t button_north : 1;
+    union {
+        struct {
+            uint8_t button_a   : 1;
+            uint8_t button_b   : 1;
+            uint8_t button_x   : 1;
+            uint8_t button_y   : 1;
             uint8_t dpad_up    : 1;
             uint8_t dpad_down  : 1;
             uint8_t dpad_left  : 1;
@@ -63,10 +61,10 @@ typedef struct
             uint8_t button_select : 1;
             uint8_t button_guide  : 1;
             uint8_t button_share  : 1;
-            uint8_t button_power  : 1;
             uint8_t button_l_paddle_2 : 1;
             uint8_t button_r_paddle_2 : 1;
-            uint8_t button_touchpad : 1;
+            uint8_t button_l_touchpad : 1;
+            uint8_t button_r_touchpad : 1;
         };
         uint8_t buttons_3;
     };
@@ -75,7 +73,7 @@ typedef struct
     {
         struct
         {
-            uint8_t button_misc_3  : 1;
+            uint8_t button_power   : 1;
             uint8_t button_misc_4  : 1;
             uint8_t button_misc_5  : 1;
             uint8_t button_misc_6  : 1;
@@ -104,7 +102,15 @@ typedef struct
     int16_t gyro_y;             // Gyroscope Y
     int16_t gyro_z;             // Gyroscope Z
 
-    uint8_t reserved_bulk[31];  // Reserved for command data
+    int16_t touchpad_1_x;       // Touchpad/trackpad
+    int16_t touchpad_1_y;
+    int16_t touchpad_1_pressure;
+
+    int16_t touchpad_2_x;
+    int16_t touchpad_2_y;
+    int16_t touchpad_2_pressure;
+
+    uint8_t reserved_bulk[19];  // Reserved for command data
 } sinput_input_s;
 #pragma pack(pop)
 
@@ -165,7 +171,7 @@ typedef union
 {
     struct
     {
-        uint8_t haptics_supported : 1;
+        uint8_t rumble_supported : 1;
         uint8_t player_leds_supported : 1;
         uint8_t accelerometer_supported : 1;
         uint8_t gyroscope_supported : 1;
@@ -175,7 +181,20 @@ typedef union
         uint8_t right_analog_trigger_supported : 1;
     };
     uint8_t value;
-} sinput_featureflags_u;
+} sinput_featureflags_1_u;
+#pragma pack(pop)
+
+#pragma pack(push, 1) // Ensure byte alignment
+typedef union
+{
+    struct
+    {
+        uint8_t left_touchpad_supported  : 1;
+        uint8_t right_touchpad_supported : 1;
+        uint8_t reserved : 6;
+    };
+    uint8_t value;
+} sinput_featureflags_2_u;
 #pragma pack(pop)
 
 extern const ext_tusb_desc_device_t sinput_device_descriptor;

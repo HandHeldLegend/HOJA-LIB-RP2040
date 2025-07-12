@@ -209,9 +209,9 @@ void sinput_cmd_haptics(const uint8_t *data)
 }
 
 // Get Feature Flags
-void _sinput_cmd_get_featureflags(uint8_t *buffer)
+void _sinput_cmd_get_features(uint8_t *buffer)
 {
-    sinput_featureflags_u feature_flags = {0};
+    sinput_featureflags_1_u feature_flags = {0};
 
     uint16_t accel_g_range      = 8; // 8G 
     uint16_t gyro_dps_range     = 2000; // 2000 degrees per second
@@ -226,20 +226,61 @@ void _sinput_cmd_get_featureflags(uint8_t *buffer)
     feature_flags.left_analog_trigger_supported     = (analog_static.axis_lt) ? 1 : 0;
     feature_flags.right_analog_trigger_supported    = (analog_static.axis_rt) ? 1 : 0;
 
-    feature_flags.haptics_supported     = (haptic_static.haptic_hd | haptic_static.haptic_sd) ? 1 : 0;
+    feature_flags.rumble_supported      = (haptic_static.haptic_hd | haptic_static.haptic_sd) ? 1 : 0;
     feature_flags.player_leds_supported = (rgb_static.rgb_player_group > -1) ? 1 : 0;
 
     buffer[0] = feature_flags.value; // Feature flags value      
     buffer[1] = 0x00; // Reserved byte
 
-    buffer[2] = 0x00; // Gamepad Sub-type (leave as zero in most cases)
-    buffer[3] = 0x00; // Reserved byte
+    // Gamepad Type (Derived from SDL)
+    /* 
+    typedef enum SDL_GamepadType
+    {
+        SDL_GAMEPAD_TYPE_UNKNOWN = 0,
+        SDL_GAMEPAD_TYPE_STANDARD,
+        SDL_GAMEPAD_TYPE_XBOX360,
+        SDL_GAMEPAD_TYPE_XBOXONE,
+        SDL_GAMEPAD_TYPE_PS3,
+        SDL_GAMEPAD_TYPE_PS4,
+        SDL_GAMEPAD_TYPE_PS5,
+        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO,
+        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT,
+        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT,
+        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR,
+        SDL_GAMEPAD_TYPE_GAMECUBE,
+        SDL_GAMEPAD_TYPE_COUNT
+    } SDL_GamepadType;
+     */
+    #if defined(HOJA_SINPUT_GAMEPAD_TYPE)
+    buffer[2] = HOJA_SINPUT_GAMEPAD_TYPE;
+    #else 
+    buffer[2] = 0;
+    #endif
 
-    buffer[4] = 0x00; // Reserved API version
+    buffer[3] = 0x00; // Gamepad Sub-type (leave as zero in most cases)
+    
+    buffer[4] = 1;    // Polling rate (ms)
     buffer[5] = 0x00; // Reserved
 
     memcpy(&buffer[6], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[8], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
+
+    #if defined(HOJA_SINPUT_BUTTON_USAGE_MASK)
+    const uint8_t sinput_usage_mask[4] = HOJA_SINPUT_BUTTON_USAGE_MASK;
+    #else 
+    const uint8_t sinput_usage_mask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+    #endif 
+
+    #if defined(HOJA_SINPUT_BUTTON_USAGE_COUNT)
+    buffer[10] = HOJA_SINPUT_BUTTON_USAGE_COUNT; // Button count
+    #else 
+    buffer[10] = 32;
+    #endif
+
+    buffer[11] = sinput_usage_mask[0];
+    buffer[12] = sinput_usage_mask[1];
+    buffer[13] = sinput_usage_mask[2];
+    buffer[14] = sinput_usage_mask[3];
 }
 
 volatile uint8_t _sinput_current_command = 0;
@@ -255,7 +296,7 @@ void sinput_hid_handle_command_future(const uint8_t *data)
         sinput_cmd_haptics(&(data[1]));
         break;
 
-        case SINPUT_COMMAND_FEATUREFLAGS:
+        case SINPUT_COMMAND_FEATURES:
         _sinput_current_command = data[0];
         break;
 
@@ -264,6 +305,7 @@ void sinput_hid_handle_command_future(const uint8_t *data)
         player_num = (player_num > 8) ? 8 : player_num; // Cap at 8
         hoja_set_connected_status(player_num);
         break;
+
     }
 }
 
@@ -276,8 +318,8 @@ void _sinput_hid_handle_command(uint8_t command, const uint8_t *data, hid_report
         default:
         break;
 
-        case SINPUT_COMMAND_FEATUREFLAGS:
-        _sinput_cmd_get_featureflags(&_sinput_current_command_reply[1]);
+        case SINPUT_COMMAND_FEATURES:
+        _sinput_cmd_get_features(&_sinput_current_command_reply[1]);
         cb(REPORT_ID_SINPUT_INPUT_CMDDAT, _sinput_current_command_reply, 63);
         
         break;
@@ -336,10 +378,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.gyro_elapsed_time = delta_timestamp & 0xFFFF; // Store elapsed time in microseconds
 
     // Buttons
-    data.button_east  = buttons.button_a;
-    data.button_south = buttons.button_b;
-    data.button_north = buttons.button_x;
-    data.button_west  = buttons.button_y;
+    data.button_a  = buttons.button_a;
+    data.button_b  = buttons.button_b;
+    data.button_x  = buttons.button_x;
+    data.button_y  = buttons.button_y;
 
     data.button_stick_left = buttons.button_stick_left;
     data.button_stick_right = buttons.button_stick_right;

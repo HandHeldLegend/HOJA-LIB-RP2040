@@ -116,14 +116,13 @@ void _trigger_remap_postprocess(
     {
         if(trigger_config->left_disabled)
         {
-          // Never send analog input data
-          triggers_out->left_analog = 0;
+          // Send out analog based on the output ZL state
+          triggers_out->left_analog = state->trigger_zl ? UINT16_MAX : 0;
+          state->trigger_zl = 0;
         }
         else 
         {
-            triggers_out->left_analog = triggers_in->left_analog;
-            state->trigger_gl = state->trigger_zl;
-            state->trigger_zl = 0;
+          triggers_out->left_analog = triggers_in->left_analog;
         }
     }
     else 
@@ -158,14 +157,13 @@ void _trigger_remap_postprocess(
     {
         if(trigger_config->right_disabled)
         {
-          // Never send analog input data
-          triggers_out->right_analog = 0;
+          // Send out analog based on the output ZL state
+          triggers_out->right_analog = state->trigger_zr ? UINT16_MAX : 0;
+          state->trigger_zr = 0;
         }
         else 
         {
-            triggers_out->right_analog = triggers_in->right_analog;
-            state->trigger_gr = state->trigger_zr;
-            state->trigger_zr = 0;
+          triggers_out->right_analog = triggers_in->right_analog;
         }
     }
     else 
