@@ -495,6 +495,11 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[20] = (pid & 0xFF);
     // end VID/PID section
 
+    // Stupid workaround for SuperGamepad+ :)
+    #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
+    data_out[21] = HOJA_SINPUT_GAMEPAD_SUBTYPE;
+    #endif
+
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
     data_out[1] = crc;

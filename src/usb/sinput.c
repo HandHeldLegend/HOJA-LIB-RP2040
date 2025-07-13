@@ -227,7 +227,7 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     feature_flags.right_analog_trigger_supported    = (analog_static.axis_rt) ? 1 : 0;
 
     feature_flags.rumble_supported      = (haptic_static.haptic_hd | haptic_static.haptic_sd) ? 1 : 0;
-    feature_flags.player_leds_supported = (rgb_static.rgb_player_group > -1) ? 1 : 0;
+    feature_flags.player_leds_supported = 1;
 
     buffer[0] = feature_flags.value; // Feature flags value      
     buffer[1] = 0x00; // Reserved byte
@@ -257,7 +257,11 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     buffer[2] = 0;
     #endif
 
-    buffer[3] = 0x00; // Gamepad Sub-type (leave as zero in most cases)
+    #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
+    buffer[3] = HOJA_SINPUT_GAMEPAD_SUBTYPE; // Gamepad Sub-type (leave as zero in most cases)
+    #else 
+    buffer[3] = 0;
+    #endif
     
     buffer[4] = 1;    // Polling rate (ms)
     buffer[5] = 0x00; // Reserved
@@ -271,16 +275,10 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     const uint8_t sinput_usage_mask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
     #endif 
 
-    #if defined(HOJA_SINPUT_BUTTON_USAGE_COUNT)
-    buffer[10] = HOJA_SINPUT_BUTTON_USAGE_COUNT; // Button count
-    #else 
-    buffer[10] = 32;
-    #endif
-
-    buffer[11] = sinput_usage_mask[0];
-    buffer[12] = sinput_usage_mask[1];
-    buffer[13] = sinput_usage_mask[2];
-    buffer[14] = sinput_usage_mask[3];
+    buffer[10] = sinput_usage_mask[0];
+    buffer[11] = sinput_usage_mask[1];
+    buffer[12] = sinput_usage_mask[2];
+    buffer[13] = sinput_usage_mask[3];
 }
 
 volatile uint8_t _sinput_current_command = 0;
@@ -338,6 +336,12 @@ int16_t scale_u12_to_s16(uint16_t val)
     return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
 }
 
+#define CLAMP_INT16(x) (((x) > INT16_MAX) ? INT16_MAX : (((x) < INT16_MIN) ? INT16_MIN : (x)))
+
+// For signed 12-bit inputs centered on 0
+#define SCALE_SIGNED12(value, invert) \
+    CLAMP_INT16(((int32_t)((invert) ? -(value) : (value)) * 16))
+
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static uint8_t report_data[64] = {0};
@@ -360,10 +364,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.plug_status = 1; // Plugged
     data.charge_percent = 100; // 100 Percent
 
-    data.left_x = analog.lx * 16;
-    data.left_y = analog.ly * -16;
-    data.right_x = analog.rx * 16;
-    data.right_y = analog.ry * -16;
+    data.left_x = SCALE_SIGNED12(analog.lx, false);
+    data.left_y = SCALE_SIGNED12(analog.ly, true);
+    data.right_x = SCALE_SIGNED12(analog.rx, false);
+    data.right_y = SCALE_SIGNED12(analog.ry, true);
 
     imu_access_safe(&imu);
 
