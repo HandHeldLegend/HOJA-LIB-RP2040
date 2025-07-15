@@ -257,11 +257,18 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     buffer[2] = 0;
     #endif
 
+    uint8_t sub_type = 0;
+    uint8_t face_type = 0;
+
     #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
-    buffer[3] = HOJA_SINPUT_GAMEPAD_SUBTYPE; // Gamepad Sub-type (leave as zero in most cases)
-    #else 
-    buffer[3] = 0;
+    sub_type = HOJA_SINPUT_GAMEPAD_SUBTYPE & 0xF; // Gamepad Sub-type (leave as zero in most cases)
     #endif
+
+    #if defined(HOJA_SINPUT_GAMEPAD_FACESTYLE)
+    face_type = HOJA_SINPUT_GAMEPAD_FACESTYLE & 0xF;
+    #endif 
+
+    buffer[3] = (face_type << 4) | sub_type;
     
     buffer[4] = 1;    // Polling rate (ms)
     buffer[5] = 0x00; // Reserved
