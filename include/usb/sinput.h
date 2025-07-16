@@ -94,15 +94,14 @@ typedef struct
     int16_t right_y;            // Right stick Y
     int16_t trigger_l;          // Left trigger
     int16_t trigger_r;          // Right trigger
-    uint16_t gyro_elapsed_time; // Microseconds, 0 if unchanged
+
+    uint32_t imu_timestamp_us;  // IMU Timestamp
     int16_t accel_x;            // Accelerometer X
     int16_t accel_y;            // Accelerometer Y
     int16_t accel_z;            // Accelerometer Z
     int16_t gyro_x;             // Gyroscope X
     int16_t gyro_y;             // Gyroscope Y
     int16_t gyro_z;             // Gyroscope Z
-
-    uint8_t gyro_packet_counter;
 
     int16_t touchpad_1_x;       // Touchpad/trackpad
     int16_t touchpad_1_y;
@@ -112,7 +111,7 @@ typedef struct
     int16_t touchpad_2_y;
     int16_t touchpad_2_pressure;
 
-    uint8_t reserved_bulk[18];  // Reserved for command data
+    uint8_t reserved_bulk[17];  // Reserved for command data
 } sinput_input_s;
 #pragma pack(pop)
 

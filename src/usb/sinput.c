@@ -216,6 +216,9 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     uint16_t accel_g_range      = 8; // 8G 
     uint16_t gyro_dps_range     = 2000; // 2000 degrees per second
 
+    const uint16_t sinput_protocol_version = 0x0001;
+    memcpy(&buffer[0], &sinput_protocol_version, sizeof(sinput_protocol_version)); 
+
     feature_flags.value = 0x00; // Set default feature flags
 
     feature_flags.accelerometer_supported   = (imu_static.axis_accel_a) ? 1 : 0;
@@ -229,8 +232,8 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     feature_flags.rumble_supported      = (haptic_static.haptic_hd | haptic_static.haptic_sd) ? 1 : 0;
     feature_flags.player_leds_supported = 1;
 
-    buffer[0] = feature_flags.value; // Feature flags value      
-    buffer[1] = 0x00; // Reserved byte
+    buffer[2] = feature_flags.value; // Feature flags value      
+    buffer[3] = 0x00; // Reserved byte
 
     // Gamepad Type (Derived from SDL)
     /* 
@@ -252,9 +255,9 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     } SDL_GamepadType;
      */
     #if defined(HOJA_SINPUT_GAMEPAD_TYPE)
-    buffer[2] = HOJA_SINPUT_GAMEPAD_TYPE;
+    buffer[4] = HOJA_SINPUT_GAMEPAD_TYPE;
     #else 
-    buffer[2] = 0;
+    buffer[4] = 0;
     #endif
 
     uint8_t sub_type = 0;
@@ -268,13 +271,13 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     face_type = HOJA_SINPUT_GAMEPAD_FACESTYLE & 0xF;
     #endif 
 
-    buffer[3] = (face_type << 4) | sub_type;
+    buffer[5] = (face_type << 4) | sub_type;
     
-    buffer[4] = 1;    // Polling rate (ms)
-    buffer[5] = 0x00; // Reserved
+    buffer[6] = 1;    // Polling rate (ms)
+    buffer[7] = 0x00; // Reserved
 
-    memcpy(&buffer[6], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
-    memcpy(&buffer[8], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
+    memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
+    memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
     #if defined(HOJA_SINPUT_BUTTON_USAGE_MASK)
     const uint8_t sinput_usage_mask[4] = HOJA_SINPUT_BUTTON_USAGE_MASK;
@@ -282,10 +285,13 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     const uint8_t sinput_usage_mask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
     #endif 
 
-    buffer[10] = sinput_usage_mask[0];
-    buffer[11] = sinput_usage_mask[1];
-    buffer[12] = sinput_usage_mask[2];
-    buffer[13] = sinput_usage_mask[3];
+    buffer[12] = sinput_usage_mask[0];
+    buffer[13] = sinput_usage_mask[1];
+    buffer[14] = sinput_usage_mask[2];
+    buffer[15] = sinput_usage_mask[3];
+
+    buffer[16] = 0; // Touchpad count
+    buffer[17] = 0; // Touchpad finger count
 }
 
 volatile uint8_t _sinput_current_command = 0;
@@ -358,10 +364,6 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     static trigger_data_s triggers = {0};
     imu_data_s imu = {0};
 
-    static uint64_t last_timestamp = 0;
-
-    uint64_t delta_timestamp = timestamp - last_timestamp;
-
     // Update input data
     remap_get_processed_input(&buttons, &triggers);
     analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
@@ -386,11 +388,7 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.gyro_y = imu.gy;
     data.gyro_z = imu.gz;
 
-    data.gyro_elapsed_time = delta_timestamp & 0xFFFF; // Store elapsed time in microseconds
-
-    static uint8_t count = 0;
-    data.gyro_packet_counter = count;
-    ++count;
+    data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
 
     // Buttons
     data.button_a  = buttons.button_a;
@@ -426,8 +424,6 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.trigger_r = scale_u12_to_s16(triggers.right_analog);
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
-
-    last_timestamp = timestamp;
 
     if(_sinput_current_command != 0)
     {
