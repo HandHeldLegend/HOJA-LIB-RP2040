@@ -98,11 +98,11 @@ const uint8_t sinput_hid_report_descriptor[139] = {
     // This includes gyro/accel data and counter that apps can use if supported
     0x06, 0x00, 0xFF,              // Usage Page (Vendor Defined)
     
-    // Motion Input Delta (Microseconds, time since last USB report)
+    // Motion Input Timestamp (Microseconds)
     0x09, 0x20,                    //   Usage (Vendor Usage 0x20)
     0x15, 0x00,                    //   Logical Minimum (0)
     0x26, 0xFF, 0xFF,              //   Logical Maximum (655535)
-    0x75, 0x10,                    //   Report Size (16)
+    0x75, 0x20,                    //   Report Size (32)
     0x95, 0x01,                    //   Report Count (1)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
 
@@ -114,12 +114,12 @@ const uint8_t sinput_hid_report_descriptor[139] = {
     0x95, 0x06,                    //   Report Count (6)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
 
-    // Reserved padding (31 bytes blank for now)
+    // Reserved padding
     0x09, 0x22,                    //   Usage (Vendor Usage 0x22)
     0x15, 0x00,                    //   Logical Minimum (0)
     0x26, 0xFF, 0x00,              //   Logical Maximum (255)
     0x75, 0x08,                    //   Report Size (8)
-    0x95, 0x1F,                    //   Report Count (31)
+    0x95, 0x1D,                    //   Report Count (29)
     0x81, 0x02,                    //   Input (Data,Var,Abs)
     
     // INPUT REPORT ID 0x02 - Vendor COMMAND data
