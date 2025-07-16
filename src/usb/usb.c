@@ -48,9 +48,6 @@ const char *global_string_descriptor[] = {
 
 hid_task_tunnel_cb _usb_task_cb = NULL;
 
-uint32_t _usb_clear_owner_0;
-uint32_t _usb_clear_owner_0;
-
 // Whether our last input was sent through or not
 volatile bool _usb_clear = false;
 // Whether USB is ready for another input
@@ -270,6 +267,7 @@ uint8_t const *tud_descriptor_device_cb(void)
     break;
 
   case GAMEPAD_MODE_SINPUT:
+    hoja_set_connected_status(CONN_STATUS_PLAYER_1);
     return (uint8_t const *)&sinput_device_descriptor;
     break;
 
