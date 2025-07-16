@@ -388,6 +388,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.gyro_elapsed_time = delta_timestamp & 0xFFFF; // Store elapsed time in microseconds
 
+    static uint8_t count = 0;
+    data.gyro_packet_counter = count;
+    ++count;
+
     // Buttons
     data.button_a  = buttons.button_a;
     data.button_b  = buttons.button_b;

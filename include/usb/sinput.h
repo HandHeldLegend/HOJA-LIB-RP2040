@@ -102,6 +102,8 @@ typedef struct
     int16_t gyro_y;             // Gyroscope Y
     int16_t gyro_z;             // Gyroscope Z
 
+    uint8_t gyro_packet_counter;
+
     int16_t touchpad_1_x;       // Touchpad/trackpad
     int16_t touchpad_1_y;
     int16_t touchpad_1_pressure;
@@ -110,7 +112,7 @@ typedef struct
     int16_t touchpad_2_y;
     int16_t touchpad_2_pressure;
 
-    uint8_t reserved_bulk[19];  // Reserved for command data
+    uint8_t reserved_bulk[18];  // Reserved for command data
 } sinput_input_s;
 #pragma pack(pop)
 
