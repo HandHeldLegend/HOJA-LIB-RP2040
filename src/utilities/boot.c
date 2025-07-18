@@ -52,7 +52,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
 
         case 1:
             thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; // Force USB for now
+            thisMethod          = GAMEPAD_METHOD_AUTO;
         break;
 
         case 2:

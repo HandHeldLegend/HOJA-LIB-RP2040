@@ -187,6 +187,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
       {
       case GAMEPAD_MODE_SWPRO:
       case GAMEPAD_MODE_SINPUT:
+      case GAMEPAD_MODE_XINPUT:
         method = GAMEPAD_METHOD_BLUETOOTH;
         break;
 

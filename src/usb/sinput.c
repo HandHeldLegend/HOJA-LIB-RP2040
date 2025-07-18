@@ -292,6 +292,13 @@ void _sinput_cmd_get_features(uint8_t *buffer)
 
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count
+
+    buffer[18] = gamepad_config->switch_mac_address[0];
+    buffer[19] = gamepad_config->switch_mac_address[1];
+    buffer[20] = gamepad_config->switch_mac_address[2];
+    buffer[21] = gamepad_config->switch_mac_address[3];
+    buffer[22] = gamepad_config->switch_mac_address[4];
+    buffer[23] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
 }
 
 volatile uint8_t _sinput_current_command = 0;
@@ -369,9 +376,29 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
     battery_status_s stat = battery_get_status();
-
-    data.plug_status = 1; // Plugged
     data.charge_percent = 100; // 100 Percent
+
+    if(stat.plug_status == BATTERY_PLUG_PLUGGED)
+    {
+        if(stat.charge_status == BATTERY_CHARGE_CHARGING)
+        {
+            data.plug_status = 2; // Charging
+        }
+        else 
+        {
+            data.plug_status = 3; // Not Charging/Charge Complete
+        }
+    }
+    else if(stat.plug_status == BATTERY_PLUG_UNPLUGGED)
+    {
+        data.plug_status = 4; // On battery power
+        data.charge_percent = stat.battery_level * 25;
+    }
+    else if(stat.plug_status == BATTERY_PLUG_UNAVAILABLE)
+    {
+        data.plug_status = 0; // Plugged
+        data.charge_percent = 100; // 100 Percent
+    }
 
     data.left_x = SCALE_SIGNED12(analog.lx, false);
     data.left_y = SCALE_SIGNED12(analog.ly, true);

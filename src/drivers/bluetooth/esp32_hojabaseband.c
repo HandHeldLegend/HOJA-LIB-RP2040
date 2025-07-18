@@ -500,6 +500,14 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[21] = HOJA_SINPUT_GAMEPAD_SUBTYPE;
     #endif
 
+    // Local MAC
+    data_out[22] = gamepad_config->switch_mac_address[0];
+    data_out[23] = gamepad_config->switch_mac_address[1];
+    data_out[24] = gamepad_config->switch_mac_address[2];
+    data_out[25] = gamepad_config->switch_mac_address[3];
+    data_out[26] = gamepad_config->switch_mac_address[4];
+    data_out[27] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
+
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
     data_out[1] = crc;
