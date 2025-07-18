@@ -69,12 +69,25 @@ void settings_init()
             gamepad_config->switch_mac_address[i] = rand;
         }
 
+        // Always unset the first bit in octet 0
+        if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+        {
+            gamepad_config->switch_mac_address[0]-=1;
+        }
+
         gamepad_config->gamepad_color_body = 0x2D2D2D;
         gamepad_config->gamepad_color_buttons = 0xE6E6E6;
         gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
         gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
 
         // Commit changes
+        settings_commit_blocks();
+    }
+
+    // Always unset the first bit in octet 0
+    if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+    {
+        gamepad_config->switch_mac_address[0]-=1;
         settings_commit_blocks();
     }
 
