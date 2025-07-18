@@ -73,6 +73,9 @@ void settings_init()
         gamepad_config->gamepad_color_buttons = 0xE6E6E6;
         gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
         gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
+
+        // Commit changes
+        settings_commit_blocks();
     }
 
     // Init User config
