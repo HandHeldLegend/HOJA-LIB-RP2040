@@ -148,10 +148,16 @@ uint32_t _trigger_calculate_scaler(uint16_t deadzone, uint16_t max_value, uint16
 
 // Fast real-time scaling using the pre-calculated scaler
 uint16_t _trigger_scale_input(uint16_t input, uint16_t deadzone, uint32_t scaler) {
-    if (input < deadzone) return 0;
+    if (input < deadzone) 
+        return 0;
 
-    uint32_t adjusted = (uint32_t) input - deadzone;
-    return (uint16_t) ((adjusted * scaler) >> 8);  // Just multiply and shift
+    uint32_t adjusted = (uint32_t)input - deadzone;
+    uint32_t scaled   = (adjusted * scaler) >> 8;
+
+    if (scaled > MAX_ANALOG_OUT) 
+        scaled = MAX_ANALOG_OUT;
+
+    return (uint16_t)scaled;
 }
 
 void trigger_task(uint64_t timestamp)
