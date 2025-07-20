@@ -15,13 +15,16 @@
 #endif
 
 int16_t _pcm_sine_table[PCM_SINE_TABLE_SIZE];
+
+// Minimum amplitude scalers for low and high frequencies
 volatile uint32_t _lo_amp_scaler_fixed_min = 0;
 volatile uint32_t _hi_amp_scaler_fixed_min  = 0;
 
-volatile uint32_t _lo_amp_scaler_fixed = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
-volatile uint32_t _hi_amp_scaler_fixed = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+// Scalers for low and high frequencies
+volatile uint32_t _lo_amp_scaler_fixed = (uint32_t) (0.5f * PCM_AMPLITUDE_SHIFT_FIXED);
+volatile uint32_t _hi_amp_scaler_fixed = (uint32_t) (0.5f * PCM_AMPLITUDE_SHIFT_FIXED);
 
-volatile uint32_t _amp_scaler_max_safe = (uint32_t) (1.0f * PCM_AMPLITUDE_SHIFT_FIXED);
+volatile uint32_t _pwm_wrap_max = PCM_MAX_SAFE_RATIO * PCM_WRAP_HALF_VAL; // Max PWM wrap value
 
 volatile uint32_t _external_sample_scaler = 0;
 
@@ -62,8 +65,11 @@ uint16_t pcm_amplitude_to_fixedpoint(float input) {
  }
 
 // Initialize the sine table
-void _generate_sine_table()
+void _generate_sine_table(float scaler)
 {
+    // Ensure scaler is within bounds
+    scaler = (scaler > 1.0f) ? 1.0f : (scaler < 0.0f) ? 0.0f : scaler;
+
     float inc = TWO_PI / PCM_SINE_TABLE_SIZE;
     float fi = 0;
 
@@ -73,7 +79,7 @@ void _generate_sine_table()
         float sample = sinf(fi);
 
         // Convert to int16_t, rounding to nearest value
-        _pcm_sine_table[i] = (int16_t)(sample * (float) PCM_WRAP_VAL);
+        _pcm_sine_table[i] = (int16_t)(sample * ((float) PCM_WRAP_HALF_VAL * scaler + 0.5f));
 
         fi += inc;
         fi = fmodf(fi, TWO_PI);  
@@ -230,7 +236,7 @@ typedef struct
 void _pcm_erm_handler(pcm_erm_state_s *state)
 {
     // Time constants for exponential curves (smaller = faster response)
-    const float time_constant_up   = 0.08f;  // Spin-up rate
+    const float time_constant_up   = 0.125f;  // Spin-up rate
     const float time_constant_down = 0.125f;  // Spin-down rate (faster due to friction)
     
     // Brake multiplier for faster deceleration
@@ -245,8 +251,8 @@ void _pcm_erm_handler(pcm_erm_state_s *state)
     // Amplitude range mapping
     const float min_amp_lo = 0.0f;     // Zero amplitude when motor stops
     const float min_amp_hi = 0.0f;     // Zero amplitude when motor stops  
-    const float target_amp_lo = 0.85f;
-    const float target_amp_hi = 0.35f;
+    const float target_amp_lo = 0.1f;
+    const float target_amp_hi = 0.1f;
 
     // Unified motor control with exponential curves
     float percent_diff = state->target_percent - state->current_percent;
@@ -339,43 +345,53 @@ void pcm_init(int intensity)
     }
 
     // Calculate the scaled maximum wrap value. We also factor in the user config scaler and board config
-    float max_scaled_wrap = ((float) PCM_WRAP_VAL * scaler * PCM_MAX_SAFE_RATIO);
+    float max_scaled = ((float) PCM_WRAP_HALF_VAL * scaler * PCM_MAX_SAFE_RATIO);
 
-    // Calculate the fixed point maximum wrap value scaler
-    float max_safe_scaler = scaler * PCM_MAX_SAFE_RATIO;
-    _amp_scaler_max_safe = (uint32_t) (max_safe_scaler * PCM_AMPLITUDE_SHIFT_FIXED);
-
-    // Calculate the exact wrap value that our min amplitudes rest at
-    // This should always be calcuated using the full PCM_WRAP_VAL because
-    // the sine table is generated using the full range
-    float pcm_wrap_minimum_lo = (float) PCM_WRAP_VAL * _pcm_param_min_lo;
-    float pcm_wrap_minimum_hi = (float) PCM_WRAP_VAL * _pcm_param_min_hi;
+    // Calculate the value our minimums will be
+    // We only use half of the wrap value because the low/high amplitudes
+    // are added together, and the maximum cannot exceed the half wrap value
+    // This allows us to cleanly add the low and high amplitudes
+    float pcm_wrap_minimum_lo = (float) (PCM_WRAP_HALF_VAL>>1) * _pcm_param_min_lo;
+    float pcm_wrap_minimum_hi = (float) (PCM_WRAP_HALF_VAL>>1) * _pcm_param_min_hi;
 
     // Calculate remainder of range 
-    float remaininghi = max_scaled_wrap - pcm_wrap_minimum_hi;
-    float remaininglo = max_scaled_wrap - pcm_wrap_minimum_lo;
+    float remaininghi = max_scaled - pcm_wrap_minimum_hi;
+    float remaininglo = max_scaled - pcm_wrap_minimum_lo;
+
+    if(remaininghi < pcm_wrap_minimum_hi)
+    {
+        // If the remaining high range is less than the minimum, set it to the minimum
+        remaininghi = pcm_wrap_minimum_hi;
+    }
+
+    if(remaininglo < pcm_wrap_minimum_lo)
+    {
+        // If the remaining low range is less than the minimum, set it to the minimum
+        remaininglo = pcm_wrap_minimum_lo;
+    }
 
     // Calculate scalers for the remaining ranges for our sine table
-    float loscale = (remaininglo / (float) PCM_WRAP_VAL);
-    float hiscale = (remaininghi / (float) PCM_WRAP_VAL);
+    float loscale = (remaininglo / (float) PCM_WRAP_HALF_VAL);
+    float hiscale = (remaininghi / (float) PCM_WRAP_HALF_VAL);
 
     // Calculate the max scaler for external samples (trigger feedback)
-    _external_sample_scaler = (uint32_t) max_scaled_wrap / 255;
+    _external_sample_scaler = (uint32_t) max_scaled / 255;
 
     // Calculate the fixed point scalers for our lo and hi amplitudes
     _lo_amp_scaler_fixed = (uint32_t) (loscale * PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_scaler_fixed = (uint32_t) (hiscale * PCM_AMPLITUDE_SHIFT_FIXED);
 
-    float tmpminloscaler = pcm_wrap_minimum_lo / (float) PCM_WRAP_VAL;
-    float tmpminhiscaler = pcm_wrap_minimum_hi / (float) PCM_WRAP_VAL;
+    float tmpminloscaler = pcm_wrap_minimum_lo / (float) PCM_WRAP_HALF_VAL;
+    float tmpminhiscaler = pcm_wrap_minimum_hi / (float) PCM_WRAP_HALF_VAL;
 
     // Calculate the fixed point minimums for our lo and hi amplitudes
     _lo_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminloscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminhiscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
 
+    _generate_sine_table(scaler);
+
     if(_pcm_init_done) return;
     _pcm_init_done = true;
-    _generate_sine_table();
     pcm_amfm_queue_init();
 }
 
@@ -457,8 +473,12 @@ void pcm_generate_buffer(
 
         static uint32_t hi_amp_scaler = 0;
         static uint32_t lo_amp_scaler = 0;
-        static uint32_t hi_amp_peak = 0;
-        static uint32_t lo_amp_peak = 0;
+
+        static uint32_t hi_amp_peak_val = 0;
+        static uint32_t lo_amp_peak_val = 0;
+
+        static uint32_t dc_offset = 0;
+        static uint32_t target_dc_offset = 0;
 
         if(!processing_sample)
         {
@@ -507,52 +527,32 @@ void pcm_generate_buffer(
                 */
                 lo_frequency_increment = current_values.lo_frequency_increment;
 
+                if(!current_values.hi_amplitude_fixed) 
+                {
+                    hi_amp_scaler = 0;
+                }
+                else 
+                {
+                    hi_amp_scaler = (current_values.hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+                    hi_amp_scaler += _hi_amp_scaler_fixed_min;
 
+                    hi_amp_peak_val = (hi_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                }
+
+                if(!current_values.lo_amplitude_fixed) 
+                {
+                    lo_amp_scaler = 0;
+                }
+                else 
+                {
+                    lo_amp_scaler = (current_values.lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
+                    lo_amp_scaler += _lo_amp_scaler_fixed_min;
+                    lo_amp_peak_val = (lo_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                }
+
+                target_dc_offset = (hi_amp_peak_val + lo_amp_peak_val);
             }
         }
-
-        // We can calulate the peak and scaler
-        // once each time the amplitude changes
-        if(current_values.hi_amplitude_fixed != last_hi_amp)
-        {
-            if(!current_values.hi_amplitude_fixed) 
-            {
-                hi_amp_scaler = 0;
-                last_hi_amp = 0;
-                hi_amp_peak = 0;
-            }
-            else 
-            {
-                hi_amp_scaler = (current_values.hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-                hi_amp_scaler += _hi_amp_scaler_fixed_min;
-                last_hi_amp   = current_values.hi_amplitude_fixed;
-
-                hi_amp_peak = (hi_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
-        }
-
-        if(current_values.lo_amplitude_fixed != last_lo_amp)
-        {
-            if(!current_values.lo_amplitude_fixed) 
-            {
-                lo_amp_scaler = 0;
-                last_lo_amp = 0;
-                lo_amp_peak = 0;
-            }
-            else 
-            {
-                lo_amp_scaler = (current_values.lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-                lo_amp_scaler += _lo_amp_scaler_fixed_min;
-                last_lo_amp   = current_values.lo_amplitude_fixed;
-
-                lo_amp_peak = (lo_amp_scaler * PCM_WRAP_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
-
-            
-        }
-
-        uint32_t this_hi_scaler = hi_amp_scaler;
-        uint32_t this_lo_scaler = lo_amp_scaler;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
@@ -566,46 +566,9 @@ void pcm_generate_buffer(
         int32_t scaled_hi = 0;
         int32_t scaled_lo = 0;
         
-        if(hi_sign && lo_sign)
-        {
-            // Both signs are the same, we can check 
-            // if we need to perform scaling to prevent clipping
-            uint32_t combined_amp = this_hi_scaler + this_lo_scaler;
-            if(combined_amp > _amp_scaler_max_safe)
-            {
-                // Compute the scaling factor as a fixed-point ratio
-                uint32_t new_ratio = _amp_scaler_max_safe / combined_amp;
-                // Scale the components proportionally
-                this_hi_scaler = (this_hi_scaler * new_ratio) >> PCM_AMPLITUDE_BIT_SCALE;
-                this_lo_scaler = (this_lo_scaler * new_ratio) >> PCM_AMPLITUDE_BIT_SCALE;
-            }
-        }
-        else if(hi_sign != lo_sign)
-        {
-
-            // Here we should predict if the sine wave will be destroyed
-            if(hi_sign)
-            {
-                int32_t dif = hi_amp_peak - lo_amp_peak;
-                if(dif <= 0)
-                {
-                    // Negate the low amplitude
-                    this_lo_scaler = 0;
-                }
-            }
-            else 
-            {
-                int32_t dif = lo_amp_peak - hi_amp_peak;
-                if(dif <= 0)
-                {
-                    // Negate the high amplitude
-                    this_hi_scaler = 0;
-                }
-            }
-        }
         
-        scaled_hi = ((uint32_t) sine_hi * this_hi_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
-        scaled_lo = ((uint32_t) sine_lo * this_lo_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
+        scaled_hi = ((uint32_t) sine_hi * hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
+        scaled_lo = ((uint32_t) sine_lo * lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
 
         uint32_t external_sample = 0;
 
@@ -616,18 +579,25 @@ void pcm_generate_buffer(
             _external_sample_remaining--;
         }
 
-        // Debug disable lo 
-        //scaled_lo = 0;
-
-        // Debug disable hi
-        //scaled_hi = 0;
-
         // Reappy signs
         if(!hi_sign) scaled_hi = -scaled_hi;
         if(!lo_sign) scaled_lo = -scaled_lo;
 
         // Mix the two channels
         int32_t    mixed = (scaled_hi + scaled_lo);
+
+        if(dc_offset < target_dc_offset)
+        {
+            dc_offset += 1;
+        }
+        else if(dc_offset > target_dc_offset)
+        {
+            dc_offset -= 1;
+        }
+
+        mixed += dc_offset; 
+
+        if(mixed < 0) mixed = 0;
 
         if(external_sample)
         {

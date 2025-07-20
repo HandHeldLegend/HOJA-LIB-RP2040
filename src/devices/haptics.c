@@ -52,7 +52,7 @@ bool haptics_init()
     if(haptic_config->haptic_config_version != CFG_BLOCK_HAPTIC_VERSION)
     {
         haptic_config->haptic_config_version = CFG_BLOCK_HAPTIC_VERSION;
-        haptic_config->haptic_strength = 191;
+        haptic_config->haptic_strength = 255;
         haptic_config->haptic_triggers = 1;
     }
 
