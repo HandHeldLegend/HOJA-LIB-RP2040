@@ -25,10 +25,10 @@ typedef struct
 
     union {
         struct {
-            uint8_t button_a   : 1;
-            uint8_t button_b   : 1;
-            uint8_t button_x   : 1;
-            uint8_t button_y   : 1;
+            uint8_t button_east   : 1;
+            uint8_t button_south  : 1;
+            uint8_t button_north  : 1;
+            uint8_t button_west   : 1;
             uint8_t dpad_up    : 1;
             uint8_t dpad_down  : 1;
             uint8_t dpad_left  : 1;

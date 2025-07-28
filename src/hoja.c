@@ -228,7 +228,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
     break;
 
   case GAMEPAD_METHOD_WIRED:
-    battery_set_charge_rate(50);
+    battery_set_charge_rate(0);
     _hoja_mode_task_cb = wired_mode_task;
     wired_mode_start(mode);
     break;

@@ -95,7 +95,10 @@ int _battery_update_charge()
 int battery_init(bool wired_override)
 {
     _wired_override = wired_override;
-    if(wired_override) return BATTERY_INIT_WIRED_OVERRIDE;
+    if(wired_override) 
+    {
+        return BATTERY_INIT_WIRED_OVERRIDE;
+    }
 
     if(battery_config->battery_config_version != CFG_BLOCK_BATTERY_VERSION)
     {

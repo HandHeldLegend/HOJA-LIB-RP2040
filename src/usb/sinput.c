@@ -264,14 +264,14 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     uint8_t face_type = 0;
 
     #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
-    sub_type = HOJA_SINPUT_GAMEPAD_SUBTYPE & 0xF; // Gamepad Sub-type (leave as zero in most cases)
+    sub_type = HOJA_SINPUT_GAMEPAD_SUBTYPE & 0x1F; // Gamepad Sub-type (leave as zero in most cases)
     #endif
 
     #if defined(HOJA_SINPUT_GAMEPAD_FACESTYLE)
-    face_type = HOJA_SINPUT_GAMEPAD_FACESTYLE & 0xF;
+    face_type = HOJA_SINPUT_GAMEPAD_FACESTYLE & 0x7;
     #endif 
 
-    buffer[5] = (face_type << 4) | sub_type;
+    buffer[5] = (face_type << 5) | sub_type;
     
     buffer[6] = 1;    // Polling rate (ms)
     buffer[7] = 0x00; // Reserved
@@ -418,12 +418,12 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
 
     // Buttons
-    data.button_a  = buttons.button_a;
-    data.button_b  = buttons.button_b;
-    data.button_x  = buttons.button_x;
-    data.button_y  = buttons.button_y;
+    data.button_east   = buttons.button_a;
+    data.button_south  = buttons.button_b;
+    data.button_north  = buttons.button_x;
+    data.button_west   = buttons.button_y;
 
-    data.button_stick_left = buttons.button_stick_left;
+    data.button_stick_left  = buttons.button_stick_left;
     data.button_stick_right = buttons.button_stick_right;
 
     data.button_start  = buttons.button_plus;

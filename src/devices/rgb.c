@@ -84,7 +84,7 @@ void rgb_init(int mode, int brightness)
     {
         rgb_config->rgb_config_version = CFG_BLOCK_RGB_VERSION;
 
-        rgb_config->rgb_brightness = 3750;
+        rgb_config->rgb_brightness = 2800;
         loaded_brightness = rgb_config->rgb_brightness;
 
         rgb_config->rgb_mode = 0;
@@ -97,6 +97,15 @@ void rgb_init(int mode, int brightness)
             rgb_config->rgb_colors[i] = anm_utility_pack_local_color(_rainbow[col]);
             col = (col+1) % color_count;
         }
+
+        #if defined(HOJA_RGB_GROUP_DEFAULTS)
+        rgb_s default_colors[HOJA_RGB_GROUPS_NUM] = HOJA_RGB_GROUP_DEFAULTS;
+        for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+        {
+            rgb_s col_tmp = default_colors[i];
+            rgb_config->rgb_colors[i] = anm_utility_pack_local_color(col_tmp);
+        }   
+        #endif
 
         rgb_config->rgb_speed = 650;
         set_speed = rgb_config->rgb_speed;

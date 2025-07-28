@@ -589,6 +589,10 @@ void pcm_generate_buffer(
         if(dc_offset < target_dc_offset)
         {
             dc_offset += 1;
+            if(dc_offset > PCM_WRAP_HALF_VAL)
+            {
+                dc_offset = PCM_WRAP_HALF_VAL; // Clamp to max DC offset
+            }
         }
         else if(dc_offset > target_dc_offset)
         {
