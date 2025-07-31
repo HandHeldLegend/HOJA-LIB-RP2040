@@ -47,6 +47,9 @@ void stick_deadzone_process(analog_data_s *in, analog_data_s *out)
     out->ldistance = l_dist_new;
     out->rdistance = r_dist_new;
 
+    out->langle = in->langle;
+    out->rangle = in->rangle;
+
     if(l_dist_new)
         analog_angle_distance_to_coordinate(in->langle, l_dist_new, outl);
 

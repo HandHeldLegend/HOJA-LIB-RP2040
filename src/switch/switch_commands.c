@@ -175,7 +175,7 @@ void set_devinfo()
   _switch_command_buffer[20] = gamepad_config->switch_mac_address[2];
   _switch_command_buffer[21] = gamepad_config->switch_mac_address[3];
   _switch_command_buffer[22] = gamepad_config->switch_mac_address[4];
-  _switch_command_buffer[23] = gamepad_config->switch_mac_address[5];
+  _switch_command_buffer[23] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
 
   _switch_command_buffer[24] = 0x00;
   _switch_command_buffer[25] = 0x02; // It's 2 now? Ok.
@@ -215,7 +215,7 @@ void info_set_mac()
   _switch_command_buffer[2] = 0x03;
 
   // Mac in LE
-  _switch_command_buffer[3] = gamepad_config->switch_mac_address[5];
+  _switch_command_buffer[3] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
   _switch_command_buffer[4] = gamepad_config->switch_mac_address[4];
   _switch_command_buffer[5] = gamepad_config->switch_mac_address[3];
   _switch_command_buffer[6] = gamepad_config->switch_mac_address[2];
@@ -293,7 +293,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
     _switch_command_buffer[14] = 1;
 
     // Mac in LE
-    _switch_command_buffer[15] = gamepad_config->switch_mac_address[5];
+    _switch_command_buffer[15] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
     _switch_command_buffer[16] = gamepad_config->switch_mac_address[4];
     _switch_command_buffer[17] = gamepad_config->switch_mac_address[3];
     _switch_command_buffer[18] = gamepad_config->switch_mac_address[2];
