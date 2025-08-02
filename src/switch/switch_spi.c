@@ -128,11 +128,17 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
 
                 // Return factory controller type
                 // Set as pro controller
+
+                // ProCon  0x03 0x02
+                // N64     0x0C 0x11 
+                // SNES    0x0B 0x02
+                // Famicom 0x07 0x02
+                // NES     0x09 0x02
+                // Genesis 0x0D 0x02
                 case 0x12:
                     return 0x03;
                     break;
 
-                // Unknown constant
                 case 0x13:
                     return 0x02;
                     break;
@@ -319,9 +325,15 @@ uint8_t sw_spi_getaddressdata(uint8_t offset_address, uint8_t address)
                 case 0x5B:
                     return (gamepad_config->gamepad_color_grip_right & 0xFF); // Blue
                     break;
+                
+                // This is used for SNES controller color options
+                // 0x00 - North America (Super Nintendo Purple)
+                // 0x01 - Japan (Super Famicom)
+                // 0x02 - Europe (Super Nintendo)
 
+                // Default smash procon 0x01
                 case 0x5C:
-                    return 0x01; // Default smash procon
+                    return 0x00; 
                     break;
 
                     // END OF STAGE 2 //

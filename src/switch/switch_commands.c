@@ -160,6 +160,8 @@ void set_devinfo()
   //_switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
   //_switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
 
+  // Joycon R - 0x01, 0x02
+  // Joycon L - 0x02, 0x02
   // Procon   - 0x03, 0x02
   // N64      - 0x0C, 0x11
   // SNES     - 0x0B, 0x02
