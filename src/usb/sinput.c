@@ -418,10 +418,25 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
 
     // Buttons
+
+    #if defined(HOJA_SINPUT_GAMEPAD_FACESTYLE)
+    #if (HOJA_SINPUT_GAMEPAD_FACESTYLE == 2) // GameCube Face Style
+    data.button_east   = buttons.button_x;
+    data.button_south  = buttons.button_a;
+    data.button_north  = buttons.button_y;
+    data.button_west   = buttons.button_b;
+    #else
     data.button_east   = buttons.button_a;
     data.button_south  = buttons.button_b;
     data.button_north  = buttons.button_x;
     data.button_west   = buttons.button_y;
+    #endif 
+    #else 
+    data.button_east   = buttons.button_a;
+    data.button_south  = buttons.button_b;
+    data.button_north  = buttons.button_x;
+    data.button_west   = buttons.button_y;
+    #endif
 
     data.button_stick_left  = buttons.button_stick_left;
     data.button_stick_right = buttons.button_stick_right;
