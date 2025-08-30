@@ -45,6 +45,8 @@ static uint _nspi_sm;
 static uint _nspi_offset;
 static volatile uint32_t _nspi_buffer = 0xFFFFFFFF;
 
+volatile bool _nspi_clear = true;
+
 static void _nspi_isr_handler(void)
 {
   if (pio_interrupt_get(PIO_IN_USE, 0))
@@ -54,6 +56,7 @@ static void _nspi_isr_handler(void)
     pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
     pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_startserial));
     pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
+    _nspi_clear = true;
   }
 }
 
@@ -100,7 +103,6 @@ void nesbus_hal_task(uint64_t timestamp)
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
             hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-
             remap_get_processed_input(&buttons, &triggers);
             analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
@@ -109,11 +111,11 @@ void nesbus_hal_task(uint64_t timestamp)
             buffer.x = !buttons.button_x;
             buffer.y = !buttons.button_y;
 
-            int up =    (buttons.dpad_up | (analog.ly > (3000)) );
-            int down = -(buttons.dpad_down | (analog.ly < (1000)) );
+            int up =    (buttons.dpad_up | (analog.ly > (1200)) );
+            int down = -(buttons.dpad_down | (analog.ly < (-1200)) );
 
-            int right = (buttons.dpad_right | (analog.lx > (3000)) );
-            int left = -(buttons.dpad_left | (analog.lx < (1000)) );
+            int right = (buttons.dpad_right | (analog.lx > (1200)) );
+            int left = -(buttons.dpad_left | (analog.lx < (-1200)) );
 
             int updown      = up+down;
             int rightleft   = right+left;
@@ -129,7 +131,11 @@ void nesbus_hal_task(uint64_t timestamp)
             buffer.l = ! buttons.trigger_l;
             buffer.r = ! buttons.trigger_r;
 
-            _nspi_buffer = buffer.value<<16;
+            if(_nspi_clear)
+            {
+                _nspi_buffer = buffer.value<<16;
+                _nspi_clear = false;
+            }
         }
     }
 }

@@ -161,6 +161,11 @@ void hoja_set_ss_notif(rgb_s color)
   _hoja_status.ss_notif_color = color;
 }
 
+void hoja_set_debug_data(uint8_t data)
+{
+  _hoja_status.debug_data = data;
+}
+
 hoja_status_s hoja_get_status()
 {
   return _hoja_status;
@@ -246,6 +251,8 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   return true;
 }
 
+#include "hardware/sync.h"
+
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
@@ -259,11 +266,11 @@ void _hoja_task_1()
     // Get current system timestamp
     c1_timestamp = sys_hal_time_us();
 
+    // Button task
+    button_task(c1_timestamp);
+
     // Flash task
     flash_hal_task();
-
-    // Read/process buttons/analog triggers
-    button_task(c1_timestamp);
 
     // Process any macros
     macros_task(c1_timestamp);
@@ -292,6 +299,9 @@ void _hoja_task_1()
 
     // Idle manager
     idle_manager_task(c1_timestamp);
+
+    // IMU task
+    imu_task(c1_timestamp);
   }
 }
 
@@ -312,9 +322,6 @@ void _hoja_task_0()
 
     // Trigger task
     trigger_task(c0_timestamp);
-
-    // IMU task
-    imu_task(c0_timestamp);
   }
 }
 
@@ -330,12 +337,20 @@ bool _system_requirements_init()
 
 // I2C 0
 #if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE == 1)
-  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL);
+  uint32_t baudrate_khz_i2c0 = 400; // Default baudrate
+#if defined(HOJA_I2C_0_BAUDRATE_KHZ)
+  baudrate_khz_i2c0 = HOJA_I2C_0_BAUDRATE_KHZ;
+#endif
+  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL, baudrate_khz_i2c0);
 #endif
 
 // I2C 1
 #if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE == 1)
-  i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL);
+  uint32_t baudrate_khz_i2c1 = 400; // Default baudrate
+#if defined(HOJA_I2C_1_BAUDRATE_KHZ)
+  baudrate_khz_i2c1 = HOJA_I2C_1_BAUDRATE_KHZ;
+#endif
+  i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL, baudrate_khz_i2c1);
 #endif
 
   // System settings

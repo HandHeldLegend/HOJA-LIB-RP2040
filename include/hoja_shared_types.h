@@ -58,6 +58,7 @@ typedef struct
     rgb_s  gamepad_color;
     bool   ss_notif_pending; // Single-shot notification pending
     rgb_s  ss_notif_color; // Single-shot notification color
+    uint8_t debug_data;
 } hoja_status_s;
 
 /// USB Device Descriptor

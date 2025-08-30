@@ -7,6 +7,8 @@
 #include "devices/bluetooth.h"
 #include "utilities/settings.h"
 
+#include "hoja.h"
+
 void boot_get_memory(boot_memory_s *out)
 {
     boot_memory_s tmp = {0};
@@ -35,7 +37,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
 {
     // Access boot time button state
     button_data_s buttons = {0};
-    button_access_blocking(&buttons, BUTTON_ACCESS_BOOT_DATA);
+    button_access_safe(&buttons, BUTTON_ACCESS_BOOT_DATA);
 
     // Set default return states
     gamepad_method_t thisMethod = GAMEPAD_METHOD_USB;
@@ -125,6 +127,8 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     boot_memory_s   boot_memory = {0};
     boot_get_memory(&boot_memory);
     boot_clear_memory();
+
+    hoja_set_debug_data(boot_memory.reserved_2);
 
     // If we have reboot memory, use it
     if(boot_memory.val != 0)

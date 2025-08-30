@@ -80,5 +80,29 @@ void macro_pairing(uint32_t timestamp, button_data_s *buttons)
                 }
             }
         }
+    
+        /*
+        static bool boothold = false;
+        if(!boothold && buttons->dpad_down)
+        {
+            boothold = true;
+        }
+        else if (boothold && !buttons->dpad_down)
+        {
+            uint8_t val = hoja_get_status().debug_data;
+            val++;
+            
+            boot_memory_s bootmem = {
+                .gamepad_method = GAMEPAD_METHOD_USB,
+                .gamepad_mode = GAMEPAD_MODE_SWPRO,
+                .reserved_2 = val,
+            };
+
+            boot_set_memory(&bootmem);
+
+            hoja_restart();
+        }
+        */
+    
     }
 }

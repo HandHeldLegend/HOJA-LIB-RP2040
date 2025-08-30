@@ -13,6 +13,7 @@
 #define CTRL3_C 0x12  // Used to set BDU
 #define CTRL4_C 0x13
 #define CTRL6_C 0x15
+#define CTRL7_G 0x16
 #define CTRL8_XL 0x17
 #define CTRL9_XL 0x18
 #define CTRL10_C 0x19
@@ -21,6 +22,7 @@
 #define FUNC_MASK (0b10000000) // Enable FUNC CFG access
 
 #define PERF_6KHZ (0b10100000)  // 6.66KHz
+#define PERF_3KHZ (0b10010000)  // 3.33KHz
 #define PERF_1KHZ (0b10000000)  // 1.66KHz
 #define PERF_416HZ (0b01100000) // 416Hz
 
@@ -50,12 +52,25 @@
 // 500dps
 #define G_SENS_500DPS (0b00000100)
 
+// HPF 16 mHz
+#define G_HPF_0 (0b00000000)
+
+// HPF 65 mHz
+#define G_HPF_1 (0b00010000)
+
+// HPF 260 mHz
+#define G_HPF_2 (0b00100000)
+
+// HPF 1.0f Hz
+#define G_HPF_3 (0b00110000)
+
 #define CTRL1_MASK (XL_SENS_8G | PERF_1KHZ)
 #define CTRL2_MASK (G_SENS_2000DPS | PERF_1KHZ)
-#define CTRL3_MASK (0b00000100) // Address auto-increment
+#define CTRL3_MASK (0b01000100) // Address auto-increment and BDU
 #define CTRL4_MASK (0b00000100) // I2C disable (Check later for LPF for gyro)
 #define CTRL4_LPF1_SEL_G (0b00000010)
 #define CTRL6_MASK (0b00000110) // 12.2 LPF gyro
+#define CTRL7_MASK (0b0100000 | G_HPF_1)
 #define CTRL8_MASK (0b11100000) // H P_SLOPE_XL_EN
 #define CTRL9_MASK (0b11100010) // Disable I3C
 #define CTRL10_MASK (0x38 | 0x4)

@@ -21,21 +21,7 @@
 // Include all IMU drivers
 #include "drivers/imu/lsm6dsr.h"
 
-#define IMU_POLLING_INTERVAL 2500
-#define IMU_CALIBRATE_CYCLES 4000
-
-// Define data that is safe to access
-// from any core at any time
-MUTEX_HAL_INIT(_imu_mutex);
-imu_data_s    _safe_imu_data = {0};
-quaternion_s  _safe_quaternion_data = {0};
-
-// Raw IMU buffers for channel A and B
-imu_data_s _imu_buffer_a = {0};
-imu_data_s _imu_buffer_b = {0};
-
-// Average IMU buffer containing both A and B data averaged together
-imu_data_s _imu_buffer_avg = {0};
+#define IMU_CALIBRATE_CYCLES 2000
 
 // Processing task which we use to handle the newly read IMU data
 callback_t _imu_process_task = NULL;
@@ -51,69 +37,51 @@ callback_t _imu_process_task = NULL;
 #define IMU_GYRO_OFFSET_Y(channel)  (!channel ? CH_A_GYRO_OFFSET(1) : CH_B_GYRO_OFFSET(1))
 #define IMU_GYRO_OFFSET_Z(channel)  (!channel ? CH_A_GYRO_OFFSET(2) : CH_B_GYRO_OFFSET(2))
 
-#define IMU_FIFO_COUNT 4
-#define IMU_FIFO_IDX_MAX (IMU_FIFO_COUNT-1)
-int _imu_fifo_idx = 0;
-imu_data_s _imu_fifo[IMU_FIFO_COUNT];
-volatile imu_data_s _imu_data_safe = {0};
+#define IMU_MAX_ALLOWED_READS 3
 
+volatile uint8_t _imu_reads_count = 0;
+volatile uint8_t _imu_reads_remaining = 0;
+volatile uint32_t _imu_read_time_us = 0;
+volatile bool _imu_init_read = false;
+
+volatile bool _imu_do_update_quaternion = false;
+volatile bool _imu_read_ready = false;
+
+// Idx 0 is the newest, and Idx 2 is the oldest reading
+imu_data_s _imu_data[IMU_MAX_ALLOWED_READS] = {0};
 quaternion_s _imu_quat_state = {.w = 1};
-#define GYRO_SENS (2000.0f / 32768.0f)
 
+static interval_s _imu_read_interval = {0};
 
-void _imu_blocking_enter()
+// Request IMU read with a given count and rate
+void imu_request_read(uint64_t timestamp, uint8_t count, uint32_t rate_us, bool update_quaternion)
 {
-  MUTEX_HAL_ENTER_BLOCKING(&_imu_mutex);
-}
+  _imu_read_ready = false;
+  count = count > IMU_MAX_ALLOWED_READS ? IMU_MAX_ALLOWED_READS : count;
 
-uint32_t _imu_mutex_owner = 0;
-bool _imu_try_enter()
-{
-  if(MUTEX_HAL_ENTER_TRY(&_imu_mutex, &_imu_mutex_owner))
+  if(rate_us <= 1000)
   {
-    return true;
+    _imu_read_time_us = 1;
   }
-  return false;
+  else 
+  {
+    _imu_read_time_us = rate_us;
+  }
+  
+  _imu_init_read = true;
+  _imu_do_update_quaternion = update_quaternion;
+  _imu_reads_count = count;
+  _imu_reads_remaining = count;
 }
 
-void _imu_exit()
+int16_t _imu_average_value(int16_t first, int16_t second)
 {
-  MUTEX_HAL_EXIT(&_imu_mutex);
-}
-
-imu_data_s* _imu_fifo_last()
-{
-  int idx = _imu_fifo_idx;
-  return &(_imu_fifo[idx]);
-}
-
-void imu_access_safe(imu_data_s *out)
-{
-  //if(_imu_try_enter())
-  //{
-  //  memcpy(out, &_safe_imu_data, sizeof(imu_data_s));
-  //  _imu_exit();
-  //}
-
-  memcpy(out, &_imu_data_safe, sizeof(imu_data_s));
-}
-
-// Optional access Quaternion data (If available)
-void imu_quaternion_access_safe(quaternion_s *out)
-{
-  memcpy(out, &_safe_quaternion_data, sizeof(quaternion_s));
-}
-
-// Read IMU hardware from driver (if defined)
-void _imu_read(imu_data_s *a, imu_data_s *b)
-{
-  #ifdef HOJA_IMU_CHAN_A_READ
-    HOJA_IMU_CHAN_A_READ(a);
-  #endif
-
-  #ifdef HOJA_IMU_CHAN_B_READ
-    HOJA_IMU_CHAN_B_READ(b);
-  #endif
+  int total = ((int)first + (int)second) / 2;
+  if (total > 32767)
+    return 32767;
+  if (total < -32768)
+    return -32768;
+  return total;
 }
 
 void _imu_rotate_quaternion(quaternion_s *first, quaternion_s *second) {
@@ -128,8 +96,6 @@ void _imu_rotate_quaternion(quaternion_s *first, quaternion_s *second) {
     first->z = z;
 }
 
-#define SCALE_FACTOR 2000.0f / INT16_MAX * M_PI / 180.0f / 1000000.0f
-
 void _imu_quat_normalize(quaternion_s *data)
 {
   float norm_inverse = 1.0f / sqrtf(data->x * data->x + data->y * data->y + data->z * data->z + data->w * data->w);
@@ -139,6 +105,9 @@ void _imu_quat_normalize(quaternion_s *data)
   data->w *= norm_inverse;
 }
 
+#define SCALE_FACTOR 2000.0f / INT16_MAX * M_PI / 180.0f / 1000000.0f
+
+#define GYRO_SENS (2000.0f / 32768.0f)
 void _imu_update_quaternion(imu_data_s *imu_data, uint64_t timestamp) {
     // Previous timestamp (in microseconds)
     static uint64_t prev_timestamp = 0;
@@ -177,64 +146,91 @@ void _imu_update_quaternion(imu_data_s *imu_data, uint64_t timestamp) {
     _imu_quat_state.az = imu_data->az;   
 }
 
-// Add data to our FIFO
-void _imu_fifo_push(imu_data_s *imu_data)
-{ 
-  static uint64_t timestamp = 0;
-
-  int _i = (_imu_fifo_idx+1) % IMU_FIFO_COUNT;
-
-  _imu_data_safe = *imu_data;
-
-  _imu_fifo_idx = _i;
-
-  // Update timestamp since we blocked for unknown time
-  // We need accurate timings for our quaternion calculation/updates
-  timestamp = sys_hal_time_us();
-  _imu_update_quaternion(imu_data, timestamp);
-}
-
-int16_t _imu_average_value(int16_t first, int16_t second)
+void _imu_read_standard(uint64_t timestamp, imu_data_s out[IMU_MAX_ALLOWED_READS])
 {
-  int total = ((int)first + (int)second) / 2;
-  if (total > 32767)
-    return 32767;
-  if (total < -32768)
-    return -32768;
-  return total;
-}
+  imu_data_s this_imu[3] = {0};
 
-void _imu_std_function()
-{
-  // Apply offsets
-  _imu_buffer_a.gx -= IMU_GYRO_OFFSET_X(0);
-  _imu_buffer_a.gy -= IMU_GYRO_OFFSET_Y(0);
-  _imu_buffer_a.gz -= IMU_GYRO_OFFSET_Z(0);
-  _imu_buffer_b.gx -= IMU_GYRO_OFFSET_X(1);
-  _imu_buffer_b.gy -= IMU_GYRO_OFFSET_Y(1);
-  _imu_buffer_b.gz -= IMU_GYRO_OFFSET_Z(1);
+  #if defined(HOJA_IMU_CHAN_A_INIT) && defined(HOJA_IMU_CHAN_B_INIT)
+  HOJA_IMU_CHAN_A_READ(&this_imu[0]);
+  HOJA_IMU_CHAN_B_READ(&this_imu[1]);
 
-  // If we received two buffers, average A and B
-  if (_imu_buffer_b.retrieved && _imu_buffer_a.retrieved)
+  this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
+  this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
+  this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
+  
+  this_imu[1].gx -= IMU_GYRO_OFFSET_X(1);
+  this_imu[1].gy -= IMU_GYRO_OFFSET_Y(1);
+  this_imu[1].gz -= IMU_GYRO_OFFSET_Z(1);
+
+  #elif defined(HOJA_IMU_CHAN_A_INIT)
+  HOJA_IMU_CHAN_A_READ(&this_imu[0]);
+  HOJA_IMU_CHAN_A_READ(&this_imu[1]);
+
+  this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
+  this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
+  this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
+  
+  this_imu[1].gx -= IMU_GYRO_OFFSET_X(0);
+  this_imu[1].gy -= IMU_GYRO_OFFSET_Y(0);
+  this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
+  #endif
+
+  uint8_t out_idx = _imu_reads_count - _imu_reads_remaining;
+
+  // Average with the last 
+  this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
+  this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
+  this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
+
+  this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
+  this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
+  this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
+
+  if(_imu_do_update_quaternion)
   {
-
-    _imu_buffer_avg.ax = _imu_average_value(_imu_buffer_a.ax, _imu_buffer_b.ax);
-    _imu_buffer_avg.ay = _imu_average_value(_imu_buffer_a.ay, _imu_buffer_b.ay);
-    _imu_buffer_avg.az = _imu_average_value(_imu_buffer_a.az, _imu_buffer_b.az);
-
-    _imu_buffer_avg.gx = _imu_average_value(_imu_buffer_a.gx, _imu_buffer_b.gx);
-    _imu_buffer_avg.gy = _imu_average_value(_imu_buffer_a.gy, _imu_buffer_b.gy);
-    _imu_buffer_avg.gz = _imu_average_value(_imu_buffer_a.gz, _imu_buffer_b.gz);
-
-    _imu_fifo_push(&_imu_buffer_avg);
-  }
-  else if (_imu_buffer_a.retrieved)
-  {
-    _imu_fifo_push(&_imu_buffer_a);
+    _imu_update_quaternion(&this_imu[2], timestamp);
   }
 
-  _imu_buffer_a.retrieved = false;
-  _imu_buffer_b.retrieved = false;
+  out[out_idx] = this_imu[2];
+}
+
+void _imu_std_function(uint64_t timestamp)
+{
+  if(_imu_reads_remaining)
+  {
+    if(_imu_init_read)
+    {
+      interval_resettable_run(timestamp, _imu_read_time_us, true, &_imu_read_interval);
+      _imu_read_standard(timestamp, _imu_data);
+      _imu_init_read = false;
+      _imu_reads_remaining-=1;
+    }
+    else if(interval_run(timestamp, _imu_read_time_us, &_imu_read_interval))
+    {
+      _imu_read_standard(timestamp, _imu_data);
+      _imu_reads_remaining-=1;
+    }
+
+    if(!_imu_reads_remaining) 
+    {
+      _imu_read_ready = true;
+    } 
+  }
+}
+
+// Access a pointer to the IMU data as it
+// has been read. Idx 0 is newest, and goes to oldest 
+// up to the max possible count IMU_MAX_ALLOWED_READS
+imu_data_s* imu_access_safe()
+{
+  if(!_imu_read_ready) return NULL;
+  return _imu_data;
+}
+
+// Optional access Quaternion data (If available)
+quaternion_s* imu_quaternion_access_safe()
+{
+  return &_imu_quat_state;
 }
 
 // Function we call when our IMU calibration is completed
@@ -244,7 +240,6 @@ uint8_t _command = 0;
 void _imu_calibrate_stop()
 {
   hoja_set_notification_status(COLOR_BLACK);
-  _imu_process_task = _imu_std_function;
 
   if(_calibrate_done_cb != NULL)
   { 
@@ -256,30 +251,63 @@ void _imu_calibrate_stop()
 }
 
 int _imu_calibrate_cycles_remaining = 0;
-void _imu_calibrate_function()
+void _imu_calibrate_function(uint64_t timestamp)
 {
+  static interval_s calibration_interval = {0};
+
+  if(!interval_run(timestamp, 1000, &calibration_interval)) return;
+
+  static int lx = 0;
+  static int ly = 0;
+  static int lz = 0;
+
+  static int rx = 0;
+  static int ry = 0;
+  static int rz = 0;
+
   if(_imu_calibrate_cycles_remaining>0)
   {
     _imu_calibrate_cycles_remaining--;
 
-    // Read IMU data
-    _imu_read(&_imu_buffer_a, &_imu_buffer_b);
+    imu_data_s imu_calibration_read = {0};
 
-    #if defined(HOJA_IMU_CHAN_A_READ)
-    CH_A_GYRO_OFFSET(0) =  _imu_average_value(CH_A_GYRO_OFFSET(0), _imu_buffer_a.gx);
-    CH_A_GYRO_OFFSET(1) =  _imu_average_value(CH_A_GYRO_OFFSET(1), _imu_buffer_a.gy);
-    CH_A_GYRO_OFFSET(2) =  _imu_average_value(CH_A_GYRO_OFFSET(2), _imu_buffer_a.gz);
-    _imu_buffer_a.retrieved = false;
-    #if defined(HOJA_IMU_CHAN_B_READ)
-    CH_B_GYRO_OFFSET(0) =  _imu_average_value(CH_B_GYRO_OFFSET(0), _imu_buffer_b.gx);
-    CH_B_GYRO_OFFSET(1) =  _imu_average_value(CH_B_GYRO_OFFSET(1), _imu_buffer_b.gy);
-    CH_B_GYRO_OFFSET(2) =  _imu_average_value(CH_B_GYRO_OFFSET(2), _imu_buffer_b.gz);
-    _imu_buffer_b.retrieved = false;
+    
+
+    // Read IMU data
+    #if defined(HOJA_IMU_CHAN_A_INIT)
+    HOJA_IMU_CHAN_A_READ(&imu_calibration_read);
+    lx += imu_calibration_read.gx;
+    ly += imu_calibration_read.gy;
+    lz += imu_calibration_read.gz;
     #endif
+
+    #if defined(HOJA_IMU_CHAN_B_INIT)
+    HOJA_IMU_CHAN_B_READ(&imu_calibration_read);
+    rx += imu_calibration_read.gx;
+    ry += imu_calibration_read.gy;
+    rz += imu_calibration_read.gz;
     #endif
   }
-  else
+
+  if(!_imu_calibrate_cycles_remaining)
   {
+    #if defined(HOJA_IMU_CHAN_A_INIT)
+    CH_A_GYRO_OFFSET(0) = (int8_t) (lx / IMU_CALIBRATE_CYCLES);
+    CH_A_GYRO_OFFSET(1) = (int8_t) (ly / IMU_CALIBRATE_CYCLES);
+    CH_A_GYRO_OFFSET(2) = (int8_t) (lz / IMU_CALIBRATE_CYCLES);
+    lx = 0;
+    ly = 0;
+    lz = 0;
+    #endif
+
+    #if defined(HOJA_IMU_CHAN_B_INIT)
+    CH_B_GYRO_OFFSET(0) = (int8_t) (rx / IMU_CALIBRATE_CYCLES);
+    CH_B_GYRO_OFFSET(1) = (int8_t) (ry / IMU_CALIBRATE_CYCLES);
+    CH_B_GYRO_OFFSET(2) = (int8_t) (rz / IMU_CALIBRATE_CYCLES);
+    rx = 0;
+    ry = 0;
+    rz = 0;
+    #endif
     _imu_calibrate_stop();
   }
 }
@@ -288,7 +316,6 @@ void _imu_calibrate_start()
 {
   hoja_set_notification_status(COLOR_YELLOW);
   _imu_calibrate_cycles_remaining = IMU_CALIBRATE_CYCLES;
-  _imu_process_task = _imu_calibrate_function;
 }
 
 // IMU module command handler
@@ -312,31 +339,13 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 // IMU module operational task
 void imu_task(uint64_t timestamp)
 {
-  static interval_s interval = {0};
+  if(imu_config->imu_disabled) return;
 
-  if (interval_run(timestamp, IMU_POLLING_INTERVAL, &interval))
-  {
-    if(imu_config->imu_disabled==1)
-    {
-      memset(&_imu_buffer_a, 0, sizeof(imu_data_s));
-      memset(&_imu_buffer_b, 0, sizeof(imu_data_s));
-      _imu_buffer_a.retrieved = true;
-      _imu_buffer_b.retrieved = true;
-    }
-    else
-    {
-      // Read IMU data
-      _imu_read(&_imu_buffer_a, &_imu_buffer_b);
-    }
-
-    // Jump into appropriate IMU task if it's defined
-    if(_imu_process_task)
-      _imu_process_task();
-    else
-      _imu_process_task = _imu_std_function;
-  }
-
-  memcpy(&_safe_quaternion_data, &_imu_quat_state, sizeof(quaternion_s));
+  // Jump into appropriate IMU task if it's defined
+  if(_imu_calibrate_cycles_remaining)
+    _imu_calibrate_function(timestamp);
+  else
+    _imu_std_function(timestamp);
 }
 
 // IMU module initialization function
@@ -355,7 +364,6 @@ bool imu_init()
 
   #if defined(HOJA_IMU_CHAN_A_INIT)
   HOJA_IMU_CHAN_A_INIT();
-  _imu_process_task = _imu_std_function;
   #endif 
 
   #if defined(HOJA_IMU_CHAN_B_INIT)

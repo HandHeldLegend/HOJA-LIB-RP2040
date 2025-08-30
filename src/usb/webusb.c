@@ -11,6 +11,8 @@
 #include "input/trigger.h"
 #include "input/remap.h"
 
+#include "hoja.h"
+
 #include "bsp/board.h"
 #include "tusb.h"
 
@@ -98,13 +100,12 @@ void webusb_send_rawinput(uint64_t timestamp)
 
     if (interval_run(timestamp, 8000, &interval) && ready)
     {
-        uint8_t webusb_input_report[64] = {0};
+        static uint8_t webusb_input_report[64] = {0};
 
         analog_access_safe(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
         trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
         button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
-        imu_access_safe(&imu);
-
+        
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
         uint16_t lx = (uint16_t) (analog.lx + 2048);
@@ -129,13 +130,19 @@ void webusb_send_rawinput(uint64_t timestamp)
         webusb_input_report[14] = (triggers.right_analog & 0xFF00)  >> 8;
         webusb_input_report[15] = (triggers.right_analog & 0xFF);
 
-        memcpy(&webusb_input_report[16], &imu.ax, 2);
-        memcpy(&webusb_input_report[18], &imu.ay, 2);
-        memcpy(&webusb_input_report[20], &imu.az, 2);
+        imu_data_s *imu = imu_access_safe();
+        if(imu != NULL)
+        {
+            memcpy(&webusb_input_report[16], &imu[0].ax, 2);
+            memcpy(&webusb_input_report[18], &imu[0].ay, 2);
+            memcpy(&webusb_input_report[20], &imu[0].az, 2);
 
-        memcpy(&webusb_input_report[22], &imu.gx, 2);
-        memcpy(&webusb_input_report[24], &imu.gy, 2);
-        memcpy(&webusb_input_report[26], &imu.gz, 2);
+            memcpy(&webusb_input_report[22], &imu[0].gx, 2);
+            memcpy(&webusb_input_report[24], &imu[0].gy, 2);
+            memcpy(&webusb_input_report[26], &imu[0].gz, 2);
+        }
+
+        imu_request_read(timestamp, 1, 4000, false);
 
         analog_access_safe(&analog, ANALOG_ACCESS_DEADZONE_DATA);
         lx = (uint16_t) (analog.lx + 2048);

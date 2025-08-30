@@ -272,9 +272,13 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     #endif 
 
     buffer[5] = (face_style << 5) | sub_type;
+
+    uint16_t polling_rate_us = 1000;
     
-    buffer[6] = 1;    // Polling rate (ms)
-    buffer[7] = 0x00; // Reserved
+    if(hoja_get_status().gamepad_method==GAMEPAD_METHOD_BLUETOOTH)
+        polling_rate_us = 4000;
+        
+    memcpy(&buffer[6], &polling_rate_us, sizeof(polling_rate_us));
 
     memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
@@ -369,7 +373,6 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     static button_data_s buttons = {0};
     static analog_data_s analog  = {0};
     static trigger_data_s triggers = {0};
-    imu_data_s imu = {0};
 
     // Update input data
     remap_get_processed_input(&buttons, &triggers);
@@ -400,22 +403,42 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
         data.charge_percent = 100; // 100 Percent
     }
 
+    //#define HOJA_ANALOG_POLLING_TEST
+    #if defined(HOJA_ANALOG_POLLING_TEST)
+    // For testing purposes, use the analog test values
+    static int16_t test = 0;
+    data.left_x = test;
+    data.left_y = test;
+
+    test+=100;
+    if(test > -8000 && test < 8000) test +=16000;
+    data.right_x = 0;
+    data.right_y = 0;
+    #else
     data.left_x = SCALE_SIGNED12(analog.lx, false);
     data.left_y = SCALE_SIGNED12(analog.ly, true);
     data.right_x = SCALE_SIGNED12(analog.rx, false);
     data.right_y = SCALE_SIGNED12(analog.ry, true);
+    #endif
 
-    imu_access_safe(&imu);
+    imu_data_s *imu = imu_access_safe();
+    if(imu != NULL)
+    {
+        data.accel_x = imu[0].ax; 
+        data.accel_y = imu[0].ay;
+        data.accel_z = imu[0].az;
 
-    data.accel_x = imu.ax; 
-    data.accel_y = imu.ay;
-    data.accel_z = imu.az;
+        data.gyro_x = imu[0].gx;
+        data.gyro_y = imu[0].gy;
+        data.gyro_z = imu[0].gz; 
 
-    data.gyro_x = imu.gx;
-    data.gyro_y = imu.gy;
-    data.gyro_z = imu.gz;
-
-    data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
+        data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
+    }
+    
+    if(hoja_get_status().gamepad_method==GAMEPAD_METHOD_BLUETOOTH)
+        imu_request_read(timestamp, 1, 4000, false);
+    else
+        imu_request_read(timestamp, 1, 200, false);
 
     // Buttons
 

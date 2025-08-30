@@ -90,6 +90,7 @@ int lsm6dsr_spi_init(uint32_t cs_gpio, uint8_t spi_instance)
     _imu_spi_write_register(CTRL3_C, CTRL3_MASK, cs_gpio, spi_instance);
     _imu_spi_write_register(CTRL4_C, CTRL4_MASK | CTRL4_LPF1_SEL_G, cs_gpio, spi_instance);
     _imu_spi_write_register(CTRL6_C, CTRL6_MASK, cs_gpio, spi_instance);
+    _imu_spi_write_register(CTRL7_G, CTRL7_MASK, cs_gpio, spi_instance);
     int ret = _imu_spi_write_register(CTRL8_XL, CTRL8_MASK, cs_gpio, spi_instance);
 
     return ret;
@@ -111,6 +112,7 @@ int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance)
     _imu_i2c_write_register(CTRL3_C, CTRL3_MASK, select, i2c_instance);
     _imu_i2c_write_register(CTRL4_C, CTRL4_LPF1_SEL_G, select, i2c_instance);
     _imu_i2c_write_register(CTRL6_C, CTRL6_MASK, select, i2c_instance);
+    _imu_i2c_write_register(CTRL7_G, CTRL7_MASK, select, i2c_instance);
     _imu_i2c_write_register(CTRL8_XL, CTRL8_MASK, select, i2c_instance);
     int ret = _imu_i2c_write_register(CTRL9_XL, CTRL9_MASK, select, i2c_instance);
 

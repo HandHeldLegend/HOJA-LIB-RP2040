@@ -44,7 +44,6 @@ typedef enum
 
 bool button_init();
 void button_tourney_lockout_enable(bool enable);
-void button_access_blocking(button_data_s *out, button_access_t type);
 void button_access_safe(button_data_s *out, button_access_t type);
 
 void button_task(uint64_t timestamp);

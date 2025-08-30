@@ -303,5 +303,5 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.rs_x = (data.rs_x > 4095) ? 4095 : data.rs_x;
     data.rs_y = (data.rs_y > 4095) ? 4095 : data.rs_y;
 
-    switch_commands_process(&data, cb);
+    switch_commands_process(timestamp, &data, cb);
 }

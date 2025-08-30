@@ -34,7 +34,7 @@ typedef enum
 {
   USBRATE_8 = 8333,
   USBRATE_4 = 4166,
-  USBRATE_1 = 500,
+  USBRATE_1 = 350,
 } usb_rate_t;
 
 const char *global_string_descriptor[] = {

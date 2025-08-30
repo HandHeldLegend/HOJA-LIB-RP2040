@@ -253,6 +253,7 @@ void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
   
   switch(hoja_get_status().gamepad_method)
   {
+    default:
     case GAMEPAD_METHOD_USB:
       cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
     break;
@@ -481,6 +482,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
 
   switch(hoja_get_status().gamepad_method)
   {
+    default:
     case GAMEPAD_METHOD_USB:
       cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
     break;
@@ -532,7 +534,7 @@ uint8_t _unknown_thing()
 #define DEBUG_IMU_VAL 8
 
 // PUBLIC FUNCTIONS
-void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
+void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_report_tunnel_cb cb)
 {
   if (_switch_in_command_got)
   {
@@ -550,72 +552,71 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
 
       if(_switch_imu_mode == 0x01)
       {
-        imu_data_s imu_tmp = {0};
+        imu_data_s *imu = NULL;
 
-        imu_access_safe(&imu_tmp);
+        imu = imu_access_safe();
 
-        // Group 1
-        _switch_command_buffer[12] = imu_tmp.ay_8l; // Y-axis
-        _switch_command_buffer[13] = imu_tmp.ay_8h;
+        if(imu != NULL)
+        {
+          // Group 1
+          _switch_command_buffer[12] = imu[0].ay_8l; // Y-axis
+          _switch_command_buffer[13] = imu[0].ay_8h;
+          _switch_command_buffer[14] = imu[0].ax_8l; // X-axis
+          _switch_command_buffer[15] = imu[0].ax_8h;
+          _switch_command_buffer[16] = imu[0].az_8l; // Z-axis
+          _switch_command_buffer[17] = imu[0].az_8h;
+          _switch_command_buffer[18] = imu[0].gy_8l;
+          _switch_command_buffer[19] = imu[0].gy_8h;
+          _switch_command_buffer[20] = imu[0].gx_8l;
+          _switch_command_buffer[21] = imu[0].gx_8h;
+          _switch_command_buffer[22] = imu[0].gz_8l;
+          _switch_command_buffer[23] = imu[0].gz_8h;
 
-        _switch_command_buffer[14] = imu_tmp.ax_8l; // X-axis
-        _switch_command_buffer[15] = imu_tmp.ax_8h;
+          // Group 2
+          _switch_command_buffer[24] = imu[1].ay_8l; // Y-axis
+          _switch_command_buffer[25] = imu[1].ay_8h;
+          _switch_command_buffer[26] = imu[1].ax_8l; // X-axis
+          _switch_command_buffer[27] = imu[1].ax_8h;
+          _switch_command_buffer[28] = imu[1].az_8l; // Z-axis
+          _switch_command_buffer[29] = imu[1].az_8h;
+          _switch_command_buffer[30] = imu[1].gy_8l;
+          _switch_command_buffer[31] = imu[1].gy_8h;
+          _switch_command_buffer[32] = imu[1].gx_8l;
+          _switch_command_buffer[33] = imu[1].gx_8h;
+          _switch_command_buffer[34] = imu[1].gz_8l;
+          _switch_command_buffer[35] = imu[1].gz_8h;
 
-        _switch_command_buffer[16] = imu_tmp.az_8l; // Z-axis
-        _switch_command_buffer[17] = imu_tmp.az_8h;
-
-        _switch_command_buffer[18] = imu_tmp.gy_8l;
-        _switch_command_buffer[19] = imu_tmp.gy_8h;
-
-        _switch_command_buffer[20] = imu_tmp.gx_8l;
-        _switch_command_buffer[21] = imu_tmp.gx_8h;
-
-        _switch_command_buffer[22] = imu_tmp.gz_8l;
-        _switch_command_buffer[23] = imu_tmp.gz_8h;
-
-        imu_access_safe(&imu_tmp);
-
-        // Group 2
-        _switch_command_buffer[24] = imu_tmp.ay_8l; // Y-axis
-        _switch_command_buffer[25] = imu_tmp.ay_8h;
-        _switch_command_buffer[26] = imu_tmp.ax_8l; // X-axis
-        _switch_command_buffer[27] = imu_tmp.ax_8h;
-        _switch_command_buffer[28] = imu_tmp.az_8l; // Z-axis
-        _switch_command_buffer[29] = imu_tmp.az_8h;
-
-        _switch_command_buffer[30] = imu_tmp.gy_8l;
-        _switch_command_buffer[31] = imu_tmp.gy_8h;
-        _switch_command_buffer[32] = imu_tmp.gx_8l;
-        _switch_command_buffer[33] = imu_tmp.gx_8h;
-        _switch_command_buffer[34] = imu_tmp.gz_8l;
-        _switch_command_buffer[35] = imu_tmp.gz_8h;
-
-        imu_access_safe(&imu_tmp);
-
-        // Group 3
-        _switch_command_buffer[36] = imu_tmp.ay_8l; // Y-axis
-        _switch_command_buffer[37] = imu_tmp.ay_8h;
-        _switch_command_buffer[38] = imu_tmp.ax_8l; // X-axis
-        _switch_command_buffer[39] = imu_tmp.ax_8h;
-        _switch_command_buffer[40] = imu_tmp.az_8l; // Z-axis
-        _switch_command_buffer[41] = imu_tmp.az_8h;
-        _switch_command_buffer[42] = imu_tmp.gy_8l;
-        _switch_command_buffer[43] = imu_tmp.gy_8h;
-        _switch_command_buffer[44] = imu_tmp.gx_8l;
-        _switch_command_buffer[45] = imu_tmp.gx_8h;
-        _switch_command_buffer[46] = imu_tmp.gz_8l;
-        _switch_command_buffer[47] = imu_tmp.gz_8h;
+          // Group 3
+          _switch_command_buffer[36] = imu[2].ay_8l; // Y-axis
+          _switch_command_buffer[37] = imu[2].ay_8h;
+          _switch_command_buffer[38] = imu[2].ax_8l; // X-axis
+          _switch_command_buffer[39] = imu[2].ax_8h;
+          _switch_command_buffer[40] = imu[2].az_8l; // Z-axis
+          _switch_command_buffer[41] = imu[2].az_8h;
+          _switch_command_buffer[42] = imu[2].gy_8l;
+          _switch_command_buffer[43] = imu[2].gy_8h;
+          _switch_command_buffer[44] = imu[2].gx_8l;
+          _switch_command_buffer[45] = imu[2].gx_8h;
+          _switch_command_buffer[46] = imu[2].gz_8l;
+          _switch_command_buffer[47] = imu[2].gz_8h;
+        }
+        imu_request_read(timestamp, 3, 2000, false);
       }
       else if(_switch_imu_mode == 0x02)
       {
         // New Gyro test code
         static mode_2_s mode_2_data = {0};
-        static quaternion_s quat_data = {0};
+        static quaternion_s *quat = NULL;
 
-        imu_quaternion_access_safe(&quat_data);
-        switch_motion_pack_quat(&quat_data, &mode_2_data);
+        quat = imu_quaternion_access_safe();
 
-        memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
+        if(quat != NULL)
+        {
+          switch_motion_pack_quat(quat, &mode_2_data);
+          memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
+        }
+        
+        imu_request_read(timestamp, 3, 2000, true);
       }
 
       // Set input data
@@ -642,6 +643,7 @@ void switch_commands_process(sw_input_s *input_data, hid_report_tunnel_cb cb)
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
       switch(hoja_get_status().gamepad_method)
       {
+        default:
         case GAMEPAD_METHOD_USB:
           cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
         break;

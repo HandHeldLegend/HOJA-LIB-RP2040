@@ -36,6 +36,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/button.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/remap.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_deadzone.c 

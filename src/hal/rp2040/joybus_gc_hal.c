@@ -108,7 +108,7 @@ volatile uint8_t _workingMode = 0x03;
 #define DEFAULT_CYCLES         80 // 80 was the tested working from old FW
 #define DEFAULT_CLOCK_KHZ      125000 // 125 MHz
 #define NEW_CLOCK_KHZ          (HOJA_BSP_CLOCK_SPEED_HZ/1000)
-const uint32_t _delay_cycles_gc = (DEFAULT_CYCLES * DEFAULT_CLOCK_KHZ) / NEW_CLOCK_KHZ;
+const uint32_t _delay_cycles_gc = 8;
 
 void __time_critical_func(_gamecube_command_handler)()
 {
@@ -208,6 +208,8 @@ void __time_critical_func(_gamecube_command_handler)()
     break;
   }
 
+  _gc_got_data = true;
+
   if(!ret)
   {
     _byteCounter -= 1;
@@ -220,7 +222,6 @@ static void _gamecube_isr_handler(void)
   irq_set_enabled(_gamecube_irq, false);
   if (pio_interrupt_get(GC_PIO_IN_USE, 0))
   {
-    _gc_got_data = true;
     pio_interrupt_clear(GC_PIO_IN_USE, 0);
     _gamecube_command_handler();
   }
@@ -253,6 +254,9 @@ bool joybus_gc_hal_init()
 
     irq_set_exclusive_handler(_gamecube_irq,    _gamecube_isr_handler);
     irq_set_exclusive_handler(_gamecube_irq_tx, _gamecube_isr_txdone);
+
+    irq_set_priority(PIO_IRQ_USE_0, 0);
+    //irq_set_priority(PIO_IRQ_USE_1, 0);
 
     joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
     irq_set_enabled(_gamecube_irq, true);

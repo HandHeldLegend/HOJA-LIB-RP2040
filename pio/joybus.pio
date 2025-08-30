@@ -3,7 +3,6 @@
 ;
 
 .program joybus
-.side_set 1 optional
 
 ; Repeatedly get one word of data from the TX FIFO, stalling when the FIFO is
 ; empty. Write the least significant bit to the OUT pin group.
@@ -25,29 +24,29 @@ bitloop:
 completed:
   ; Set interrupt, do not wait for it to clear
   irq nowait 0
-  nop side 1
   jmp bytestart
 
 PUBLIC joybusout:
+    set pindirs, 1
 output:
-    set pindirs, 0 side 1
-    out x, 1        side 1 [2] ;Side-set still takes place when instruction stalls
-    set pindirs, 1 side 0
-    jmp !x do_zero   side 0 [2]; Branch on the bit we shifted out. low pulse
+    out x, 1        ; 1 cycle - Get bit 
+    set pins, 0     ; 1 cycle - set LOW
+    nop
+    jmp !x do_zero  ; 1 cycle - Branch if zero
 do_one:
-    set pindirs, 0 side 1
-    jmp !osre output side 1 [6] ; Drive high extended
-    jmp do_end
+    nop              ; 1 cycle 
+    set pins, 1 [8]  ; 10 cycles - set HIGH
+    jmp do_end_check ; 1 cycle
 do_zero:
-    set pindirs, 1 side 0
-    jmp !osre output side 0 [6]
-    set pindirs, 0 side 1
-do_end:
-    set pindirs, 0 side 1 [2]
-    set pindirs, 1 side 0 [3]
-    set pindirs, 0 side 1 [3]
+    nop [8]
+    set pins, 1 [1] ; 3 cycles HIGH
+do_end_check:
+    jmp !osre output ; 1 cycle HIGH or LOW
+    nop
+    set pins, 0 [7] ; 8 cycles LOW (2μs) ✓
+    set pins, 1 [7] ; 8 cycles HIGH (2μs) ✓
     irq nowait 1
-    jmp output
+    jmp joybusin
 .wrap
 
 % c-sdk {
@@ -89,7 +88,9 @@ static inline void joybus_program_init(PIO pio, uint sm, uint offset, uint pin, 
     sm_config_set_clkdiv(c, div);
 
     // Set sideset pin
-    sm_config_set_sideset_pins(c, pin);
+    //sm_config_set_sideset_pins(c, pin);
+    sm_config_set_set_pins(c, pin, 1);
+
     sm_config_set_in_shift(c, false, true, 8);
     sm_config_set_out_shift(c, false, true, 8);
 
