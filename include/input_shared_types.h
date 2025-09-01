@@ -11,55 +11,88 @@
 **/
 typedef struct
 {
-    union
-    {
-        struct
-        {
-            // D-Pad
-            uint8_t dpad_up     : 1;
-            uint8_t dpad_down   : 1;
-            uint8_t dpad_left   : 1;
-            uint8_t dpad_right  : 1;
-            // Buttons
-            uint8_t button_a    : 1;
-            uint8_t button_b    : 1;
-            uint8_t button_x    : 1;
-            uint8_t button_y    : 1;
+    // D-Pad
+    uint8_t btn_up     : 1;
+    uint8_t btn_down   : 1;
+    uint8_t btn_left   : 1;
+    uint8_t btn_right  : 1;
 
-            // Triggers
-            uint8_t trigger_l   : 1;
-            uint8_t trigger_zl  : 1;
-            uint8_t trigger_r   : 1;
-            uint8_t trigger_zr  : 1;
+    uint8_t btn_south : 1;
+    uint8_t btn_east  : 1;
+    uint8_t btn_west  : 1;
+    uint8_t btn_north : 1;
 
-            // Special Functions
-            uint8_t button_plus     : 1;
-            uint8_t button_minus    : 1;
+    // Triggers
+    uint8_t bumper_l   : 1;
+    uint8_t trigger_l  : 1;
+    uint8_t bumper_r   : 1;
+    uint8_t trigger_r  : 1;
 
-            // Stick clicks
-            uint8_t button_stick_left   : 1;
-            uint8_t button_stick_right  : 1;
-        };
-        uint16_t buttons_all;
-    };
+    uint8_t paddle_up_l : 1;
+    uint8_t paddle_up_r : 1;
+    uint8_t paddle_down_l : 1;
+    uint8_t paddle_down_r : 1;
 
-    union
-    {
-        struct
-        {
-            // Menu buttons (Not remappable by API)
-            uint8_t button_capture  : 1;
-            uint8_t button_home     : 1;
-            uint8_t button_safemode : 1;
-            uint8_t button_shipping : 1;
-            uint8_t button_sync     : 1;
-            uint8_t button_unbind   : 1;
-            uint8_t trigger_gl      : 1;
-            uint8_t trigger_gr      : 1;
-        };
-        uint8_t buttons_system;
-    };
+    // Special Functions
+    uint8_t button_start     : 1;
+    uint8_t button_select    : 1;
+
+    uint8_t button_share  : 1;
+    uint8_t button_guide  : 1;
+    uint8_t button_safemode : 1;
+    uint8_t button_shipping : 1;
+    uint8_t button_sync     : 1;
+
+    // Stick clicks
+    uint8_t button_stick_left   : 1;
+    uint8_t button_stick_right  : 1;
 } button_data_s;
+
+typedef struct
+{
+    // D-Pad
+    uint8_t btn_up     : 1;
+    uint8_t btn_down   : 1;
+    uint8_t btn_left   : 1;
+    uint8_t btn_right  : 1;
+
+    uint8_t btn_south : 1;
+    uint8_t btn_east  : 1;
+    uint8_t btn_west  : 1;
+    uint8_t btn_north : 1;
+
+    // Triggers
+    uint8_t bumper_l   : 1;
+    uint8_t trigger_l  : 1;
+    uint8_t bumper_r   : 1;
+    uint8_t trigger_r  : 1;
+
+    uint8_t paddle_up_l : 1;
+    uint8_t paddle_up_r : 1;
+    uint8_t paddle_down_l : 1;
+    uint8_t paddle_down_r : 1;
+
+    // Special Functions
+    uint8_t button_start     : 1;
+    uint8_t button_select    : 1;
+
+    uint8_t button_share  : 1;
+    uint8_t button_guide  : 1;
+    uint8_t button_safemode : 1;
+    uint8_t button_shipping : 1;
+    uint8_t button_sync     : 1;
+
+    // Stick clicks
+    uint8_t button_stick_left   : 1;
+    uint8_t button_stick_right  : 1;
+
+    int16_t lx_a; // Left stick X axis
+    int16_t ly_a; // Left stick Y axis
+    int16_t rx_a; // Right stick X axis
+    int16_t ry_a; // Right stick Y axis
+    uint16_t lt_a; // Left trigger axis
+    uint16_t rt_a; // Right trigger axis
+} input_data_s;
 
 typedef struct 
 {
