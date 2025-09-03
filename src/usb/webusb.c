@@ -130,19 +130,16 @@ void webusb_send_rawinput(uint64_t timestamp)
         webusb_input_report[14] = (triggers.right_analog & 0xFF00)  >> 8;
         webusb_input_report[15] = (triggers.right_analog & 0xFF);
 
-        imu_data_s *imu = imu_access_safe();
-        if(imu != NULL)
-        {
-            memcpy(&webusb_input_report[16], &imu[0].ax, 2);
-            memcpy(&webusb_input_report[18], &imu[0].ay, 2);
-            memcpy(&webusb_input_report[20], &imu[0].az, 2);
+        static imu_data_s imu = {0};
+        imu_access_safe(&imu);
+        memcpy(&webusb_input_report[16], &imu.ax, 2);
+        memcpy(&webusb_input_report[18], &imu.ay, 2);
+        memcpy(&webusb_input_report[20], &imu.az, 2);
 
-            memcpy(&webusb_input_report[22], &imu[0].gx, 2);
-            memcpy(&webusb_input_report[24], &imu[0].gy, 2);
-            memcpy(&webusb_input_report[26], &imu[0].gz, 2);
-        }
+        memcpy(&webusb_input_report[22], &imu.gx, 2);
+        memcpy(&webusb_input_report[24], &imu.gy, 2);
+        memcpy(&webusb_input_report[26], &imu.gz, 2);
 
-        imu_request_read(timestamp, 1, 4000, false);
 
         analog_access_safe(&analog, ANALOG_ACCESS_DEADZONE_DATA);
         lx = (uint16_t) (analog.lx + 2048);

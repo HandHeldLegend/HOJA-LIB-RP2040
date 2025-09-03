@@ -13,6 +13,7 @@
 #include "usb/webusb.h"
 
 #include "utilities/settings.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -22,9 +23,7 @@
 #include "drivers/imu/lsm6dsr.h"
 
 #define IMU_CALIBRATE_CYCLES 2000
-
-// Processing task which we use to handle the newly read IMU data
-callback_t _imu_process_task = NULL;
+#define IMU_READ_RATE 1000
 
 // Access IMU config union members macro
 #define CH_A_GYRO_OFFSET(axis)    (imu_config->imu_a_gyro_offsets[axis])
@@ -37,42 +36,17 @@ callback_t _imu_process_task = NULL;
 #define IMU_GYRO_OFFSET_Y(channel)  (!channel ? CH_A_GYRO_OFFSET(1) : CH_B_GYRO_OFFSET(1))
 #define IMU_GYRO_OFFSET_Z(channel)  (!channel ? CH_A_GYRO_OFFSET(2) : CH_B_GYRO_OFFSET(2))
 
-#define IMU_MAX_ALLOWED_READS 3
+volatile bool _imu_do_update_quaternion = true;
 
-volatile uint8_t _imu_reads_count = 0;
-volatile uint8_t _imu_reads_remaining = 0;
-volatile uint32_t _imu_read_time_us = 0;
-volatile bool _imu_init_read = false;
+SNAPSHOT_TYPE(imu, imu_data_s);
+snapshot_imu_t _imu_snap;
 
-volatile bool _imu_do_update_quaternion = false;
-volatile bool _imu_read_ready = false;
+SNAPSHOT_TYPE(quat, quaternion_s);
+snapshot_quat_t _quat_snap;
 
 // Idx 0 is the newest, and Idx 2 is the oldest reading
-imu_data_s _imu_data[IMU_MAX_ALLOWED_READS] = {0};
+imu_data_s _imu_data = {0};
 quaternion_s _imu_quat_state = {.w = 1};
-
-static interval_s _imu_read_interval = {0};
-
-// Request IMU read with a given count and rate
-void imu_request_read(uint64_t timestamp, uint8_t count, uint32_t rate_us, bool update_quaternion)
-{
-  _imu_read_ready = false;
-  count = count > IMU_MAX_ALLOWED_READS ? IMU_MAX_ALLOWED_READS : count;
-
-  if(rate_us <= 1000)
-  {
-    _imu_read_time_us = 1;
-  }
-  else 
-  {
-    _imu_read_time_us = rate_us;
-  }
-  
-  _imu_init_read = true;
-  _imu_do_update_quaternion = update_quaternion;
-  _imu_reads_count = count;
-  _imu_reads_remaining = count;
-}
 
 int16_t _imu_average_value(int16_t first, int16_t second)
 {
@@ -108,13 +82,15 @@ void _imu_quat_normalize(quaternion_s *data)
 #define SCALE_FACTOR 2000.0f / INT16_MAX * M_PI / 180.0f / 1000000.0f
 
 #define GYRO_SENS (2000.0f / 32768.0f)
-void _imu_update_quaternion(imu_data_s *imu_data, uint64_t timestamp) {
+void _imu_update_quaternion(imu_data_s *imu_data) {
     // Previous timestamp (in microseconds)
     static uint64_t prev_timestamp = 0;
 
-    float dt = fabsf((float)timestamp - (float)prev_timestamp);
+    float dt = fabsf((float)imu_data->timestamp - (float)prev_timestamp);
     // Update the previous timestamp
-    prev_timestamp = timestamp;
+    prev_timestamp = imu_data->timestamp;
+
+    _imu_quat_state.timestamp = imu_data->timestamp/1000;
 
     // GZ is TURNING left/right (steering axis)
     // GX is TILTING up/down (aim up/down)
@@ -146,7 +122,7 @@ void _imu_update_quaternion(imu_data_s *imu_data, uint64_t timestamp) {
     _imu_quat_state.az = imu_data->az;   
 }
 
-void _imu_read_standard(uint64_t timestamp, imu_data_s out[IMU_MAX_ALLOWED_READS])
+void _imu_read_standard(uint64_t timestamp)
 {
   imu_data_s this_imu[3] = {0};
 
@@ -175,9 +151,7 @@ void _imu_read_standard(uint64_t timestamp, imu_data_s out[IMU_MAX_ALLOWED_READS
   this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
   #endif
 
-  uint8_t out_idx = _imu_reads_count - _imu_reads_remaining;
-
-  // Average with the last 
+  // Average
   this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
   this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
   this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
@@ -185,52 +159,32 @@ void _imu_read_standard(uint64_t timestamp, imu_data_s out[IMU_MAX_ALLOWED_READS
   this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
   this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
   this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
+  this_imu[2].timestamp = timestamp;
+
+  snapshot_imu_write(&_imu_snap, &this_imu[2]);
 
   if(_imu_do_update_quaternion)
   {
-    _imu_update_quaternion(&this_imu[2], timestamp);
-  }
-
-  out[out_idx] = this_imu[2];
-}
-
-void _imu_std_function(uint64_t timestamp)
-{
-  if(_imu_reads_remaining)
-  {
-    if(_imu_init_read)
+    static bool flipflop = false;
+    flipflop = !flipflop;
+    if(flipflop)
     {
-      interval_resettable_run(timestamp, _imu_read_time_us, true, &_imu_read_interval);
-      _imu_read_standard(timestamp, _imu_data);
-      _imu_init_read = false;
-      _imu_reads_remaining-=1;
+      _imu_update_quaternion(&this_imu[2]);
+      snapshot_quat_write(&_quat_snap, &_imu_quat_state);
     }
-    else if(interval_run(timestamp, _imu_read_time_us, &_imu_read_interval))
-    {
-      _imu_read_standard(timestamp, _imu_data);
-      _imu_reads_remaining-=1;
-    }
-
-    if(!_imu_reads_remaining) 
-    {
-      _imu_read_ready = true;
-    } 
   }
 }
 
 // Access a pointer to the IMU data as it
-// has been read. Idx 0 is newest, and goes to oldest 
-// up to the max possible count IMU_MAX_ALLOWED_READS
-imu_data_s* imu_access_safe()
+void imu_access_safe(imu_data_s *out)
 {
-  if(!_imu_read_ready) return NULL;
-  return _imu_data;
+  snapshot_imu_read(&_imu_snap, out);
 }
 
 // Optional access Quaternion data (If available)
-quaternion_s* imu_quaternion_access_safe()
+void imu_quaternion_access_safe(quaternion_s *out)
 {
-  return &_imu_quat_state;
+  snapshot_quat_read(&_quat_snap, out);
 }
 
 // Function we call when our IMU calibration is completed
@@ -255,7 +209,7 @@ void _imu_calibrate_function(uint64_t timestamp)
 {
   static interval_s calibration_interval = {0};
 
-  if(!interval_run(timestamp, 1000, &calibration_interval)) return;
+  if(!interval_run(timestamp, IMU_READ_RATE, &calibration_interval)) return;
 
   static int lx = 0;
   static int ly = 0;
@@ -339,13 +293,16 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 // IMU module operational task
 void imu_task(uint64_t timestamp)
 {
-  if(imu_config->imu_disabled) return;
+  static interval_s _imu_read_interval = {0};
 
-  // Jump into appropriate IMU task if it's defined
-  if(_imu_calibrate_cycles_remaining)
-    _imu_calibrate_function(timestamp);
-  else
-    _imu_std_function(timestamp);
+  if(interval_run(timestamp, IMU_READ_RATE, &_imu_read_interval))
+  {
+    // Jump into appropriate IMU task if it's defined
+    if(_imu_calibrate_cycles_remaining)
+      _imu_calibrate_function(timestamp);
+    else
+      _imu_read_standard(timestamp);
+  }
 }
 
 // IMU module initialization function

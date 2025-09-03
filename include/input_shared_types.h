@@ -206,6 +206,7 @@ typedef struct
     };
     
     bool retrieved;
+    uint64_t timestamp;
 } imu_data_s;
 
 typedef struct
@@ -224,6 +225,7 @@ typedef struct
     int16_t ax;
     int16_t ay;
     int16_t az;
+    uint64_t timestamp;
 } quaternion_s;
 
 #endif

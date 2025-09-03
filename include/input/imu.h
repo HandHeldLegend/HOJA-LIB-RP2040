@@ -15,10 +15,8 @@
     #define HOJA_IMU_DRIVER_ENABLED 0
 #endif
 
-void imu_request_read(uint64_t timestamp, uint8_t count, uint32_t rate_us, bool update_quaternion);
-bool imu_get_read_ready();
-imu_data_s* imu_access_safe();
-quaternion_s* imu_quaternion_access_safe();
+void imu_access_safe(imu_data_s *out);
+void imu_quaternion_access_safe(quaternion_s *out);
 
 bool imu_init();
 

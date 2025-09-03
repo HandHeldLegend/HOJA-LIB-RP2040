@@ -569,20 +569,15 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.lt = (uint16_t) triggers.left_analog;
             input_data.rt = (uint16_t) triggers.right_analog;
 
-            imu_data_s *imu = NULL;
-            imu = imu_access_safe();
+            static imu_data_s imu = {0};
+            imu_access_safe(&imu);
 
-            if(imu != NULL)
-            {
-                input_data.gx = imu[0].gx;
-                input_data.gy = imu[0].gy;
-                input_data.gz = imu[0].gz;
-                input_data.ax = imu[0].ax;
-                input_data.ay = imu[0].ay;
-                input_data.az = imu[0].az;
-            }
-
-            imu_request_read(timestamp, 1, 500, false);
+            input_data.gx = imu.gx;
+            input_data.gy = imu.gy;
+            input_data.gz = imu.gz;
+            input_data.ax = imu.ax;
+            input_data.ay = imu.ay;
+            input_data.az = imu.az;
 
             // Power status
             {

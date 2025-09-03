@@ -552,71 +552,66 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
 
       if(_switch_imu_mode == 0x01)
       {
-        imu_data_s *imu = NULL;
+        imu_data_s imu = {0};
 
-        imu = imu_access_safe();
+        imu_access_safe(&imu);
 
-        if(imu != NULL)
-        {
-          // Group 1
-          _switch_command_buffer[12] = imu[0].ay_8l; // Y-axis
-          _switch_command_buffer[13] = imu[0].ay_8h;
-          _switch_command_buffer[14] = imu[0].ax_8l; // X-axis
-          _switch_command_buffer[15] = imu[0].ax_8h;
-          _switch_command_buffer[16] = imu[0].az_8l; // Z-axis
-          _switch_command_buffer[17] = imu[0].az_8h;
-          _switch_command_buffer[18] = imu[0].gy_8l;
-          _switch_command_buffer[19] = imu[0].gy_8h;
-          _switch_command_buffer[20] = imu[0].gx_8l;
-          _switch_command_buffer[21] = imu[0].gx_8h;
-          _switch_command_buffer[22] = imu[0].gz_8l;
-          _switch_command_buffer[23] = imu[0].gz_8h;
+        // Group 1
+        _switch_command_buffer[12] = imu.ay_8l; // Y-axis
+        _switch_command_buffer[13] = imu.ay_8h;
+        _switch_command_buffer[14] = imu.ax_8l; // X-axis
+        _switch_command_buffer[15] = imu.ax_8h;
+        _switch_command_buffer[16] = imu.az_8l; // Z-axis
+        _switch_command_buffer[17] = imu.az_8h;
+        _switch_command_buffer[18] = imu.gy_8l;
+        _switch_command_buffer[19] = imu.gy_8h;
+        _switch_command_buffer[20] = imu.gx_8l;
+        _switch_command_buffer[21] = imu.gx_8h;
+        _switch_command_buffer[22] = imu.gz_8l;
+        _switch_command_buffer[23] = imu.gz_8h;
 
-          // Group 2
-          _switch_command_buffer[24] = imu[1].ay_8l; // Y-axis
-          _switch_command_buffer[25] = imu[1].ay_8h;
-          _switch_command_buffer[26] = imu[1].ax_8l; // X-axis
-          _switch_command_buffer[27] = imu[1].ax_8h;
-          _switch_command_buffer[28] = imu[1].az_8l; // Z-axis
-          _switch_command_buffer[29] = imu[1].az_8h;
-          _switch_command_buffer[30] = imu[1].gy_8l;
-          _switch_command_buffer[31] = imu[1].gy_8h;
-          _switch_command_buffer[32] = imu[1].gx_8l;
-          _switch_command_buffer[33] = imu[1].gx_8h;
-          _switch_command_buffer[34] = imu[1].gz_8l;
-          _switch_command_buffer[35] = imu[1].gz_8h;
+        // Group 2
+        /*
+        _switch_command_buffer[24] = imu[1].ay_8l; // Y-axis
+        _switch_command_buffer[25] = imu[1].ay_8h;
+        _switch_command_buffer[26] = imu[1].ax_8l; // X-axis
+        _switch_command_buffer[27] = imu[1].ax_8h;
+        _switch_command_buffer[28] = imu[1].az_8l; // Z-axis
+        _switch_command_buffer[29] = imu[1].az_8h;
+        _switch_command_buffer[30] = imu[1].gy_8l;
+        _switch_command_buffer[31] = imu[1].gy_8h;
+        _switch_command_buffer[32] = imu[1].gx_8l;
+        _switch_command_buffer[33] = imu[1].gx_8h;
+        _switch_command_buffer[34] = imu[1].gz_8l;
+        _switch_command_buffer[35] = imu[1].gz_8h;
 
-          // Group 3
-          _switch_command_buffer[36] = imu[2].ay_8l; // Y-axis
-          _switch_command_buffer[37] = imu[2].ay_8h;
-          _switch_command_buffer[38] = imu[2].ax_8l; // X-axis
-          _switch_command_buffer[39] = imu[2].ax_8h;
-          _switch_command_buffer[40] = imu[2].az_8l; // Z-axis
-          _switch_command_buffer[41] = imu[2].az_8h;
-          _switch_command_buffer[42] = imu[2].gy_8l;
-          _switch_command_buffer[43] = imu[2].gy_8h;
-          _switch_command_buffer[44] = imu[2].gx_8l;
-          _switch_command_buffer[45] = imu[2].gx_8h;
-          _switch_command_buffer[46] = imu[2].gz_8l;
-          _switch_command_buffer[47] = imu[2].gz_8h;
-        }
-        imu_request_read(timestamp, 3, 2000, false);
+        // Group 3
+        _switch_command_buffer[36] = imu[2].ay_8l; // Y-axis
+        _switch_command_buffer[37] = imu[2].ay_8h;
+        _switch_command_buffer[38] = imu[2].ax_8l; // X-axis
+        _switch_command_buffer[39] = imu[2].ax_8h;
+        _switch_command_buffer[40] = imu[2].az_8l; // Z-axis
+        _switch_command_buffer[41] = imu[2].az_8h;
+        _switch_command_buffer[42] = imu[2].gy_8l;
+        _switch_command_buffer[43] = imu[2].gy_8h;
+        _switch_command_buffer[44] = imu[2].gx_8l;
+        _switch_command_buffer[45] = imu[2].gx_8h;
+        _switch_command_buffer[46] = imu[2].gz_8l;
+        _switch_command_buffer[47] = imu[2].gz_8h;
+        */
+
+
       }
       else if(_switch_imu_mode == 0x02)
       {
         // New Gyro test code
         static mode_2_s mode_2_data = {0};
-        static quaternion_s *quat = NULL;
+        static quaternion_s quat = {0};
 
-        quat = imu_quaternion_access_safe();
+        imu_quaternion_access_safe(&quat);
 
-        if(quat != NULL)
-        {
-          switch_motion_pack_quat(quat, &mode_2_data);
-          memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
-        }
-        
-        imu_request_read(timestamp, 3, 2000, true);
+        switch_motion_pack_quat(&quat, &mode_2_data);
+        memcpy(&(_switch_command_buffer[12]), &mode_2_data, sizeof(mode_2_s));
       }
 
       // Set input data

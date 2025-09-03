@@ -22,6 +22,7 @@
 #include "switch/switch_analog.h"
 
 #include "utilities/settings.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "board_config.h"
 
@@ -78,26 +79,12 @@ float getAverage(RollingAverage* ra) {
 #define STICK_INTERNAL_CENTER 2048
 #define STICK_OPTIONAL_INVERT(val, invert) (invert ? 0xFFF - val : val)
 
-MUTEX_HAL_INIT(_analog_mutex);
-uint32_t _analog_mutex_owner = 0;
-void _analog_blocking_enter()
-{
-    MUTEX_HAL_ENTER_BLOCKING(&_analog_mutex);
-}
+SNAPSHOT_TYPE(js, analog_data_s);
 
-bool _analog_try_enter()
-{
-    if(MUTEX_HAL_ENTER_TRY(&_analog_mutex, &_analog_mutex_owner))
-    {
-        return true;
-    }
-    return false;
-}
-
-void _analog_exit()
-{
-    MUTEX_HAL_EXIT(&_analog_mutex);
-}
+snapshot_js_t _js_raw;
+snapshot_js_t _js_scaled;
+snapshot_js_t _js_snapback;
+snapshot_js_t _js_deadzone;
 
 analog_data_s _raw_analog_data      = {0};  // Stage 0
 analog_data_s _scaled_analog_data   = {0};  // Stage 1
@@ -116,19 +103,19 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
     switch(type)
     {
         case ANALOG_ACCESS_RAW_DATA:
-        memcpy(out, &_safe_raw_analog_data, sizeof(analog_data_s));
+        snapshot_js_read(&_js_raw, out);
         break; 
 
         case ANALOG_ACCESS_SCALED_DATA:
-        memcpy(out, &_safe_scaled_analog_data, sizeof(analog_data_s));
+        snapshot_js_read(&_js_scaled, out);
         break; 
 
         case ANALOG_ACCESS_SNAPBACK_DATA:
-        memcpy(out, &_safe_snapback_analog_data, sizeof(analog_data_s));
+        snapshot_js_read(&_js_snapback, out);
         break;
 
         case ANALOG_ACCESS_DEADZONE_DATA:
-        memcpy(out, &_safe_deadzone_analog_data, sizeof(analog_data_s));
+        snapshot_js_read(&_js_deadzone, out);
         break;
     }
 }
@@ -216,13 +203,9 @@ void _capture_center_offsets()
 
 void _capture_input_angle(float *left, float *right)
 {
-    _analog_blocking_enter();
-
     // Extract angles from raw analog data and store them
     *left   = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
     *right  = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
-
-    _analog_exit();
 }
 
 // Helper function to convert angle/distance to coordinate pair
@@ -329,10 +312,13 @@ void analog_task(uint64_t timestamp)
         _raw_analog_data.ly -= ANALOG_HALF_DISTANCE;
         _raw_analog_data.rx -= ANALOG_HALF_DISTANCE;
         _raw_analog_data.ry -= ANALOG_HALF_DISTANCE;
+        snapshot_js_write(&_js_raw, &_raw_analog_data);
 
         stick_scaling_process(&_raw_analog_data, &_scaled_analog_data);
+        snapshot_js_write(&_js_scaled, &_scaled_analog_data);
 
         snapback_process(&_scaled_analog_data, &_snapback_analog_data);
+        snapshot_js_write(&_js_snapback, &_snapback_analog_data);
 
         stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
 
@@ -343,15 +329,7 @@ void analog_task(uint64_t timestamp)
         _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);
         _deadzone_analog_data.rx = CAP_ANALOG(_deadzone_analog_data.rx);
         _deadzone_analog_data.ry = CAP_ANALOG(_deadzone_analog_data.ry);
-
-        if(_analog_try_enter())
-        {
-            // Copy to safe data
-            memcpy(&_safe_deadzone_analog_data, &_deadzone_analog_data, sizeof(analog_data_s));
-            memcpy(&_safe_raw_analog_data,      &_raw_analog_data,      sizeof(analog_data_s));
-            memcpy(&_safe_scaled_analog_data,   &_scaled_analog_data,   sizeof(analog_data_s));
-            memcpy(&_safe_snapback_analog_data, &_snapback_analog_data, sizeof(analog_data_s));
-            _analog_exit();
-        } 
+        
+        snapshot_js_write(&_js_deadzone, &_deadzone_analog_data);
     }
 }

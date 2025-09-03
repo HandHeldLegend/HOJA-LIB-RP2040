@@ -421,24 +421,18 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_y = SCALE_SIGNED12(analog.ry, true);
     #endif
 
-    imu_data_s *imu = imu_access_safe();
-    if(imu != NULL)
-    {
-        data.accel_x = imu[0].ax; 
-        data.accel_y = imu[0].ay;
-        data.accel_z = imu[0].az;
+    static imu_data_s imu = {0};
+    imu_access_safe(&imu);
 
-        data.gyro_x = imu[0].gx;
-        data.gyro_y = imu[0].gy;
-        data.gyro_z = imu[0].gz; 
+    data.accel_x = imu.ax; 
+    data.accel_y = imu.ay;
+    data.accel_z = imu.az;
 
-        data.imu_timestamp_us = (uint32_t) (timestamp & UINT32_MAX);
-    }
-    
-    if(hoja_get_status().gamepad_method==GAMEPAD_METHOD_BLUETOOTH)
-        imu_request_read(timestamp, 1, 4000, false);
-    else
-        imu_request_read(timestamp, 1, 200, false);
+    data.gyro_x = imu.gx;
+    data.gyro_y = imu.gy;
+    data.gyro_z = imu.gz; 
+
+    data.imu_timestamp_us = (uint32_t) (imu.timestamp & UINT32_MAX);
 
     // Buttons
 

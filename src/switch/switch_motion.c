@@ -48,7 +48,7 @@ void switch_motion_pack_quat(quaternion_s *in, mode_2_s *out)
   out->delta_mid_avg_2 = 0;
 
   // Timestamps handling is still a bit unclear, these are the values that motion_data in no drifting 
-  time_ms = sys_hal_time_ms();
+  time_ms = in->timestamp;
   out->timestamp_start_l = time_ms & 0x1;
   out->timestamp_start_h = (time_ms  >> 1) & 0x3FF;
   out->timestamp_count = 3;
