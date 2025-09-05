@@ -10,8 +10,6 @@
 
 #include "devices/devices.h"
 
-#include "input/remap.h"
-
 #include "devices/haptics.h"
 
 #pragma pack(push, 1)

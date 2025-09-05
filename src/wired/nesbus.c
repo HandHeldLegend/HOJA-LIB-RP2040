@@ -28,22 +28,6 @@ typedef struct
 volatile bool _nesbus_input_ready = false;
 nesbus_input_s _nesbus_input = {0};
 
-typedef struct
-{
-  mapper_check_cb r;
-  mapper_check_cb l;
-  mapper_check_cb x;
-  mapper_check_cb a;
-  mapper_check_cb right;
-  mapper_check_cb left;
-  mapper_check_cb down;
-  mapper_check_cb up;
-  mapper_check_cb start;
-  mapper_check_cb select;
-  mapper_check_cb y;
-  mapper_check_cb b;
-} nesbus_remap_checks_s;
-
 void _nesbus_update_unmapped(bool down)
 {
   (void) down;
@@ -133,7 +117,7 @@ bool nesbus_wired_start()
 void nesbus_wired_task(uint64_t timestamp)
 {
   memset(&_nesbus_input, 0, sizeof(nesbus_input_s));
-  mapper_process();
+
 #if defined(HOJA_NESBUS_TASK)
   HOJA_NESBUS_TASK(timestamp);
 #endif

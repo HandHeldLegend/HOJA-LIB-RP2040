@@ -4,102 +4,74 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/** @brief This is a struct for containing all of the
- * button input data as bits. This saves space
- * and allows for easier handoff to the various
- * controller cores in the future.
-**/
+/** @brief Button data laid out in bit order matching mapper_code_t */
 typedef struct
 {
-    // D-Pad
-    uint8_t btn_up     : 1;
-    uint8_t btn_down   : 1;
-    uint8_t btn_left   : 1;
-    uint8_t btn_right  : 1;
+    union
+    {
+        struct
+        {
+            // Face buttons
+            uint32_t button_b            : 1; // MAPPER_CODE_SOUTH
+            uint32_t button_a            : 1; // MAPPER_CODE_EAST
+            uint32_t button_y            : 1; // MAPPER_CODE_WEST
+            uint32_t button_x            : 1; // MAPPER_CODE_NORTH
 
-    uint8_t btn_south : 1;
-    uint8_t btn_east  : 1;
-    uint8_t btn_west  : 1;
-    uint8_t btn_north : 1;
+            // D-Pad
+            uint32_t dpad_up             : 1; // MAPPER_CODE_UP
+            uint32_t dpad_down           : 1; // MAPPER_CODE_DOWN
+            uint32_t dpad_left           : 1; // MAPPER_CODE_LEFT
+            uint32_t dpad_right          : 1; // MAPPER_CODE_RIGHT
 
-    // Triggers
-    uint8_t bumper_l   : 1;
-    uint8_t trigger_l  : 1;
-    uint8_t bumper_r   : 1;
-    uint8_t trigger_r  : 1;
+            // Shoulder / trigger buttons (digital)
+            uint32_t trigger_l           : 1; // MAPPER_CODE_LB
+            uint32_t trigger_r           : 1; // MAPPER_CODE_RB
+            uint32_t trigger_zl          : 1; // MAPPER_CODE_LT
+            uint32_t trigger_zr          : 1; // MAPPER_CODE_RT
 
-    uint8_t paddle_up_l : 1;
-    uint8_t paddle_up_r : 1;
-    uint8_t paddle_down_l : 1;
-    uint8_t paddle_down_r : 1;
+            // Menu buttons
+            uint32_t button_plus         : 1; // MAPPER_CODE_START
+            uint32_t button_minus        : 1; // MAPPER_CODE_SELECT
+            uint32_t button_home         : 1; // MAPPER_CODE_HOME
+            uint32_t button_capture      : 1; // MAPPER_CODE_CAPTURE
 
-    // Special Functions
-    uint8_t button_start     : 1;
-    uint8_t button_select    : 1;
+            // Stick clicks
+            uint32_t button_stick_left   : 1; // MAPPER_CODE_LS
+            uint32_t button_stick_right  : 1; // MAPPER_CODE_RS
 
-    uint8_t button_share  : 1;
-    uint8_t button_guide  : 1;
-    uint8_t button_safemode : 1;
-    uint8_t button_shipping : 1;
-    uint8_t button_sync     : 1;
+            // Grip buttons
+            uint32_t trigger_gl          : 1; // MAPPER_CODE_LG_UPPER
+            uint32_t trigger_gr          : 1; // MAPPER_CODE_RG_UPPER
+            uint32_t trigger_gl2         : 1; // MAPPER_CODE_LG_LOWER
+            uint32_t trigger_gr2         : 1; // MAPPER_CODE_RG_LOWER
 
-    // Stick clicks
-    uint8_t button_stick_left   : 1;
-    uint8_t button_stick_right  : 1;
+            // Unused data
+            uint32_t padding : 10; // Analog data
+        };
+
+        uint32_t buttons; // raw 32-bit access
+    };
+
+    union
+    {
+        struct 
+        {
+            uint8_t button_sync : 1;
+            uint8_t button_safemode : 1; // MAPPER_CODE_LG_LOWER
+            uint8_t button_shipping : 1; // MAPPER_CODE_RG_LOWER
+        };
+        uint8_t buttons_system;
+    };
+
+    
 } button_data_s;
 
-typedef struct
-{
-    // D-Pad
-    uint8_t btn_up     : 1;
-    uint8_t btn_down   : 1;
-    uint8_t btn_left   : 1;
-    uint8_t btn_right  : 1;
-
-    uint8_t btn_south : 1;
-    uint8_t btn_east  : 1;
-    uint8_t btn_west  : 1;
-    uint8_t btn_north : 1;
-
-    // Triggers
-    uint8_t bumper_l   : 1;
-    uint8_t trigger_l  : 1;
-    uint8_t bumper_r   : 1;
-    uint8_t trigger_r  : 1;
-
-    uint8_t paddle_up_l : 1;
-    uint8_t paddle_up_r : 1;
-    uint8_t paddle_down_l : 1;
-    uint8_t paddle_down_r : 1;
-
-    // Special Functions
-    uint8_t button_start     : 1;
-    uint8_t button_select    : 1;
-
-    uint8_t button_share  : 1;
-    uint8_t button_guide  : 1;
-    uint8_t button_safemode : 1;
-    uint8_t button_shipping : 1;
-    uint8_t button_sync     : 1;
-
-    // Stick clicks
-    uint8_t button_stick_left   : 1;
-    uint8_t button_stick_right  : 1;
-
-    int16_t lx_a; // Left stick X axis
-    int16_t ly_a; // Left stick Y axis
-    int16_t rx_a; // Right stick X axis
-    int16_t ry_a; // Right stick Y axis
-    uint16_t lt_a; // Left trigger axis
-    uint16_t rt_a; // Right trigger axis
-} input_data_s;
+#define BUTTON_DATA_SIZE sizeof(button_data_s)
 
 typedef struct 
 {
     uint16_t left_analog;
     uint16_t right_analog;
-    bool left_hairpin;
-    bool right_hairpin;
 } trigger_data_s;
 
 // Analog input data structure

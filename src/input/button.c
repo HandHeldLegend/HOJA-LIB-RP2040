@@ -1,19 +1,22 @@
 #include "input/button.h"
-#include "input/remap.h"
 #include "input/trigger.h"
 #include "input/idle_manager.h"
+#include "input/mapper.h"
 
 #include <string.h>
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "hal/mutex_hal.h"
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
 
-button_data_s _safe_raw_button_data;
+SNAPSHOT_TYPE(button, button_data_s);
+snapshot_button_t _button_snap_raw;
+snapshot_button_t _button_snap_boot;
 
 button_data_s _boot_button_data;
 button_data_s _raw_button_data;
@@ -28,15 +31,14 @@ void button_tourney_lockout_enable(bool enable)
 bool _are_buttons_different(button_data_s *current)
 {
     static button_data_s last_buttons = {0};
-    bool return_val = false;
 
-    if(current->buttons_all != last_buttons.buttons_all) return_val = true;
-    if(current->buttons_system != last_buttons.buttons_system) return_val = true;
+    if (last_buttons.buttons != current->buttons)
+    {
+        last_buttons.buttons = current->buttons;
+        return true;
+    }
 
-    last_buttons.buttons_all = current->buttons_all;
-    last_buttons.buttons_system = current->buttons_system;
-
-    return return_val;
+    return false;
 }
 
 // Access button data
@@ -45,11 +47,11 @@ void button_access_safe(button_data_s *out, button_access_t type)
     switch(type)
     {
         case BUTTON_ACCESS_RAW_DATA:
-        memcpy(out, &_safe_raw_button_data, sizeof(button_data_s));
+        snapshot_button_read(&_button_snap_raw, out);
         break;
 
         case BUTTON_ACCESS_BOOT_DATA:
-        memcpy(out, &_boot_button_data, sizeof(button_data_s));
+        snapshot_button_read(&_button_snap_boot, out);
         break;
     }
 }
@@ -65,14 +67,17 @@ bool button_init()
 
     // Store boot button state
     cb_hoja_read_buttons(&_boot_button_data);
+    snapshot_button_write(&_button_snap_boot, &_boot_button_data);
 
     // Init remap
-    remap_init();
+    mapper_init();
 
     return true;
 }
 
-#define BUTTON_READ_RATE_US 250 // read rate in micros. Double the 1khz maximum USB input rate.
+#define BUTTON_READ_RATE_US 250 // read rate in micros
+#define TOURNEY_BUTTON_MASK ( (1<<MAPPER_CODE_UP) | (1<<MAPPER_CODE_DOWN) | (1<<MAPPER_CODE_LEFT) | (1<<MAPPER_CODE_RIGHT) | \
+                            (1<<MAPPER_CODE_START) | (1<<MAPPER_CODE_SELECT) | (1<<MAPPER_CODE_HOME) | (1<<MAPPER_CODE_CAPTURE) )
 
 void button_task(uint64_t timestamp)
 {
@@ -83,18 +88,10 @@ void button_task(uint64_t timestamp)
 
     if(_tourney_lockout)
     {
-        _raw_button_data.dpad_down = 0;
-        _raw_button_data.dpad_left = 0;
-        _raw_button_data.dpad_right = 0;
-        _raw_button_data.dpad_up = 0;
-
-        _raw_button_data.button_home = 0;
-        _raw_button_data.button_capture = 0;
-        _raw_button_data.button_plus = 0;
-        _raw_button_data.button_minus = 0;
+        _raw_button_data.buttons = ~TOURNEY_BUTTON_MASK & _raw_button_data.buttons;
     }
 
-    memcpy(&_safe_raw_button_data, &_raw_button_data, sizeof(button_data_s));
+    snapshot_button_write(&_button_snap_raw, &_raw_button_data);
 
     if(_are_buttons_different(&_raw_button_data)) 
     {

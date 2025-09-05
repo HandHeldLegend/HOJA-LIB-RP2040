@@ -13,7 +13,6 @@
 #include "input_shared_types.h"
 #include "input/button.h"
 #include "input/analog.h"
-#include "input/remap.h"
 
 #include "hoja_bsp.h"
 #include "board_config.h"
@@ -300,7 +299,6 @@ void joybus_n64_hal_task(uint64_t timestamp)
       }
 
       // Update input data
-      remap_get_processed_input(&buttons, &triggers);
       analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
 
       static bool _rumblestate = false;
@@ -318,50 +316,6 @@ void joybus_n64_hal_task(uint64_t timestamp)
 
       _out_buffer.cpad_left     = buttons.trigger_l;
       _out_buffer.cpad_right    = buttons.trigger_r;
-
-      const int cpad_threshold = 400;
-      if(analog.rdistance > cpad_threshold)
-      {
-        int octant = ((int)(analog.rangle + 337.5) % 360)  / 45;
-        switch(octant)
-        {
-          case 7: 
-            _out_buffer.cpad_right |= 1;
-            break;
-          
-          case 0:
-            _out_buffer.cpad_right |= 1;
-            _out_buffer.cpad_up |= 1;
-            break;
-
-          case 1:
-            _out_buffer.cpad_up |= 1;
-            break;
-
-          case 2:
-            _out_buffer.cpad_up |= 1;
-            _out_buffer.cpad_left |= 1;
-            break;
-
-          case 3:
-            _out_buffer.cpad_left |= 1;
-            break;
-
-          case 4:
-            _out_buffer.cpad_left |= 1;
-            _out_buffer.cpad_down |= 1;
-            break;
-
-          case 5:
-            _out_buffer.cpad_down |= 1;
-            break;
-
-          case 6:
-            _out_buffer.cpad_down |= 1;
-            _out_buffer.cpad_right |= 1;
-            break;
-        }
-      }
 
       _out_buffer.button_start = buttons.button_plus;
 

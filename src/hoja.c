@@ -22,6 +22,7 @@
 #include "input/trigger.h"
 #include "input/macros.h"
 #include "input/idle_manager.h"
+#include "input/mapper.h"
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
@@ -247,7 +248,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   }
 
   // Reload our remap
-  remap_init();
+  mapper_init();
   return true;
 }
 

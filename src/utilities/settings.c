@@ -18,6 +18,7 @@
 #include "input/stick_scaling.h"
 #include "input/imu.h"
 #include "input/trigger.h"
+#include "input/mapper.h"
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
@@ -210,7 +211,7 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
             write_to_ptr = live_settings.remap_configuration_block;
 
             if(completed)
-                remap_init();
+                mapper_init();
         break;
 
         case CFG_BLOCK_ANALOG:

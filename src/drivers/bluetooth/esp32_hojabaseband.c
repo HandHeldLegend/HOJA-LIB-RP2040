@@ -25,7 +25,6 @@
 #include "input/analog.h"
 #include "input/imu.h"
 #include "input/trigger.h"
-#include "input/remap.h"
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
@@ -546,14 +545,13 @@ void esp32hoja_task(uint64_t timestamp)
             static trigger_data_s  triggers = {0};
 
             analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-            remap_get_processed_input(&buttons, &triggers);
 
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
-            input_data.buttons_all      = buttons.buttons_all;
-            input_data.buttons_system   = buttons.buttons_system;
+            input_data.buttons_all      = 0;//buttons.buttons_all;
+            input_data.buttons_system   = 0;//buttons.buttons_system;
 
             input_data.lx = (uint16_t) (analog.lx+2048);
             input_data.ly = (uint16_t) (analog.ly+2048);

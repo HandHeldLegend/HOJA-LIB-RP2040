@@ -3,7 +3,6 @@
 #include "input/button.h"
 #include "input/analog.h"
 #include "input/trigger.h"
-#include "input/remap.h"
 
 #include "usb/ginput_usbd.h"
 
@@ -25,15 +24,7 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     static gc_input_s   data = {0};
     static uint8_t      buffer[37] = {0};
 
-    static button_data_s    buttons = {0};
-    static analog_data_s    analog  = {0};
-    static trigger_data_s   triggers = {0};
-
-    // Update input data
-    remap_get_processed_input(&buttons, &triggers);
-    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-
-    trigger_gc_process(&buttons, &triggers);
+    /*
 
     buffer[0] = 0x21;
 
@@ -84,7 +75,7 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.trigger_l  = triggers.left_analog  >> 4;
     data.trigger_r  = triggers.right_analog >> 4;
-
+    */
     if(!_gc_first)
     {
         /*GC adapter notes for new data

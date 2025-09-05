@@ -5,56 +5,48 @@
 #include "input/analog.h"
 #include "input/button.h"
 #include "input/trigger.h"
-#include "input/remap.h"
+#include "input/mapper.h"
 
-#define XINPUT_SHIFT_SCALE_BITS 16
-#define XINPUT_SHIFT_SCALE_MULT (1<<XINPUT_SHIFT_SCALE_BITS)
-#define XINPUT_FIXED_SCALER     ((32768.0f / 2047.0f) * XINPUT_SHIFT_SCALE_MULT)
+#define XINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-short sign_axis(int16_t input_axis)
+short xinput_scale_axis(int16_t input_axis)
 {   
-    // Scale up to x16 (2048 to 32768 range)
-    return (short)(input_axis * 16);
+    return XINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
 }
 
 void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static xid_input_s data = {0};
-    static analog_data_s analog_data = {0};
-    static button_data_s button_data = {0};
-    static trigger_data_s trigger_data = {0};
-
-    analog_access_safe(&analog_data, ANALOG_ACCESS_DEADZONE_DATA);
-    remap_get_processed_input(&button_data, &trigger_data);
+    mapper_input_s *input = mapper_get_input();
 
     data.report_size = 20;
 
-    data.stick_left_x     = sign_axis(analog_data.lx);
-    data.stick_left_y     = sign_axis(analog_data.ly);
-    data.stick_right_x    = sign_axis(analog_data.rx);
-    data.stick_right_y    = sign_axis(analog_data.ry);
+    data.stick_left_x     = xinput_scale_axis(input->joysticks_combined[0]);
+    data.stick_left_y     = xinput_scale_axis(input->joysticks_combined[1]);
+    data.stick_right_x    = xinput_scale_axis(input->joysticks_combined[2]);
+    data.stick_right_y    = xinput_scale_axis(input->joysticks_combined[3]);
 
-    data.dpad_up      = button_data.dpad_up;
-    data.dpad_down    = button_data.dpad_down;
-    data.dpad_left    = button_data.dpad_left;
-    data.dpad_right   = button_data.dpad_right;
+    data.dpad_up      = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_UP);
+    data.dpad_down    = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_DOWN);
+    data.dpad_left    = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_LEFT);
+    data.dpad_right   = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_RIGHT);
 
-    data.button_guide = button_data.button_home;
-    data.button_back = button_data.button_minus;
-    data.button_menu = button_data.button_plus;
-    data.bumper_r = button_data.trigger_r;
-    data.bumper_l = button_data.trigger_l;
+    data.button_guide = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_GUIDE);
+    data.button_back = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_BACK);
+    data.button_menu = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_START);
+    data.bumper_r = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_RB);
+    data.bumper_l = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_LB);
 
-    data.button_a = button_data.button_a;
-    data.button_b = button_data.button_b;
-    data.button_x = button_data.button_x;
-    data.button_y = button_data.button_y;
+    data.button_a = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_A);
+    data.button_b = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_B);
+    data.button_x = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_X);
+    data.button_y = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_Y);
 
-    data.button_stick_l = button_data.button_stick_left;
-    data.button_stick_r = button_data.button_stick_right;
+    data.button_stick_l = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_LS);
+    data.button_stick_r = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_RS);
 
-    data.analog_trigger_l = trigger_data.left_analog    >>  4;
-    data.analog_trigger_r = trigger_data.right_analog   >>  4;
+    data.analog_trigger_l = XINPUT_CLAMP(input->triggers[0] >>  4, 0, 255);
+    data.analog_trigger_r = XINPUT_CLAMP(input->triggers[1] >>  4, 0, 255);
 
     tud_xinput_report(&data, XID_REPORT_LEN);
 }

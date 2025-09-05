@@ -9,7 +9,6 @@
 #include "input/button.h"
 #include "input/imu.h"
 #include "input/trigger.h"
-#include "input/remap.h"
 
 #include "hoja.h"
 
@@ -79,10 +78,6 @@ void webusb_send_rawinput(uint64_t timestamp)
 {
     static interval_s interval_ready = {0};
     static interval_s interval = {0};
-    static button_data_s remapped_buttons = {0};
-    static button_data_s buttons = {0};
-    static trigger_data_s triggers = {0};
-    static analog_data_s analog = {0};
     static imu_data_s imu = {0};
 
     static bool ready = false;
@@ -101,30 +96,31 @@ void webusb_send_rawinput(uint64_t timestamp)
     if (interval_run(timestamp, 8000, &interval) && ready)
     {
         static uint8_t webusb_input_report[64] = {0};
-
-        analog_access_safe(&analog, ANALOG_ACCESS_SNAPBACK_DATA);
-        trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
-        button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
         
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-        uint16_t lx = (uint16_t) (analog.lx + 2048);
-        uint16_t ly = (uint16_t) (analog.ly + 2048);
-        uint16_t rx = (uint16_t) (analog.rx + 2048);
-        uint16_t ry = (uint16_t) (analog.ry + 2048);
+        trigger_data_s triggers;
+        trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
+
+        analog_data_s joysticks;
+        analog_access_safe(&joysticks, ANALOG_ACCESS_SNAPBACK_DATA);
+
+        uint16_t lx = (uint16_t) (joysticks.lx + 2048);
+        uint16_t ly = (uint16_t) (joysticks.ly + 2048);
+        uint16_t rx = (uint16_t) (joysticks.rx + 2048);
+        uint16_t ry = (uint16_t) (joysticks.ry + 2048);
 
         webusb_input_report[1] = (lx & 0xFF00) >> 8;
         webusb_input_report[2] = (lx & 0xFF);       
         webusb_input_report[3] = (ly & 0xFF00) >> 8;
         webusb_input_report[4] = (ly & 0xFF);       
-
         webusb_input_report[5] = (rx & 0xFF00) >> 8;
         webusb_input_report[6] = (rx & 0xFF);       
         webusb_input_report[7] = (ry & 0xFF00) >> 8;
         webusb_input_report[8] = (ry & 0xFF);       
-        webusb_input_report[9] = (buttons.buttons_all >> 8) & 0xFF;
-        webusb_input_report[10] = buttons.buttons_all & 0xFF;
-        webusb_input_report[11] = buttons.buttons_system;
+        //webusb_input_report[9] = (buttons.buttons >> 8) & 0xFF;
+        //webusb_input_report[10] = buttons.buttons & 0xFF;
+        //webusb_input_report[11] = buttons.buttons_system;
         webusb_input_report[12] = (triggers.left_analog & 0xFF00)  >> 8;
         webusb_input_report[13] = (triggers.left_analog & 0xFF);
         webusb_input_report[14] = (triggers.right_analog & 0xFF00)  >> 8;
@@ -141,11 +137,11 @@ void webusb_send_rawinput(uint64_t timestamp)
         memcpy(&webusb_input_report[26], &imu.gz, 2);
 
 
-        analog_access_safe(&analog, ANALOG_ACCESS_DEADZONE_DATA);
-        lx = (uint16_t) (analog.lx + 2048);
-        ly = (uint16_t) (analog.ly + 2048);
-        rx = (uint16_t) (analog.rx + 2048);
-        ry = (uint16_t) (analog.ry + 2048);
+        analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
+        lx = (uint16_t) (joysticks.lx + 2048);
+        ly = (uint16_t) (joysticks.ly + 2048);
+        rx = (uint16_t) (joysticks.rx + 2048);
+        ry = (uint16_t) (joysticks.ry + 2048);
         webusb_input_report[28] = (lx & 0xFF00) >> 8;
         webusb_input_report[29] = (lx & 0xFF);
         webusb_input_report[30] = (ly & 0xFF00) >> 8;
@@ -157,8 +153,6 @@ void webusb_send_rawinput(uint64_t timestamp)
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);
-
-        remap_get_processed_input(&remapped_buttons, &triggers);
 
         ready = false;
     }

@@ -7,7 +7,6 @@
 
 #include "input/analog.h"
 #include "input/button.h"
-#include "input/remap.h"
 
 #include "board_config.h"
 
@@ -35,6 +34,30 @@
     #define PIO_IN_USE pio1 
     #define PIO_IRQ_USE_0 PIO1_IRQ_0
 #endif
+
+typedef struct
+{
+    union
+    {
+        struct
+        {
+            uint8_t padding : 4;
+            uint8_t r   : 1;
+            uint8_t l   : 1;
+            uint8_t x   : 1;
+            uint8_t a   : 1;
+            uint8_t dright  : 1;
+            uint8_t dleft   : 1;
+            uint8_t ddown   : 1;
+            uint8_t dup     : 1;
+            uint8_t start   : 1;
+            uint8_t select  : 1;
+            uint8_t y : 1;
+            uint8_t b : 1;
+        };
+        uint16_t value;
+    };
+} nesbus_hal_input_s;
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
@@ -87,11 +110,8 @@ bool nesbus_hal_init()
 
 void nesbus_hal_task(uint64_t timestamp)
 {   
-    static nesbus_input_s   buffer  = {.value = 0xFFFF};
-    static button_data_s    buttons = {0};
-    static analog_data_s    analog  = {0};
-    static interval_s       interval = {0};
-    static trigger_data_s   triggers = {0};
+    static nesbus_hal_input_s   buffer  = {.value = 0xFFFF};
+    static interval_s interval = {0};
 
     if(!_nspi_running)
     {
@@ -103,33 +123,6 @@ void nesbus_hal_task(uint64_t timestamp)
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
             hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-            remap_get_processed_input(&buttons, &triggers);
-            analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-
-            buffer.a = !buttons.button_a;
-            buffer.b = !buttons.button_b;
-            buffer.x = !buttons.button_x;
-            buffer.y = !buttons.button_y;
-
-            int up =    (buttons.dpad_up | (analog.ly > (1200)) );
-            int down = -(buttons.dpad_down | (analog.ly < (-1200)) );
-
-            int right = (buttons.dpad_right | (analog.lx > (1200)) );
-            int left = -(buttons.dpad_left | (analog.lx < (-1200)) );
-
-            int updown      = up+down;
-            int rightleft   = right+left;
-
-            buffer.dup    = (updown==1)   ? 0 : 1;
-            buffer.ddown  = (updown==-1)  ? 0 : 1;
-            buffer.dright = (rightleft==1)  ? 0 : 1;
-            buffer.dleft  = (rightleft==-1) ? 0 : 1;
-
-            buffer.select = !buttons.button_minus;
-            buffer.start  = !buttons.button_plus;
-
-            buffer.l = ! buttons.trigger_l;
-            buffer.r = ! buttons.trigger_r;
 
             if(_nspi_clear)
             {

@@ -11,7 +11,6 @@
 #include "input_shared_types.h"
 #include "input/button.h"
 #include "input/analog.h"
-#include "input/remap.h"
 #include "input/trigger.h"
 
 #include "board_config.h"
@@ -294,11 +293,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
         hoja_set_connected_status(CONN_STATUS_PLAYER_1);
       }
 
-      // Update input data
-      remap_get_processed_input(&buttons, &triggers);
       analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-
-      trigger_gc_process(&buttons, &triggers);
       
       static bool _rumblestate = false;
       if (_gc_rumble != _rumblestate)

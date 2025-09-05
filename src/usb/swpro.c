@@ -4,9 +4,6 @@
 #include "utilities/callback.h"
 
 #include "tusb.h"
-#include "input/button.h"
-#include "input/analog.h"
-#include "input/remap.h"
 
 /** Switch PRO HID MODE **/
 // 1. Device Descriptor
@@ -261,9 +258,7 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static sw_input_s data = {0};
 
-    static button_data_s buttons = {0};
-    static analog_data_s analog  = {0};
-    static trigger_data_s triggers = {0};
+    /*
 
     // Update input data
     remap_get_processed_input(&buttons, &triggers);
@@ -302,6 +297,7 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.ls_y = (data.ls_y > 4095) ? 4095 : data.ls_y;
     data.rs_x = (data.rs_x > 4095) ? 4095 : data.rs_x;
     data.rs_y = (data.rs_y > 4095) ? 4095 : data.rs_y;
+    */
 
     switch_commands_process(timestamp, &data, cb);
 }
