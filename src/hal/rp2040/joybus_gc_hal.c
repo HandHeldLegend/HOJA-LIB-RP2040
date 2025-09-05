@@ -9,9 +9,7 @@
 #include "devices/haptics.h"
 
 #include "input_shared_types.h"
-#include "input/button.h"
-#include "input/analog.h"
-#include "input/trigger.h"
+#include "input/mapper.h"
 
 #include "board_config.h"
 
@@ -266,14 +264,12 @@ bool joybus_gc_hal_init()
 }
 
 #define INPUT_POLL_RATE 1000 // 1ms
+#define GCWIRE_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 void joybus_gc_hal_task(uint64_t timestamp)
 {
     static interval_s     interval_reset    = {0};
     static interval_s     interval    = {0};
-    static button_data_s  buttons     = {0};
-    static trigger_data_s triggers    = {0};
-    static analog_data_s  analog      = {0};
     
     // Wait for init to complete
     if (!_gc_running) return;
@@ -293,7 +289,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
         hoja_set_connected_status(CONN_STATUS_PLAYER_1);
       }
 
-      analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+      mapper_input_s *input = mapper_get_input();
       
       static bool _rumblestate = false;
       if (_gc_rumble != _rumblestate)
@@ -305,46 +301,39 @@ void joybus_gc_hal_task(uint64_t timestamp)
       // Our buttons are always the same formatting
       _out_buffer.blank_2 = 1;
 
-      _out_buffer.start   = buttons.button_plus;
-      _out_buffer.l       = buttons.trigger_zl;
-      _out_buffer.r       = buttons.trigger_zr;
+      _out_buffer.a = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_A);
+      _out_buffer.b = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_B);
+      _out_buffer.x = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_X);
+      _out_buffer.y = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Y);
 
-      _out_buffer.dpad_down   = buttons.dpad_down;
-      _out_buffer.dpad_left   = buttons.dpad_left;
-      _out_buffer.dpad_right  = buttons.dpad_right;
-      _out_buffer.dpad_up     = buttons.dpad_up;
+      _out_buffer.start   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_START);
+      _out_buffer.l       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_L);
+      _out_buffer.r       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_R);
 
-      _out_buffer.z           = buttons.trigger_r;
+      _out_buffer.dpad_down   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_DOWN);
+      _out_buffer.dpad_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_LEFT);
+      _out_buffer.dpad_right  = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_RIGHT);
+      _out_buffer.dpad_up     = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_UP);
 
-      const int32_t center_value = 128;
+      _out_buffer.z           = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Z);
+
       const float   target_max = 110.0f / 2048.0f;
-      const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
-
-      bool lx_sign = analog.lx < 0;
-      bool ly_sign = analog.ly < 0;
-      bool rx_sign = analog.rx < 0;
-      bool ry_sign = analog.ry < 0;
-
-      uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
-      uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
-      uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
-      uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
 
       // Analog stick data conversion
-      int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
-      int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
-      int32_t rx = ((rx_abs * fixed_multiplier) >> 16) * (rx_sign ? -1 : 1);
-      int32_t ry = ((ry_abs * fixed_multiplier) >> 16) * (ry_sign ? -1 : 1);
+      float lx = input->joysticks_combined[0] * target_max;
+      float ly = input->joysticks_combined[1] * target_max;
+      float rx = input->joysticks_combined[2] * target_max;
+      float ry = input->joysticks_combined[3] * target_max;
 
-      uint8_t lx8 = CLAMP_0_255(lx + center_value);
-      uint8_t ly8 = CLAMP_0_255(ly + center_value);
-      uint8_t rx8 = CLAMP_0_255(rx + center_value);
-      uint8_t ry8 = CLAMP_0_255(ry + center_value);
+      uint8_t lx8 = GCWIRE_CLAMP(lx + 128, 0, 255);
+      uint8_t ly8 = GCWIRE_CLAMP(ly + 128, 0, 255);
+      uint8_t rx8 = GCWIRE_CLAMP(rx + 128, 0, 255);
+      uint8_t ry8 = GCWIRE_CLAMP(ry + 128, 0, 255);
       // End analog stick conversion section
 
       // Trigger with SP function conversion
-      uint8_t lt8 = triggers.left_analog  >> 4;
-      uint8_t rt8 = triggers.right_analog >> 4;
+      uint8_t lt8 = GCWIRE_CLAMP(input->triggers[0] >> 4, 0, 255);
+      uint8_t rt8 = GCWIRE_CLAMP(input->triggers[1] >> 4, 0, 255);
 
       // Handle reporting for differing modes
       switch(_workingMode)

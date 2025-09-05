@@ -23,8 +23,8 @@ mapper_profile_s _map_default_switch = {
     .north   = SWITCH_CODE_X,
 #elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
     .south   = SWITCH_CODE_A,
-    .east    = SWITCH_CODE_B,
-    .west    = SWITCH_CODE_X,
+    .east    = SWITCH_CODE_X,
+    .west    = SWITCH_CODE_B,
     .north   = SWITCH_CODE_Y,
 #else
     .south   = SWITCH_CODE_A,
@@ -180,7 +180,7 @@ mapper_profile_s _map_default_gamecube = {
     .down    = GAMECUBE_CODE_DOWN,
     .left    = GAMECUBE_CODE_LEFT,
     .right   = GAMECUBE_CODE_RIGHT,
-    .lb      = GAMECUBE_CODE_Z,
+    .lb      = GAMECUBE_CODE_UNUSED,
     .rb      = GAMECUBE_CODE_Z,
     .lt      = GAMECUBE_CODE_L,
     .rt      = GAMECUBE_CODE_R,
@@ -264,11 +264,11 @@ uint16_t _trigger_static[2] = {1000, 1000};
 // Completed
 mapper_input_s _mapper_task_switch()
 {
-    mapper_input_s tmp;
-    bool down;
-    uint8_t map_digital_bitmask;
-    uint8_t analog_idx_in;
-    uint8_t analog_idx_out; 
+    mapper_input_s tmp = {0};
+    bool down = false;
+    uint32_t map_digital_bitmask = 0;
+    uint8_t analog_idx_in = 0;
+    uint8_t analog_idx_out = 0; 
     
     int8_t map_code_output;
     
@@ -385,16 +385,18 @@ mapper_input_s _mapper_task_switch()
             break;
         }
     }
+
+    return tmp;
 }
 
 // Completed
 mapper_input_s _mapper_task_snes()
 {
-    mapper_input_s tmp;
-    bool down;
-    uint8_t map_digital_bitmask;
-    uint8_t analog_idx_in;
-    uint8_t analog_idx_out; 
+    mapper_input_s tmp = {0};
+    bool down = false;
+    uint32_t map_digital_bitmask = 0;
+    uint8_t analog_idx_in = 0;
+    uint8_t analog_idx_out = 0; 
     
     int8_t map_code_output;
     
@@ -487,16 +489,18 @@ mapper_input_s _mapper_task_snes()
             break;
         }
     }
+
+    return tmp;
 }
 
 // Completed
 mapper_input_s _mapper_task_n64()
 {
-    mapper_input_s tmp;
-    bool down;
-    uint8_t map_digital_bitmask;
-    uint8_t analog_idx_in;
-    uint8_t analog_idx_out; 
+    mapper_input_s tmp = {0};
+    bool down = false;
+    uint32_t map_digital_bitmask = 0;
+    uint8_t analog_idx_in = 0;
+    uint8_t analog_idx_out = 0; 
     
     int8_t map_code_output;
     
@@ -613,18 +617,20 @@ mapper_input_s _mapper_task_n64()
             break;
         }
     }
+
+    return tmp;
 }
 
 // Completed
 mapper_input_s _mapper_task_gamecube()
 {
-    mapper_input_s tmp;
-    bool down;
-    uint8_t map_digital_bitmask;
-    uint8_t analog_idx_in;
-    uint8_t analog_idx_out; 
+    mapper_input_s tmp = {0};
+    bool down = false;
+    uint32_t map_digital_bitmask = 0;
+    uint8_t analog_idx_in = 0;
+    uint8_t analog_idx_out = 0; 
     
-    int8_t map_code_output;
+    int8_t map_code_output = -1;
     
     //
     // Digital Input
@@ -651,7 +657,7 @@ mapper_input_s _mapper_task_gamecube()
 
             // Digital Output
             case GAMECUBE_CODE_B ... GAMECUBE_CODE_START:
-            tmp.digital_inputs |= (1 << map_code_output);
+            tmp.digital_inputs |= (1 << (uint8_t)map_code_output);
             break;
 
             // Trigger Output
@@ -666,7 +672,7 @@ mapper_input_s _mapper_task_gamecube()
             // Joystick Output
             case GAMECUBE_CODE_LX_RIGHT ... GAMECUBE_CODE_RY_DOWN:
             analog_idx_out = map_code_output - GAMECUBE_CODE_IDX_JOYSTICK_START;
-            tmp.joysticks_raw[analog_idx_out] |= 0xFFF;
+            tmp.joysticks_raw[analog_idx_out] = 2048;
             break;
         }
     }
@@ -766,6 +772,8 @@ mapper_input_s _mapper_task_gamecube()
             break;
         }
     }
+
+    return tmp;
 }
 
 // Completed
