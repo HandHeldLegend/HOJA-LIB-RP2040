@@ -391,10 +391,7 @@ void ds4_hid_report(uint32_t timestamp)
 
     data.imu_timestamp = 1;
 
-    data.button_cross = button_data.button_b;
-    data.button_circle = button_data.button_a;
-    data.button_square = button_data.button_y;
-    data.button_triangle = button_data.button_x;
+
 
     data.button_l3 = button_data.button_stick_left;
     data.button_r3 = button_data.button_stick_right;

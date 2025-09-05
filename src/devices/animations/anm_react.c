@@ -13,10 +13,10 @@
 #define RGB_REMAP_IDX_DPAD    4
 #define RGB_REMAP_IDX_STICK_L     5 
 #define RGB_REMAP_IDX_STICK_R     6 
-#define RGB_REMAP_IDX_A       0
-#define RGB_REMAP_IDX_B       1 
-#define RGB_REMAP_IDX_X       2 
-#define RGB_REMAP_IDX_Y       3
+#define RGB_REMAP_IDX_SOUTH       0
+#define RGB_REMAP_IDX_EAST        1 
+#define RGB_REMAP_IDX_WEST        2 
+#define RGB_REMAP_IDX_NORTH       3
 #define RGB_REMAP_IDX_L       7
 #define RGB_REMAP_IDX_R       8
 #define RGB_REMAP_IDX_ZL      9
@@ -155,41 +155,41 @@ bool anm_react_handler(rgb_s* output)
 
     #if defined(RGB_REACT_GROUP_ASSIGNMENT)
 
-    if(_group_assignments[RGB_REMAP_IDX_A] != RGB_REMAP_IDX_NULL)
+    if(_group_assignments[RGB_REMAP_IDX_SOUTH] != RGB_REMAP_IDX_NULL)
     {
         _handle_button(
-            buttons.button_a, 
-            _group_assignments[RGB_REMAP_IDX_A], 
+            buttons.button_south, 
+            _group_assignments[RGB_REMAP_IDX_SOUTH], 
             0, 
             output
             );
     }
 
-    if(_group_assignments[RGB_REMAP_IDX_B] != RGB_REMAP_IDX_NULL)
+    if(_group_assignments[RGB_REMAP_IDX_EAST] != RGB_REMAP_IDX_NULL)
     {
         _handle_button(
-            buttons.button_b, 
-            _group_assignments[RGB_REMAP_IDX_B], 
+            buttons.button_east, 
+            _group_assignments[RGB_REMAP_IDX_EAST], 
             1, 
             output
             );
     }
 
-    if(_group_assignments[RGB_REMAP_IDX_X] != RGB_REMAP_IDX_NULL)
+    if(_group_assignments[RGB_REMAP_IDX_WEST] != RGB_REMAP_IDX_NULL)
     {
         _handle_button(
-            buttons.button_x, 
-            _group_assignments[RGB_REMAP_IDX_X], 
+            buttons.button_west, 
+            _group_assignments[RGB_REMAP_IDX_WEST], 
             2, 
             output
             );
     }
 
-    if(_group_assignments[RGB_REMAP_IDX_Y] != RGB_REMAP_IDX_NULL)
+    if(_group_assignments[RGB_REMAP_IDX_NORTH] != RGB_REMAP_IDX_NULL)
     {
         _handle_button(
-            buttons.button_y, 
-            _group_assignments[RGB_REMAP_IDX_Y], 
+            buttons.button_north, 
+            _group_assignments[RGB_REMAP_IDX_NORTH], 
             3, 
             output
             );

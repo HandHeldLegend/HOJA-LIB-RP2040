@@ -118,4 +118,9 @@
 
     #define JOYBUS_GC_DRIVER_HAL 1
 
+    // Button layout for SEWN types
+    #define SEWN_LAYOUT_ABXY 0 //Xbox Style
+    #define SEWN_LAYOUT_BAYX 1 // Nintendo Style
+    #define SEWN_LAYOUT_AXBY 2 // GameCube Style
+
 #endif

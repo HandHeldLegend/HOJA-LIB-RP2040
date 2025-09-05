@@ -12,10 +12,10 @@ typedef struct
         struct
         {
             // Face buttons
-            uint32_t button_b            : 1; // MAPPER_CODE_SOUTH
-            uint32_t button_a            : 1; // MAPPER_CODE_EAST
-            uint32_t button_y            : 1; // MAPPER_CODE_WEST
-            uint32_t button_x            : 1; // MAPPER_CODE_NORTH
+            uint32_t button_south        : 1; // MAPPER_CODE_SOUTH
+            uint32_t button_east         : 1; // MAPPER_CODE_EAST
+            uint32_t button_west         : 1; // MAPPER_CODE_WEST
+            uint32_t button_north        : 1; // MAPPER_CODE_NORTH
 
             // D-Pad
             uint32_t dpad_up             : 1; // MAPPER_CODE_UP
@@ -126,26 +126,6 @@ typedef enum
     SNAPBACK_TYPE_ZERO,
     SNAPBACK_TYPE_POST,
 } snapback_type_t;
-
-typedef enum
-{
-    GC_SP_MODE_NONE     = 0, // No function. LT and RT are output full according to digital button.
-    GC_SP_MODE_LT       = 1, // SP buttton inputs light trigger left
-    GC_SP_MODE_RT       = 2, // SP buttton inputs light trigger right
-    GC_SP_MODE_DUALZ    = 3, // Dual Z Button
-    GC_SP_MODE_ADC      = 4, // Controlled fully by analog, SP button is unused
-
-    GC_SP_MODE_CMD_SETLIGHT = 0xFF, // Command to set light trigger
-} gc_sp_mode_t;
-
-typedef enum 
-{
-    REMAP_TRIGGER_MATCHING,
-    REMAP_TRIGGER_SWAPPED,
-    REMAP_TRIGGER_MISMATCH,
-    REMAP_TRIGGER_DIGITALONLY,
-    REMAP_TRIGGER_SINPUT, // Special SInput trigger mode
-} remap_trigger_t;
 
 // IMU data structure
 typedef struct

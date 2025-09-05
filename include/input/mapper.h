@@ -13,6 +13,7 @@
 
 typedef enum 
 {
+    MAPPER_CODE_UNSUPPORTED = -2,
     MAPPER_CODE_UNUSED = -1,
     MAPPER_CODE_SOUTH,
     MAPPER_CODE_EAST,
@@ -244,7 +245,7 @@ typedef struct
 {
     uint32_t digital_inputs;
     uint16_t joysticks_raw[8];
-    int16_t joysticks_combined[4];
+    int16_t joysticks_combined[4]; // Range of -2048 to 2048 with 0 center
     uint16_t triggers[2];
     union
     {

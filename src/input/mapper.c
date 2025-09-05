@@ -16,10 +16,22 @@ mapper_profile_s *_mapper_profile;
 
 // Switch (modern layout)
 mapper_profile_s _map_default_switch = {
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
     .south   = SWITCH_CODE_B,
     .east    = SWITCH_CODE_A,
     .west    = SWITCH_CODE_Y,
     .north   = SWITCH_CODE_X,
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
+    .south   = SWITCH_CODE_A,
+    .east    = SWITCH_CODE_B,
+    .west    = SWITCH_CODE_X,
+    .north   = SWITCH_CODE_Y,
+#else
+    .south   = SWITCH_CODE_A,
+    .east    = SWITCH_CODE_B,
+    .west    = SWITCH_CODE_X,
+    .north   = SWITCH_CODE_Y,
+#endif
     .up      = SWITCH_CODE_UP,
     .down    = SWITCH_CODE_DOWN,
     .left    = SWITCH_CODE_LEFT,
@@ -52,10 +64,22 @@ mapper_profile_s _map_default_switch = {
 
 // SNES (no sticks, no triggers beyond L/R) 
 mapper_profile_s _map_default_snes = {
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
     .south   = SNES_CODE_B,
     .east    = SNES_CODE_A,
     .west    = SNES_CODE_Y,
     .north   = SNES_CODE_X,
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
+    .south   = SNES_CODE_A,
+    .east    = SNES_CODE_B,
+    .west    = SNES_CODE_X,
+    .north   = SNES_CODE_Y,
+#else
+    .south   = SNES_CODE_A,
+    .east    = SNES_CODE_B,
+    .west    = SNES_CODE_X,
+    .north   = SNES_CODE_Y,
+#endif
     .up      = SNES_CODE_UP,
     .down    = SNES_CODE_DOWN,
     .left    = SNES_CODE_LEFT,
@@ -88,10 +112,22 @@ mapper_profile_s _map_default_snes = {
 
 // N64 (1 stick + C buttons)
 mapper_profile_s _map_default_n64 = {
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
+    .south   = N64_CODE_B,
+    .east    = N64_CODE_A,
+    .west    = N64_CODE_CDOWN,
+    .north   = N64_CODE_CUP,
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
     .south   = N64_CODE_A,
     .east    = N64_CODE_CDOWN,
     .west    = N64_CODE_B,
     .north   = N64_CODE_CUP,
+#else 
+    .south   = N64_CODE_A,
+    .east    = N64_CODE_B,
+    .west    = N64_CODE_CDOWN,
+    .north   = N64_CODE_CUP,
+#endif
     .up      = N64_CODE_UP,
     .down    = N64_CODE_DOWN,
     .left    = N64_CODE_LEFT,
@@ -124,10 +160,22 @@ mapper_profile_s _map_default_n64 = {
 
 // GameCube (2 sticks + analog triggers)
 mapper_profile_s _map_default_gamecube = {
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
+    .south   = GAMECUBE_CODE_B,
+    .east    = GAMECUBE_CODE_A,
+    .west    = GAMECUBE_CODE_Y,
+    .north   = GAMECUBE_CODE_X,
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
     .south   = GAMECUBE_CODE_A,
     .east    = GAMECUBE_CODE_X,
     .west    = GAMECUBE_CODE_B,
     .north   = GAMECUBE_CODE_Y,
+#else 
+    .south   = GAMECUBE_CODE_A,
+    .east    = GAMECUBE_CODE_B,
+    .west    = GAMECUBE_CODE_X,
+    .north   = GAMECUBE_CODE_Y,
+#endif
     .up      = GAMECUBE_CODE_UP,
     .down    = GAMECUBE_CODE_DOWN,
     .left    = GAMECUBE_CODE_LEFT,
@@ -160,10 +208,22 @@ mapper_profile_s _map_default_gamecube = {
 
 // XInput (Xbox 360/One style)
 mapper_profile_s _map_default_xinput = {
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
+    .south   = XINPUT_CODE_B,
+    .east    = XINPUT_CODE_A,
+    .west    = XINPUT_CODE_Y,
+    .north   = XINPUT_CODE_X,
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
+    .south   = XINPUT_CODE_A,
+    .east    = XINPUT_CODE_X,
+    .west    = XINPUT_CODE_B,
+    .north   = XINPUT_CODE_Y,
+#else 
     .south   = XINPUT_CODE_A,
     .east    = XINPUT_CODE_B,
     .west    = XINPUT_CODE_X,
     .north   = XINPUT_CODE_Y,
+#endif
     .up      = XINPUT_CODE_UP,
     .down    = XINPUT_CODE_DOWN,
     .left    = XINPUT_CODE_LEFT,

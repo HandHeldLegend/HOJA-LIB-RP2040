@@ -304,10 +304,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
 
       // Our buttons are always the same formatting
       _out_buffer.blank_2 = 1;
-      _out_buffer.a       = buttons.button_a;
-      _out_buffer.b       = buttons.button_b;
-      _out_buffer.x       = buttons.button_x;
-      _out_buffer.y       = buttons.button_y;
+
       _out_buffer.start   = buttons.button_plus;
       _out_buffer.l       = buttons.trigger_zl;
       _out_buffer.r       = buttons.trigger_zr;

@@ -308,11 +308,11 @@ void joybus_n64_hal_task(uint64_t timestamp)
           haptics_set_std(_rumblestate ? 255 : 0, false);
       }
       
-      _out_buffer.button_a = buttons.button_a;
-      _out_buffer.button_b = buttons.button_b;
+      //_out_buffer.button_a = buttons.button_a;
+      //_out_buffer.button_b = buttons.button_b;
 
-      _out_buffer.cpad_up   = buttons.button_x;
-      _out_buffer.cpad_down = buttons.button_y;
+      //_out_buffer.cpad_up   = buttons.button_x;
+      //_out_buffer.cpad_down = buttons.button_y;
 
       _out_buffer.cpad_left     = buttons.trigger_l;
       _out_buffer.cpad_right    = buttons.trigger_r;
