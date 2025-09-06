@@ -14,7 +14,7 @@ void _shutdown_finalize()
     _shutdown_ready = true;
 }
 
-void macro_shutdown(uint32_t timestamp, button_data_s *buttons)
+void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
 {
     static interval_s interval = {0};
     static bool holding = false;

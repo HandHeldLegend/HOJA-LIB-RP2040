@@ -87,7 +87,7 @@ void _usb_unset_usb_clear()
   _usb_exit();
 }
 
-bool _usb_get_usb_clear(uint32_t timestamp)
+bool _usb_get_usb_clear(uint64_t timestamp)
 {
   bool clear = false;
 

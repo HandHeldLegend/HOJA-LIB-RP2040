@@ -256,7 +256,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
-  static uint32_t c1_timestamp = 0;
+  static uint64_t c1_timestamp = 0;
 
   // init gamepad mode on core 1
   _gamepad_mode_init(thisMode, thisMethod, thisPair);
@@ -264,7 +264,7 @@ void _hoja_task_1()
   for (;;)
   {
     // Get current system timestamp
-    c1_timestamp = sys_hal_time_us();
+    sys_hal_time_us(&c1_timestamp);
 
     // Button task
     button_task(c1_timestamp);
@@ -308,14 +308,14 @@ void _hoja_task_1()
 // Core 0 task loop entrypoint
 void _hoja_task_0()
 {
-  static uint32_t c0_timestamp = 0;
+  static uint64_t c0_timestamp = 0;
 
   // We can lock core 0 for writing to flash
   flash_hal_init();
 
   for (;;)
   {
-    c0_timestamp = sys_hal_time_us();
+    sys_hal_time_us(&c0_timestamp);
 
     // Analog task
     analog_task(c0_timestamp);

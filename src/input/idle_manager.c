@@ -10,6 +10,7 @@
 #define IDLE_ACTIVATION_TIME_US (IDLE_ACTIVATION_TIME_SECONDS * 1000 * 1000)
 
 volatile bool _reset_state = false;
+volatile bool _state_is_reset = true;
 bool _idle_active = false;
 
 // Call this for any function that should help keep
@@ -18,14 +19,16 @@ bool _idle_active = false;
 void idle_manager_heartbeat()
 {
     _reset_state = true;
+    _state_is_reset = false;
 }
 
-void idle_manager_task(uint32_t timestamp)
+void idle_manager_task(uint64_t timestamp)
 {
     static interval_s interval = {0};
 
     if(!_idle_active)
     {
+
         if(interval_resettable_run(timestamp, IDLE_ACTIVATION_TIME_US, _reset_state, &interval))
         {
             _idle_active = true;
@@ -34,6 +37,13 @@ void idle_manager_task(uint32_t timestamp)
 
             rgb_set_idle(true);
         }
+        else if(_reset_state)
+        {
+            _state_is_reset = true;
+        }
+
+        if(_reset_state && _state_is_reset)
+            _reset_state = false;
     }
     else if(_reset_state && _idle_active)
     {
@@ -41,6 +51,4 @@ void idle_manager_task(uint32_t timestamp)
         rgb_set_idle(false);
         _idle_active = false;
     }
-
-    if(_reset_state) _reset_state = false;
 }

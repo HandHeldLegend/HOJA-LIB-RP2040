@@ -104,6 +104,6 @@ typedef struct
 void btinput_capability_reset_flag();
 uint16_t btinput_get_version();
 bool btinput_init(device_mode_t input_mode);
-void btinput_comms_task(uint32_t timestamp, button_data_s *buttons, analog_data_s *analog);
+void btinput_comms_task(uint64_t timestamp, button_data_s *buttons, analog_data_s *analog);
 
 #endif

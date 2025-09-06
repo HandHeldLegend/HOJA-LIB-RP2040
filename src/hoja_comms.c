@@ -3,7 +3,7 @@
 comms_cb_t _comms_cb = NULL;
 static input_mode_t _hoja_input_mode = 0;
 
-void hoja_comms_task(uint32_t timestamp, button_data_s * buttons, analog_data_s * analog)
+void hoja_comms_task(uint64_t timestamp, button_data_s * buttons, analog_data_s * analog)
 {
     if(_comms_cb != NULL)
     {

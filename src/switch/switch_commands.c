@@ -66,26 +66,14 @@ void set_command(uint8_t command)
 
 void set_timer()
 {
-  static uint32_t last_time = 0;
-  uint32_t this_time = sys_hal_time_us();
-  uint32_t diff;
+  static uint64_t this_ms = 0;
 
-  // Handle wrap-around correctly
-  if (this_time < last_time) {
-    diff = (0xFFFFFFFF - last_time) + this_time;
-  } else {
-    diff = this_time - last_time;
-  }
-  
-  last_time = this_time;
-  
-  // Convert us to ms
-  uint32_t ms_diff = diff / 1000;
+  sys_hal_time_ms(&this_ms);
 
-  static uint32_t _switch_timer = 0;
+  static uint64_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
   
-  _switch_timer += ms_diff;
+  _switch_timer += this_ms;
   if (_switch_timer > 0xFF)
   {
     _switch_timer %= 0xFF;  // or -= 0xFF depending on requirements

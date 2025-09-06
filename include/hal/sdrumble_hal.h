@@ -24,7 +24,7 @@
 #define HOJA_HAPTICS_TASK(timestamp) sdrumble_hal_task(timestamp)
 
 bool sdrumble_hal_init();
-void sdrumble_hal_task(uint32_t timestamp);
+void sdrumble_hal_task(uint64_t timestamp);
 void sdrumble_hal_push_amfm(haptic_processed_s *input);
 void sdrumble_hal_set_standard(uint8_t intensity);
 
