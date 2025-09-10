@@ -8,7 +8,7 @@ bool interval_run(uint64_t timestamp, uint32_t interval, interval_s *state)
   state->this_time = timestamp;
 
   // Clear variable
-  uint32_t diff = 0;
+  uint64_t diff = 0;
 
   diff = state->this_time - state->last_time;
   // We want a target rate according to our variable

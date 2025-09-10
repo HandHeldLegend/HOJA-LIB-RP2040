@@ -10,7 +10,7 @@
 #define PAIRING_MACRO_INTERVAL_US 3000
 #define PAIRING_HOLD_LOOPS ( (PAIRING_HOLD_TIME*1000*1000) / PAIRING_MACRO_INTERVAL_US )
 
-void macro_pairing(uint32_t timestamp, button_data_s *buttons)
+void macro_pairing(uint64_t timestamp, button_data_s *buttons)
 {
     static interval_s interval = {0};
     static bool holding = false;

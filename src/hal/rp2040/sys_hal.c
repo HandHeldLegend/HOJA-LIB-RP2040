@@ -69,33 +69,39 @@ void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void)
 }
 
 uint32_t _time_owner = 0;
-static uint64_t _time_global = 0;
+volatile uint64_t _time_global = 0;
+
+#define SYS_HAL_TIME_DEBUG 0
 
 MUTEX_HAL_INIT(_sys_hal_time_mutex);
-uint64_t sys_hal_time_us()
+
+void sys_hal_time_us(uint64_t *out)
 {
     static uint64_t time; 
-    static uint64_t time_last = 0;
-    static uint64_t delta_accumulated = 0;
 
     if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
     {
-        // DEBUG
-        // const uint64_t start_time = UINT32_MAX - 10000000; // 10 seconds before overflow
-        // time = time_us_64() + start_time;
-
+        #if (SYS_HAL_TIME_DEBUG==1)
+        const uint64_t start_time = (uint64_t)UINT32_MAX - (uint64_t)10000000; // 10 seconds before overflow
+        time = time_us_64() + start_time;
+        #else
         time = time_us_64();
+        #endif
         _time_global = time;
-
+        *out = time;
         MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
     }
-
-    return time;
 }
 
-uint64_t sys_hal_time_ms()
+void sys_hal_time_ms(uint64_t *out)
 {
-    return _time_global / 1000;
+    static uint64_t time_ms = 0;
+    if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
+    {
+        time_ms = _time_global/1000;
+        *out = time_ms;
+        MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
+    }
 }
 
 uint32_t sys_hal_random()

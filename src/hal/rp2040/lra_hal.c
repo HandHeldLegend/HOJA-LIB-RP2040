@@ -288,7 +288,7 @@ bool get_inactive_buffer_half()
 }
 
 volatile bool _erm_simulation_enabled = false;
-void lra_hal_task(uint32_t timestamp)
+void lra_hal_task(uint64_t timestamp)
 {
     static bool inactive_half = true;
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};

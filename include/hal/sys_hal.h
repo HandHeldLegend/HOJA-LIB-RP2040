@@ -18,10 +18,10 @@ uint32_t sys_hal_random();
 void sys_hal_tick();
 
 // Return time/ticks since boot 
-uint64_t sys_hal_time_us();
+void sys_hal_time_us(uint64_t *out);
 
 // Return time/ticks since boot in milliseconds
-uint64_t sys_hal_time_ms();
+void sys_hal_time_ms(uint64_t *out);
 
 void sys_hal_sleep_ms(uint32_t ms);
 
