@@ -39,6 +39,7 @@ typedef enum
 typedef enum 
 {
     REMAP_CMD_REFRESH, 
+    REMAP_CMD_DEFAULT, 
 } remap_cmd_t;
 
 typedef enum 

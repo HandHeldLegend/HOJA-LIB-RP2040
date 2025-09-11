@@ -664,6 +664,10 @@ void stick_scaling_default_check()
 
     _write_to_config_block();
   }
+
+  // Check digital thresholds
+  if(analog_config->l_threshold < 128) analog_config->l_threshold = 128;
+  if(analog_config->r_threshold < 128) analog_config->r_threshold = 128;
 }
 
 // Input and output are based around -2048 to 2048 values with 0 as centers

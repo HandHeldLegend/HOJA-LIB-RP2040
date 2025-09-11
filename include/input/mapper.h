@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "settings_shared_types.h"
 
 #define MAPPER_BUTTON_SET(down, code) (down ? (1<<code) : 0)
 #define MAPPER_BUTTON_DOWN(inputs, code) (((inputs & (1 << code)) != 0) ? true : false)
@@ -56,10 +57,10 @@ typedef enum
 typedef enum 
 {
     SWITCH_CODE_UNUSED = -1,
-    SWITCH_CODE_B,
     SWITCH_CODE_A,
-    SWITCH_CODE_Y,
+    SWITCH_CODE_B,
     SWITCH_CODE_X,
+    SWITCH_CODE_Y,
     SWITCH_CODE_UP,
     SWITCH_CODE_DOWN,
     SWITCH_CODE_LEFT,
@@ -90,10 +91,10 @@ typedef enum
 typedef enum 
 {
     SNES_CODE_UNUSED = -1,
-    SNES_CODE_B,
     SNES_CODE_A,
-    SNES_CODE_Y,
+    SNES_CODE_B,
     SNES_CODE_X,
+    SNES_CODE_Y,
     SNES_CODE_UP,
     SNES_CODE_DOWN,
     SNES_CODE_LEFT,
@@ -108,8 +109,8 @@ typedef enum
 typedef enum 
 {
     N64_CODE_UNUSED = -1,
-    N64_CODE_B,
     N64_CODE_A,
+    N64_CODE_B,
     N64_CODE_CUP,
     N64_CODE_CDOWN,
     N64_CODE_CLEFT,
@@ -271,6 +272,7 @@ typedef struct
 
 #define MAPPER_PROFILE_GLOBAL_ANALOG_SIZE sizeof(mapper_global_analog_s)
 
+void mapper_config_command(remap_cmd_t cmd, webreport_cmd_confirm_t cb);
 void mapper_init();
 mapper_input_s* mapper_get_input();
 

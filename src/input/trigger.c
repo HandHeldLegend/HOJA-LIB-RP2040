@@ -193,6 +193,9 @@ bool trigger_init()
         trigger_config->right_static_output_value   = MAX_ANALOG_OUT;
     }
 
+    if(trigger_config->left_hairpin_value<128) trigger_config->left_hairpin_value=128;
+    if(trigger_config->right_hairpin_value<128) trigger_config->right_hairpin_value=128;
+
     _lt_deadzone = trigger_config->left_min + trigger_config->left_deadzone;
     _lt_scaler = _trigger_calculate_scaler(_lt_deadzone,
         trigger_config->left_max, MAX_ANALOG_OUT);
