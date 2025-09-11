@@ -19,7 +19,7 @@ typedef enum
 } cfg_block_t;
 
 #define CFG_BLOCK_GAMEPAD_VERSION   0x12
-#define CFG_BLOCK_REMAP_VERSION     0x12 
+#define CFG_BLOCK_REMAP_VERSION     0x13
 #define CFG_BLOCK_ANALOG_VERSION    0x11
 #define CFG_BLOCK_RGB_VERSION       0x11
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
@@ -116,19 +116,19 @@ typedef struct
 typedef struct 
 {
     uint8_t     trigger_config_version;
-    uint8_t     trigger_mode_gamecube; // Trigger mode for gamecube only
+    uint8_t     unused; // Now unused
     uint16_t    left_min;
     uint16_t    left_max;
     uint16_t    left_deadzone : 15;
     uint16_t    left_disabled : 1;
-    uint16_t    left_hairpin_value;
-    uint16_t    left_static_output_value;
+    uint16_t    left_hairpin_value; // Threshold for analog->digital
+    uint16_t    left_static_output_value; // Static output value for digital->analog
     uint16_t    right_min;
     uint16_t    right_max;
     uint16_t    right_deadzone : 15;
     uint16_t    right_disabled : 1;
-    uint16_t    right_hairpin_value;
-    uint16_t    right_static_output_value;
+    uint16_t    right_hairpin_value; // Threshold for analog->digital
+    uint16_t    right_static_output_value; // Static output value for digital->analog
     uint8_t     reserved[42];
 } triggerConfig_s;
 
@@ -174,7 +174,9 @@ typedef struct
         uint16_t    r_deadzone_outer; 
         uint16_t    l_snapback_intensity; 
         uint16_t    r_snapback_intensity;
-        uint8_t     reserved[355];
+        uint16_t    l_threshold; // Analog->Digital threshold for left joystick
+        uint16_t    r_threshold; // Analog->Digital threshold for right joystick
+        uint8_t     reserved[351];
 } analogConfig_s;
 
 #define RGB_BRIGHTNESS_MAX 4096
@@ -203,49 +205,29 @@ typedef struct
     uint8_t  reserved[28];
 } gamepadConfig_s;
 
-// Remapping struct used to determine
-// remapping parameters
-typedef struct
-{
-    int8_t dpad_up; // Default 0
-    int8_t dpad_down; // Default 1
-    int8_t dpad_left; // Default 2
-    int8_t dpad_right; // Default 3...
-    int8_t button_a;
-    int8_t button_b;
-    int8_t button_x;
-    int8_t button_y;
-    int8_t trigger_l;
-    int8_t trigger_zl;
-    int8_t trigger_r;
-    int8_t trigger_zr;
-    int8_t button_plus;
-    int8_t button_minus;
-    int8_t button_stick_left;
-    int8_t button_stick_right;
-} buttonRemap_s;
-
-#define BUTTON_REMAP_SIZE sizeof(buttonRemap_s)
-
 typedef struct
 {
     uint8_t remap_config_version;
     // Switch, XInput, SNES, N64, GameCube
-    buttonRemap_s profiles[12]; // SIZE=16
-    uint8_t  reserved[63];
+    int8_t remap_profile_switch[36];
+    int8_t remap_profile_xinput[36];
+    int8_t remap_profile_snes[36];
+    int8_t remap_profile_n64[36];
+    int8_t remap_profile_gamecube[36];
+    uint8_t  reserved[75];
 } remapConfig_s; 
 #pragma pack(pop)
 
 // Byte sizes of our various blocks
-#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) 
-#define REMAP_CFB_SIZE      sizeof(remapConfig_s) 
-#define RGB_CFB_SIZE        sizeof(rgbConfig_s) 
-#define ANALOG_CFB_SIZE     sizeof(analogConfig_s) 
-#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) 
-#define IMU_CFB_SIZE        sizeof(imuConfig_s) 
+#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) //64
+#define REMAP_CFB_SIZE      sizeof(remapConfig_s) // 256
+#define RGB_CFB_SIZE        sizeof(rgbConfig_s) // 256
+#define ANALOG_CFB_SIZE     sizeof(analogConfig_s) // 1024
+#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) //64
+#define IMU_CFB_SIZE        sizeof(imuConfig_s) //32
 #define HAPTIC_CFB_SIZE     sizeof(hapticConfig_s) 
-#define USER_CFB_SIZE       sizeof(userConfig_s)
-#define BATTERY_CFB_SIZE    sizeof(batteryConfig_s)
+#define USER_CFB_SIZE       sizeof(userConfig_s) // 64
+#define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) //16
 
 // Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\

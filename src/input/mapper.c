@@ -5,9 +5,12 @@
 #include "input/trigger.h"
 #include "input/button.h"
 
+#include "utilities/settings.h"
+
 #include "hoja.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 typedef mapper_input_s(*mapper_input_cb)(void);
 
@@ -258,7 +261,6 @@ mapper_input_s _mapper_input = {0};
 
 uint16_t _joystick_thresholds[8] = {1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000};
 uint16_t _trigger_thresholds[2] = {1000, 1000};
-
 uint16_t _trigger_static[2] = {1000, 1000};
 
 // Completed
@@ -949,32 +951,59 @@ static inline void _set_joystick_axis(uint16_t *pos, uint16_t *neg, int16_t valu
 
 void mapper_init()
 {
+    // Check for remap defaults
+    if(remap_config->remap_config_version != CFG_BLOCK_REMAP_VERSION)
+    {
+        memcpy(remap_config->remap_profile_switch, (uint8_t *)&_map_default_switch, sizeof(_map_default_switch));
+        memcpy(remap_config->remap_profile_snes, (uint8_t *)&_map_default_snes, sizeof(_map_default_snes));
+        memcpy(remap_config->remap_profile_n64, (uint8_t *)&_map_default_n64, sizeof(_map_default_n64));
+        memcpy(remap_config->remap_profile_gamecube, (uint8_t *)&_map_default_gamecube, sizeof(_map_default_gamecube));
+        memcpy(remap_config->remap_profile_xinput, (uint8_t *)&_map_default_xinput, sizeof(_map_default_xinput));
+        remap_config->remap_config_version = CFG_BLOCK_REMAP_VERSION;
+    }
+
+    _joystick_thresholds[0] = analog_config->l_threshold;
+    _joystick_thresholds[1] = analog_config->l_threshold;
+    _joystick_thresholds[2] = analog_config->l_threshold;
+    _joystick_thresholds[3] = analog_config->l_threshold;
+
+    _joystick_thresholds[4] = analog_config->r_threshold;
+    _joystick_thresholds[5] = analog_config->r_threshold;
+    _joystick_thresholds[6] = analog_config->r_threshold;
+    _joystick_thresholds[7] = analog_config->r_threshold;
+
+    _trigger_thresholds[0] = trigger_config->left_hairpin_value;
+    _trigger_thresholds[1] = trigger_config->right_hairpin_value;
+
+    _trigger_static[0] = trigger_config->left_static_output_value;
+    _trigger_static[1] = trigger_config->right_static_output_value;
+
     switch(hoja_get_status().gamepad_mode)
     {
         case GAMEPAD_MODE_SWPRO:
         _mapper_input_cb = _mapper_task_switch;
-        _mapper_profile = &_map_default_switch;
+        _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_switch;
         break;
 
         case GAMEPAD_MODE_SNES:
         _mapper_input_cb = _mapper_task_snes;
-        _mapper_profile = &_map_default_snes;
+        _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_snes;
         break;
 
         case GAMEPAD_MODE_N64:
         _mapper_input_cb = _mapper_task_n64;
-        _mapper_profile = &_map_default_n64;
+        _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_n64;
         break;
 
         case GAMEPAD_MODE_GAMECUBE:
         case GAMEPAD_MODE_GCUSB:
         _mapper_input_cb = _mapper_task_gamecube;
-        _mapper_profile = &_map_default_gamecube;
+        _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_gamecube;
         break;
 
         case GAMEPAD_MODE_XINPUT:
         _mapper_input_cb = _mapper_task_xinput;
-        _mapper_profile = &_map_default_xinput;
+        _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_xinput;
         break;
 
         default:

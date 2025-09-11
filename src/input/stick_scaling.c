@@ -31,9 +31,6 @@
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
 
-
-#define CROSSOVER_DEADZONE 750
-
 typedef struct 
 {
   float distance;

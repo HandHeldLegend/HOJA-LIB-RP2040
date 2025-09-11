@@ -18,6 +18,95 @@
 
 #include "board_config.h"
 
+// SEWN (South, East, West, North)
+#if (defined(HOJA_INPUT_ENABLE_SEWN) && HOJA_INPUT_ENABLE_SEWN == 1)
+    #define SINPUT_MASK_SEWN 0x0F
+#else
+    #define SINPUT_MASK_SEWN 0
+#endif
+
+// DPAD (Up, Down, Left, Right)
+#if (defined(HOJA_INPUT_ENABLE_DPAD) && HOJA_INPUT_ENABLE_DPAD == 1)
+    #define SINPUT_MASK_DPAD 0xF0
+#else
+    #define SINPUT_MASK_DPAD 0
+#endif
+
+// Bumpers (L1, R1)
+#if (defined(HOJA_INPUT_ENABLE_BUMPERS) && HOJA_INPUT_ENABLE_BUMPERS == 1)
+    #define SINPUT_MASK_BUMPERS 0x0C
+#else
+    #define SINPUT_MASK_BUMPERS 0
+#endif
+
+// Triggers (L2, R2)
+#if (defined(HOJA_INPUT_ENABLE_TRIGGERS) && HOJA_INPUT_ENABLE_TRIGGERS == 1)
+    #define SINPUT_MASK_TRIGGERS 0x30
+#else
+    #define SINPUT_MASK_TRIGGERS 0
+#endif
+
+// Start + Select
+#if (defined(HOJA_INPUT_ENABLE_STARTSELECT) && HOJA_INPUT_ENABLE_STARTSELECT == 1)
+    #define SINPUT_MASK_STARTSELECT 0x03
+#else
+    #define SINPUT_MASK_STARTSELECT 0
+#endif
+
+// Home
+#if (defined(HOJA_INPUT_ENABLE_HOME) && HOJA_INPUT_ENABLE_HOME == 1)
+    #define SINPUT_MASK_HOME 0x04
+#else
+    #define SINPUT_MASK_HOME 0
+#endif
+
+// Capture
+#if (defined(HOJA_INPUT_ENABLE_CAPTURE) && HOJA_INPUT_ENABLE_CAPTURE == 1)
+    #define SINPUT_MASK_CAPTURE 0x08
+#else
+    #define SINPUT_MASK_CAPTURE 0
+#endif
+
+// Stick Click: L3
+#if defined(HOJA_ADC_LX_CFG)
+    #define SINPUT_MASK_LSTICK 0x01
+#else
+    #define SINPUT_MASK_LSTICK 0
+#endif
+
+// Stick Click: R3
+#if defined(HOJA_ADC_RX_CFG)
+    #define SINPUT_MASK_RSTICK 0x02
+#else
+    #define SINPUT_MASK_RSTICK 0
+#endif
+
+// Upper Grips (L4, R4)
+#if (defined(HOJA_INPUT_ENABLE_UPPERGRIPS) && HOJA_INPUT_ENABLE_UPPERGRIPS == 1)
+    #define SINPUT_MASK_UPPERGRIPS 0xC0
+#else
+    #define SINPUT_MASK_UPPERGRIPS 0
+#endif
+
+// Lower Grips (L5, R5)
+#if (defined(HOJA_INPUT_ENABLE_LOWERGRIPS) && HOJA_INPUT_ENABLE_LOWERGRIPS == 1)
+    #define SINPUT_MASK_LOWERGRIPS 0x30
+#else
+    #define SINPUT_MASK_LOWERGRIPS 0
+#endif
+
+// Power
+#if (defined(HOJA_INPUT_ENABLE_POWER) && HOJA_INPUT_ENABLE_POWER == 1)
+    #define SINPUT_MASK_POWER 0x01
+#else 
+    #define SINPUT_MASK_POWER 0
+#endif
+
+#define SINPUT_MASK_0 ( SINPUT_MASK_SEWN | SINPUT_MASK_DPAD )
+#define SINPUT_MASK_1 ( SINPUT_MASK_LSTICK | SINPUT_MASK_RSTICK | SINPUT_MASK_TRIGGERS | SINPUT_MASK_BUMPERS | SINPUT_MASK_UPPERGRIPS )
+#define SINPUT_MASK_2 ( SINPUT_MASK_STARTSELECT | SINPUT_MASK_HOME | SINPUT_MASK_CAPTURE | SINPUT_MASK_LOWERGRIPS )
+#define SINPUT_MASK_3 ( SINPUT_MASK_POWER )
+
 const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bLength = 18,
     .bDescriptorType = TUSB_DESC_DEVICE,
@@ -283,16 +372,10 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
-    #if defined(HOJA_SINPUT_BUTTON_USAGE_MASK)
-    const uint8_t sinput_usage_mask[4] = HOJA_SINPUT_BUTTON_USAGE_MASK;
-    #else 
-    const uint8_t sinput_usage_mask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-    #endif 
-
-    buffer[12] = sinput_usage_mask[0];
-    buffer[13] = sinput_usage_mask[1];
-    buffer[14] = sinput_usage_mask[2];
-    buffer[15] = sinput_usage_mask[3];
+    buffer[12] = SINPUT_MASK_0;
+    buffer[13] = SINPUT_MASK_1;
+    buffer[14] = SINPUT_MASK_2;
+    buffer[15] = SINPUT_MASK_3;
 
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count

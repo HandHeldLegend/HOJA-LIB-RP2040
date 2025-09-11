@@ -5,8 +5,7 @@
 #include "input_shared_types.h"
 #include "hoja.h"
 
-#include "input/analog.h"
-#include "input/button.h"
+#include "input/mapper.h"
 
 #include "board_config.h"
 
@@ -41,23 +40,25 @@ typedef struct
     {
         struct
         {
-            uint8_t padding : 4;
-            uint8_t r   : 1;
-            uint8_t l   : 1;
-            uint8_t x   : 1;
-            uint8_t a   : 1;
-            uint8_t dright  : 1;
-            uint8_t dleft   : 1;
-            uint8_t ddown   : 1;
-            uint8_t dup     : 1;
-            uint8_t start   : 1;
-            uint8_t select  : 1;
-            uint8_t y : 1;
-            uint8_t b : 1;
+            uint32_t padding : 20;
+            uint32_t r   : 1;
+            uint32_t l   : 1;
+            uint32_t x   : 1;
+            uint32_t a   : 1;
+            uint32_t dright  : 1;
+            uint32_t dleft   : 1;
+            uint32_t ddown   : 1;
+            uint32_t dup     : 1;
+            uint32_t start   : 1;
+            uint32_t select  : 1;
+            uint32_t y : 1;
+            uint32_t b : 1;
         };
-        uint16_t value;
+        uint32_t value;
     };
 } nesbus_hal_input_s;
+
+#define NESBUSHAL_INPUT_SIZE sizeof(nesbus_hal_input_s)
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
@@ -79,7 +80,6 @@ static void _nspi_isr_handler(void)
     pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
     pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_startserial));
     pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
-    _nspi_clear = true;
   }
 }
 
@@ -110,7 +110,7 @@ bool nesbus_hal_init()
 
 void nesbus_hal_task(uint64_t timestamp)
 {   
-    static nesbus_hal_input_s   buffer  = {.value = 0xFFFF};
+    static nesbus_hal_input_s tmp  = {.value = 0xFFFF};
     static interval_s interval = {0};
 
     if(!_nspi_running)
@@ -124,9 +124,27 @@ void nesbus_hal_task(uint64_t timestamp)
         {
             hoja_set_connected_status(CONN_STATUS_PLAYER_1);
 
+            mapper_input_s *input = mapper_get_input();
+
+            tmp.a = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
+            tmp.b = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
+            tmp.x = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_X);
+            tmp.y = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_Y);
+
+            tmp.l = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_L);
+            tmp.r = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_R);
+
+            tmp.start = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
+            tmp.select = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+
+            tmp.dup = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
+            tmp.ddown = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
+            tmp.dleft = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
+            tmp.dright = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+
             if(_nspi_clear)
             {
-                _nspi_buffer = buffer.value<<16;
+                _nspi_buffer = tmp.value;
                 _nspi_clear = false;
             }
         }

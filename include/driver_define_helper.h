@@ -2,6 +2,8 @@
 #define DRIVER_DEFINE_HELPER_H
 
 #include <stdint.h>
+#include "input/mapper.h"
+
     typedef enum {
         ADC_CH_LX,
         ADC_CH_LY,
@@ -73,6 +75,22 @@
         uint8_t ch_invert;
         adc_driver_cfg_s *driver_cfg;
     };
+
+
+    // ------------------------------
+    // Helper macro: convert name to mask
+    // ------------------------------
+    #define HOJA_MASK(btn) (1u << HOJA_BTN_##btn)
+
+    // ------------------------------
+    // Macro to define input mask
+    // Usage: just list buttons you want enabled
+    // ------------------------------
+    #define HOJA_INPUT_MASK(...) (0u __VA_ARGS__)
+
+    // Helper to expand a list of buttons
+    #define HOJA_ENABLE_INPUT(code) | HOJA_MASK(code)
+
 
     typedef uint16_t(*adc_read_fn_t)(adc_channel_cfg_s *cfg);
     
