@@ -298,7 +298,7 @@ mapper_input_s _mapper_task_switch()
             break;
 
             // Digital Output
-            case SWITCH_CODE_B ... SWITCH_CODE_RS:
+            case 0 ... SWITCH_CODE_RS:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 
@@ -427,7 +427,7 @@ mapper_input_s _mapper_task_snes()
             break;
 
             // Digital Output
-            case SNES_CODE_B ... SNES_CODE_SELECT:
+            case 0 ... SNES_CODE_SELECT:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
         }
@@ -531,7 +531,7 @@ mapper_input_s _mapper_task_n64()
             break;
 
             // Digital Output
-            case N64_CODE_B ... N64_CODE_START:
+            case 0 ... N64_CODE_START:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 
@@ -660,7 +660,7 @@ mapper_input_s _mapper_task_gamecube()
             break;
 
             // Digital Output
-            case GAMECUBE_CODE_B ... GAMECUBE_CODE_START:
+            case 0 ... GAMECUBE_CODE_R:
             tmp.digital_inputs |= (1 << (uint8_t)map_code_output);
             break;
 
