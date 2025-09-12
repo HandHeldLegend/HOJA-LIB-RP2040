@@ -80,10 +80,6 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     uint8_t rx8 = (uint8_t)GCUSB_CLAMP(rx + 128, 0, 255);
     uint8_t ry8 = (uint8_t)GCUSB_CLAMP(ry + 128, 0, 255);
 
-    // Trigger with SP function conversion
-    uint8_t lt8 = GCUSB_CLAMP(input->triggers[0] >> 4, 0, 255);
-    uint8_t rt8 = GCUSB_CLAMP(input->triggers[1] >> 4, 0, 255);
-
     data.button_a = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_A);
     data.button_b = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_B);
     data.button_x = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_X);
@@ -92,6 +88,9 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_start   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_START);
     data.button_l       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_L);
     data.button_r       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_R);
+
+    uint8_t lt8 = data.button_l ? 255 : GCUSB_CLAMP(input->triggers[0] >> 4, 0, 255);
+    uint8_t rt8 = data.button_r ? 255 : GCUSB_CLAMP(input->triggers[1] >> 4, 0, 255);
 
     data.dpad_down   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_DOWN);
     data.dpad_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_LEFT);

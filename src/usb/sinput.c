@@ -535,16 +535,41 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_l_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
     data.button_r_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
 
-    data.button_l_trigger  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
-    data.button_r_trigger  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
-
     data.button_l_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LG_UPPER);
     data.button_r_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RG_UPPER);
 
     data.button_power = input->button_shipping;
 
-    data.trigger_l = sinput_scale_trigger(input->triggers[0]);
-    data.trigger_r = sinput_scale_trigger(input->triggers[1]);
+    int16_t l_analog = sinput_scale_trigger(input->triggers[0]);
+    int16_t r_analog = sinput_scale_trigger(input->triggers[1]);
+    bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
+    bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+
+    if(input->triggers[0] == 0)
+    {
+        if(l_digital)
+            data.trigger_l = INT16_MAX;
+        else 
+            data.trigger_l = INT16_MIN;
+    }
+    else 
+    {
+        data.trigger_l = l_analog;
+        data.button_l_trigger = l_digital;
+    }
+
+    if(input->triggers[1] == 0)
+    {
+        if(r_digital)
+            data.trigger_r = INT16_MAX;
+        else 
+            data.trigger_r = INT16_MIN;
+    }
+    else 
+    {
+        data.trigger_r = r_analog;
+        data.button_r_trigger = r_digital;
+    }
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 

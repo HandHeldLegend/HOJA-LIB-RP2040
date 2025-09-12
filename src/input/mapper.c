@@ -140,7 +140,7 @@ mapper_profile_s _map_default_n64 = {
     .lt      = N64_CODE_Z,
     .rt      = N64_CODE_R,
     .start   = N64_CODE_START,
-    .select  = N64_CODE_UNUSED,
+    .select  = N64_CODE_L,
     .home    = N64_CODE_UNUSED,
     .capture = N64_CODE_UNUSED,
     .ls      = N64_CODE_UNUSED,
@@ -233,8 +233,8 @@ mapper_profile_s _map_default_xinput = {
     .right   = XINPUT_CODE_RIGHT,
     .lb      = XINPUT_CODE_LB,
     .rb      = XINPUT_CODE_RB,
-    .lt      = XINPUT_CODE_UNUSED,
-    .rt      = XINPUT_CODE_UNUSED,
+    .lt      = XINPUT_CODE_LT_FULL,
+    .rt      = XINPUT_CODE_RT_FULL,
     .start   = XINPUT_CODE_START,
     .select  = XINPUT_CODE_BACK,
     .home    = XINPUT_CODE_GUIDE,
@@ -816,7 +816,7 @@ mapper_input_s _mapper_task_xinput()
             break;
 
             // Digital Output
-            case XINPUT_CODE_A ... XINPUT_CODE_RS:
+            case XINPUT_CODE_A ... XINPUT_CODE_RT_FULL:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 

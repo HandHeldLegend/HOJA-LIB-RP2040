@@ -45,8 +45,8 @@ void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_stick_l = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_LS);
     data.button_stick_r = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_RS);
 
-    data.analog_trigger_l = XINPUT_CLAMP(input->triggers[0] >>  4, 0, 255);
-    data.analog_trigger_r = XINPUT_CLAMP(input->triggers[1] >>  4, 0, 255);
+    data.analog_trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_LT_FULL) ? 255 : XINPUT_CLAMP(input->triggers[0] >>  4, 0, 255);
+    data.analog_trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, XINPUT_CODE_RT_FULL) ? 255 : XINPUT_CLAMP(input->triggers[1] >>  4, 0, 255);
 
     tud_xinput_report(&data, XID_REPORT_LEN);
 }
