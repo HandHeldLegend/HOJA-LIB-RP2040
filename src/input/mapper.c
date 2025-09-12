@@ -259,9 +259,17 @@ mapper_profile_s _map_default_xinput = {
 
 mapper_input_s _mapper_input = {0};
 
-uint16_t *_joystick_thresholds[8] = {NULL};
-uint16_t *_trigger_thresholds[2] = {NULL};
-uint16_t *_trigger_static[2] = {NULL};
+uint16_t _base_stick_threshold_l = 1500;
+uint16_t _base_stick_threshold_r = 1500;
+uint16_t _base_trigger_threshold_l = 1000;
+uint16_t _base_trigger_threshold_r = 1000;
+uint16_t _base_trigger_static_l = 0xFFF;
+uint16_t _base_trigger_static_r = 0xFFF;
+
+uint16_t *_joystick_thresholds[8] = {&_base_stick_threshold_l, &_base_stick_threshold_l, &_base_stick_threshold_l, &_base_stick_threshold_l,
+                                     &_base_stick_threshold_r, &_base_stick_threshold_r, &_base_stick_threshold_r, &_base_stick_threshold_r};
+uint16_t *_trigger_thresholds[2] = {&_base_trigger_threshold_l, &_base_trigger_threshold_r};
+uint16_t *_trigger_static[2] = {&_base_trigger_static_l, &_base_trigger_static_r};
 
 // Completed
 mapper_input_s _mapper_task_switch()
@@ -988,21 +996,14 @@ void mapper_init()
         remap_config->remap_config_version = CFG_BLOCK_REMAP_VERSION;
     }
 
-    _joystick_thresholds[0] = &analog_config->l_threshold;
-    _joystick_thresholds[1] = &analog_config->l_threshold;
-    _joystick_thresholds[2] = &analog_config->l_threshold;
-    _joystick_thresholds[3] = &analog_config->l_threshold;
+    _base_stick_threshold_l = 1200; //analog_config->l_threshold;
+    _base_stick_threshold_r = 1200; //analog_config->r_threshold;
 
-    _joystick_thresholds[4] = &analog_config->r_threshold;
-    _joystick_thresholds[5] = &analog_config->r_threshold;
-    _joystick_thresholds[6] = &analog_config->r_threshold;
-    _joystick_thresholds[7] = &analog_config->r_threshold;
+    _base_trigger_threshold_l = trigger_config->left_hairpin_value;
+    _base_trigger_threshold_r = trigger_config->right_hairpin_value;
 
-    _trigger_thresholds[0] = &trigger_config->left_hairpin_value;
-    _trigger_thresholds[1] = &trigger_config->right_hairpin_value;
-
-    _trigger_static[0] = &trigger_config->left_static_output_value;
-    _trigger_static[1] = &trigger_config->right_static_output_value;
+    _base_trigger_static_l = trigger_config->left_static_output_value;
+    _base_trigger_static_r = trigger_config->right_static_output_value;
 
     switch(hoja_get_status().gamepad_mode)
     {
