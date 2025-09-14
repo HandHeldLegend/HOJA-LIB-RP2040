@@ -80,6 +80,7 @@ static void _nspi_isr_handler(void)
     pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
     pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_startserial));
     pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
+    _nspi_clear = true;
   }
 }
 

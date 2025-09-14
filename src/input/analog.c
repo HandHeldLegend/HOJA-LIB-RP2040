@@ -214,6 +214,8 @@ void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *o
     // Normalize angle to 0-360 range
     angle = fmodf(angle, 360.0f);
     if (angle < 0) angle += 360.0f;
+
+    angle = roundf(angle);
     
     // Convert angle to radians
     float angle_radians = angle * M_PI / 180.0f;
