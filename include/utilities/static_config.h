@@ -45,8 +45,7 @@ typedef struct
 
 typedef struct 
 {
-    uint16_t    main_buttons;
-    uint8_t     system_buttons;
+    uint32_t remap_mask;
 } buttonInfoStatic_s;
 
 typedef struct 

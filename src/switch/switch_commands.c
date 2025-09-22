@@ -559,6 +559,7 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
         _switch_command_buffer[23] = imu.gz_8h;
 
         // Group 2
+        memcpy(&_switch_command_buffer[24], &_switch_command_buffer[12], 12);
         /*
         _switch_command_buffer[24] = imu[1].ay_8l; // Y-axis
         _switch_command_buffer[25] = imu[1].ay_8h;
@@ -572,8 +573,11 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
         _switch_command_buffer[33] = imu[1].gx_8h;
         _switch_command_buffer[34] = imu[1].gz_8l;
         _switch_command_buffer[35] = imu[1].gz_8h;
+        */
 
         // Group 3
+        memcpy(&_switch_command_buffer[36], &_switch_command_buffer[12], 12);
+        /*
         _switch_command_buffer[36] = imu[2].ay_8l; // Y-axis
         _switch_command_buffer[37] = imu[2].ay_8h;
         _switch_command_buffer[38] = imu[2].ax_8l; // X-axis

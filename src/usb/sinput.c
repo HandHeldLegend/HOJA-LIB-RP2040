@@ -6,9 +6,9 @@
 #include "hoja.h"
 #include "input/button.h"
 #include "input/analog.h"
-#include "input/remap.h"
 #include "input/imu.h"
 #include "input/trigger.h"
+#include "input/mapper.h"
 
 #include "utilities/pcm.h"
 #include "utilities/static_config.h"
@@ -17,6 +17,95 @@
 #include "devices/battery.h"
 
 #include "board_config.h"
+
+// SEWN (South, East, West, North)
+#if (defined(HOJA_INPUT_ENABLE_SEWN) && HOJA_INPUT_ENABLE_SEWN == 1)
+    #define SINPUT_MASK_SEWN 0x0F
+#else
+    #define SINPUT_MASK_SEWN 0
+#endif
+
+// DPAD (Up, Down, Left, Right)
+#if (defined(HOJA_INPUT_ENABLE_DPAD) && HOJA_INPUT_ENABLE_DPAD == 1)
+    #define SINPUT_MASK_DPAD 0xF0
+#else
+    #define SINPUT_MASK_DPAD 0
+#endif
+
+// Bumpers (L1, R1)
+#if (defined(HOJA_INPUT_ENABLE_BUMPERS) && HOJA_INPUT_ENABLE_BUMPERS == 1)
+    #define SINPUT_MASK_BUMPERS 0x0C
+#else
+    #define SINPUT_MASK_BUMPERS 0
+#endif
+
+// Triggers (L2, R2)
+#if (defined(HOJA_INPUT_ENABLE_TRIGGERS) && HOJA_INPUT_ENABLE_TRIGGERS == 1)
+    #define SINPUT_MASK_TRIGGERS 0x30
+#else
+    #define SINPUT_MASK_TRIGGERS 0
+#endif
+
+// Start + Select
+#if (defined(HOJA_INPUT_ENABLE_STARTSELECT) && HOJA_INPUT_ENABLE_STARTSELECT == 1)
+    #define SINPUT_MASK_STARTSELECT 0x03
+#else
+    #define SINPUT_MASK_STARTSELECT 0
+#endif
+
+// Home
+#if (defined(HOJA_INPUT_ENABLE_HOME) && HOJA_INPUT_ENABLE_HOME == 1)
+    #define SINPUT_MASK_HOME 0x04
+#else
+    #define SINPUT_MASK_HOME 0
+#endif
+
+// Capture
+#if (defined(HOJA_INPUT_ENABLE_CAPTURE) && HOJA_INPUT_ENABLE_CAPTURE == 1)
+    #define SINPUT_MASK_CAPTURE 0x08
+#else
+    #define SINPUT_MASK_CAPTURE 0
+#endif
+
+// Stick Click: L3
+#if defined(HOJA_ADC_LX_CFG)
+    #define SINPUT_MASK_LSTICK 0x01
+#else
+    #define SINPUT_MASK_LSTICK 0
+#endif
+
+// Stick Click: R3
+#if defined(HOJA_ADC_RX_CFG)
+    #define SINPUT_MASK_RSTICK 0x02
+#else
+    #define SINPUT_MASK_RSTICK 0
+#endif
+
+// Upper Grips (L4, R4)
+#if (defined(HOJA_INPUT_ENABLE_UPPERGRIPS) && HOJA_INPUT_ENABLE_UPPERGRIPS == 1)
+    #define SINPUT_MASK_UPPERGRIPS 0xC0
+#else
+    #define SINPUT_MASK_UPPERGRIPS 0
+#endif
+
+// Lower Grips (L5, R5)
+#if (defined(HOJA_INPUT_ENABLE_LOWERGRIPS) && HOJA_INPUT_ENABLE_LOWERGRIPS == 1)
+    #define SINPUT_MASK_LOWERGRIPS 0x30
+#else
+    #define SINPUT_MASK_LOWERGRIPS 0
+#endif
+
+// Power
+#if (defined(HOJA_INPUT_ENABLE_POWER) && HOJA_INPUT_ENABLE_POWER == 1)
+    #define SINPUT_MASK_POWER 0x01
+#else 
+    #define SINPUT_MASK_POWER 0
+#endif
+
+#define SINPUT_MASK_0 ( SINPUT_MASK_SEWN | SINPUT_MASK_DPAD )
+#define SINPUT_MASK_1 ( SINPUT_MASK_LSTICK | SINPUT_MASK_RSTICK | SINPUT_MASK_TRIGGERS | SINPUT_MASK_BUMPERS | SINPUT_MASK_UPPERGRIPS )
+#define SINPUT_MASK_2 ( SINPUT_MASK_STARTSELECT | SINPUT_MASK_HOME | SINPUT_MASK_CAPTURE | SINPUT_MASK_LOWERGRIPS )
+#define SINPUT_MASK_3 ( SINPUT_MASK_POWER )
 
 const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bLength = 18,
@@ -283,16 +372,10 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
-    #if defined(HOJA_SINPUT_BUTTON_USAGE_MASK)
-    const uint8_t sinput_usage_mask[4] = HOJA_SINPUT_BUTTON_USAGE_MASK;
-    #else 
-    const uint8_t sinput_usage_mask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-    #endif 
-
-    buffer[12] = sinput_usage_mask[0];
-    buffer[13] = sinput_usage_mask[1];
-    buffer[14] = sinput_usage_mask[2];
-    buffer[15] = sinput_usage_mask[3];
+    buffer[12] = SINPUT_MASK_0;
+    buffer[13] = SINPUT_MASK_1;
+    buffer[14] = SINPUT_MASK_2;
+    buffer[15] = SINPUT_MASK_3;
 
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count
@@ -351,7 +434,7 @@ void _sinput_hid_handle_command(uint8_t command, const uint8_t *data, hid_report
     _sinput_current_command = 0;
 }
 
-int16_t scale_u12_to_s16(uint16_t val)
+int16_t sinput_scale_trigger(uint16_t val)
 {
     if (val > 4095) val = 4095; // Clamp just in case
 
@@ -360,23 +443,17 @@ int16_t scale_u12_to_s16(uint16_t val)
     return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
 }
 
-#define CLAMP_INT16(x) (((x) > INT16_MAX) ? INT16_MAX : (((x) < INT16_MIN) ? INT16_MIN : (x)))
+#define SINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-// For signed 12-bit inputs centered on 0
-#define SCALE_SIGNED12(value, invert) \
-    CLAMP_INT16(((int32_t)((invert) ? -(value) : (value)) * 16))
+int16_t sinput_scale_axis(int16_t input_axis)
+{   
+    return SINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
+}
 
 void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static uint8_t report_data[64] = {0};
-    static sinput_input_s data = {0};
-    static button_data_s buttons = {0};
-    static analog_data_s analog  = {0};
-    static trigger_data_s triggers = {0};
-
-    // Update input data
-    remap_get_processed_input(&buttons, &triggers);
-    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+    static sinput_input_s data;
 
     battery_status_s stat = battery_get_status();
     data.charge_percent = 100; // 100 Percent
@@ -403,6 +480,8 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
         data.charge_percent = 100; // 100 Percent
     }
 
+    mapper_input_s *input = mapper_get_input();
+
     //#define HOJA_ANALOG_POLLING_TEST
     #if defined(HOJA_ANALOG_POLLING_TEST)
     // For testing purposes, use the analog test values
@@ -415,10 +494,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_x = 0;
     data.right_y = 0;
     #else
-    data.left_x = SCALE_SIGNED12(analog.lx, false);
-    data.left_y = SCALE_SIGNED12(analog.ly, true);
-    data.right_x = SCALE_SIGNED12(analog.rx, false);
-    data.right_y = SCALE_SIGNED12(analog.ry, true);
+    data.left_x = sinput_scale_axis(input->joysticks_combined[0]);
+    data.left_y = sinput_scale_axis(-input->joysticks_combined[1]);
+    data.right_x = sinput_scale_axis(input->joysticks_combined[2]);
+    data.right_y = sinput_scale_axis(-input->joysticks_combined[3]);
     #endif
 
     static imu_data_s imu = {0};
@@ -435,52 +514,62 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.imu_timestamp_us = (uint32_t) (imu.timestamp & UINT32_MAX);
 
     // Buttons
+    data.button_east   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
+    data.button_south  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
+    data.button_north  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_NORTH);
+    data.button_west   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
 
-    #if defined(HOJA_SINPUT_GAMEPAD_FACESTYLE)
-    #if (HOJA_SINPUT_GAMEPAD_FACESTYLE == 2) // GameCube Face Style
-    data.button_east   = buttons.button_x;
-    data.button_south  = buttons.button_a;
-    data.button_north  = buttons.button_y;
-    data.button_west   = buttons.button_b;
-    #else
-    data.button_east   = buttons.button_a;
-    data.button_south  = buttons.button_b;
-    data.button_north  = buttons.button_x;
-    data.button_west   = buttons.button_y;
-    #endif 
-    #else 
-    data.button_east   = buttons.button_a;
-    data.button_south  = buttons.button_b;
-    data.button_north  = buttons.button_x;
-    data.button_west   = buttons.button_y;
-    #endif
+    data.button_stick_left  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LS);
+    data.button_stick_right = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RS);
 
-    data.button_stick_left  = buttons.button_stick_left;
-    data.button_stick_right = buttons.button_stick_right;
+    data.button_start  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_START);
+    data.button_select = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SELECT);
+    data.button_guide  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_HOME);
+    data.button_share  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_CAPTURE);
 
-    data.button_start  = buttons.button_plus;
-    data.button_select = buttons.button_minus;
-    data.button_guide  = buttons.button_home;
-    data.button_share  = buttons.button_capture;
+    data.dpad_down  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_DOWN);
+    data.dpad_up    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_UP);
+    data.dpad_left  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LEFT);
+    data.dpad_right = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RIGHT);
 
-    data.dpad_down  = buttons.dpad_down;
-    data.dpad_up    = buttons.dpad_up;
-    data.dpad_left  = buttons.dpad_left;
-    data.dpad_right = buttons.dpad_right;
+    data.button_l_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
+    data.button_r_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
 
-    data.button_l_shoulder = buttons.trigger_l;
-    data.button_r_shoulder = buttons.trigger_r;
+    data.button_l_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LG_UPPER);
+    data.button_r_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RG_UPPER);
 
-    data.button_l_trigger  = buttons.trigger_zl;
-    data.button_r_trigger  = buttons.trigger_zr;
+    data.button_power = input->button_shipping;
 
-    data.button_l_paddle_1 = buttons.trigger_gl;
-    data.button_r_paddle_1 = buttons.trigger_gr;
+    int16_t l_analog = sinput_scale_trigger(input->triggers[0]);
+    int16_t r_analog = sinput_scale_trigger(input->triggers[1]);
+    bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
+    bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
 
-    data.button_power = buttons.button_shipping;
+    if(input->triggers[0] == 0)
+    {
+        if(l_digital)
+            data.trigger_l = INT16_MAX;
+        else 
+            data.trigger_l = INT16_MIN;
+    }
+    else 
+    {
+        data.trigger_l = l_analog;
+        data.button_l_trigger = l_digital;
+    }
 
-    data.trigger_l = scale_u12_to_s16(triggers.left_analog);
-    data.trigger_r = scale_u12_to_s16(triggers.right_analog);
+    if(input->triggers[1] == 0)
+    {
+        if(r_digital)
+            data.trigger_r = INT16_MAX;
+        else 
+            data.trigger_r = INT16_MIN;
+    }
+    else 
+    {
+        data.trigger_r = r_analog;
+        data.button_r_trigger = r_digital;
+    }
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 

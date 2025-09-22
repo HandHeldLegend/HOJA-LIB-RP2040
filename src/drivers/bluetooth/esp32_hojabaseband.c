@@ -21,11 +21,9 @@
 
 #include "board_config.h"
 
-#include "input/button.h"
-#include "input/analog.h"
+#include "input/mapper.h"
 #include "input/imu.h"
-#include "input/trigger.h"
-#include "input/remap.h"
+
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
@@ -119,10 +117,10 @@ typedef struct
             uint8_t dpad_left   : 1;
             uint8_t dpad_right  : 1;
             // Buttons
-            uint8_t button_a    : 1;
-            uint8_t button_b    : 1;
-            uint8_t button_x    : 1;
-            uint8_t button_y    : 1;
+            uint8_t button_south : 1; // Switch B
+            uint8_t button_east : 1; // Switch A
+            uint8_t button_west : 1; // Switch Y
+            uint8_t button_north : 1; // Switch X
 
             // Triggers
             uint8_t trigger_l   : 1;
@@ -540,25 +538,19 @@ void esp32hoja_task(uint64_t timestamp)
 
         if(read_write)
         {
-            // Update input states
-            static button_data_s   buttons = {0};
-            static analog_data_s   analog  = {0};
-            static trigger_data_s  triggers = {0};
-
-            analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-            remap_get_processed_input(&buttons, &triggers);
+            mapper_input_s *input = mapper_get_input();
 
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
-            input_data.buttons_all      = buttons.buttons_all;
-            input_data.buttons_system   = buttons.buttons_system;
+            input_data.buttons_all      = 0;//buttons.buttons_all;
+            input_data.buttons_system   = 0;//buttons.buttons_system;
 
-            input_data.lx = (uint16_t) (analog.lx+2048);
-            input_data.ly = (uint16_t) (analog.ly+2048);
-            input_data.rx = (uint16_t) (analog.rx+2048);
-            input_data.ry = (uint16_t) (analog.ry+2048);
+            input_data.lx = (uint16_t) (input->joysticks_combined[0] + 2048);
+            input_data.ly = (uint16_t) (input->joysticks_combined[1] + 2048);
+            input_data.rx = (uint16_t) (input->joysticks_combined[2] + 2048);
+            input_data.ry = (uint16_t) (input->joysticks_combined[3] + 2048);
 
             // Clamp values between 0 and 4095
             input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
@@ -566,8 +558,63 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
             input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
 
-            input_data.lt = (uint16_t) triggers.left_analog;
-            input_data.rt = (uint16_t) triggers.right_analog;
+            input_data.lt = (uint16_t) input->triggers[0];
+            input_data.rt = (uint16_t) input->triggers[1];
+
+            switch(hoja_get_status().gamepad_mode)
+            {
+                default:
+                case GAMEPAD_MODE_SWPRO:
+                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_B);
+                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_A);
+                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_Y);
+                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_X);
+
+                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_DOWN);
+                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RIGHT);
+                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LEFT);
+                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_UP);
+
+                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_MINUS);
+                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_PLUS);
+                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_HOME);
+                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_CAPTURE);
+
+                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
+                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
+
+                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_R);
+                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_L);
+                
+                input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LZ);
+                input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
+                break;
+                case GAMEPAD_MODE_SINPUT:
+                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
+                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
+                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
+                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_NORTH);
+
+                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_DOWN);
+                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RIGHT);
+                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LEFT);
+                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_UP);
+
+                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SELECT);
+                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_START);
+                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_HOME);
+                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_CAPTURE);
+
+                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LS);
+                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RS);
+
+                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
+                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
+                
+                input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
+                input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+                break;
+            }
 
             static imu_data_s imu = {0};
             imu_access_safe(&imu);

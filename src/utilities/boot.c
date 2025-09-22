@@ -101,26 +101,70 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
             thisMode    = GAMEPAD_MODE_GAMECUBE;
             thisMethod  = GAMEPAD_METHOD_WIRED;
         }
-        else if(buttons.button_a)
+#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
+        else if(buttons.button_east)
         {
             thisMode            = GAMEPAD_MODE_SWPRO;
             thisMethod          = GAMEPAD_METHOD_AUTO;
         }
-        else if(buttons.button_b)
+        else if(buttons.button_south)
         {
             thisMode            = GAMEPAD_MODE_SINPUT;
             thisMethod          = GAMEPAD_METHOD_AUTO; 
         }
-        else if(buttons.button_x)
+        else if(buttons.button_north)
         {
             thisMode            = GAMEPAD_MODE_XINPUT;
             thisMethod          = GAMEPAD_METHOD_AUTO; 
         }
-        else if(buttons.button_y)
+        else if(buttons.button_west)
         {
             thisMode    = GAMEPAD_MODE_GCUSB;
             thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
         }
+#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
+        else if(buttons.button_south)
+        {
+            thisMode            = GAMEPAD_MODE_SWPRO;
+            thisMethod          = GAMEPAD_METHOD_AUTO;
+        }
+        else if(buttons.button_west)
+        {
+            thisMode            = GAMEPAD_MODE_SINPUT;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
+        }
+        else if(buttons.button_east)
+        {
+            thisMode            = GAMEPAD_MODE_XINPUT;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
+        }
+        else if(buttons.button_north)
+        {
+            thisMode    = GAMEPAD_MODE_GCUSB;
+            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        }
+#else 
+        else if(buttons.button_south)
+        {
+            thisMode            = GAMEPAD_MODE_SWPRO;
+            thisMethod          = GAMEPAD_METHOD_AUTO;
+        }
+        else if(buttons.button_east)
+        {
+            thisMode            = GAMEPAD_MODE_SINPUT;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
+        }
+        else if(buttons.button_west)
+        {
+            thisMode            = GAMEPAD_MODE_XINPUT;
+            thisMethod          = GAMEPAD_METHOD_AUTO; 
+        }
+        else if(buttons.button_north)
+        {
+            thisMode    = GAMEPAD_MODE_GCUSB;
+            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+        }
+#endif 
     }
 
     // Check reboot memory for any overrides for buttons and whatnot

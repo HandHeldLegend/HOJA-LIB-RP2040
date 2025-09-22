@@ -11,7 +11,6 @@
 
 #include "input/button.h"
 #include "input/analog.h"
-#include "input/remap.h"
 #include "utilities/callback.h"
 
 void hoja_set_debug_data(uint8_t data);

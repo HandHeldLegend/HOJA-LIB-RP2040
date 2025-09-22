@@ -2,11 +2,9 @@
 
 #include "switch/switch_commands.h"
 #include "utilities/callback.h"
+#include "input/mapper.h"
 
 #include "tusb.h"
-#include "input/button.h"
-#include "input/analog.h"
-#include "input/remap.h"
 
 /** Switch PRO HID MODE **/
 // 1. Device Descriptor
@@ -257,51 +255,42 @@ bool blank_sent = false;
 
 uint32_t _timeout = 0;
 
+#define SWITCH_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
+
 void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static sw_input_s data = {0};
 
-    static button_data_s buttons = {0};
-    static analog_data_s analog  = {0};
-    static trigger_data_s triggers = {0};
+    mapper_input_s *input = mapper_get_input();
 
-    // Update input data
-    remap_get_processed_input(&buttons, &triggers);
-    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
+    data.d_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_DOWN);
+    data.d_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RIGHT);
+    data.d_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LEFT);
+    data.d_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_UP);
 
-    data.d_down     = buttons.dpad_down;
-    data.d_right    = buttons.dpad_right;
-    data.d_left     = buttons.dpad_left;
-    data.d_up       = buttons.dpad_up;
+    data.b_y = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_Y);
+    data.b_x = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_X);
+    data.b_a = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_A);
+    data.b_b = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_B);
 
-    data.b_y = buttons.button_y;
-    data.b_x = buttons.button_x;
-    data.b_a = buttons.button_a;
-    data.b_b = buttons.button_b;
+    data.b_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_MINUS);
+    data.b_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_PLUS);
+    data.b_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_HOME);
+    data.b_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_CAPTURE);
 
-    data.b_minus    = buttons.button_minus;
-    data.b_plus     = buttons.button_plus;
-    data.b_home     = buttons.button_home;
-    data.b_capture  = buttons.button_capture;
+    data.sb_right   = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
+    data.sb_left    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
 
-    data.sb_right   = buttons.button_stick_right;
-    data.sb_left    = buttons.button_stick_left;
-
-    data.t_r = buttons.trigger_r;
-    data.t_l = buttons.trigger_l;
+    data.t_r = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_R);
+    data.t_l = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_L);
     
-    data.t_zl = buttons.trigger_zl;
-    data.t_zr = buttons.trigger_zr;
+    data.t_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LZ);
+    data.t_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
 
-    data.ls_x = (uint16_t) (analog.lx+2048); 
-    data.ls_y = (uint16_t) (analog.ly+2048);
-    data.rs_x = (uint16_t) (analog.rx+2048);
-    data.rs_y = (uint16_t) (analog.ry+2048);
-
-    data.ls_x = (data.ls_x > 4095) ? 4095 : data.ls_x;
-    data.ls_y = (data.ls_y > 4095) ? 4095 : data.ls_y;
-    data.rs_x = (data.rs_x > 4095) ? 4095 : data.rs_x;
-    data.rs_y = (data.rs_y > 4095) ? 4095 : data.rs_y;
+    data.ls_x = (uint16_t) SWITCH_CLAMP(input->joysticks_combined[0]+2048, 0, 4095); 
+    data.ls_y = (uint16_t) SWITCH_CLAMP(input->joysticks_combined[1]+2048, 0, 4095); 
+    data.rs_x = (uint16_t) SWITCH_CLAMP(input->joysticks_combined[2]+2048, 0, 4095); 
+    data.rs_y = (uint16_t) SWITCH_CLAMP(input->joysticks_combined[3]+2048, 0, 4095); 
 
     switch_commands_process(timestamp, &data, cb);
 }

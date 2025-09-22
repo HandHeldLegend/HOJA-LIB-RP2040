@@ -6,8 +6,10 @@
 #include "settings_shared_types.h"
 #include "utilities/settings.h"
 #include "utilities/interval.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "devices/adc.h"
+#include "board_config.h"
 
 #include "hal/mutex_hal.h"
 
@@ -23,71 +25,11 @@ uint16_t _lt_deadzone = 0;
 uint16_t _rt_deadzone = 0;
 bool _trigger_calibration = false;
 
+SNAPSHOT_TYPE(trigger, trigger_data_s);
+snapshot_trigger_t _trigger_raw_snap;
+snapshot_trigger_t _trigger_scaled_snap;
+
 #define MAX_ANALOG_OUT 4095
-
-MUTEX_HAL_INIT(_trigger_mutex);
-uint32_t _trigger_mutex_owner = 0;
-
-bool _trigger_try_enter()
-{
-    if(MUTEX_HAL_ENTER_TRY(&_trigger_mutex, &_trigger_mutex_owner))
-    {
-        return true;
-    }
-    return false;
-}
-
-void _trigger_exit()
-{
-    MUTEX_HAL_EXIT(&_trigger_mutex);
-}
-
-void trigger_gc_process(button_data_s *b_state, trigger_data_s *t_state)
-{
-    static uint16_t ltstatic = 0;
-    static uint16_t rtstatic = 0;
-
-    const uint16_t min_static_val = (49 << 4);
-
-    if(trigger_config->right_static_output_value < min_static_val)
-        trigger_config->right_static_output_value = min_static_val;
-    else 
-        rtstatic = trigger_config->right_static_output_value;
-
-    if(trigger_config->left_static_output_value < min_static_val)
-        trigger_config->left_static_output_value = min_static_val;
-    else
-        ltstatic = trigger_config->left_static_output_value;
-
-    switch(trigger_config->trigger_mode_gamecube)
-    {
-        default:
-        case GC_SP_MODE_NONE:
-        break;
-
-        case GC_SP_MODE_LT:
-            t_state->left_analog = 0;
-
-            t_state->left_analog |= (b_state->trigger_l) ? (ltstatic) : 0;
-            t_state->left_analog |= (b_state->trigger_zl) ? MAX_ANALOG_OUT : 0;
-        break;
-
-        case GC_SP_MODE_RT:
-            t_state->right_analog = 0;
-
-            t_state->right_analog |= (b_state->trigger_l) ? (rtstatic) : 0;
-            t_state->right_analog |= (b_state->trigger_zr) ? MAX_ANALOG_OUT : 0;
-        break;
-
-        case GC_SP_MODE_DUALZ:
-            if(b_state->trigger_l)
-                b_state->trigger_r |= 1;
-            
-            if(!b_state->trigger_l && !b_state->trigger_r)
-                b_state->trigger_r = 0;
-        break;
-    }
-}
 
 // Access button data with fallback
 void trigger_access_safe(trigger_data_s *out, trigger_access_t type)
@@ -95,11 +37,11 @@ void trigger_access_safe(trigger_data_s *out, trigger_access_t type)
     switch(type)
     {
         case TRIGGER_ACCESS_RAW_DATA:
-        memcpy(out, &_safe_raw_triggers, sizeof(trigger_data_s));
+        snapshot_trigger_read(&_trigger_raw_snap, out);
         break;
 
         case TRIGGER_ACCESS_SCALED_DATA:
-        memcpy(out, &_safe_scaled_triggers, sizeof(trigger_data_s));
+        snapshot_trigger_read(&_trigger_scaled_snap, out);
         break;
     }
 }
@@ -162,7 +104,7 @@ uint16_t _trigger_scale_input(uint16_t input, uint16_t deadzone, uint32_t scaler
 
 void trigger_task(uint64_t timestamp)
 {
-    //#if defined(HOJA_ADC_CHAN_RT_READ) || defined(HOJA_ADC_CHAN_LT_READ)
+    #if defined(HOJA_ADC_RT_CFG) || defined(HOJA_ADC_LT_CFG)
     static interval_s interval = {0};
     if(interval_run(timestamp, 1000, &interval))
     {
@@ -180,6 +122,8 @@ void trigger_task(uint64_t timestamp)
             _raw_triggers.left_analog = adc_read_lt();
         #endif
 
+        snapshot_trigger_write(&_trigger_raw_snap, &_raw_triggers);
+
         if(_trigger_calibrate)
         {
             _trigger_calibrate_task();
@@ -196,28 +140,10 @@ void trigger_task(uint64_t timestamp)
                 _raw_triggers.left_analog, 
                 _lt_deadzone, _lt_scaler);
 
-
-            if((_scaled_triggers.right_analog > trigger_config->right_hairpin_value) && trigger_config->right_hairpin_value>0)
-            {
-                _scaled_triggers.right_hairpin = 1;
-            }
-            else _scaled_triggers.right_hairpin = 0;
-
-            if((_scaled_triggers.left_analog > trigger_config->left_hairpin_value) && trigger_config->left_hairpin_value>0)
-            {
-                _scaled_triggers.left_hairpin = 1;
-            }
-            else _scaled_triggers.left_hairpin = 0;
-        }
-
-        if(_trigger_try_enter())
-        {
-            memcpy(&_safe_raw_triggers,     &_raw_triggers,     sizeof(trigger_data_s));
-            memcpy(&_safe_scaled_triggers,  &_scaled_triggers,  sizeof(trigger_data_s));
-            _trigger_exit();
+            snapshot_trigger_write(&_trigger_scaled_snap, &_scaled_triggers);
         }
     }
-    //#endif
+    #endif
 }
 
 void trigger_config_cmd(trigger_cmd_t cmd, webreport_cmd_confirm_t  cb)
@@ -267,6 +193,9 @@ bool trigger_init()
         trigger_config->right_static_output_value   = MAX_ANALOG_OUT;
     }
 
+    if(trigger_config->left_hairpin_value<128) trigger_config->left_hairpin_value=128;
+    if(trigger_config->right_hairpin_value<128) trigger_config->right_hairpin_value=128;
+
     _lt_deadzone = trigger_config->left_min + trigger_config->left_deadzone;
     _lt_scaler = _trigger_calculate_scaler(_lt_deadzone,
         trigger_config->left_max, MAX_ANALOG_OUT);
@@ -274,14 +203,6 @@ bool trigger_init()
     _rt_deadzone = trigger_config->right_min + trigger_config->right_deadzone;
     _rt_scaler = _trigger_calculate_scaler(_rt_deadzone,
         trigger_config->right_max, MAX_ANALOG_OUT);
-
-    #if defined(HOJA_ADC_CHAN_RT_INIT)
-        HOJA_ADC_CHAN_RT_INIT();
-    #endif 
-
-    #if defined(HOJA_AD_CHAN_LT_INIT)
-        HOJA_AD_CHAN_LT_INIT();
-    #endif
 
     return true;
 }

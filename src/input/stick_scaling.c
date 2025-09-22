@@ -31,9 +31,6 @@
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
 
-
-#define CROSSOVER_DEADZONE 750
-
 typedef struct 
 {
   float distance;
@@ -642,8 +639,8 @@ void stick_scaling_default_check()
     analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
 
     // Set default deadzones
-    analog_config->l_deadzone = 350;
-    analog_config->r_deadzone = 350;
+    analog_config->l_deadzone = 160;
+    analog_config->r_deadzone = 160;
 
     analog_config->l_deadzone_outer = 0;
     analog_config->r_deadzone_outer = 0;
@@ -667,6 +664,13 @@ void stick_scaling_default_check()
 
     _write_to_config_block();
   }
+
+  // Check digital thresholds
+  if(analog_config->l_threshold < 128) analog_config->l_threshold = 128;
+  if(analog_config->r_threshold < 128) analog_config->r_threshold = 128;
+
+  if(analog_config->l_threshold > 1800) analog_config->l_threshold = 1800;
+  if(analog_config->r_threshold > 1800) analog_config->r_threshold = 1800;
 }
 
 // Input and output are based around -2048 to 2048 values with 0 as centers

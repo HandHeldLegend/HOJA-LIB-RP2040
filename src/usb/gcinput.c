@@ -1,13 +1,7 @@
 #include "usb/gcinput.h"
-
-#include "input/button.h"
-#include "input/analog.h"
-#include "input/trigger.h"
-#include "input/remap.h"
+#include "input/mapper.h"
 
 #include "usb/ginput_usbd.h"
-
-#define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
 /**--------------------------**/
 /**--------------------------**/
@@ -15,75 +9,101 @@
 bool _gc_first = false;
 bool _gc_enable = false;
 
+// Input structure for Nintendo GameCube Adapter USB Data
+#pragma pack(push, 1) // Ensure byte alignment
+typedef struct
+{
+    union
+    {
+        struct
+        {
+            uint8_t button_a    : 1;
+            uint8_t button_b    : 1;
+            uint8_t button_x    : 1;
+            uint8_t button_y    : 1;
+            uint8_t dpad_left   : 1; //Left
+            uint8_t dpad_right  : 1; //Right
+            uint8_t dpad_down   : 1; //Down
+            uint8_t dpad_up     : 1; //Up
+        };
+        uint8_t buttons_1;
+    };
+
+    union
+    {
+        struct
+        {
+            uint8_t button_start: 1;
+            uint8_t button_z    : 1;
+            uint8_t button_r    : 1;
+            uint8_t button_l    : 1;
+            uint8_t blank1      : 4;
+        }; 
+        uint8_t buttons_2;
+    };
+
+  uint8_t stick_x;
+  uint8_t stick_y;
+  uint8_t cstick_x;
+  uint8_t cstick_y;
+  uint8_t trigger_l;
+  uint8_t trigger_r;
+
+} gc_input_s;
+#pragma pack(pop)
+
 void gcinput_enable(bool enable)
 {
     _gc_enable = enable;
 }
+
+#define GCUSB_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static gc_input_s   data = {0};
     static uint8_t      buffer[37] = {0};
 
-    static button_data_s    buttons = {0};
-    static analog_data_s    analog  = {0};
-    static trigger_data_s   triggers = {0};
-
-    // Update input data
-    remap_get_processed_input(&buttons, &triggers);
-    analog_access_safe(&analog,  ANALOG_ACCESS_DEADZONE_DATA);
-
-    trigger_gc_process(&buttons, &triggers);
+    mapper_input_s *input = mapper_get_input();
 
     buffer[0] = 0x21;
 
-    const int32_t center_value = 128;
     const float   target_max = 110.0f / 2048.0f;
-    const int32_t fixed_multiplier = (int32_t) (target_max * (1<<16));
 
-    bool lx_sign = analog.lx < 0;
-    bool ly_sign = analog.ly < 0;
-    bool rx_sign = analog.rx < 0;
-    bool ry_sign = analog.ry < 0;
+    float lx = (float)input->joysticks_combined[0] * target_max;
+    float ly = (float)input->joysticks_combined[1] * target_max;
+    float rx = (float)input->joysticks_combined[2] * target_max;
+    float ry = (float)input->joysticks_combined[3] * target_max;
 
-    uint32_t lx_abs = lx_sign ? -analog.lx : analog.lx;
-    uint32_t ly_abs = ly_sign ? -analog.ly : analog.ly;
-    uint32_t rx_abs = rx_sign ? -analog.rx : analog.rx;
-    uint32_t ry_abs = ry_sign ? -analog.ry : analog.ry;
+    uint8_t lx8 = (uint8_t)GCUSB_CLAMP(lx + 128, 0, 255);
+    uint8_t ly8 = (uint8_t)GCUSB_CLAMP(ly + 128, 0, 255);
+    uint8_t rx8 = (uint8_t)GCUSB_CLAMP(rx + 128, 0, 255);
+    uint8_t ry8 = (uint8_t)GCUSB_CLAMP(ry + 128, 0, 255);
 
-    // Analog stick data conversion
-    int32_t lx = ((lx_abs * fixed_multiplier) >> 16) * (lx_sign ? -1 : 1);
-    int32_t ly = ((ly_abs * fixed_multiplier) >> 16) * (ly_sign ? -1 : 1);
-    int32_t rx = ((rx_abs * fixed_multiplier) >> 16) * (rx_sign ? -1 : 1);
-    int32_t ry = ((ry_abs * fixed_multiplier) >> 16) * (ry_sign ? -1 : 1);
+    data.button_a = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_A);
+    data.button_b = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_B);
+    data.button_x = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_X);
+    data.button_y = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Y);
 
-    uint8_t lx8 = CLAMP_0_255(lx + center_value);
-    uint8_t ly8 = CLAMP_0_255(ly + center_value);
-    uint8_t rx8 = CLAMP_0_255(rx + center_value);
-    uint8_t ry8 = CLAMP_0_255(ry + center_value);
+    data.button_start   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_START);
+    data.button_l       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_L);
+    data.button_r       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_R);
 
-    data.button_a = buttons.button_a;
-    data.button_b = buttons.button_b;
-    data.button_x = buttons.button_x;
-    data.button_y = buttons.button_y;
-    data.button_start = buttons.button_plus;
+    uint8_t lt8 = data.button_l ? 255 : GCUSB_CLAMP(input->triggers[0] >> 4, 0, 255);
+    uint8_t rt8 = data.button_r ? 255 : GCUSB_CLAMP(input->triggers[1] >> 4, 0, 255);
 
-    data.button_l = buttons.trigger_zl;
-    data.button_r = buttons.trigger_zr;
-    data.button_z = buttons.trigger_r;
+    data.dpad_down   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_DOWN);
+    data.dpad_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_LEFT);
+    data.dpad_right  = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_RIGHT);
+    data.dpad_up     = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_UP);
+    data.button_z    = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Z);
 
-    data.stick_x    = lx8;
-    data.stick_y    = ly8;
-    data.cstick_x   = rx8;
-    data.cstick_y   = ry8;
-
-    data.dpad_down  = buttons.dpad_down;
-    data.dpad_up    = buttons.dpad_up;
-    data.dpad_left  = buttons.dpad_left;
-    data.dpad_right = buttons.dpad_right;
-
-    data.trigger_l  = triggers.left_analog  >> 4;
-    data.trigger_r  = triggers.right_analog >> 4;
+    data.stick_x = lx8;
+    data.stick_y = ly8;
+    data.cstick_x = rx8;
+    data.cstick_y = ry8;
+    data.trigger_l  = lt8;
+    data.trigger_r  = rt8;
 
     if(!_gc_first)
     {
