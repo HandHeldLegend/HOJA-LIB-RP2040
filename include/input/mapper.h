@@ -86,6 +86,7 @@ typedef enum
     SWITCH_CODE_MAX,
 } mapper_switch_code_t;
 
+#define SWITCH_CODE_IDX_DIGITAL_END    SWITCH_CODE_RS
 #define SWITCH_CODE_IDX_JOYSTICK_START SWITCH_CODE_LX_RIGHT
 
 typedef enum 
@@ -105,6 +106,8 @@ typedef enum
     SNES_CODE_SELECT,
     SNES_CODE_MAX,
 } mapper_snes_code_t;
+
+#define SNES_CODE_IDX_DIGITAL_END SNES_CODE_SELECT
 
 typedef enum 
 {
@@ -130,6 +133,7 @@ typedef enum
     N64_CODE_MAX,
 } mapper_n64_code_t;
 
+#define N64_CODE_IDX_DIGITAL_END    N64_CODE_START
 #define N64_CODE_IDX_JOYSTICK_START N64_CODE_LX_RIGHT
 
 typedef enum 
@@ -160,6 +164,7 @@ typedef enum
     GAMECUBE_CODE_MAX,
 } mapper_gamecube_code_t;
 
+#define GAMECUBE_CODE_IDX_DIGITAL_END   GAMECUBE_CODE_R
 #define GAMECUBE_CODE_IDX_TRIGGER_START GAMECUBE_CODE_L_ANALOG
 #define GAMECUBE_CODE_IDX_JOYSTICK_START GAMECUBE_CODE_LX_RIGHT
 
@@ -196,6 +201,7 @@ typedef enum
     XINPUT_CODE_MAX,
 } mapper_xinput_code_t;
 
+#define XINPUT_CODE_IDX_DIGITAL_END   XINPUT_CODE_RT_FULL
 #define XINPUT_CODE_IDX_TRIGGER_START XINPUT_CODE_LT_ANALOG
 #define XINPUT_CODE_IDX_JOYSTICK_START XINPUT_CODE_LX_RIGHT
 

@@ -306,7 +306,7 @@ mapper_input_s _mapper_task_switch()
             break;
 
             // Digital Output
-            case 0 ... SWITCH_CODE_RS:
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 
@@ -339,7 +339,7 @@ mapper_input_s _mapper_task_switch()
             break;
 
             // Digital Output
-            case SWITCH_CODE_B ... SWITCH_CODE_RS:
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
             if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -379,7 +379,7 @@ mapper_input_s _mapper_task_switch()
             break;
 
             // Digital Output
-            case SWITCH_CODE_B ... SWITCH_CODE_RS:
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
             if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -435,7 +435,7 @@ mapper_input_s _mapper_task_snes()
             break;
 
             // Digital Output
-            case 0 ... SNES_CODE_SELECT:
+            case 0 ... SNES_CODE_IDX_DIGITAL_END:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
         }
@@ -462,7 +462,7 @@ mapper_input_s _mapper_task_snes()
             break;
 
             // Digital Output
-            case SNES_CODE_B ... SNES_CODE_SELECT:
+            case 0 ... SNES_CODE_IDX_DIGITAL_END:
             if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -492,7 +492,7 @@ mapper_input_s _mapper_task_snes()
             break;
 
             // Digital Output
-            case SNES_CODE_B ... SNES_CODE_SELECT:
+            case 0 ... SNES_CODE_IDX_DIGITAL_END:
             if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -539,7 +539,7 @@ mapper_input_s _mapper_task_n64()
             break;
 
             // Digital Output
-            case 0 ... N64_CODE_START:
+            case 0 ... N64_CODE_IDX_DIGITAL_END:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 
@@ -572,7 +572,7 @@ mapper_input_s _mapper_task_n64()
             break;
 
             // Digital Output
-            case N64_CODE_B ... N64_CODE_START:
+            case 0 ... N64_CODE_IDX_DIGITAL_END:
             if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -612,7 +612,7 @@ mapper_input_s _mapper_task_n64()
             break;
 
             // Digital Output
-            case N64_CODE_B ... N64_CODE_START:
+            case 0 ... N64_CODE_IDX_DIGITAL_END:
             if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -633,7 +633,6 @@ mapper_input_s _mapper_task_n64()
     return tmp;
 }
 
-// Completed
 mapper_input_s _mapper_task_gamecube()
 {
     mapper_input_s tmp = {0};
@@ -668,7 +667,7 @@ mapper_input_s _mapper_task_gamecube()
             break;
 
             // Digital Output
-            case 0 ... GAMECUBE_CODE_R:
+            case 0 ... GAMECUBE_CODE_IDX_DIGITAL_END:
             tmp.digital_inputs |= (1 << (uint8_t)map_code_output);
             break;
 
@@ -710,7 +709,7 @@ mapper_input_s _mapper_task_gamecube()
             break;
 
             // Digital Output
-            case GAMECUBE_CODE_B ... GAMECUBE_CODE_START:
+            case 0 ... GAMECUBE_CODE_IDX_DIGITAL_END:
             if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -759,7 +758,7 @@ mapper_input_s _mapper_task_gamecube()
             break;
 
             // Digital Output
-            case GAMECUBE_CODE_B ... GAMECUBE_CODE_START:
+            case 0 ... GAMECUBE_CODE_IDX_DIGITAL_END:
             if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -824,7 +823,7 @@ mapper_input_s _mapper_task_xinput()
             break;
 
             // Digital Output
-            case XINPUT_CODE_A ... XINPUT_CODE_RT_FULL:
+            case 0 ... XINPUT_CODE_IDX_DIGITAL_END:
             tmp.digital_inputs |= (1 << map_code_output);
             break;
 
@@ -866,7 +865,7 @@ mapper_input_s _mapper_task_xinput()
             break;
 
             // Digital Output
-            case XINPUT_CODE_A ... XINPUT_CODE_RS:
+            case 0 ... XINPUT_CODE_IDX_DIGITAL_END:
             if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
@@ -915,7 +914,7 @@ mapper_input_s _mapper_task_xinput()
             break;
 
             // Digital Output
-            case XINPUT_CODE_A ... XINPUT_CODE_RS:
+            case 0 ... XINPUT_CODE_IDX_DIGITAL_END:
             if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
             {
                 tmp.digital_inputs |= (1 << map_code_output);
