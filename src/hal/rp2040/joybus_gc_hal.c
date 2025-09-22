@@ -332,8 +332,8 @@ void joybus_gc_hal_task(uint64_t timestamp)
       // End analog stick conversion section
 
       // Trigger with SP function conversion
-      uint8_t lt8 = GCWIRE_CLAMP(input->triggers[0] >> 4, 0, 255);
-      uint8_t rt8 = GCWIRE_CLAMP(input->triggers[1] >> 4, 0, 255);
+      uint8_t lt8 = _out_buffer.l ? 255 : GCWIRE_CLAMP(input->triggers[0] >> 4, 0, 255);
+      uint8_t rt8 = _out_buffer.r ? 255 : GCWIRE_CLAMP(input->triggers[1] >> 4, 0, 255);
 
       // Handle reporting for differing modes
       switch(_workingMode)
