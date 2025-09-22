@@ -7,6 +7,8 @@
 
 #include "utilities/settings.h"
 
+#include "utilities/pcm.h"
+
 #include "hoja.h"
 
 #include <stdlib.h>
@@ -798,7 +800,7 @@ mapper_input_s _mapper_task_xinput()
     uint8_t analog_idx_in;
     uint8_t analog_idx_out; 
     int8_t map_code_output;
-    
+ 
     //
     // Digital Input
     //
@@ -986,6 +988,16 @@ void mapper_config_command(remap_cmd_t cmd, webreport_cmd_confirm_t cb)
     }  
 }
 
+static uint8_t _lhapticmode = 0;
+static uint8_t _rhapticmode = 0;
+
+typedef enum 
+{
+    MAPPER_HAPTIC_MODE_DISABLE,
+    MAPPER_HAPTIC_MODE_DIGITAL,
+    MAPPER_HAPTIC_MODE_ANALOG,
+} mapper_haptic_mode_t;
+
 void mapper_init()
 {
     // Check for remap defaults
@@ -1004,32 +1016,160 @@ void mapper_init()
     _base_trigger_static_l = trigger_config->left_static_output_value;
     _base_trigger_static_r = trigger_config->right_static_output_value;
 
+    _lhapticmode = MAPPER_HAPTIC_MODE_DISABLE;
+    _rhapticmode = MAPPER_HAPTIC_MODE_DISABLE;
+
+    if(_mapper_profile->map[MAPPER_CODE_LT] != MAPPER_CODE_UNUSED)
+    {
+        _lhapticmode = MAPPER_HAPTIC_MODE_DIGITAL;
+    }
+
+    if(_mapper_profile->map[MAPPER_CODE_RT] != MAPPER_CODE_UNUSED)
+    {
+        _rhapticmode = MAPPER_HAPTIC_MODE_DIGITAL;
+    }
+
     switch(hoja_get_status().gamepad_mode)
     {
         case GAMEPAD_MODE_SWPRO:
         _mapper_input_cb = _mapper_task_switch;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_switch;
+
+        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
+        {
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+
+        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
+        {
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+        #endif
+
         break;
 
         case GAMEPAD_MODE_SNES:
         _mapper_input_cb = _mapper_task_snes;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_snes;
+
+        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
+        {
+            case 0 ... SNES_CODE_IDX_DIGITAL_END:
+                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+
+        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
+        {
+            case 0 ... SNES_CODE_IDX_DIGITAL_END:
+                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+        #endif
+
         break;
 
         case GAMEPAD_MODE_N64:
         _mapper_input_cb = _mapper_task_n64;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_n64;
+
+        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
+        {
+            case 0 ... N64_CODE_IDX_DIGITAL_END:
+                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+
+        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
+        {
+            case 0 ... N64_CODE_IDX_DIGITAL_END:
+                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+        #endif
+
         break;
 
         case GAMEPAD_MODE_GAMECUBE:
         case GAMEPAD_MODE_GCUSB:
         _mapper_input_cb = _mapper_task_gamecube;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_gamecube;
+
+        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
+        {
+            case 0 ... GAMECUBE_CODE_IDX_DIGITAL_END:
+                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+
+        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
+        {
+            case 0 ... GAMECUBE_CODE_IDX_DIGITAL_END:
+                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+        #endif
+
         break;
 
         case GAMEPAD_MODE_XINPUT:
         _mapper_input_cb = _mapper_task_xinput;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_xinput;
+
+        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
+        {
+            case 0 ... XINPUT_CODE_IDX_DIGITAL_END:
+                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+
+        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
+        {
+            case 0 ... XINPUT_CODE_IDX_DIGITAL_END:
+                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
+            break;
+
+            default:
+            break;
+        }
+        #endif
+
         break;
 
         default:
@@ -1037,6 +1177,15 @@ void mapper_init()
         _mapper_profile = NULL;
         break;
     }
+
+    #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
+        if(trigger_config->left_disabled)
+            _lhapticmode = MAPPER_HAPTIC_MODE_DIGITAL;
+            
+
+        if(trigger_config->right_disabled)
+            _rhapticmode = MAPPER_HAPTIC_MODE_DIGITAL;
+    #endif
 }
 
 mapper_input_s* mapper_get_input()
@@ -1068,6 +1217,39 @@ mapper_input_s* mapper_get_input()
     // Set mapper trigger input
     _mapper_input.triggers[0] = triggers.left_analog;
     _mapper_input.triggers[1] = triggers.right_analog;
+
+    bool lbump = false;
+    bool rbump = false;
+
+    switch(_lhapticmode)
+    {
+        case 0: // No trigger haptics
+        break;
+
+        case 1: // Haptics only on digital press
+        lbump = (buttons.trigger_zl != 0);
+        break;
+
+        case 2: // Haptics only on trigger threshold met
+        lbump = (triggers.left_analog >= *_trigger_thresholds[0]);
+        break;
+    }
+
+    switch(_rhapticmode)
+    {
+        case 0: // No trigger haptics
+        break;
+
+        case 1: // Haptics only on digital press
+        rbump = (buttons.trigger_zr != 0);
+        break;
+
+        case 2: // Haptics only on trigger threshold met
+        rbump = (triggers.right_analog >= *_trigger_thresholds[1]);
+        break;
+    }
+
+    pcm_play_bump(lbump, rbump);
 
     if(_mapper_input_cb != NULL && _mapper_profile != NULL)
     {

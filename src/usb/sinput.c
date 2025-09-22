@@ -545,7 +545,7 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
     bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
 
-    if(input->triggers[0] == 0)
+    if(trigger_config->left_disabled == 1)
     {
         if(l_digital)
             data.trigger_l = INT16_MAX;
@@ -558,7 +558,7 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
         data.button_l_trigger = l_digital;
     }
 
-    if(input->triggers[1] == 0)
+    if(trigger_config->right_disabled == 1)
     {
         if(r_digital)
             data.trigger_r = INT16_MAX;

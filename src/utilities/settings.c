@@ -230,7 +230,10 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
         case CFG_BLOCK_TRIGGER:
             write_to_ptr = live_settings.trigger_configuration_block;
             if(completed)
+            {
                 trigger_init();
+                mapper_init();
+            }
         break;
 
         case CFG_BLOCK_IMU:

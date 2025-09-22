@@ -558,8 +558,7 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
             input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
 
-            input_data.lt = (uint16_t) input->triggers[0];
-            input_data.rt = (uint16_t) input->triggers[1];
+            
 
             switch(hoja_get_status().gamepad_mode)
             {
@@ -588,6 +587,9 @@ void esp32hoja_task(uint64_t timestamp)
                 
                 input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LZ);
                 input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
+
+                input_data.lt = (uint16_t) input->triggers[0];
+                input_data.rt = (uint16_t) input->triggers[1];
                 break;
                 case GAMEPAD_MODE_SINPUT:
                 input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
@@ -610,9 +612,39 @@ void esp32hoja_task(uint64_t timestamp)
 
                 input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
                 input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
-                
-                input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
-                input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+
+                bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
+                bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+
+                #if defined(HOJA_ADC_LT_CFG)
+                if(trigger_config->left_disabled == 1)
+                {
+                    if(l_digital)
+                        input_data.lt = 0xFFF;
+                    else 
+                        input_data.lt = 0;
+                }
+                else 
+                #endif
+                {
+                    input_data.lt = (uint16_t) input->triggers[0];
+                    input_data.trigger_zl = l_digital;
+                }
+
+                #if defined(HOJA_ADC_RT_CFG)
+                if(trigger_config->right_disabled == 1)
+                {
+                    if(r_digital)
+                        input_data.rt = 0xFFF;
+                    else 
+                        input_data.rt = 0;
+                }
+                else 
+                #endif
+                {
+                    input_data.rt = (uint16_t) input->triggers[1];
+                    input_data.trigger_zr = r_digital;
+                }
                 break;
             }
 

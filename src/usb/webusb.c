@@ -108,6 +108,8 @@ void webusb_send_rawinput(uint64_t timestamp)
         button_data_s buttons;
         button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
 
+        mapper_input_s *unused_mapper_data = mapper_get_input();
+
         uint16_t lx = (uint16_t) (joysticks.lx + 2048);
         uint16_t ly = (uint16_t) (joysticks.ly + 2048);
         uint16_t rx = (uint16_t) (joysticks.rx + 2048);

@@ -7,6 +7,8 @@
 #include <math.h>
 
 #include "switch/switch_haptics.h"
+#include "utilities/pcm_samples.h"
+#include "utilities/settings.h"
 
 #include "hoja_bsp.h"
 #if HOJA_BSP_CHIPSET == CHIPSET_RP2040
@@ -407,15 +409,55 @@ static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t
     return (uint16_t)(start + ((diff * t) >> 8));
 }
 
-uint8_t *_external_sample;
-uint32_t _external_sample_remaining = 0;
-uint32_t _external_sample_size = 0;
+uint8_t *_external_sample_l;
+uint8_t *_external_sample_r;
+uint32_t _external_sample_remaining_l = 0;
+uint32_t _external_sample_remaining_r = 0;
+uint32_t _external_sample_size_l = 0;
+uint32_t _external_sample_size_r = 0;
 
-void pcm_play_sample(uint8_t *sample, uint32_t size) 
+#if defined(HOJA_HAPTICS_CHAN_SWAP) && (HOJA_HAPTICS_CHAN_SWAP==1)
+void pcm_play_bump(bool right, bool left)
+#else
+void pcm_play_bump(bool left, bool right)
+#endif
 {
-    _external_sample = sample;
-    _external_sample_remaining = size;
-    _external_sample_size = size;
+    if(!haptic_config->haptic_triggers) return;
+
+    static bool left_on = false;
+    static bool right_on = false;
+
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+    if(left && !left_on)
+    {
+        _external_sample_l = hapticPattern;
+        _external_sample_remaining_l = sizeof(hapticPattern);
+        _external_sample_size_l = sizeof(hapticPattern);
+        left_on = true;
+    }
+    else if (left_on && !left)
+    {
+        _external_sample_l = offPattern;
+        _external_sample_remaining_l = sizeof(offPattern);
+        _external_sample_size_l = sizeof(offPattern);
+        left_on = false;
+    }
+
+    if(right && !right_on)
+    {
+        _external_sample_r = hapticPattern;
+        _external_sample_remaining_r = sizeof(hapticPattern);
+        _external_sample_size_r = sizeof(hapticPattern);
+        right_on = true;
+    }
+    else if (right_on && !right)
+    {
+        _external_sample_r = offPattern;
+        _external_sample_remaining_r = sizeof(offPattern);
+        _external_sample_size_r = sizeof(offPattern);
+        right_on = false;
+    }
+#endif
 }
 
 pcm_erm_state_s _pcm_erm_state = {
@@ -570,14 +612,28 @@ void pcm_generate_buffer(
         scaled_hi = ((uint32_t) sine_hi * hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
         scaled_lo = ((uint32_t) sine_lo * lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE; 
 
-        uint32_t external_sample = 0;
+        uint32_t external_sample_l = 0;
+        uint32_t external_sample_r = 0;
 
         // Mix in external sample if we have any remaining
-        if(_external_sample_remaining)
+        if(_external_sample_remaining_l)
         {
-            external_sample = (uint32_t) _external_sample[_external_sample_size - _external_sample_remaining] * _external_sample_scaler;
-            _external_sample_remaining--;
+            external_sample_l = (uint32_t) _external_sample_l[_external_sample_size_l - _external_sample_remaining_l] * _external_sample_scaler;
+            _external_sample_remaining_l--;
         }
+
+        if(_external_sample_remaining_r)
+        {
+            
+            external_sample_r = (uint32_t) _external_sample_r[_external_sample_size_r - _external_sample_remaining_r] * _external_sample_scaler;
+            _external_sample_remaining_r--;
+        }
+
+        #if !defined(HOJA_HAPTICS_CHAN_B_PIN)
+        external_sample_l |= external_sample_r;
+        external_sample_r |= external_sample_l;
+        #endif
+
 
         // Reappy signs
         if(!hi_sign) scaled_hi = -scaled_hi;
@@ -603,11 +659,6 @@ void pcm_generate_buffer(
 
         if(mixed < 0) mixed = 0;
 
-        if(external_sample)
-        {
-            mixed += external_sample;
-        }
-
         static bool load_new = false;
 
         int16_t pcm_raw_value = 0;
@@ -627,7 +678,8 @@ void pcm_generate_buffer(
 
         if(mixed < 0) mixed = 0;
 
-        uint32_t outsample = ((uint32_t) mixed << 16) | (uint32_t) mixed;
+        uint32_t outsample = ((uint32_t) (mixed+external_sample_l) << 16) | (uint32_t) (mixed+external_sample_r);
+
         buffer[i] = outsample;
 
         phase_hi = (phase_hi + hi_frequency_increment) % PCM_SINE_WRAPAROUND;

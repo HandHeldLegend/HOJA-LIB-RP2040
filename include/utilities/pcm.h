@@ -70,7 +70,13 @@ void pcm_erm_set(uint8_t intensity, bool brake);
 uint16_t pcm_frequency_to_fixedpoint_increment(float frequency);
 uint16_t pcm_amplitude_to_fixedpoint(float amplitude);
 void pcm_init(int intensity);
-void pcm_play_sample(uint8_t *sample, uint32_t size);
+
+#if defined(HOJA_HAPTICS_CHAN_SWAP) && (HOJA_HAPTICS_CHAN_SWAP==1)
+void pcm_play_bump(bool right, bool left);
+#else
+void pcm_play_bump(bool left, bool right);
+#endif
+
 void pcm_send_pulse();
 bool pcm_amfm_push(haptic_processed_s *value);
 void pcm_generate_buffer(uint32_t *buffer);
