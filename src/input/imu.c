@@ -44,7 +44,6 @@ snapshot_imu_t _imu_snap;
 SNAPSHOT_TYPE(quat, quaternion_s);
 snapshot_quat_t _quat_snap;
 
-// Idx 0 is the newest, and Idx 2 is the oldest reading
 imu_data_s _imu_data = {0};
 quaternion_s _imu_quat_state = {.w = 1};
 
