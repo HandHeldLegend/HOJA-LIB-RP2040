@@ -278,8 +278,8 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.b_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_HOME);
     data.b_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_CAPTURE);
 
-    data.sb_right   = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
-    data.sb_left    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
+    data.sb_left  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
+    data.sb_right = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
 
     data.t_r = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_R);
     data.t_l = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_L);
