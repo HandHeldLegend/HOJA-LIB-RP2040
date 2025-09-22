@@ -125,40 +125,55 @@ void _imu_read_standard(uint64_t timestamp)
 {
   imu_data_s this_imu[3] = {0};
 
-  #if defined(HOJA_IMU_CHAN_A_INIT) && defined(HOJA_IMU_CHAN_B_INIT)
-  HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-  HOJA_IMU_CHAN_B_READ(&this_imu[1]);
+  if(imu_config->imu_disabled == 1)
+  {
+    // Disabled
+    this_imu[2].ax = 0;
+    this_imu[2].ay = 0;
+    this_imu[2].az = 0;
 
-  this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-  this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-  this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-  
-  this_imu[1].gx -= IMU_GYRO_OFFSET_X(1);
-  this_imu[1].gy -= IMU_GYRO_OFFSET_Y(1);
-  this_imu[1].gz -= IMU_GYRO_OFFSET_Z(1);
+    this_imu[2].gx = 0;
+    this_imu[2].gy = 0;
+    this_imu[2].gz = 0;
+    this_imu[2].timestamp = timestamp;
+  }
+  else 
+  {
+    #if defined(HOJA_IMU_CHAN_A_INIT) && defined(HOJA_IMU_CHAN_B_INIT)
+    HOJA_IMU_CHAN_A_READ(&this_imu[0]);
+    HOJA_IMU_CHAN_B_READ(&this_imu[1]);
 
-  #elif defined(HOJA_IMU_CHAN_A_INIT)
-  HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-  HOJA_IMU_CHAN_A_READ(&this_imu[1]);
+    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
+    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
+    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
+    
+    this_imu[1].gx -= IMU_GYRO_OFFSET_X(1);
+    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(1);
+    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(1);
 
-  this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-  this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-  this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-  
-  this_imu[1].gx -= IMU_GYRO_OFFSET_X(0);
-  this_imu[1].gy -= IMU_GYRO_OFFSET_Y(0);
-  this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
-  #endif
+    #elif defined(HOJA_IMU_CHAN_A_INIT)
+    HOJA_IMU_CHAN_A_READ(&this_imu[0]);
+    HOJA_IMU_CHAN_A_READ(&this_imu[1]);
 
-  // Average
-  this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
-  this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
-  this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
+    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
+    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
+    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
+    
+    this_imu[1].gx -= IMU_GYRO_OFFSET_X(0);
+    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(0);
+    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
+    #endif
 
-  this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
-  this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
-  this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
-  this_imu[2].timestamp = timestamp;
+    // Average
+    this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
+    this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
+    this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
+
+    this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
+    this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
+    this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
+    this_imu[2].timestamp = timestamp;
+  }
 
   snapshot_imu_write(&_imu_snap, &this_imu[2]);
 
@@ -223,8 +238,6 @@ void _imu_calibrate_function(uint64_t timestamp)
     _imu_calibrate_cycles_remaining--;
 
     imu_data_s imu_calibration_read = {0};
-
-    
 
     // Read IMU data
     #if defined(HOJA_IMU_CHAN_A_INIT)
