@@ -13,12 +13,12 @@
 // ------- //
 
 #define nserial_wrap_target 0
-#define nserial_wrap 11
+#define nserial_wrap 14
 #define nserial_pio_version 0
 
 #define nserial_offset_startserial 0u
-#define nserial_offset_clearserial 6u
-#define nserial_offset_latchstart 8u
+#define nserial_offset_dumpy 7u
+#define nserial_offset_latchstart 11u
 
 static const uint16_t nserial_program_instructions[] = {
             //     .wrap_target
@@ -27,20 +27,23 @@ static const uint16_t nserial_program_instructions[] = {
     0x2020, //  2: wait   0 pin, 0
     0x20a0, //  3: wait   1 pin, 0
     0x6001, //  4: out    pins, 1
-    0x0002, //  5: jmp    2
-    0xa0e3, //  6: mov    osr, null
-    0x0000, //  7: jmp    0
-    0x2020, //  8: wait   0 pin, 0
-    0x20a0, //  9: wait   1 pin, 0
-    0xc000, // 10: irq    nowait 0
-    0x0008, // 11: jmp    8
+    0x0082, //  5: jmp    y--, 2
+    0x0002, //  6: jmp    2
+    0xa0c2, //  7: mov    isr, y
+    0x8020, //  8: push   block
+    0xe05f, //  9: set    y, 31
+    0x0000, // 10: jmp    0
+    0x2020, // 11: wait   0 pin, 0
+    0x20a0, // 12: wait   1 pin, 0
+    0xc000, // 13: irq    nowait 0
+    0x000b, // 14: jmp    11
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program nserial_program = {
     .instructions = nserial_program_instructions,
-    .length = 12,
+    .length = 15,
     .origin = -1,
     .pio_version = nserial_pio_version,
 #if PICO_PIO_VERSION > 0
@@ -69,7 +72,7 @@ static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint data
     // Set IN pin group (CLOCK)
     sm_config_set_in_pins(&c, clock_pin);
     float div = clock_get_hz(clk_sys) / (2000000);
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, 2);
     // Set the pin direction to output at the PIO
     pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
     // Set input pins
@@ -87,7 +90,7 @@ static inline void nserial_program_latch_init(PIO pio, uint sm, uint offset, uin
     pio_gpio_init(pio, latch_pin);
     sm_config_set_in_pins(&c, latch_pin);
     float div = clock_get_hz(clk_sys) / (2000000);
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, 2);
     // Set input pins
     pio_sm_set_consecutive_pindirs(pio, sm, latch_pin, 1, false);
     // Load our configuration, and jump to the start of the program

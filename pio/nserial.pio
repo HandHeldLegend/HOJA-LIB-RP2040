@@ -7,8 +7,6 @@
 
 .wrap_target
 
-; pin 0 - data
-; pin 1 - clk
 PUBLIC startserial:
   ; Output and shift 1 bit
   pull block
@@ -20,9 +18,12 @@ clock:
   wait 1 pin, 0
   ; Output and shift 1 bit
   out pins, 1
+  jmp y-- clock 
   jmp clock
-PUBLIC clearserial:
-  mov osr, null
+PUBLIC dumpy:
+  mov isr, y
+  push block ; send Y to CPU
+  set y, 31
   jmp startserial
 
 PUBLIC latchstart:
@@ -56,7 +57,7 @@ static inline void nserial_program_init(PIO pio, uint sm, uint offset, uint data
     sm_config_set_in_pins(&c, clock_pin);
     
     float div = clock_get_hz(clk_sys) / (2000000);
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, 2);
 
     // Set the pin direction to output at the PIO
     pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
@@ -79,7 +80,7 @@ static inline void nserial_program_latch_init(PIO pio, uint sm, uint offset, uin
     sm_config_set_in_pins(&c, latch_pin);
     
     float div = clock_get_hz(clk_sys) / (2000000);
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, 2);
 
     // Set input pins
     pio_sm_set_consecutive_pindirs(pio, sm, latch_pin, 1, false);

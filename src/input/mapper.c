@@ -1062,28 +1062,11 @@ void mapper_init()
         case GAMEPAD_MODE_SNES:
         _mapper_input_cb = _mapper_task_snes;
         _mapper_profile = (mapper_profile_s *) remap_config->remap_profile_snes;
+        _lhapticmode = MAPPER_HAPTIC_MODE_DISABLE;
+        _rhapticmode = MAPPER_HAPTIC_MODE_DISABLE;
 
-        #if defined(HOJA_ADC_LT_CFG) && defined(HOJA_ADC_RT_CFG)
-        switch(_mapper_profile->map[MAPPER_CODE_LT_ANALOG])
-        {
-            case 0 ... SNES_CODE_IDX_DIGITAL_END:
-                _lhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
-            break;
-
-            default:
-            break;
-        }
-
-        switch(_mapper_profile->map[MAPPER_CODE_RT_ANALOG])
-        {
-            case 0 ... SNES_CODE_IDX_DIGITAL_END:
-                _rhapticmode = MAPPER_HAPTIC_MODE_ANALOG;
-            break;
-
-            default:
-            break;
-        }
-        #endif
+        // RETURN ALWAYS DISABLE HAPTICS FOR SNES
+        return;
 
         break;
 

@@ -34,6 +34,8 @@
     #define PIO_IRQ_USE_0 PIO1_IRQ_0
 #endif
 
+
+
 typedef struct
 {
     union
@@ -56,9 +58,30 @@ typedef struct
         };
         uint32_t value;
     };
-} nesbus_hal_input_s;
+} snes_hal_input_s;
 
-#define NESBUSHAL_INPUT_SIZE sizeof(nesbus_hal_input_s)
+typedef struct
+{
+    union
+    {
+        struct
+        {
+            uint32_t padding : 24;
+            uint32_t dright  : 1;
+            uint32_t dleft   : 1;
+            uint32_t ddown   : 1;
+            uint32_t dup     : 1;
+            uint32_t start   : 1;
+            uint32_t select  : 1;
+            uint32_t b : 1;
+            uint32_t a : 1;
+        };
+        uint32_t value;
+    };
+} nes_hal_input_s;
+
+volatile nes_hal_input_s tmpnes  = {.value = 0};
+volatile snes_hal_input_s tmpsnes  = {.value = 0xFFFF0000};
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
@@ -68,20 +91,30 @@ static PIO  _nspi_pio;
 static uint _nspi_sm;
 static uint _nspi_offset;
 static volatile uint32_t _nspi_buffer = 0xFFFFFFFF;
+static bool _nspi_snesdetected = false;
 
 volatile bool _nspi_clear = true;
 
+
 static void _nspi_isr_handler(void)
 {
-  if (pio_interrupt_get(PIO_IN_USE, 0))
-  {
-    pio_interrupt_clear(PIO_IN_USE, 0);
+    
+    if (pio_interrupt_get(PIO_IN_USE, 0))
+    {
+        pio_interrupt_clear(PIO_IN_USE, 0);
+        pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_dumpy));
 
-    pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
-    pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_startserial));
-    pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
-    _nspi_clear = true;
-  }
+        uint32_t count = 31 - pio_sm_get_blocking(PIO_IN_USE, _nspi_sm);
+        if(count == 31) 
+        {
+            // Do nothing
+        }
+        else if(count >= 12) 
+        {
+            _nspi_snesdetected = true;
+        }
+        _nspi_clear = true;
+    }
 }
 
 void nesbus_hal_stop()
@@ -103,7 +136,7 @@ bool nesbus_hal_init()
     nserial_program_init(_nspi_pio, _nspi_sm, _nspi_offset, NESBUS_DRIVER_DATA_PIN, NESBUS_DRIVER_CLOCK_PIN);
     nserial_program_latch_init(_nspi_pio, _nspi_sm+1, _nspi_offset, NESBUS_DRIVER_LATCH_PIN);
 
-    pio_sm_put_blocking(_nspi_pio, _nspi_sm, 0xFFFFFFFF);
+    pio_sm_put_blocking(_nspi_pio, _nspi_sm, 0x00);
 
     irq_set_enabled(_nspi_irq, true);
     _nspi_running = true;
@@ -111,7 +144,7 @@ bool nesbus_hal_init()
 
 void nesbus_hal_task(uint64_t timestamp)
 {   
-    static nesbus_hal_input_s tmp  = {.value = 0xFFFF};
+    
     static interval_s interval = {0};
 
     if(!_nspi_running)
@@ -123,31 +156,58 @@ void nesbus_hal_task(uint64_t timestamp)
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
+
             hoja_set_connected_status(CONN_STATUS_PLAYER_1);
 
             mapper_input_s *input = mapper_get_input();
 
-            tmp.a = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
-            tmp.b = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
-            tmp.x = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_X);
-            tmp.y = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_Y);
+            static uint32_t pack = 0;
 
-            tmp.l = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_L);
-            tmp.r = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_R);
+            if(_nspi_snesdetected)
+            {
+                tmpsnes.a = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
+                tmpsnes.b = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
+                tmpsnes.x = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_X);
+                tmpsnes.y = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_Y);
 
-            tmp.start = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
-            tmp.select = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+                tmpsnes.l = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_L);
+                tmpsnes.r = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_R);
 
-            tmp.dup = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
-            tmp.ddown = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
-            tmp.dleft = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
-            tmp.dright = MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+                tmpsnes.start = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
+                tmpsnes.select = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+
+                tmpsnes.dup = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
+                tmpsnes.ddown = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
+                tmpsnes.dleft = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
+                tmpsnes.dright = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+
+                pack = tmpsnes.value;
+            }
+            else
+            {
+                tmpnes.a = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
+                tmpnes.b = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
+
+                tmpnes.start = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
+                tmpnes.select = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+
+                tmpnes.dup = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
+                tmpnes.ddown = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
+                tmpnes.dleft = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
+                tmpnes.dright = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+
+                pack = tmpnes.value;
+            }
 
             if(_nspi_clear)
             {
-                _nspi_buffer = tmp.value;
+                _nspi_buffer = pack;
+                pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
+                pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
                 _nspi_clear = false;
             }
+            
+
         }
     }
 }
