@@ -4,11 +4,12 @@
 #include <stdbool.h>
 #include <string.h>
 
-// Generic container for snapshot-protected data
+// Generic container for snapshot-protected data with stale value support
 #define SNAPSHOT_TYPE(name, type)        \
 typedef struct {                         \
     atomic_uint seq;                     \
     type data;                           \
+    type stale_data;                     \
 } snapshot_##name##_t;                   \
                                          \
 static inline void snapshot_##name##_write(snapshot_##name##_t *s, const type *src) { \
@@ -18,16 +19,25 @@ static inline void snapshot_##name##_write(snapshot_##name##_t *s, const type *s
     memcpy(&s->data, src, sizeof(type));                             \
     atomic_thread_fence(memory_order_release);                       \
     atomic_store_explicit(&s->seq, seq0 + 2, memory_order_release); /* even = stable */ \
+    /* Update stale copy after write is complete */                  \
+    memcpy(&s->stale_data, src, sizeof(type));                       \
 }                                                                    \
                                                                      \
 static inline bool snapshot_##name##_read(snapshot_##name##_t *s, type *dst) { \
-    unsigned int s1, s2;                                             \
-    do {                                                             \
-        s1 = atomic_load_explicit(&s->seq, memory_order_acquire);    \
-        if (s1 & 1) continue; /* writer in progress */               \
-        memcpy(dst, &s->data, sizeof(type));                         \
-        atomic_thread_fence(memory_order_acquire);                   \
-        s2 = atomic_load_explicit(&s->seq, memory_order_acquire);    \
-    } while (s1 != s2 || (s2 & 1));                                  \
-    return true;                                                     \
-}
+    unsigned int s1 = atomic_load_explicit(&s->seq, memory_order_acquire); \
+    if (s1 & 1) {                                                    \
+        /* Writer in progress - return stale value */                \
+        memcpy(dst, &s->stale_data, sizeof(type));                   \
+        return false; /* indicate stale read */                      \
+    }                                                                \
+    /* Try to get fresh value */                                     \
+    memcpy(dst, &s->data, sizeof(type));                             \
+    atomic_thread_fence(memory_order_acquire);                       \
+    unsigned int s2 = atomic_load_explicit(&s->seq, memory_order_acquire); \
+    if (s1 != s2 || (s2 & 1)) {                                      \
+        /* Write happened during read - return stale value */        \
+        memcpy(dst, &s->stale_data, sizeof(type));                   \
+        return false; /* indicate stale read */                      \
+    }                                                                \
+    return true; /* indicate fresh read */                           \
+}  

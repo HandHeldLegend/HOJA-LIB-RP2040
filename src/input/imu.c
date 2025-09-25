@@ -89,7 +89,7 @@ void _imu_update_quaternion(imu_data_s *imu_data) {
     // Update the previous timestamp
     prev_timestamp = imu_data->timestamp;
 
-    _imu_quat_state.timestamp = imu_data->timestamp/1000;
+    _imu_quat_state.timestamp_ms = imu_data->timestamp/1000;
 
     // GZ is TURNING left/right (steering axis)
     // GX is TILTING up/down (aim up/down)

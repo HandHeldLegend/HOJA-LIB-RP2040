@@ -290,7 +290,6 @@ void battery_task(uint64_t timestamp)
             battery_set_critical_shutdown();
         }
     }
-    #endif
 
     if(_lowbat_timeout_shutdown)
     {
@@ -301,7 +300,7 @@ void battery_task(uint64_t timestamp)
         }
         _shutdown_reset = 2;
     }
-    
+    #endif
     #endif 
 }
 

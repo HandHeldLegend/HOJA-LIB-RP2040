@@ -209,7 +209,7 @@ typedef struct
     int16_t ax;
     int16_t ay;
     int16_t az;
-    uint64_t timestamp;
+    uint64_t timestamp_ms; // Timestamp in ms 
 } quaternion_s;
 
 #endif

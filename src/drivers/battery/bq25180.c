@@ -52,7 +52,7 @@ typedef struct
     };
 } bq25180_status_1_s;
 
-battery_status_s   _pmic_status = {0};
+battery_status_s   _pmic_status = {.battery_level = -1};
 bool               _charge_disabled = false;
 bool               _cable_plugged = false;
 

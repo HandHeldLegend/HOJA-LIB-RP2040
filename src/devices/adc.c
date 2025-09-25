@@ -12,38 +12,52 @@
 #define BLANK_ADC_CFG {.ch_local = -1}
 
 #if !defined(HOJA_ADC_LX_CFG)
-    #define HOJA_ADC_LX_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_LX_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_LX_CFG HOJA_ADC_LX_CFG
 #endif 
 
 #if !defined(HOJA_ADC_LY_CFG)
-    #define HOJA_ADC_LY_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_LY_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_LY_CFG HOJA_ADC_LY_CFG
 #endif 
 
 #if !defined(HOJA_ADC_RX_CFG)
-    #define HOJA_ADC_RX_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_RX_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_RX_CFG HOJA_ADC_RX_CFG
 #endif 
 
 #if !defined(HOJA_ADC_RY_CFG)
-    #define HOJA_ADC_RY_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_RY_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_RY_CFG HOJA_ADC_RY_CFG
 #endif 
 
 #if !defined(HOJA_ADC_LT_CFG)
-    #define HOJA_ADC_LT_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_LT_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_LT_CFG HOJA_ADC_LT_CFG
 #endif 
 
 #if !defined(HOJA_ADC_RT_CFG)
-    #define HOJA_ADC_RT_CFG BLANK_ADC_CFG
+    #define INTERNAL_ADC_RT_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_ADC_RT_CFG HOJA_ADC_RT_CFG
 #endif 
 
 #if !defined(HOJA_BATTERY_ADC_CFG)
-    #define HOJA_BATTERY_ADC_CFG BLANK_ADC_CFG
+    #define INTERNAL_BATTERY_ADC_CFG BLANK_ADC_CFG
+#else 
+    #define INTERNAL_BATTERY_ADC_CFG HOJA_BATTERY_ADC_CFG
 #endif 
 
 adc_channel_cfg_s _chan_cfgs[ADC_CH_MAX] = {
-    HOJA_ADC_LX_CFG, HOJA_ADC_LY_CFG, 
-    HOJA_ADC_RX_CFG, HOJA_ADC_RY_CFG,
-    HOJA_ADC_LT_CFG, HOJA_ADC_RT_CFG,
-    HOJA_BATTERY_ADC_CFG
+    INTERNAL_ADC_LX_CFG, INTERNAL_ADC_LY_CFG, 
+    INTERNAL_ADC_RX_CFG, INTERNAL_ADC_RY_CFG,
+    INTERNAL_ADC_LT_CFG, INTERNAL_ADC_RT_CFG,
+    INTERNAL_BATTERY_ADC_CFG
     };
 
 adc_read_fn_t _chan_read_fns[ADC_CH_MAX] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
