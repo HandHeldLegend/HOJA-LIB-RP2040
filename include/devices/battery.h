@@ -14,49 +14,19 @@
     //#endif
 #endif
 
-typedef enum 
+typedef struct 
 {
-    BATTERY_INIT_OK,
-    BATTERY_INIT_NOT_SUPPORTED,
-    BATTERY_INIT_LOW_VOLTAGE,
-    BATTERY_INIT_WIRED_OVERRIDE
-} battery_init_t;
+    bool connected; // If we have a battery management IC connected (can also be used to disable function)
+    bool charging;  // If we are charging or not
+    bool plugged;   // If we are plugged in to good power or not
+} battery_status_s;
 
-typedef enum
-{
-    BATTERY_CHARGE_UNAVAILABLE = -1,
-    BATTERY_CHARGE_IDLE,
-    BATTERY_CHARGE_DISCHARGING,
-    BATTERY_CHARGE_CHARGING,
-    BATTERY_CHARGE_DONE,
-} battery_charge_t;
+battery_status_s battery_get_status(void);
+void battery_set_connected(bool connected);
+void battery_set_charging(bool charging);
+void battery_set_plugged(bool plugged);
 
-typedef enum
-{
-    BATTERY_PLUG_UNAVAILABLE = -1,
-    BATTERY_PLUG_UNPLUGGED,
-    BATTERY_PLUG_PLUGGED,
-} battery_plug_t;
-
-typedef enum
-{
-    BATTERY_STATUS_UNAVAILABLE = -1,
-    BATTERY_STATUS_DISCHARGED,
-    BATTERY_STATUS_CONNECTED
-} battery_status_t;
-
-typedef enum 
-{
-    BATTERY_LEVEL_UNAVAILABLE = -1,
-    BATTERY_LEVEL_CRITICAL,
-    BATTERY_LEVEL_LOW,
-    BATTERY_LEVEL_MID,
-    BATTERY_LEVEL_HIGH
-} battery_level_t;
-
-#define VOLTAGE_LEVEL_CRITICAL  3.125f
-#define VOLTAGE_LEVEL_LOW       3.3f
-#define VOLTAGE_LEVEL_MID       3.975f
+void battery_cmd_shutdown();
 
 typedef struct
 {
@@ -71,7 +41,7 @@ typedef struct
         };
         uint32_t val;
     }; 
-} battery_status_s;
+} battery_status_old_s;
 
 typedef enum
 {
@@ -92,13 +62,6 @@ typedef enum
 
 void                battery_set_critical_shutdown();
 int                 battery_init(bool wired_override); 
-battery_level_t     battery_get_level(); 
-bool                battery_set_source(battery_source_t source); 
-void                battery_set_plug(battery_plug_t plug);
-battery_status_s    battery_get_status();
-battery_plug_t      battery_get_plug();   
-battery_charge_t    battery_get_charge();  
-battery_status_t    battery_get_battery(); 
 void                battery_task(uint64_t timestamp); 
 bool                battery_set_charge_rate(uint16_t rate_ma); 
 void                battery_set_ship_mode(); 

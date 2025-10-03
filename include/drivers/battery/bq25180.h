@@ -23,11 +23,12 @@
     #define HOJA_BATTERY_INIT()             bq25180_init() 
     #define HOJA_BATTERY_GET_STATUS()       bq25180_get_status() 
     #define HOJA_BATTERY_UPDATE_STATUS()    bq25180_update_status()
-    #define HOJA_BATTERY_SET_SOURCE(source) bq25180_set_source(source) 
     
+    #define HOJA_BATTERY_PRESENT()          bq25180_is_present()
 
     #define HOJA_BATTERY_SET_SHIP_MODE()    bq25180_set_ship_mode()
     #define HOJA_BATTERY_SET_CHARGE_RATE(rate_ma) bq25180_set_charge_rate(rate_ma)
+    #define HOJA_BATTERY_SET_SOURCE(source) bq25180_set_source(source) 
 
     #if defined(HOJA_BATTERY_ADC_CFG)
         #warning "HOJA_BATTERY_ADC_CFG is undefined for BQ25180 and there will be no low voltage shutdown."
@@ -35,6 +36,7 @@
     #endif
 #endif
 
+bool bq25180_is_present(void);
 bool bq25180_init();
 uint32_t bq25180_get_status();
 int  bq25180_get_level();

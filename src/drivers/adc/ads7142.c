@@ -105,7 +105,6 @@ uint16_t ads7142_read_channel(adc_channel_cfg_s *cfg)
     }
     
     return_value >>= 4;
-    bool ch_invert = cfg->ch_invert;
 
-    return (ch_invert) ? (0xFFF -  return_value) : return_value;
+    return return_value;
 }

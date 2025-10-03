@@ -43,7 +43,6 @@ uint16_t mcp3002_read_channel(adc_channel_cfg_s *cfg)
     uint8_t spi_instance    = cfg->driver_cfg->mcp3002_cfg.spi_instance;
     uint8_t cs_gpio         = cfg->driver_cfg->mcp3002_cfg.cs_gpio;
     uint8_t ch_local        = cfg->ch_local;
-    uint8_t ch_invert       = cfg->ch_invert;
 
     if(cfg->ch_local)
     {
@@ -54,5 +53,5 @@ uint16_t mcp3002_read_channel(adc_channel_cfg_s *cfg)
         spi_hal_read_blocking(spi_instance, cs_gpio, CH0_CONFIG, buffer, 3);
     }
 
-    return (ch_invert) ? (0xFFF -  BUFFER_TO_UINT16(buffer)) : BUFFER_TO_UINT16(buffer);
+    return BUFFER_TO_UINT16(buffer);
 }

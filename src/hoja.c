@@ -29,6 +29,7 @@
 #include "devices/bluetooth.h"
 #include "wired/wired.h"
 #include "devices/haptics.h"
+#include "devices/fuelgauge.h"
 
 time_callback_t _hoja_mode_task_cb = NULL;
 callback_t _hoja_mode_stop_cb = NULL;
@@ -139,7 +140,22 @@ volatile hoja_status_s _hoja_status = {
     .gamepad_color = 0,
     .gamepad_method = 0,
     .gamepad_mode = 0,
-    .init_status = false};
+    };
+
+void hoja_set_battery_percent(uint8_t percent)
+{
+
+}
+
+void hoja_set_plug_status(bool plugged)
+{
+
+}
+
+void hoja_set_charge_status(bool charging)
+{
+  
+}
 
 void hoja_set_connected_status(connection_status_t status)
 {
@@ -295,6 +311,9 @@ void _hoja_task_1()
     // Battery task
     battery_task(c1_timestamp);
 
+    // Fuel gauge task
+    fuelgauge_task(c1_timestamp);
+
     // Update sys tick
     sys_hal_tick();
 
@@ -364,6 +383,9 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
   int bat_return = battery_init(method==GAMEPAD_METHOD_WIRED);
+
+  // Fuel Gauge
+  fuelgauge_init();
 
   // Haptics
   haptics_init();

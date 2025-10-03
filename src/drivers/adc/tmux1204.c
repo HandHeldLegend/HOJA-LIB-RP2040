@@ -27,7 +27,7 @@ bool tmux1204_init_channel(adc_channel_cfg_s *cfg)
     adc_driver_cfg_s *nested = driver->tmux1204_cfg.host_cfg;
 
     // Save this channel config for later reading use
-    _tmux1204_nested_channels[driver_instance].ch_invert    = cfg->ch_invert;
+    //_tmux1204_nested_channels[driver_instance].ch_invert    = cfg->ch_invert;
     _tmux1204_nested_channels[driver_instance].driver_cfg   = driver->tmux1204_cfg.host_cfg;
     _tmux1204_nested_channels[driver_instance].ch_local     = driver->tmux1204_cfg.host_ch_local;
 

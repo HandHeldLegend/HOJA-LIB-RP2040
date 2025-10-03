@@ -23,7 +23,6 @@ typedef enum
 typedef enum 
 {
     PLAYER_NUMBER_INIT = -1,
-    
 } player_number_t;
 
 typedef enum
@@ -40,6 +39,22 @@ typedef enum
     GAMEPAD_MODE_MAX,
 } gamepad_mode_t;
 
+typedef enum 
+{
+    TRANSPORT_WIRED, // Only wired supported
+    TRANSPORT_USB, // Only USB supported
+    TRANSPORT_USB_BT, // USB and Bluetooth supported
+} gamepad_transport_t;
+
+typedef struct 
+{
+    gamepad_mode_t mode;
+    gamepad_transport_t transport;
+    bool gyro_supported;
+    bool haptics_supported;
+    uint32_t timeout_seconds; // Amount of time before the gamepad will auto-shutoff by itself
+} hoja_gamepad_profile_s;
+
 typedef enum
 {
     GAMEPAD_METHOD_AUTO  = -1, // Automatically determine if we are plugged or wireless
@@ -53,11 +68,13 @@ typedef struct
     int8_t connection_status;
     gamepad_mode_t gamepad_mode;
     gamepad_method_t gamepad_method;
-    bool   init_status;
+    uint8_t battery_percent; // Battery percent 0-100
+    bool    wire_plugged; // Whether or not a wire is plugged
+    bool    battery_charging; // Whether or not battery is charging
     rgb_s  notification_color;
     rgb_s  gamepad_color;
     bool   ss_notif_pending; // Single-shot notification pending
-    rgb_s  ss_notif_color; // Single-shot notification color
+    rgb_s  ss_notif_color;   // Single-shot notification color
     uint8_t debug_data;
 } hoja_status_s;
 

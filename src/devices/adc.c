@@ -60,6 +60,7 @@ adc_channel_cfg_s _chan_cfgs[ADC_CH_MAX] = {
     INTERNAL_BATTERY_ADC_CFG
     };
 
+bool _chan_invert[ADC_CH_MAX] = {0};
 adc_read_fn_t _chan_read_fns[ADC_CH_MAX] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 bool adc_devices_init()
@@ -74,6 +75,7 @@ bool adc_devices_init()
         if(cfg->ch_local > -1)
         {
             adc_driver_cfg_s *driver_cfg = cfg->driver_cfg;
+            _chan_invert[i] = cfg->ch_invert ? true : false;
 
             switch(driver_cfg->driver_type)
             {
@@ -114,7 +116,8 @@ static inline int _read_adc_instance(uint8_t idx)
     if(_chan_read_fns[idx])
     {
         adc_channel_cfg_s *cfg = &_chan_cfgs[idx];
-        return _chan_read_fns[idx](cfg);
+        int read = _chan_read_fns[idx](cfg);
+        return cfg->ch_invert ? (0xFFF - read) : read;
     }
         
     return -1;

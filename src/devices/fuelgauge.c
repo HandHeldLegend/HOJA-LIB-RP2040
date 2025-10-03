@@ -1,0 +1,91 @@
+
+#include "devices/fuelgauge.h"
+#include "hoja.h"
+#include "hal/sys_hal.h"
+#include "utilities/interval.h"
+#include "utilities/hwtest.h"
+#include "utilities/crosscore_snapshot.h"
+
+SNAPSHOT_TYPE(fuelgauge, fuelgauge_status_s);
+snapshot_fuelgauge_t _fuelgauge_snap;
+
+fuelgauge_status_s fuelgauge_get_status(void)
+{
+    fuelgauge_status_s tmp;
+    snapshot_transport_read(&_fuelgauge_snap, &tmp);
+    return tmp;
+}
+
+void fuelgauge_set_connected(bool connected)
+{
+    fuelgauge_status_s tmp;
+    snapshot_status_read(&_fuelgauge_snap, &tmp);
+    tmp.connected = connected;
+    snapshot_status_write(&_fuelgauge_snap, &tmp);
+}
+
+void fuelgauge_set_percent(uint8_t percent)
+{
+    fuelgauge_status_s tmp;
+    snapshot_status_read(&_fuelgauge_snap, &tmp);
+    tmp.percent = percent;
+    snapshot_status_write(&_fuelgauge_snap, &tmp);
+}
+
+#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
+    #include "drivers/fuelgauge/bq27621g1.h"
+#endif
+
+typedef enum 
+{
+    BATTERY_LEVEL_UNAVAILABLE = -1,
+    BATTERY_LEVEL_CRITICAL,
+    BATTERY_LEVEL_LOW,
+    BATTERY_LEVEL_MID,
+    BATTERY_LEVEL_HIGH
+} battery_level_t;
+
+#define VOLTAGE_LEVEL_CRITICAL  3.125f
+#define VOLTAGE_LEVEL_LOW       3.3f
+#define VOLTAGE_LEVEL_MID       3.975f
+
+battery_level_t fuelgauge_get_level_basic()
+{
+
+}
+
+uint8_t fuelgauge_get_level_percent()
+{
+
+}
+
+hwtest_t fuelgauge_hwtest()
+{
+    #if defined(HOJA_FUELGAUGE_PRESENT)
+        if(_gauge_present) return HWTEST_PASS; 
+        return HWTEST_NO_DETECT; // 2 Device not detected
+    #else 
+        return HWTEST_UNUSED; // Unused
+    #endif
+}
+
+void fuelgauge_task(uint64_t timestamp)
+{
+    static interval_s interval = {0};
+
+    if (interval_run(timestamp, 5*1000*1000, &interval))
+    {
+    
+        if(_gauge_present)
+        {
+            sys_hal_reboot();
+        }
+    }
+}
+
+void fuelgauge_init() 
+{
+#if defined(HOJA_FUELGAUGE_PRESENT)
+    _gauge_present = HOJA_FUELGAUGE_PRESENT();
+#endif
+}

@@ -1,22 +1,18 @@
 #ifndef _PICO_BTSTACK_BTSTACK_CONFIG_H
 #define _PICO_BTSTACK_BTSTACK_CONFIG_H
 
-// Custom CONFIG
-
 // BTstack features that can be enabled
 #define ENABLE_LE_PERIPHERAL
 #define ENABLE_LE_CENTRAL
 #define ENABLE_L2CAP_LE_CREDIT_BASED_FLOW_CONTROL_MODE
-//#define ENABLE_LOG_INFO 
-//#define ENABLE_LOG_ERROR
+#define ENABLE_LOG_INFO 
+#define ENABLE_LOG_ERROR
 #define ENABLE_PRINTF_HEXDUMP
 #define ENABLE_SCO_OVER_HCI
 
-//#define PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT 1
-
 // BTstack configuration. buffers, sizes, ...
 #define HCI_OUTGOING_PRE_BUFFER_SIZE 4
-#define HCI_ACL_PAYLOAD_SIZE (69 + 4)
+#define HCI_ACL_PAYLOAD_SIZE (1024 + 4)
 #define HCI_ACL_CHUNK_SIZE_ALIGNMENT 4
 #define MAX_NR_AVDTP_CONNECTIONS 1
 #define MAX_NR_AVDTP_STREAM_ENDPOINTS 1
@@ -41,14 +37,14 @@
 
 // Limit number of ACL/SCO Buffer to use by stack to avoid cyw43 shared bus
 // overrun
-#define MAX_NR_CONTROLLER_ACL_BUFFERS 8
+#define MAX_NR_CONTROLLER_ACL_BUFFERS 3
 #define MAX_NR_CONTROLLER_SCO_PACKETS 3
 
 // Enable and configure HCI Controller to Host Flow Control to avoid cyw43
 // shared bus overrun
 #define ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL
 #define HCI_HOST_ACL_PACKET_LEN 1024
-#define HCI_HOST_ACL_PACKET_NUM 8
+#define HCI_HOST_ACL_PACKET_NUM 3
 #define HCI_HOST_SCO_PACKET_LEN 120
 #define HCI_HOST_SCO_PACKET_NUM 3
 

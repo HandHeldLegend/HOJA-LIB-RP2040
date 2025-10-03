@@ -104,6 +104,9 @@
     // Battery Drivers
     #define BATTERY_DRIVER_BQ25180 1
 
+    // Fuel Gauge IC Driver
+    #define FUELGAUGE_DRIVER_BQ27621G1 1
+
     // Bluetooth Drivers 
     #define BLUETOOTH_DRIVER_HAL 1
     #define BLUETOOTH_DRIVER_ESP32HOJA 2

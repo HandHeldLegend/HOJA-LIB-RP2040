@@ -56,10 +56,8 @@ battery_status_s   _pmic_status = {.battery_level = -1};
 bool               _charge_disabled = false;
 bool               _cable_plugged = false;
 
-bool _comms_check()
+bool bq25180_is_present(void)
 {
-    if(_shipping_lockout) return true;
-
     uint8_t _getstatus[1] = {BQ25180_REG_MASK_ID};
     uint8_t _readstatus[1] = {0x00};
     int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
@@ -74,10 +72,7 @@ bool _comms_check()
 
 bool bq25180_update_status()
 {
-    if(_shipping_lockout) return true;
-
     bq25180_status_0_s this_status_0 = {0};
-    bq25180_status_1_s this_status_1 = {0};
 
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
     uint8_t _readstatus[1] = {0};
@@ -144,15 +139,9 @@ bool bq25180_update_status()
 
 bool bq25180_init()
 {
-    sys_hal_sleep_ms(100);
-    if(_comms_check())
-    {
-        bq25180_set_source(BATTERY_SOURCE_AUTO);
-        bq25180_set_charge_rate(100);
-        bq25180_update_status();
-        return true;
-    }
-    else return false;
+    bq25180_set_source(BATTERY_SOURCE_AUTO);
+    bq25180_set_charge_rate(100);
+    bq25180_update_status();
 }
 
 uint32_t bq25180_get_status()

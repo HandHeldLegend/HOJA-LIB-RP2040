@@ -37,6 +37,24 @@ float _exponentialRamp(float input) {
 }
 #endif
 
+// Pushes the notification LED(s) to flash a color once
+void rgb_push_notification(rgb_s color)
+{
+
+}
+
+// Puts the RGBs into a flashing state
+void rgb_indicate_start(rgb_s color)
+{
+
+}
+
+// Clear RGB indication flashing
+void rgb_indicate_stop()
+{
+
+}
+
 void rgb_set_idle(bool enable)
 {
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)

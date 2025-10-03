@@ -2,6 +2,7 @@
 #include "devices/rgb.h"
 #include "utilities/interval.h"
 #include "utilities/settings.h"
+#include "utilities/crosscore_snapshot.h"
 #include "hoja.h"
 #include "board_config.h"
 
@@ -9,14 +10,39 @@
     #include "drivers/battery/bq25180.h"
 #endif
 
-bool _wired_override = false;
+SNAPSHOT_TYPE(battery, battery_status_s);
+snapshot_battery_t _battery_snap;
 
-battery_status_s _battery_status = {
-    .battery_status = BATTERY_STATUS_UNAVAILABLE,
-    .charge_status  = BATTERY_CHARGE_UNAVAILABLE,
-    .plug_status    = BATTERY_PLUG_UNAVAILABLE,
-    .battery_level  = BATTERY_LEVEL_UNAVAILABLE,
-    };
+battery_status_s battery_get_status(void)
+{
+    battery_status_s tmp;
+    snapshot_battery_read(&_battery_snap, &tmp);
+    return tmp;
+}
+
+void battery_set_connected(bool connected)
+{
+    battery_status_s tmp;
+    snapshot_battery_read(&_battery_snap, &tmp);
+    tmp.connected = connected;
+    snapshot_battery_write(&_battery_snap, &tmp);
+}
+
+void battery_set_charging(bool charging)
+{
+    battery_status_s tmp;
+    snapshot_battery_read(&_battery_snap, &tmp);
+    tmp.charging = charging;
+    snapshot_battery_write(&_battery_snap, &tmp);
+}
+
+void battery_set_plugged(bool plugged)
+{
+    battery_status_s tmp;
+    snapshot_battery_read(&_battery_snap, &tmp);
+    tmp.plugged = plugged;
+    snapshot_battery_write(&_battery_snap, &tmp);
+}
 
 battery_status_s _new_battery_status = {0};
 
@@ -50,9 +76,6 @@ void _battery_event_handler(battery_event_t event)
         break;
 
         case BATTERY_EVENT_CHARGE_START:
-        break;
-
-        case BATTERY_EVENT_BATTERY_DEAD:
         break;
     }
 }
@@ -106,6 +129,10 @@ int battery_init(bool wired_override)
         battery_config->charge_level_percent = 100.0f;
     }
 
+    #if defined(HOJA_BATTERY_PRESENT)
+    _battery_pmic_present = HOJA_BATTERY_PRESENT();
+    #endif
+
     #if defined(HOJA_BATTERY_INIT)
     if(HOJA_BATTERY_INIT())
     {
@@ -121,69 +148,6 @@ int battery_init(bool wired_override)
     #endif 
     
     return BATTERY_INIT_NOT_SUPPORTED;
-}
-
-// Get current battery level. Returns -1 if unsupported.
-battery_level_t battery_get_level()
-{
-    #if defined(HOJA_BATTERY_GET_VOLTAGE)
-    return _battery_status.battery_level;
-    #else 
-    return BATTERY_LEVEL_UNAVAILABLE;
-    #endif 
-}
-
-// Set the PMIC power source.
-bool battery_set_source(battery_source_t source)
-{
-    #if defined(HOJA_BATTERY_SET_SOURCE)
-    return HOJA_BATTERY_SET_SOURCE(source);
-    #else 
-    (void) source;
-    return false;
-    #endif 
-}
-
-void battery_set_plug(battery_plug_t plug)
-{
-    _battery_status.plug_status = plug;
-}
-
-// Get the PMIC plugged status.
-battery_plug_t battery_get_plug()
-{
-    if(_wired_override) return BATTERY_PLUG_UNAVAILABLE;
-
-    #if defined(HOJA_BATTERY_GET_STATUS)
-        return _battery_status.plug_status;
-    #else
-        return BATTERY_PLUG_UNAVAILABLE;
-    #endif
-}
-
-// Get the PMIC charging status.
-battery_charge_t battery_get_charge()
-{
-    #if defined(HOJA_BATTERY_GET_STATUS)
-        return _battery_status.charge_status;
-    #else 
-        return BATTERY_CHARGE_UNAVAILABLE;
-    #endif
-}
-
-// Get the PMIC battery status.
-battery_status_t battery_get_battery()
-{
-    #if defined(HOJA_BATTERY_GET_STATUS)
-        return _battery_status.battery_status;
-    #else 
-        return BATTERY_STATUS_UNAVAILABLE;
-    #endif
-}
-
-battery_status_s battery_get_status()
-{
-    return _battery_status;
 }
 
 #define BATTERY_TASK_INTERVAL 1000 * 1000 // 0.5 second (microseconds)
@@ -207,8 +171,11 @@ void battery_set_critical_shutdown()
 // PMIC management task.
 void battery_task(uint64_t timestamp)
 {
+    if(!_battery_pmic_present) return;
+
     #if defined(HOJA_BATTERY_DRIVER)
     if(_wired_override) return;
+    
 
     static interval_s interval = {0};
     static interval_s voltage_interval = {0};
