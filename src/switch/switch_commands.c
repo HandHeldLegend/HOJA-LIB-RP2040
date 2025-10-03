@@ -8,6 +8,7 @@
 #include "devices/haptics.h"
 #include "devices/rgb.h"
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "hal/sys_hal.h"
 
@@ -18,6 +19,19 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef union
+{
+    struct
+    {
+        uint8_t power_source : 1;
+        uint8_t connection : 2;
+        uint8_t reserved : 1;
+        uint8_t charging : 1;
+        uint8_t bat_lvl : 3;
+    };
+    uint8_t val;
+} switch_bat_status_u;
 
 // This C file handles various Switch gamepad commands (OUT reports)
 uint8_t _switch_in_command_buffer[64] = {0};
@@ -82,61 +96,45 @@ void set_timer()
 
 void set_battconn()
 {
-  #if defined(HOJA_BATTERY_DRIVER)
-  battery_status_s stat = battery_get_status();
+  battery_status_s bstat    = battery_get_status();
+  fuelgauge_status_s fstat  = fuelgauge_get_status();
+  switch_bat_status_u sstat = {.bat_lvl=4, .charging=0, .connection=1};
 
-  bat_status_u s = {
-    .bat_lvl    = 4,
-    .charging   = 1,
-    .connection = 0
-  };
-
-  switch(stat.charge_status)
+  if(bstat.connected)
   {
-    case BATTERY_CHARGE_CHARGING:
-    s.charging = 1;
-    break;
+    if(bstat.plugged)
+    {
+      sstat.connection = 1;
+    }
 
-    default:
-    s.charging = 0;
-    break;
+    if(bstat.charging)
+    {
+      sstat.charging = 1;
+    }
   }
 
-  switch(stat.battery_level)
+  if(fstat.connected)
   {
-    case BATTERY_LEVEL_CRITICAL:
-    s.bat_lvl = 1;
-    break;
-
-    case BATTERY_LEVEL_LOW:
-    s.bat_lvl = 1;
-    break;
-
-    case BATTERY_LEVEL_MID:
-    s.bat_lvl = 2;
-    break;
-
-    default:
-    case BATTERY_LEVEL_HIGH:
-    s.bat_lvl = 4;
-    break;
+    if(fstat.percent >= 90)
+    {
+      sstat.bat_lvl = 4;
+    }
+    else if(fstat.percent >= 75)
+    {
+      sstat.bat_lvl = 3;
+    }
+    else if(fstat.percent >= 15)
+    {
+      sstat.bat_lvl = 2;
+    }
+    else
+    {
+      sstat.bat_lvl = 1;
+    }
   }
-
-  if(hoja_get_status().gamepad_method == GAMEPAD_METHOD_USB)
-  {
-    s.bat_lvl = 4;
-  }
-  #else
-  bat_status_u s = {
-    .bat_lvl    = 4,
-    .charging   = 0,
-    .connection = 1
-  };
-  #endif
-  
   
   // Always set to USB connected
-  _switch_command_buffer[1] = s.val;
+  _switch_command_buffer[1] = sstat.val;
 }
 
 void set_devinfo()

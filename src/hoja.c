@@ -134,60 +134,6 @@ rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
   }
 }
 
-volatile hoja_status_s _hoja_status = {
-    .connection_status = CONN_STATUS_INIT,
-    .notification_color = 0,
-    .gamepad_color = 0,
-    .gamepad_method = 0,
-    .gamepad_mode = 0,
-    };
-
-void hoja_set_battery_percent(uint8_t percent)
-{
-
-}
-
-void hoja_set_plug_status(bool plugged)
-{
-
-}
-
-void hoja_set_charge_status(bool charging)
-{
-  
-}
-
-void hoja_set_connected_status(connection_status_t status)
-{
-  _hoja_status.connection_status = status;
-}
-
-void hoja_set_notification_status(rgb_s color)
-{
-  _hoja_status.notification_color = color;
-}
-
-void hoja_clr_ss_notif()
-{
-  _hoja_status.ss_notif_pending = false;
-}
-
-void hoja_set_ss_notif(rgb_s color)
-{
-  _hoja_status.ss_notif_pending = true;
-  _hoja_status.ss_notif_color = color;
-}
-
-void hoja_set_debug_data(uint8_t data)
-{
-  _hoja_status.debug_data = data;
-}
-
-hoja_status_s hoja_get_status()
-{
-  return _hoja_status;
-}
-
 gamepad_mode_t thisMode = GAMEPAD_MODE_SWPRO;
 gamepad_method_t thisMethod = GAMEPAD_METHOD_AUTO;
 bool thisPair = false;

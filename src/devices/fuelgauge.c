@@ -12,24 +12,24 @@ snapshot_fuelgauge_t _fuelgauge_snap;
 fuelgauge_status_s fuelgauge_get_status(void)
 {
     fuelgauge_status_s tmp;
-    snapshot_transport_read(&_fuelgauge_snap, &tmp);
+    snapshot_fuelgauge_read(&_fuelgauge_snap, &tmp);
     return tmp;
 }
 
 void fuelgauge_set_connected(bool connected)
 {
     fuelgauge_status_s tmp;
-    snapshot_status_read(&_fuelgauge_snap, &tmp);
+    snapshot_fuelgauge_read(&_fuelgauge_snap, &tmp);
     tmp.connected = connected;
-    snapshot_status_write(&_fuelgauge_snap, &tmp);
+    snapshot_fuelgauge_write(&_fuelgauge_snap, &tmp);
 }
 
 void fuelgauge_set_percent(uint8_t percent)
 {
     fuelgauge_status_s tmp;
-    snapshot_status_read(&_fuelgauge_snap, &tmp);
+    snapshot_fuelgauge_read(&_fuelgauge_snap, &tmp);
     tmp.percent = percent;
-    snapshot_status_write(&_fuelgauge_snap, &tmp);
+    snapshot_fuelgauge_write(&_fuelgauge_snap, &tmp);
 }
 
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
@@ -57,16 +57,6 @@ battery_level_t fuelgauge_get_level_basic()
 uint8_t fuelgauge_get_level_percent()
 {
 
-}
-
-hwtest_t fuelgauge_hwtest()
-{
-    #if defined(HOJA_FUELGAUGE_PRESENT)
-        if(_gauge_present) return HWTEST_PASS; 
-        return HWTEST_NO_DETECT; // 2 Device not detected
-    #else 
-        return HWTEST_UNUSED; // Unused
-    #endif
 }
 
 void fuelgauge_task(uint64_t timestamp)

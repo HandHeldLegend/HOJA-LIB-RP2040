@@ -6,6 +6,7 @@
 #include "devices/battery.h"
 #include "devices/bluetooth.h"
 #include "utilities/settings.h"
+#include "utilities/transport.h"
 
 #include "hoja.h"
 
@@ -33,53 +34,46 @@ void boot_clear_memory()
     sys_hal_set_bootmemory(0);
 }
 
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *pair)
+void boot_get_mode_method(transport_profile_s *profile)
 {
     // Access boot time button state
     button_data_s buttons = {0};
     button_access_safe(&buttons, BUTTON_ACCESS_BOOT_DATA);
 
+    transport_mode_t thisMode = TRANSPORT_MODE_SWPRO;
+
     // Set default return states
-    gamepad_method_t thisMethod = GAMEPAD_METHOD_USB;
-    gamepad_mode_t   thisMode   = GAMEPAD_MODE_SWPRO;
     bool             thisPair   = false;
 
     switch(gamepad_config->gamepad_default_mode)
     {
         default: 
         case 0: 
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisMode = TRANSPORT_MODE_SWPRO;
         break;
 
         case 1:
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisMode = TRANSPORT_MODE_XINPUT;
         break;
 
         case 2:
-            thisMode    = GAMEPAD_MODE_GCUSB; 
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+            thisMode = TRANSPORT_MODE_GCUSB;
         break;
 
         case 3:
-            thisMode    = GAMEPAD_MODE_GAMECUBE; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
+            thisMode = TRANSPORT_MODE_GAMECUBE;
         break;
 
         case 4:
-            thisMode    = GAMEPAD_MODE_N64; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
+            thisMode = TRANSPORT_MODE_N64;
         break;
 
         case 5:
-            thisMode    = GAMEPAD_MODE_SNES; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
+            thisMode = TRANSPORT_MODE_SNES;
         break;
 
         case 6:
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode = TRANSPORT_MODE_SINPUT;
         break;
     }
 
@@ -88,81 +82,66 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         // Input modes in order
         if(buttons.dpad_left) 
         {
-            thisMode    = GAMEPAD_MODE_SNES;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = TRANSPORT_MODE_SNES;
         }
         else if(buttons.dpad_down)
         {
-            thisMode    = GAMEPAD_MODE_N64;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = TRANSPORT_MODE_N64;
         }
         else if(buttons.dpad_right)
         {
-            thisMode    = GAMEPAD_MODE_GAMECUBE;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisMode    = TRANSPORT_MODE_GAMECUBE;
         }
 #if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
         else if(buttons.button_east)
         {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisMode            = TRANSPORT_MODE_SWPRO;
         }
         else if(buttons.button_south)
         {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode            = TRANSPORT_MODE_SINPUT;
         }
         else if(buttons.button_north)
         {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode            = TRANSPORT_MODE_XINPUT;
         }
         else if(buttons.button_west)
         {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+            thisMode    = TRANSPORT_MODE_GCUSB;
         }
 #elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
         else if(buttons.button_south)
         {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisMode = TRANSPORT_MODE_SWPRO;
         }
         else if(buttons.button_west)
         {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode = TRANSPORT_MODE_SINPUT;
         }
         else if(buttons.button_east)
         {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode = TRANSPORT_MODE_XINPUT;
         }
         else if(buttons.button_north)
         {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+            thisMode = TRANSPORT_MODE_GCUSB;
         }
 #else 
         else if(buttons.button_south)
         {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisMode            = TRANSPORT_MODE_SWPRO;
         }
         else if(buttons.button_east)
         {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode            = TRANSPORT_MODE_SINPUT;
         }
         else if(buttons.button_west)
         {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            thisMode            = TRANSPORT_MODE_XINPUT;
         }
         else if(buttons.button_north)
         {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
+            thisMode    = TRANSPORT_MODE_GCUSB;
         }
 #endif 
     }
@@ -172,13 +151,10 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     boot_get_memory(&boot_memory);
     boot_clear_memory();
 
-    hoja_set_debug_data(boot_memory.reserved_2);
-
     // If we have reboot memory, use it
     if(boot_memory.val != 0)
     {
         thisMode    = boot_memory.gamepad_mode;
-        thisMethod  = boot_memory.gamepad_method;
         thisPair    = boot_memory.gamepad_pair ? true : false;
     }
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
@@ -187,9 +163,8 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         // Choose gamepad boot mode here based on button inputs
         if(buttons.trigger_r && buttons.button_plus)
         {
-            *mode = GAMEPAD_MODE_LOAD;
-            *method = GAMEPAD_METHOD_BLUETOOTH;
-            *pair = false;
+            thisMode = TRANSPORT_MODE_LOAD;
+            thisPair = false;
             return;
         }
         else if(buttons.button_plus)
@@ -205,8 +180,53 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
         return;
     }
 
-    // Set outputs
-    *mode   = thisMode;
-    *method = thisMethod;
-    *pair   = thisPair;
+    profile->bluetooth_pair = thisPair;
+
+    // Apply profile specifics based on 
+    // transport mode
+    switch(thisMode)
+    {
+        default: 
+        case TRANSPORT_MODE_SWPRO: 
+            profile->bluetooth_supported = true;
+            profile->gyro_supported = true;
+            profile->haptics_supported = true;
+        break;
+
+        case TRANSPORT_MODE_XINPUT:
+            profile->bluetooth_supported = false;
+            profile->gyro_supported = false;
+            profile->haptics_supported = true;
+        break;
+
+        case TRANSPORT_MODE_GCUSB:
+            profile->bluetooth_supported = false;
+            profile->gyro_supported = false;
+            profile->haptics_supported = true;
+        break;
+
+        case TRANSPORT_MODE_GAMECUBE:
+            profile->bluetooth_supported = false;
+            profile->gyro_supported = false;
+            profile->haptics_supported = true;
+        break;
+
+        case TRANSPORT_MODE_N64:
+            profile->bluetooth_supported = false;
+            profile->gyro_supported = false;
+            profile->haptics_supported = true;
+        break;
+
+        case TRANSPORT_MODE_SNES:
+            profile->bluetooth_supported = false;
+            profile->gyro_supported = false;
+            profile->haptics_supported = false;
+        break;
+
+        case TRANSPORT_MODE_SINPUT:
+            profile->bluetooth_supported = true;
+            profile->gyro_supported = false;
+            profile->haptics_supported = false;
+        break;
+    }
 }
