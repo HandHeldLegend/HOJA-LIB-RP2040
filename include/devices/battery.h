@@ -19,10 +19,11 @@ typedef enum
     BATTERY_SOURCE_BATTERY,
 } battery_source_t;
 
+void battery_update_status(void);
 void battery_get_status(battery_status_s *out); 
-void battery_set_critical_shutdown(); 
+void battery_set_critical_shutdown(void); 
 bool battery_init(void); 
 bool battery_set_charge_rate(uint16_t rate_ma); 
-void battery_set_ship_mode(); 
+void battery_set_ship_mode(void); 
 
 #endif

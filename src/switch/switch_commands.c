@@ -8,6 +8,7 @@
 #include "devices/haptics.h"
 #include "devices/rgb.h"
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "hal/sys_hal.h"
 
@@ -82,8 +83,11 @@ void set_timer()
 
 void set_battconn()
 {
-  #if defined(HOJA_BATTERY_DRIVER)
-  battery_status_s stat = battery_get_status();
+  fuelgauge_status_s fstat = {0};
+  fuelgauge_get_status(&fstat);
+
+  battery_status_s bstat = {0};
+  battery_get_status(&bstat);
 
   bat_status_u s = {
     .bat_lvl    = 4,
@@ -91,49 +95,50 @@ void set_battconn()
     .connection = 0
   };
 
-  switch(stat.charge_status)
+  if(bstat.connected)
   {
-    case BATTERY_CHARGE_CHARGING:
-    s.charging = 1;
-    break;
-
-    default:
+    if(bstat.charging)
+    {
+      s.charging = 1;
+      s.connection = 1;
+    }
+    else if (bstat.plugged)
+    {
+      s.charging = 0;
+      s.connection = 1;
+    }
+  }
+  else 
+  {
     s.charging = 0;
-    break;
+    s.connection = 1;
   }
 
-  switch(stat.battery_level)
+  if(fstat.connected)
   {
-    case BATTERY_LEVEL_CRITICAL:
-    s.bat_lvl = 1;
-    break;
+    switch(fstat.simple)
+    {
+      default:
+      s.bat_lvl = 1;
+      break;
 
-    case BATTERY_LEVEL_LOW:
-    s.bat_lvl = 1;
-    break;
+      case 1:
+      s.bat_lvl = 1;
+      break;
 
-    case BATTERY_LEVEL_MID:
-    s.bat_lvl = 2;
-    break;
+      case 2:
+      s.bat_lvl = 2;
+      break;
 
-    default:
-    case BATTERY_LEVEL_HIGH:
-    s.bat_lvl = 4;
-    break;
+      case 3:
+      s.bat_lvl = 3;
+      break;
+
+      case 4:
+      s.bat_lvl = 4;
+      break;
+    }
   }
-
-  if(hoja_get_status().gamepad_method == GAMEPAD_METHOD_USB)
-  {
-    s.bat_lvl = 4;
-  }
-  #else
-  bat_status_u s = {
-    .bat_lvl    = 4,
-    .charging   = 0,
-    .connection = 1
-  };
-  #endif
-  
   
   // Always set to USB connected
   _switch_command_buffer[1] = s.val;

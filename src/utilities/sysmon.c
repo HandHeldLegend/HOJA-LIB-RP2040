@@ -3,16 +3,19 @@
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
+#include "devices/rgb.h"
+
 #include "utilities/transport.h"
+#include "utilities/crosscore_snapshot.h"
 #include "hoja.h"
 
 transport_status_s _systransport = {.connected=false, .player_number=0, .polling_rate_us=8000, .wireless=false};
-battery_status_s _sysbattery = {.connected=false, .charging=false, .plugged=true};
+battery_status_s _sysbattery = {.connected=false, .charging=false, .plugged=false};
 fuelgauge_status_s _sysfuel = {.connected=false, .percent=100};
 
 // Critical power shutdown function
 #define CRITICAL_SHUTDOWN_TIMEOUT_US 6500 * 1000 // 6.5 seconds
-#define SYSMON_INTERVAL_US 2 * 1000 * 1000 // 2 seconds
+#define SYSMON_INTERVAL_US 1 * 1000 * 1000 // 2 seconds
 #define DISCONNECT_TIMEOUT_US 30 * 1000 * 1000 // 30 second timeout to shut down when disconnected
 bool _shutdown_timeout_initiated = false;
 int  _shutdown_timeout_reset = 0;
@@ -39,17 +42,45 @@ void sysmon_task(uint64_t timestamp)
     }
 
     static interval_s interval = {0};
+    static bool flipflop = false;
 
     if (interval_run(timestamp, SYSMON_INTERVAL_US, &interval))
     {
-        static transport_status_s tmp_transport;
-        transport_get_status(&tmp_transport);
+        // static transport_status_s tmp_transport;
+        // transport_get_status(&tmp_transport);
 
-        battery_status_s tmp_battery;
+        static battery_status_s tmp_battery;
+        battery_update_status();
         battery_get_status(&tmp_battery);
-
-        fuelgauge_status_s tmp_fuel;
+        
+        static fuelgauge_status_s tmp_fuel;
+        fuelgauge_update_status();
         fuelgauge_get_status(&tmp_fuel);
+
+        // PMIC is functional
+        if(tmp_battery.connected)
+        {
+            if(_sysbattery.plugged && !tmp_battery.plugged)
+            {
+                // UNPLUG EVENT
+                _shutdown_lockout = true;
+                hoja_deinit(hoja_shutdown);
+                return;
+            }
+            else if(!_sysbattery.plugged && tmp_battery.plugged)
+            {
+                // PLUG EVENT
+            }
+
+            _sysbattery = tmp_battery;
+        }
+
+        // PMIC and Fuel Gauge need to be present to
+        // utilize the fuel gauge status
+        if(tmp_battery.connected && tmp_fuel.connected)
+        {
+            _sysfuel = tmp_fuel;
+        }
     }
 }
 

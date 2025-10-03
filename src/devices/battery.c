@@ -13,11 +13,6 @@
 SNAPSHOT_TYPE(battery, battery_status_s);
 snapshot_battery_t _battery_snap;
 
-void battery_get_status(battery_status_s *out)
-{
-    snapshot_battery_read(&_battery_snap, out);
-}
-
 void _battery_set_connected(bool connected)
 {
     battery_status_s tmp;
@@ -44,7 +39,7 @@ void _battery_set_plugged(bool plugged)
 
 // Perform a hardware level transaction
 // to obtain the latest status
-void _battery_update_status(void)
+void battery_update_status(void)
 {
     battery_status_s status = {0};
 
@@ -53,6 +48,11 @@ void _battery_update_status(void)
     #endif
 
     snapshot_battery_write(&_battery_snap, &status);
+}
+
+void battery_get_status(battery_status_s *out)
+{
+    snapshot_battery_read(&_battery_snap, out);
 }
 
 #define BATTERY_LEVEL_INTERVAL_US 1000*1000 // 1 second
@@ -127,7 +127,7 @@ bool battery_init(void)
     if(!init) return false;
 
     // Get initial status
-    _battery_update_status();
+    battery_update_status();
     return true;
 }
 

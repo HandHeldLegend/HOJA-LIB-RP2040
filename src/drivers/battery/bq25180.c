@@ -50,7 +50,6 @@ typedef struct
     };
 } bq25180_status_1_s;
 
-
 bool _charge_disabled = false;
 
 bool bq25180_is_present(void)

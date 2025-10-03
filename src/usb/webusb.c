@@ -9,6 +9,8 @@
 #include "input/button.h"
 #include "input/imu.h"
 #include "input/trigger.h"
+#include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "hoja.h"
 
@@ -157,6 +159,16 @@ void webusb_send_rawinput(uint64_t timestamp)
         webusb_input_report[34] = (rx & 0xFF);
         webusb_input_report[35] = (ry & 0xFF00) >> 8;
         webusb_input_report[36] = (ry & 0xFF);
+
+        static battery_status_s batstat = {0};
+        static fuelgauge_status_s fgstat = {0};
+
+        battery_get_status(&batstat);
+        fuelgauge_get_status(&fgstat);
+
+        // Charge status
+        webusb_input_report[37] = batstat.charging | (batstat.charging_done << 1);
+        webusb_input_report[38] = fgstat.percent;
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);

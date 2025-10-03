@@ -15,6 +15,7 @@
 #include "utilities/settings.h"
 
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "board_config.h"
 
@@ -455,28 +456,38 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     static uint8_t report_data[64] = {0};
     static sinput_input_s data;
 
-    battery_status_s stat = battery_get_status();
-    data.charge_percent = 100; // 100 Percent
+    battery_status_s bstat = {0};
+    battery_get_status(&bstat);
 
-    if(stat.plug_status == BATTERY_PLUG_PLUGGED)
+    fuelgauge_status_s fstat = {0};
+    fuelgauge_get_status(&fstat);
+
+    if(bstat.connected)
     {
-        if(stat.charge_status == BATTERY_CHARGE_CHARGING)
+        if(bstat.charging)
         {
             data.plug_status = 2; // Charging
         }
-        else 
+        else if (bstat.plugged)
         {
             data.plug_status = 3; // Not Charging/Charge Complete
         }
+        else 
+        {
+            data.plug_status = 4; // On battery power
+        }
     }
-    else if(stat.plug_status == BATTERY_PLUG_UNPLUGGED)
-    {
-        data.plug_status = 4; // On battery power
-        data.charge_percent = stat.battery_level * 25;
-    }
-    else if(stat.plug_status == BATTERY_PLUG_UNAVAILABLE)
+    else 
     {
         data.plug_status = 0; // Plugged
+    }
+
+    if(fstat.connected)
+    {
+        data.charge_percent = fstat.percent;
+    }
+    else 
+    {
         data.charge_percent = 100; // 100 Percent
     }
 

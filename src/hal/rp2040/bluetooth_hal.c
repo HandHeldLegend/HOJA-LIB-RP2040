@@ -20,14 +20,18 @@
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "utilities/interval.h"
+#include "utilities/sysmon.h"
 #include "usb/swpro.h"
 #include "usb/sinput.h"
 #include "hal/sys_hal.h"
 
 #include "hoja.h"
 
+#define BT_HAL_TARGET_POLLING_RATE_MS 6
+
 volatile uint32_t _current_polling_rate = 8;
 volatile bool _connected = false;
+volatile bool _hidreportclear = false;
 
 static const uint8_t switch_bt_report_descriptor[] = {
     0x05, 0x01,       // Usage Page (Generic Desktop Ctrls)
@@ -143,6 +147,11 @@ static uint8_t pnp_service_buffer[700] = {0};
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static uint16_t hid_cid = 0;
 
+static uint32_t last_hid_report_timestamp_ms = 0;
+static interval_s hid_report_interval = {0};
+// Timer structure for scheduling delayed HID report requests
+static btstack_timer_source_t hid_timer;
+
 // Compare addresses and return true if they are the same
 bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
 {
@@ -213,6 +222,15 @@ static void _bt_hid_report_handler(uint16_t cid,
 
 volatile bool _pairing_mode = false;
 volatile bool _interval_reset = false;
+
+// Timer handler to request can send now event after delay
+static void hid_timer_handler(btstack_timer_source_t *ts) {
+    // Avoid compiler warning for unused parameter
+    (void)ts;
+    
+    // Request another CAN_SEND_NOW event
+    hid_device_request_can_send_now_event(hid_cid);
+}
 
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
 {
@@ -306,17 +324,50 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 }
 
                 printf("HID Connected\n");
+                _connected = true;
                 hid_device_request_can_send_now_event(hid_cid);
+                
                 break;
             case HID_SUBEVENT_CONNECTION_CLOSED:
                 printf("HID Disconnected\n");
                 _connected = false;
+                _hidreportclear = false;
                 hid_cid = 0;
+                sysmon_set_critical_shutdown();
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid)
                 {
-                    _connected = true;
+                    static uint64_t tmpstamp = 0;
+                    sys_hal_time_us(&tmpstamp);
+
+                    uint32_t current_time_ms = btstack_run_loop_get_time_ms();
+                    uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
+
+                    if(time_elapsed >= BT_HAL_TARGET_POLLING_RATE_MS)
+                    {
+                        switch(hoja_get_status().gamepad_mode)
+                        {
+                            default:
+                            swpro_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
+                            break;
+
+                            case GAMEPAD_MODE_SINPUT:
+                            sinput_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
+                        }
+                        
+                        last_hid_report_timestamp_ms = current_time_ms;
+                        hid_device_request_can_send_now_event(hid_cid);
+                    }
+                    else 
+                    {
+                        // Not enough time has passed, schedule another send event after delay
+                        uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
+                        uint32_t delay = BT_HAL_TARGET_POLLING_RATE_MS - time_elapsed;
+                        btstack_run_loop_set_timer(&hid_timer, delay);
+                        btstack_run_loop_set_timer_handler(&hid_timer, &hid_timer_handler);
+                        btstack_run_loop_add_timer(&hid_timer);
+                    }
                 }
                 break;
             case HID_SUBEVENT_SNIFF_SUBRATING_PARAMS:
@@ -459,7 +510,6 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     hci_set_bd_addr(mac_tmp);
 
     // btstack_run_loop_execute();
-
     return true;
 }
 
@@ -469,26 +519,7 @@ void bluetooth_hal_stop()
 
 void bluetooth_hal_task(uint64_t timestamp)
 {
-    static interval_s run = {0};
-    static bool sendit = false;
-
-    if(interval_resettable_run(timestamp, _current_polling_rate * 1000, _interval_reset, &run))
-    {
-        if(_connected)
-        {
-            switch (hoja_get_status().gamepad_mode)
-            {
-            default:
-                swpro_hid_report(timestamp, _bluetooth_hal_hid_tunnel); // this calls hid_device_send_interrupt_message()
-                break;
-            case GAMEPAD_MODE_SINPUT:
-                sinput_hid_report(timestamp, _bluetooth_hal_hid_tunnel);
-                break;
-            }
-        }
-    }
-    else if(_interval_reset) _interval_reset = false;
-
+    sleep_us(500);
 }
 
 uint32_t bluetooth_hal_get_fwversion()

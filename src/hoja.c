@@ -15,6 +15,7 @@
 #include "utilities/settings.h"
 #include "utilities/boot.h"
 #include "utilities/hooks.h"
+#include "utilities/sysmon.h"
 
 #include "input/button.h"
 #include "input/analog.h"
@@ -29,6 +30,7 @@
 #include "devices/bluetooth.h"
 #include "wired/wired.h"
 #include "devices/haptics.h"
+#include "devices/fuelgauge.h"
 
 time_callback_t _hoja_mode_task_cb = NULL;
 callback_t _hoja_mode_stop_cb = NULL;
@@ -291,8 +293,8 @@ void _hoja_task_1()
     // RGB task
     rgb_task(c1_timestamp);
 
-    // Battery task
-    battery_task(c1_timestamp);
+    // System Monitor task (battery/fuel gauge)
+    sysmon_task(c1_timestamp);
 
     // Update sys tick
     sys_hal_tick();
@@ -362,7 +364,10 @@ bool _system_requirements_init()
 bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  int bat_return = battery_init(method == GAMEPAD_METHOD_WIRED);
+  battery_init();
+
+  // Fuel gauge
+  fuelgauge_init(1200);
 
   // Haptics
   haptics_init();
