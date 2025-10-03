@@ -179,40 +179,39 @@ bool thisPair = false;
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 {
-// If we have a battery driver
-// we should perform a power check and some
-// other logic
-#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER > 0)
   if (method == GAMEPAD_METHOD_AUTO)
   {
-    battery_status_s stat = battery_get_status();
+    battery_status_s status;
+    battery_get_status(&status);
 
-    if (stat.plug_status == BATTERY_PLUG_UNPLUGGED)
-    {
-      switch (mode)
-      {
-      case GAMEPAD_MODE_SWPRO:
-      case GAMEPAD_MODE_SINPUT:
-      case GAMEPAD_MODE_XINPUT:
-        method = GAMEPAD_METHOD_BLUETOOTH;
-        break;
-
-      default:
-        method = GAMEPAD_METHOD_USB;
-        break;
-      }
-    }
-    else
+    // PMIC unused
+    if (!status.connected)
     {
       method = GAMEPAD_METHOD_USB;
     }
+    else
+    {
+      if (!status.plugged)
+      {
+        switch (mode)
+        {
+        case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_SINPUT:
+        case GAMEPAD_MODE_XINPUT:
+          method = GAMEPAD_METHOD_BLUETOOTH;
+          break;
+
+        default:
+          method = GAMEPAD_METHOD_USB;
+          break;
+        }
+      }
+      else
+      {
+        method = GAMEPAD_METHOD_USB;
+      }
+    }
   }
-#else
-  if (method == GAMEPAD_METHOD_AUTO)
-  {
-    method = GAMEPAD_METHOD_USB;
-  }
-#endif
 
   // debug
   // method = GAMEPAD_METHOD_BLUETOOTH;
@@ -363,16 +362,16 @@ bool _system_requirements_init()
 bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  int bat_return = battery_init(method==GAMEPAD_METHOD_WIRED);
+  int bat_return = battery_init(method == GAMEPAD_METHOD_WIRED);
 
   // Haptics
   haptics_init();
 
   int bright = -1;
-  
-  if(method==GAMEPAD_METHOD_BLUETOOTH || method==GAMEPAD_METHOD_WIRED)
+
+  if (method == GAMEPAD_METHOD_BLUETOOTH || method == GAMEPAD_METHOD_WIRED)
   {
-    const int halfbright = (RGB_BRIGHTNESS_MAX/3);
+    const int halfbright = (RGB_BRIGHTNESS_MAX / 3);
     bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
   }
 

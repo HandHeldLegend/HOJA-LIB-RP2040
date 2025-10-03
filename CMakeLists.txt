@@ -20,10 +20,13 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/sysmon.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/transport.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/adc.c 
 

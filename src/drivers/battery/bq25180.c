@@ -14,8 +14,6 @@
 #define BQ25180_REG_ICHG_CTRL   0x4
 #define BQ25180_REG_MASK_ID     0xC
 
-bool _shipping_lockout = false;
-
 typedef struct
 {
     union
@@ -52,13 +50,11 @@ typedef struct
     };
 } bq25180_status_1_s;
 
-battery_status_s   _pmic_status = {.battery_level = -1};
-bool               _charge_disabled = false;
-bool               _cable_plugged = false;
 
-bool _comms_check()
+bool _charge_disabled = false;
+
+bool bq25180_is_present(void)
 {
-    if(_shipping_lockout) return true;
 
     uint8_t _getstatus[1] = {BQ25180_REG_MASK_ID};
     uint8_t _readstatus[1] = {0x00};
@@ -72,9 +68,9 @@ bool _comms_check()
     else return false;
 }
 
-bool bq25180_update_status()
+battery_status_s bq25180_get_status(void)
 {
-    if(_shipping_lockout) return true;
+    static battery_status_s status = {0};
 
     bq25180_status_0_s this_status_0 = {0};
     bq25180_status_1_s this_status_1 = {0};
@@ -85,18 +81,18 @@ bool bq25180_update_status()
 
     if(ret==1)
     {
+        status.connected = true;
+
         this_status_0.status = _readstatus[0];
         
         // First, get our plug status
         if(this_status_0.vin_power_good)
         {
-            _cable_plugged = true;
-            _pmic_status.plug_status = BATTERY_PLUG_PLUGGED;
+            status.plugged = true;
         }
         else
         {
-            _cable_plugged = false;
-            _pmic_status.plug_status = BATTERY_PLUG_UNPLUGGED;
+            status.plugged = false;
         }
 
         // Process any changes to status
@@ -104,66 +100,39 @@ bool bq25180_update_status()
         {
             case 0b00:
                 // We only get this status while charging is enabled
-                if(_cable_plugged) _pmic_status.charge_status = BATTERY_CHARGE_IDLE; // Not draining or charging
-                else _pmic_status.charge_status = BATTERY_CHARGE_DISCHARGING; // Battery draining
+                status.charging = false;
             break;
 
             case 0b01:
             case 0b10:
-                _pmic_status.charge_status = BATTERY_CHARGE_CHARGING;
+                // Reset charging_done
+                status.charging_done = false;
+                status.charging = true;
             break;
 
             case 0b11:
                 if(_charge_disabled)
                 {
-                    if(_cable_plugged) _pmic_status.charge_status = BATTERY_CHARGE_IDLE; // Not draining or charging
-                    else _pmic_status.charge_status = BATTERY_CHARGE_DISCHARGING; // Battery draining
+                    status.charging = false;
                 }
                 else
                 {
-                    _pmic_status.charge_status = BATTERY_CHARGE_DONE; // Completed battery charging
+                    status.charging_done = true;
+                    status.charging = false;
                 }
             break;
-        }
-
-        return true;
+        }   
     }
-    // Communication failure with PMIC
-    else
-    {
-        _pmic_status.battery_status = BATTERY_STATUS_UNAVAILABLE;
-        _pmic_status.charge_status  = BATTERY_CHARGE_UNAVAILABLE;
-        _pmic_status.plug_status    = BATTERY_PLUG_UNAVAILABLE;
-
-        return false;
-    };
-
-    // Unreachable
-    return false;
+    
+    return status;
 }
 
 bool bq25180_init()
 {
     sys_hal_sleep_ms(100);
-    if(_comms_check())
-    {
-        bq25180_set_source(BATTERY_SOURCE_AUTO);
-        bq25180_set_charge_rate(100);
-        bq25180_update_status();
-        return true;
-    }
-    else return false;
-}
-
-uint32_t bq25180_get_status()
-{
-    return _pmic_status.val;
-}
-
-// Battery level isn't supported with this PMIC. Returns -1
-int  bq25180_get_level()
-{
-    return -1;
+    bq25180_set_source(BATTERY_SOURCE_AUTO);
+    bq25180_set_charge_rate(100);
+    return true;
 }
 
 bool bq25180_set_source(battery_source_t source)
@@ -210,9 +179,6 @@ bool bq25180_set_source(battery_source_t source)
 
 bool bq25180_set_ship_mode()
 {
-    if(_shipping_lockout) return true;
-    _shipping_lockout = true;
-
     const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
     int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
 
