@@ -26,11 +26,7 @@ uint8_t adc_fuelgauge_get_percent(void)
 
     float remaining = (voltage-VOLTAGE_LEVEL_CRITICAL);
 
-    if(remaining >= VOLTAGE_RANGE)
-    {
-        return 100;
-    }   
-    else if(remaining > VOLTAGE_LEVEL_CRITICAL)
+    if(remaining > 0)
     {
         float percentf = (remaining / VOLTAGE_RANGE) * 100.0f;
         percentf = (percentf > 100.0f) ? 100.0f : percentf;
