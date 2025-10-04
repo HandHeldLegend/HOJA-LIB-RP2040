@@ -11,6 +11,7 @@
 
 #include "devices_shared_types.h"
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
@@ -660,42 +661,47 @@ void esp32hoja_task(uint64_t timestamp)
 
             // Power status
             {
-                battery_status_s stat = battery_get_status();
-                bat_status_u s = {
+                static battery_status_s bstat = {0};
+                static fuelgauge_status_s fstat = {0};
+
+                battery_get_status(&bstat);
+                fuelgauge_get_status(&fstat);
+
+                esp32_battery_status_u s = {
                     .bat_lvl    = 4,
-                    .charging   = 1,
+                    .charging   = 0,
                     .connection = 0
                 };
-            
-                switch(stat.charge_status)
+
+                if(bstat.connected)
                 {
-                    case BATTERY_CHARGE_CHARGING:
-                    s.charging = 1;
-                    break;
-                
-                    default:
-                    s.charging = 0;
-                    break;
+                    if(bstat.charging)
+                    {
+                        s.charging = 1;
+                    }
+                    else s.charging = 0;
                 }
-            
-                switch(stat.battery_level)
+
+                if(fstat.connected)
                 {
-                    case BATTERY_LEVEL_CRITICAL:
-                    s.bat_lvl = 1;
-                    break;
-                
-                    case BATTERY_LEVEL_LOW:
-                    s.bat_lvl = 1;
-                    break;
-                
-                    case BATTERY_LEVEL_MID:
-                    s.bat_lvl = 2;
-                    break;
-                
-                    default:
-                    case BATTERY_LEVEL_HIGH:
-                    s.bat_lvl = 4;
-                    break;
+                    switch(fstat.simple)
+                    {
+                        case BATTERY_LEVEL_CRITICAL:
+                        s.bat_lvl = 1;
+                        break;
+
+                        case BATTERY_LEVEL_LOW:
+                        s.bat_lvl = 1;
+                        break;
+
+                        case BATTERY_LEVEL_MID:
+                        s.bat_lvl = 2;
+                        break;
+
+                        case BATTERY_LEVEL_HIGH:
+                        s.bat_lvl = 4;
+                        break;
+                    }
                 }
 
                 input_data.power_stat = s.val;

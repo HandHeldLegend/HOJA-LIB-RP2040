@@ -21,6 +21,23 @@ void fuelgauge_update_status(void)
 
     #if defined(HOJA_FUELGAUGE_GET_STATUS)
     status = HOJA_FUELGAUGE_GET_STATUS();
+
+    if(status.percent>=55)
+    {
+        status.simple = BATTERY_LEVEL_HIGH;
+    }
+    else if (status.percent>=15)
+    {
+        status.simple = BATTERY_LEVEL_MID;
+    }
+    else if (status.percent >= 5)
+    {
+        status.simple = BATTERY_LEVEL_LOW;
+    }
+    else 
+    {
+        status.simple = BATTERY_LEVEL_CRITICAL;
+    }
     #endif
 
     if(!status.connected) 
@@ -57,15 +74,6 @@ void _fuelgauge_set_percent(uint8_t percent)
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
     #include "drivers/fuelgauge/bq27621g1.h"
 #endif
-
-typedef enum 
-{
-    BATTERY_LEVEL_UNAVAILABLE = -1,
-    BATTERY_LEVEL_CRITICAL,
-    BATTERY_LEVEL_LOW,
-    BATTERY_LEVEL_MID,
-    BATTERY_LEVEL_HIGH
-} battery_level_t;
 
 #define VOLTAGE_LEVEL_CRITICAL  3.125f
 #define VOLTAGE_LEVEL_LOW       3.3f

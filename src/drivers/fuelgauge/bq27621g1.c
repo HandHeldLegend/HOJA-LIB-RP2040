@@ -169,24 +169,6 @@ fuelgauge_status_s bq27621g1_get_status(void)
     static fuelgauge_status_s status = {0};
 
     status.percent = bq27621g1_get_percent();
-    
-    if(status.percent >= 85)
-    {
-        status.simple = 4;
-    }
-    else if (status.percent >= 50)
-    {
-        status.simple = 3;
-    }
-    else if (status.percent >= 25)
-    {
-        status.simple = 2;
-    }
-    else
-    {
-        status.simple = 1;
-    }
-
     status.connected = true;
 
     return status;

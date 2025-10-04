@@ -9,9 +9,13 @@
 #define VOLTAGE_MEASURE_OFFSET 0.125f
 #endif
 
+#define VOLTAGE_LEVEL_FULL      4.2f
 #define VOLTAGE_LEVEL_CRITICAL  3.125f
 #define VOLTAGE_LEVEL_LOW       3.3f
 #define VOLTAGE_LEVEL_MID       3.975f
+
+#define VOLTAGE_RANGE (VOLTAGE_LEVEL_FULL - VOLTAGE_LEVEL_CRITICAL)
+
 
 uint8_t adc_fuelgauge_get_percent(void)
 {
@@ -20,23 +24,31 @@ uint8_t adc_fuelgauge_get_percent(void)
     // Convert to a voltage value (we use a voltage divider on this pin)
     float voltage = ( ( ((float)raw_voltage / 4095.0f) *  3.3f ) * 2.0f ) + VOLTAGE_MEASURE_OFFSET;
 
-    if(voltage <= VOLTAGE_LEVEL_CRITICAL)
+    float remaining = (voltage-VOLTAGE_LEVEL_CRITICAL);
+
+    if(remaining >= VOLTAGE_RANGE)
     {
-        return 1; // Dead battery
-    }
-    else if(voltage <= VOLTAGE_LEVEL_LOW)
+        return 100;
+    }   
+    else if(remaining > VOLTAGE_LEVEL_CRITICAL)
     {
-        return 30; // 30%
+        float percentf = (remaining / VOLTAGE_RANGE) * 100.0f;
+        percentf = (percentf > 100.0f) ? 100.0f : percentf;
+        return (uint8_t) percentf;
     }
-    else if(voltage <= VOLTAGE_LEVEL_MID)
-    {
-        return 70; // 70%
-    }
-    else 
-    {
-        return 100; // 100%
-    }
+
+    return 0;
 }
+
+fuelgauge_status_s add_fuelgauge_get_status()
+{
+    static fuelgauge_status_s status = {0};
+    status.percent = adc_fuelgauge_get_percent();
+    status.connected = true;
+
+    return status;
+}
+
 
 bool adc_fuelgauge_init(uint16_t capacity_mah)
 {

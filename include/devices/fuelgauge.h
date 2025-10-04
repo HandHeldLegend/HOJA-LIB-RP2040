@@ -10,6 +10,15 @@ typedef struct
     uint8_t simple;  // 0-4 level (0: Empty, 1: Critical, 2: Low, 3: Med, 4: Full)
 } fuelgauge_status_s;
 
+typedef enum 
+{
+    BATTERY_LEVEL_UNAVAILABLE = -1,
+    BATTERY_LEVEL_CRITICAL,
+    BATTERY_LEVEL_LOW,
+    BATTERY_LEVEL_MID,
+    BATTERY_LEVEL_HIGH
+} battery_level_t;
+
 void fuelgauge_update_status(void);
 void fuelgauge_get_status(fuelgauge_status_s *out);
 bool fuelgauge_init(uint16_t capacity_mah);
