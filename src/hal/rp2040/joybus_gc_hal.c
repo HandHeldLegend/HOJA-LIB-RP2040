@@ -39,7 +39,6 @@
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 
 uint _gamecube_irq;
-uint _gamecube_irq_tx;
 uint _gamecube_offset;
 pio_sm_config _gamecube_c;
 
@@ -104,7 +103,7 @@ volatile uint8_t _workingMode = 0x03;
 #define DEFAULT_CLOCK_KHZ 125000 // 125 MHz
 #define NEW_CLOCK_KHZ (HOJA_BSP_CLOCK_SPEED_HZ / 1000)
 const uint32_t _gc_delay_cycles_origin = 50;
-const uint32_t _gc_delay_cycles_probe = 50; // 100 was around 9us
+const uint32_t _gc_delay_cycles_probe = 25; // 100 was around 9us
 const uint32_t _gc_delay_cycles_poll = 75;
 
 void __time_critical_func(_gamecube_command_handler)()
@@ -226,15 +225,6 @@ static void __time_critical_func(_gamecube_isr_handler)(void)
   irq_set_enabled(_gamecube_irq, true);
 }
 
-static void _gamecube_isr_txdone(void)
-{
-  if (pio_interrupt_get(GC_PIO_IN_USE, 1))
-  {
-    pio_interrupt_clear(GC_PIO_IN_USE, 1);
-    joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
-  }
-}
-
 void joybus_gc_hal_stop()
 {
 }
@@ -244,20 +234,16 @@ bool joybus_gc_hal_init()
   _gamecube_offset = pio_add_program(GC_PIO_IN_USE, &joybus_program);
 
   _gamecube_irq = PIO_IRQ_USE_0;
-  _gamecube_irq_tx = PIO_IRQ_USE_1;
 
   pio_set_irq0_source_enabled(GC_PIO_IN_USE, pis_interrupt0, true);
-  pio_set_irq1_source_enabled(GC_PIO_IN_USE, pis_interrupt1, true);
 
   irq_set_exclusive_handler(_gamecube_irq, _gamecube_isr_handler);
-  irq_set_exclusive_handler(_gamecube_irq_tx, _gamecube_isr_txdone);
 
   irq_set_priority(PIO_IRQ_USE_0, 0);
   // irq_set_priority(PIO_IRQ_USE_1, 0);
 
   joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
-  irq_set_enabled(_gamecube_irq, true);
-  irq_set_enabled(_gamecube_irq_tx, true);
+  irq_set_enabled(_gamecube_irq, true);\
   _gc_running = true;
 
   return true;

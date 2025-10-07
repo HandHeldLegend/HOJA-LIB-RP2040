@@ -12,6 +12,7 @@
 PUBLIC joybusin:
   set pindirs, 0
   set pins, 1 ; set HI
+  mov isr, NULL
 bytestart:
   set x, 7 ; Set x scratch register as bit counter to allow 8 loops
 bitloop:
@@ -47,7 +48,7 @@ do_end_check:
     nop
     set pindirs, 1 [7] ; 8 cycles LOW (2μs) ✓
     set pindirs, 0 [7] ; 8 cycles HIGH (2μs) ✓
-    irq nowait 1
+    ;irq nowait 1
     jmp joybusin
 .wrap
 
@@ -57,6 +58,14 @@ do_end_check:
 static inline void joybus_jump_output(PIO pio, uint sm, uint offset)
 {
     pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusout));
+}
+
+static inline void joybus_program_reset(PIO pio, uint sm, uint offset)
+{
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusin));
+    pio_sm_set_enabled(pio, sm, true);
 }
 
 static inline void joybus_program_init(PIO pio, uint sm, uint offset, uint pin, pio_sm_config *c) {

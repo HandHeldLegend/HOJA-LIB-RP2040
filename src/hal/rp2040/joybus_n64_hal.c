@@ -44,7 +44,6 @@
 #define N64_RANGE_MULTIPLIER (N64_RANGE)/4095
 
 uint _n64_irq;
-uint _n64_irq_tx;
 uint _n64_offset;
 pio_sm_config _n64_c;
 bool _n64_rumble = false;
@@ -244,15 +243,6 @@ static void __time_critical_func(_n64_isr_handler)(void)
   irq_set_enabled(_n64_irq, true);
 }
 
-static void _n64_isr_txdone(void)
-{
-  if (pio_interrupt_get(PIO_IN_USE_N64, 1))
-  {
-    pio_interrupt_clear(PIO_IN_USE_N64, 1);
-    joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
-  }
-}
-
 void _n64_reset_state()
 {
   joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
@@ -268,19 +258,15 @@ bool joybus_n64_hal_init()
     _n64_offset = pio_add_program(PIO_IN_USE_N64, &joybus_program);
 
     _n64_irq    = PIO_IRQ_USE_0;
-    _n64_irq_tx = PIO_IRQ_USE_1;
 
     pio_set_irq0_source_enabled(PIO_IN_USE_N64, pis_interrupt0, true);
-    pio_set_irq1_source_enabled(PIO_IN_USE_N64, pis_interrupt1, true);
 
     irq_set_exclusive_handler(_n64_irq, _n64_isr_handler);
-    irq_set_exclusive_handler(_n64_irq_tx, _n64_isr_txdone);
 
     irq_set_priority(PIO_IRQ_USE_0, 0);
 
     joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
     irq_set_enabled(_n64_irq, true);
-    irq_set_enabled(_n64_irq_tx, true);
     _n64_running = true;
 
     return true;

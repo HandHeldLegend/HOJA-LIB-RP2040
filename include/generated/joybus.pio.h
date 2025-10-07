@@ -17,36 +17,36 @@
 #define joybus_pio_version 0
 
 #define joybus_offset_joybusin 0u
-#define joybus_offset_joybusout 10u
+#define joybus_offset_joybusout 11u
 
 static const uint16_t joybus_program_instructions[] = {
             //     .wrap_target
     0xe080, //  0: set    pindirs, 0
     0xe001, //  1: set    pins, 1
-    0xe027, //  2: set    x, 7
-    0x20a0, //  3: wait   1 pin, 0
-    0x2720, //  4: wait   0 pin, 0               [7]
-    0xa042, //  5: nop
-    0x4001, //  6: in     pins, 1
-    0x0043, //  7: jmp    x--, 3
-    0xc000, //  8: irq    nowait 0
-    0x0002, //  9: jmp    2
-    0xe080, // 10: set    pindirs, 0
-    0xe000, // 11: set    pins, 0
-    0x6021, // 12: out    x, 1
-    0xe081, // 13: set    pindirs, 1
-    0xa042, // 14: nop
-    0x0033, // 15: jmp    !x, 19
-    0xa042, // 16: nop
-    0xe880, // 17: set    pindirs, 0             [8]
-    0x0015, // 18: jmp    21
-    0xa842, // 19: nop                           [8]
-    0xe180, // 20: set    pindirs, 0             [1]
-    0x00ec, // 21: jmp    !osre, 12
-    0xa042, // 22: nop
-    0xe781, // 23: set    pindirs, 1             [7]
-    0xe780, // 24: set    pindirs, 0             [7]
-    0xc001, // 25: irq    nowait 1
+    0xa0c3, //  2: mov    isr, null
+    0xe027, //  3: set    x, 7
+    0x20a0, //  4: wait   1 pin, 0
+    0x2720, //  5: wait   0 pin, 0               [7]
+    0xa042, //  6: nop
+    0x4001, //  7: in     pins, 1
+    0x0044, //  8: jmp    x--, 4
+    0xc000, //  9: irq    nowait 0
+    0x0003, // 10: jmp    3
+    0xe080, // 11: set    pindirs, 0
+    0xe000, // 12: set    pins, 0
+    0x6021, // 13: out    x, 1
+    0xe081, // 14: set    pindirs, 1
+    0xa042, // 15: nop
+    0x0034, // 16: jmp    !x, 20
+    0xa042, // 17: nop
+    0xe880, // 18: set    pindirs, 0             [8]
+    0x0016, // 19: jmp    22
+    0xa842, // 20: nop                           [8]
+    0xe180, // 21: set    pindirs, 0             [1]
+    0x00ed, // 22: jmp    !osre, 13
+    0xa042, // 23: nop
+    0xe781, // 24: set    pindirs, 1             [7]
+    0xe780, // 25: set    pindirs, 0             [7]
     0x0000, // 26: jmp    0
             //     .wrap
 };
@@ -72,6 +72,13 @@ static inline pio_sm_config joybus_program_get_default_config(uint offset) {
 static inline void joybus_jump_output(PIO pio, uint sm, uint offset)
 {
     pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusout));
+}
+static inline void joybus_program_reset(PIO pio, uint sm, uint offset)
+{
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusin));
+    pio_sm_set_enabled(pio, sm, true);
 }
 static inline void joybus_program_init(PIO pio, uint sm, uint offset, uint pin, pio_sm_config *c) {
     *c = joybus_program_get_default_config(offset);
