@@ -364,7 +364,8 @@ bool _system_requirements_init()
 bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  battery_init();
+  if(method!=GAMEPAD_METHOD_WIRED)
+    battery_init();
 
   // Fuel gauge
   fuelgauge_init(1200);

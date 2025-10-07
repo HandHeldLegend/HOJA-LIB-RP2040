@@ -4,7 +4,7 @@
 #include "usb/webusb.h"
 
 // Bluetooth driver nonsense
-#include "drivers/bluetooth/esp32_hojabaseband.h"
+#include "devices/bluetooth.h"
 
 #include <string.h>
 
@@ -437,15 +437,11 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
-            // Optional compile for bluetooth version checks
-            #if(BT_BASEBAND_TYPE > 1)
-                // Set our Bluetooth baseband version
-                #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
-                    bluetooth_static.baseband_version = HOJA_BLUETOOTH_GET_FWVERSION();
-                #else 
-                    bluetooth_static.baseband_version = 0;
-                #endif
-            #else
+            bluetooth_static.baseband_type = BT_BASEBAND_TYPE;
+            // Set our Bluetooth baseband version
+            #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
+                bluetooth_static.baseband_version = HOJA_BLUETOOTH_GET_FWVERSION();
+            #else 
                 bluetooth_static.baseband_version = 0;
             #endif
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);

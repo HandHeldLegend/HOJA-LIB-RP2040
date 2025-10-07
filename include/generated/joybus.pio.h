@@ -13,46 +13,48 @@
 // ------ //
 
 #define joybus_wrap_target 0
-#define joybus_wrap 24
+#define joybus_wrap 26
 #define joybus_pio_version 0
 
 #define joybus_offset_joybusin 0u
-#define joybus_offset_joybusout 9u
+#define joybus_offset_joybusout 10u
 
 static const uint16_t joybus_program_instructions[] = {
             //     .wrap_target
     0xe080, //  0: set    pindirs, 0
-    0xe027, //  1: set    x, 7
-    0x20a0, //  2: wait   1 pin, 0
-    0x2720, //  3: wait   0 pin, 0               [7]
-    0xa042, //  4: nop
-    0x4001, //  5: in     pins, 1
-    0x0042, //  6: jmp    x--, 2
-    0xc000, //  7: irq    nowait 0
-    0x0001, //  8: jmp    1
-    0xe081, //  9: set    pindirs, 1
-    0x6021, // 10: out    x, 1
+    0xe001, //  1: set    pins, 1
+    0xe027, //  2: set    x, 7
+    0x20a0, //  3: wait   1 pin, 0
+    0x2720, //  4: wait   0 pin, 0               [7]
+    0xa042, //  5: nop
+    0x4001, //  6: in     pins, 1
+    0x0043, //  7: jmp    x--, 3
+    0xc000, //  8: irq    nowait 0
+    0x0002, //  9: jmp    2
+    0xe080, // 10: set    pindirs, 0
     0xe000, // 11: set    pins, 0
-    0xa042, // 12: nop
-    0x0031, // 13: jmp    !x, 17
+    0x6021, // 12: out    x, 1
+    0xe081, // 13: set    pindirs, 1
     0xa042, // 14: nop
-    0xe801, // 15: set    pins, 1                [8]
-    0x0013, // 16: jmp    19
-    0xa842, // 17: nop                           [8]
-    0xe101, // 18: set    pins, 1                [1]
-    0x00ea, // 19: jmp    !osre, 10
-    0xa042, // 20: nop
-    0xe700, // 21: set    pins, 0                [7]
-    0xe701, // 22: set    pins, 1                [7]
-    0xc001, // 23: irq    nowait 1
-    0x0000, // 24: jmp    0
+    0x0033, // 15: jmp    !x, 19
+    0xa042, // 16: nop
+    0xe880, // 17: set    pindirs, 0             [8]
+    0x0015, // 18: jmp    21
+    0xa842, // 19: nop                           [8]
+    0xe180, // 20: set    pindirs, 0             [1]
+    0x00ec, // 21: jmp    !osre, 12
+    0xa042, // 22: nop
+    0xe781, // 23: set    pindirs, 1             [7]
+    0xe780, // 24: set    pindirs, 0             [7]
+    0xc001, // 25: irq    nowait 1
+    0x0000, // 26: jmp    0
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program joybus_program = {
     .instructions = joybus_program_instructions,
-    .length = 25,
+    .length = 27,
     .origin = -1,
     .pio_version = joybus_pio_version,
 #if PICO_PIO_VERSION > 0
@@ -67,38 +69,27 @@ static inline pio_sm_config joybus_program_get_default_config(uint offset) {
 }
 
 #include "hardware/clocks.h"
-static inline void joybus_set_in(bool in, PIO pio, uint sm, uint offset, pio_sm_config *c, uint pin)
+static inline void joybus_jump_output(PIO pio, uint sm, uint offset)
 {
-    // Disable SM
-    pio_sm_clear_fifos(pio, sm);
-    pio_sm_set_enabled(pio, sm, false);
-    if (in)
-    {
-        pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
-        pio_sm_init(pio, sm, offset + joybus_offset_joybusin, c);
-    }
-    else
-    {
-        pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
-        pio_sm_init(pio, sm, offset + joybus_offset_joybusout, c);
-    }
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusout));
 }
 static inline void joybus_program_init(PIO pio, uint sm, uint offset, uint pin, pio_sm_config *c) {
     *c = joybus_program_get_default_config(offset);
-    gpio_init(pin);
+    //gpio_init(pin);
     // Set this pin's GPIO function (connect PIO to the pad)
     pio_gpio_init(pio, pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
-    sm_config_set_in_pins(c, pin);
-    sm_config_set_out_pins(c, pin, 1);
-    sm_config_set_jmp_pin(c, pin);
+    //sm_config_set_jmp_pin(c, pin);
     // Must run 12800000hz
     float div = clock_get_hz(clk_sys) / (4000000);
     sm_config_set_clkdiv(c, div);
     // Set sideset pin
     //sm_config_set_sideset_pins(c, pin);
+    // Configure IN pins (for in pins instruction)
+    sm_config_set_in_pins(c, pin);
+    // Configure SET pins
     sm_config_set_set_pins(c, pin, 1);
+    // Configure OUT pins (optional but good practice)
+    sm_config_set_out_pins(c, pin, 1);
     sm_config_set_in_shift(c, false, true, 8);
     sm_config_set_out_shift(c, false, true, 8);
     // Load our configuration, and jump to the start of the program

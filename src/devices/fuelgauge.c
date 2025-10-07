@@ -5,6 +5,7 @@
 #include "utilities/interval.h"
 #include "utilities/hwtest.h"
 #include "utilities/crosscore_snapshot.h"
+#include "board_config.h"
 
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
     #include "drivers/fuelgauge/bq27621g1.h"
@@ -70,14 +71,6 @@ void _fuelgauge_set_percent(uint8_t percent)
     tmp.simple = 4;
     snapshot_fuelgauge_write(&_fuelgauge_snap, &tmp);
 }
-
-#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
-    #include "drivers/fuelgauge/bq27621g1.h"
-#endif
-
-#define VOLTAGE_LEVEL_CRITICAL  3.125f
-#define VOLTAGE_LEVEL_LOW       3.3f
-#define VOLTAGE_LEVEL_MID       3.975f
 
 bool fuelgauge_init(uint16_t capacity_mah) 
 {

@@ -50,12 +50,18 @@ void sysmon_task(uint64_t timestamp)
         // transport_get_status(&tmp_transport);
 
         static battery_status_s tmp_battery;
-        battery_update_status();
-        battery_get_status(&tmp_battery);
-        
         static fuelgauge_status_s tmp_fuel;
-        fuelgauge_update_status();
-        fuelgauge_get_status(&tmp_fuel);
+        if(flipflop)
+        {
+            battery_update_status();
+            battery_get_status(&tmp_battery);
+        }
+        else
+        {
+            fuelgauge_update_status();
+            fuelgauge_get_status(&tmp_fuel);
+        }
+        flipflop = !flipflop;
 
         // PMIC is functional
         if(tmp_battery.connected)

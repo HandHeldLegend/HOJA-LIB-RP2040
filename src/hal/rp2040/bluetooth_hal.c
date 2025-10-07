@@ -21,6 +21,7 @@
 #include "utilities/static_config.h"
 #include "utilities/interval.h"
 #include "utilities/sysmon.h"
+#include "devices/rgb.h"
 #include "usb/swpro.h"
 #include "usb/sinput.h"
 #include "hal/sys_hal.h"
@@ -330,6 +331,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 break;
             case HID_SUBEVENT_CONNECTION_CLOSED:
                 printf("HID Disconnected\n");
+                
                 _connected = false;
                 _hidreportclear = false;
                 hid_cid = 0;
@@ -344,7 +346,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     uint32_t current_time_ms = btstack_run_loop_get_time_ms();
                     uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
 
-                    if(time_elapsed >= BT_HAL_TARGET_POLLING_RATE_MS)
+                    if(time_elapsed >= _current_polling_rate)
                     {
                         switch(hoja_get_status().gamepad_mode)
                         {
@@ -378,7 +380,10 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 if(!ms) _current_polling_rate = 1;
                 _interval_reset = true;
                 uint16_t min = hid_subevent_sniff_subrating_params_get_host_min_timeout(packet);
-                printf("Sniff: %d, %d\n", max, min);
+                rgb_set_idle(true);
+                hoja_set_notification_status(COLOR_GREEN);
+                
+                //printf("Sniff: %d, %d\n", max, min);
             }
             break;
 
@@ -519,11 +524,19 @@ void bluetooth_hal_stop()
 
 void bluetooth_hal_task(uint64_t timestamp)
 {
-    sleep_us(500);
+    // Do nothing
 }
 
 uint32_t bluetooth_hal_get_fwversion()
 {
+    // If the init fails it returns true lol
+    if (cyw43_arch_init())
+    {
+        return 0x00; // Return 0 for nothing
+    }
+
+    cyw43_arch_deinit();
+    return 1; // PASS
 }
 
 #endif

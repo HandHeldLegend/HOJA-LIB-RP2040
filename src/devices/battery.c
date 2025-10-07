@@ -12,6 +12,7 @@
 
 SNAPSHOT_TYPE(battery, battery_status_s);
 snapshot_battery_t _battery_snap;
+bool _battery_init_done = false;
 
 void _battery_set_connected(bool connected)
 {
@@ -44,7 +45,8 @@ void battery_update_status(void)
     battery_status_s status = {0};
 
     #if defined(HOJA_BATTERY_GET_STATUS)
-    status = HOJA_BATTERY_GET_STATUS();
+    if(_battery_init_done)
+        status = HOJA_BATTERY_GET_STATUS();
     #endif
 
     snapshot_battery_write(&_battery_snap, &status);
@@ -125,6 +127,8 @@ bool battery_init(void)
 
     // PMIC initialization failure
     if(!init) return false;
+
+    _battery_init_done = true;
 
     // Get initial status
     battery_update_status();

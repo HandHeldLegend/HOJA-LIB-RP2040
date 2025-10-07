@@ -114,15 +114,19 @@ void _n64_send_poll()
 #define PAK_MSG_BYTES 33
 
 // Constants for default cycles and clock speeds
-#define DEFAULT_CYCLES         20 // 20 was the tested working from old FW
+// 1 cycle is about 0.05us delay time
+
+#define DEFAULT_CYCLES         100
 #define DEFAULT_CLOCK_KHZ      125000 // 125 MHz
 #define NEW_CLOCK_KHZ          (HOJA_BSP_CLOCK_SPEED_HZ/1000)
-const uint32_t _delay_cycles_n64 = ((DEFAULT_CYCLES * DEFAULT_CLOCK_KHZ) / NEW_CLOCK_KHZ)+1;
-const uint32_t _delay_cycles_poll = _delay_cycles_n64*2;
+const uint32_t _delay_cycles_memread = 120;
+const uint32_t _delay_cycles_memwrite = 100;
+const uint32_t _delay_cycles_probe = 100;
+const uint32_t _delay_cycles_poll = 120;
 
 void __time_critical_func(_n64_command_handler)()
 {
-    uint16_t c = _delay_cycles_n64;
+    uint32_t c = DEFAULT_CYCLES;
     
     // Resume working on commands that are longer than 1 byte
     if (_workingCmd == N64_CMD_WRITEMEM)
@@ -142,9 +146,15 @@ void __time_critical_func(_n64_command_handler)()
         }
         _workingCmd = 0;
         _byteCount = 0;
-        //while (c--)
-        //    asm("nop");
-        joybus_set_in(false, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
+
+        // WRITE 
+        // 200 delay cycles = ~12us
+        // 100 delay cycles = ~7.5us
+        c = _delay_cycles_memwrite;
+        while (c--)
+            asm("nop");
+
+        joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
         _n64_send_pak_write();
       } 
       else _byteCount++;
@@ -160,12 +170,13 @@ void __time_critical_func(_n64_command_handler)()
         _workingCmd = 0;
         _byteCount = 0;
 
-        joybus_set_in(false, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
-        
+        joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
+
         // End receive so we respond
+        c = _delay_cycles_memread;
         while(c--)
           asm("nop");
-
+        
         uint16_t readaddr = (_in_buffer[0]<<8) | (_in_buffer[1]&0xE0);
         if(readaddr==0x8000)
         {
@@ -176,6 +187,8 @@ void __time_critical_func(_n64_command_handler)()
       else _byteCount++;
 
     }
+    // Single byte commands and setup
+    // for future handling
     else
     {
         _workingCmd = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
@@ -185,6 +198,7 @@ void __time_critical_func(_n64_command_handler)()
         default:
             break;
 
+        // Read from mem pak
         case N64_CMD_READMEM:
             _crc_reply = 0;
             break;
@@ -194,39 +208,40 @@ void __time_critical_func(_n64_command_handler)()
             _crc_reply = 0;
             break;
 
+        // Probe/Reset target response time 3us
         case N64_CMD_RESET:
         case N64_CMD_PROBE:
-            _workingCmd = 0;
+            c = _delay_cycles_probe;
             while (c--)
                 asm("nop");
-            joybus_set_in(false, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
+            joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
             _n64_send_probe();
+            _workingCmd = 0;
             break;
 
         // Poll
         case N64_CMD_POLL:
-            _workingCmd = 0;
-            c = _delay_cycles_poll; // 40 on 125MHz
+            c = _delay_cycles_poll;
             while (c--)
                 asm("nop");
-            joybus_set_in(false, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
+            joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
             _n64_send_poll();
+            _workingCmd = 0;
             break;
         }
     }
 }
 
-static void _n64_isr_handler(void)
+static void __time_critical_func(_n64_isr_handler)(void)
 {
+  irq_set_enabled(_n64_irq, false);
   if (pio_interrupt_get(PIO_IN_USE_N64, 0))
   {
-    _n64_got_data=true;
     pio_interrupt_clear(PIO_IN_USE_N64, 0);
-    uint16_t c = _delay_cycles_poll; // 40 on 125MHz
-    while(c--) 
-        asm("nop");
     _n64_command_handler();
+    _n64_got_data=true;
   }
+  irq_set_enabled(_n64_irq, true);
 }
 
 static void _n64_isr_txdone(void)
@@ -234,14 +249,13 @@ static void _n64_isr_txdone(void)
   if (pio_interrupt_get(PIO_IN_USE_N64, 1))
   {
     pio_interrupt_clear(PIO_IN_USE_N64, 1);
-    joybus_set_in(true, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
+    joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
   }
 }
 
 void _n64_reset_state()
 {
-  //pio_sm_clear_fifos(PIO_IN_USE_N64, PIO_SM);
-  joybus_set_in(true, PIO_IN_USE_N64, PIO_SM, _n64_offset, &_n64_c, JOYBUS_N64_DRIVER_DATA_PIN);
+  joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
 }
 
 void joybus_n64_hal_stop()
@@ -261,6 +275,9 @@ bool joybus_n64_hal_init()
 
     irq_set_exclusive_handler(_n64_irq, _n64_isr_handler);
     irq_set_exclusive_handler(_n64_irq_tx, _n64_isr_txdone);
+
+    irq_set_priority(PIO_IRQ_USE_0, 0);
+
     joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
     irq_set_enabled(_n64_irq, true);
     irq_set_enabled(_n64_irq_tx, true);

@@ -11,6 +11,7 @@
 #include "hal/sys_hal.h"
 
 #include "utilities/callback.h"
+#include "utilities/settings.h"
 
 #include "board_config.h"
 
@@ -617,9 +618,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     // Web USB Descriptor
     case VENDOR_REQUEST_WEBUSB:
     {
+      if(gamepad_config->webusb_enable_popup == 1)
       // match vendor request in BOS descriptor
       // Get landing page url
-      return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+        return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+      else return false;
     }
 
     // MS OS 2.0 Descriptor

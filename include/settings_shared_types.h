@@ -203,7 +203,8 @@ typedef struct
     uint32_t gamepad_color_grip_right;
     uint8_t  host_mac_switch[6]; // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6]; // Mac address of the SInput device we are paired to
-    uint8_t  reserved[28];
+    bool     webusb_enable_popup; // Whether or not the WebUSB toast should show
+    uint8_t  reserved[27];
 } gamepadConfig_s;
 
 typedef struct
