@@ -619,7 +619,10 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     {
       // match vendor request in BOS descriptor
       // Get landing page url
-      return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+      //return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+
+      // Reimplement later
+      return false;
     }
 
     // MS OS 2.0 Descriptor
