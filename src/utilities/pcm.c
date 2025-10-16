@@ -9,6 +9,7 @@
 #include "switch/switch_haptics.h"
 #include "utilities/pcm_samples.h"
 #include "utilities/settings.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "hoja_bsp.h"
 #if HOJA_BSP_CHIPSET == CHIPSET_RP2040
@@ -147,6 +148,7 @@ bool pcm_raw_queue_pop(int16_t *out)
 
 #define PCM_AMFM_QUEUE_SIZE 128 // Adjust size as needed
 
+
 typedef struct
 {
     haptic_processed_s buffer[PCM_AMFM_QUEUE_SIZE];
@@ -157,6 +159,9 @@ typedef struct
 } pcm_amfm_queue_t;
 
 pcm_amfm_queue_t _pcm_amfm_queue = {0};
+
+SNAPSHOT_TYPE(haptic, haptic_processed_s);
+snapshot_haptic_t _haptic_snap;
 
 // Initialize the queue
 void pcm_amfm_queue_init()
@@ -185,10 +190,12 @@ bool pcm_amfm_push(haptic_processed_s *value)
     if(value->hi_frequency_increment < default_hi) value->hi_frequency_increment = default_hi; 
     if(value->lo_frequency_increment < default_lo) value->lo_frequency_increment = default_lo; 
 
+    snapshot_haptic_write(&_haptic_snap, value);
+
     // Always 3 samples
-    memcpy(&_pcm_amfm_queue.buffer[_pcm_amfm_queue.tail], value, sizeof(haptic_processed_s));
-    _pcm_amfm_queue.tail = (_pcm_amfm_queue.tail + 1) % PCM_AMFM_QUEUE_SIZE;
-    _pcm_amfm_queue.count++;
+    //memcpy(&_pcm_amfm_queue.buffer[_pcm_amfm_queue.tail], value, sizeof(haptic_processed_s));
+    //_pcm_amfm_queue.tail = (_pcm_amfm_queue.tail + 1) % PCM_AMFM_QUEUE_SIZE;
+    //_pcm_amfm_queue.count++;
     return true;
 }
 
@@ -196,17 +203,20 @@ bool pcm_amfm_push(haptic_processed_s *value)
 // Returns sample count if successful, false if queue is empty
 bool pcm_amfm_pop(haptic_processed_s *out)
 {
-    if (_pcm_amfm_queue.count == 0)
-    {
-        return false; // Queue is empty
-    }
+    snapshot_haptic_read(&_haptic_snap, out);
 
-    memcpy(out, &_pcm_amfm_queue.buffer[_pcm_amfm_queue.head], sizeof(haptic_processed_s));
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].hi_amplitude_fixed = 0;
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].lo_amplitude_fixed = 0;
 
-    _pcm_amfm_queue.head = (_pcm_amfm_queue.head + 1) % PCM_AMFM_QUEUE_SIZE;
-    _pcm_amfm_queue.count--;
+    //if (_pcm_amfm_queue.count == 0)
+    //{
+    //    return false; // Queue is empty
+    //}
+
+    //memcpy(out, &_pcm_amfm_queue.buffer[_pcm_amfm_queue.head], sizeof(haptic_processed_s));
+    //_pcm_amfm_queue.buffer[_pcm_amfm_queue.head].hi_amplitude_fixed = 0;
+    //_pcm_amfm_queue.buffer[_pcm_amfm_queue.head].lo_amplitude_fixed = 0;
+
+    //_pcm_amfm_queue.head = (_pcm_amfm_queue.head + 1) % PCM_AMFM_QUEUE_SIZE;
+    //_pcm_amfm_queue.count--;
     return true;
 }
 
@@ -531,7 +541,7 @@ void pcm_generate_buffer(
             }
 
             // Get new values from queue
-            if (!pcm_amfm_is_empty())
+            // if (!pcm_amfm_is_empty())
             {
                 pcm_amfm_pop(&current_values);
 
