@@ -39,9 +39,19 @@ int16_t _imu_concat_16(uint8_t low, uint8_t high)
     return (int16_t)((high << 8) | low);
 }
 
-#define SCALER_IMU 1.4f
+#define SCALER_GYRO_Z 1.4f // Turning left/right (like a steering wheel when level)
+#define SCALER_GYRO_Y 1.0f
+#define SCALER_GYRO_X 1.20f // Tilting up/down (aiming up/down looking straight)
+
 // Function to apply inversion to data
 #define APPLY_INVERSION(val, invert) (invert ? -(val) : (val))
+
+static inline int16_t _gyro_mul_clip_int16(int16_t x, float scaler) {
+    float result = x * scaler;
+    if (result > 32767.0f) result = 32767.0f;
+    else if (result < -32768.0f) result = -32768.0f;
+    return (int16_t)(result + (result >= 0 ? 0.5f : -0.5f)); // manual rounding
+}
 
 // invert_flags uses 6 bits to invert axis. GX, GY, GZ, AX, AY, AZ is the order.
 int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_t invert_flags)
@@ -61,20 +71,20 @@ int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, ui
     bool ay_invert = (invert_flags&0b10) != 0;
     bool az_invert = (invert_flags&0b1) != 0;
 
-    scaler = (float)_imu_concat_16(i[0], i[1]);
-    scaler *= SCALER_IMU;
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[0], i[1]), SCALER_GYRO_X );
     out->gx = APPLY_INVERSION((int16_t)scaler, gx_invert);
 
-    scaler = (float)_imu_concat_16(i[2], i[3]);
-    scaler *= SCALER_IMU;
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[2], i[3]), SCALER_GYRO_Y);
     out->gy = APPLY_INVERSION((int16_t)scaler, gy_invert);
 
-    scaler = (float)_imu_concat_16(i[4], i[5]);
-    scaler *= SCALER_IMU;
+    // Rotating gets scaling
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[4], i[5]), SCALER_GYRO_Z );
     out->gz = APPLY_INVERSION((int16_t)scaler, gz_invert);
 
     out->ax = APPLY_INVERSION(_imu_concat_16(i[6], i[7]),   ax_invert);
-    out->ay = APPLY_INVERSION(_imu_concat_16(i[8], i[9]),   ay_invert);
+
+    out->ay = APPLY_INVERSION( _imu_concat_16(i[8], i[9]),   ay_invert);
+
     out->az = APPLY_INVERSION(_imu_concat_16(i[10], i[11]), az_invert);
 
     out->retrieved = true;
@@ -139,20 +149,20 @@ int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, uint
     bool ay_invert = (invert_flags&0b10) != 0;
     bool az_invert = (invert_flags&0b1) != 0;
 
-    scaler = (float)_imu_concat_16(i[0], i[1]);
-    scaler *= SCALER_IMU;
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[0], i[1]), SCALER_GYRO_X );
     out->gx = APPLY_INVERSION((int16_t)scaler, gx_invert);
 
-    scaler = (float)_imu_concat_16(i[2], i[3]);
-    scaler *= SCALER_IMU;
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[2], i[3]), SCALER_GYRO_Y);
     out->gy = APPLY_INVERSION((int16_t)scaler, gy_invert);
 
-    scaler = (float)_imu_concat_16(i[4], i[5]);
-    scaler *= SCALER_IMU;
+    // Rotating gets scaling
+    scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[4], i[5]), SCALER_GYRO_Z );
     out->gz = APPLY_INVERSION((int16_t)scaler, gz_invert);
 
     out->ax = APPLY_INVERSION(_imu_concat_16(i[6], i[7]),   ax_invert);
-    out->ay = APPLY_INVERSION(_imu_concat_16(i[8], i[9]),   ay_invert);
+
+    out->ay = APPLY_INVERSION( _imu_concat_16(i[8], i[9]),   ay_invert);
+
     out->az = APPLY_INVERSION(_imu_concat_16(i[10], i[11]), az_invert);
 
     out->retrieved = true;
