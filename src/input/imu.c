@@ -78,27 +78,28 @@ void _imu_quat_normalize(quaternion_s *data)
   data->w *= norm_inverse;
 }
 
-#define SCALE_FACTOR 2000.0f / INT16_MAX * M_PI / 180.0f / 1000000.0f
+// Convert raw gyro reading to radians/second
+#define GYRO_TO_RAD_PER_SEC ((2000.0f / 32768.0f) * (M_PI / 180.0f))
 
 #define GYRO_SENS (2000.0f / 32768.0f)
 void _imu_update_quaternion(imu_data_s *imu_data) {
     // Previous timestamp (in microseconds)
     static uint64_t prev_timestamp = 0;
 
-    float dt = fabsf((float)imu_data->timestamp - (float)prev_timestamp);
-    // Update the previous timestamp
+    // Calculate dt in seconds
+    float dt = (float)(imu_data->timestamp - prev_timestamp) / 1000000.0f;
     prev_timestamp = imu_data->timestamp;
 
-    _imu_quat_state.timestamp_ms = imu_data->timestamp/1000;
+    _imu_quat_state.timestamp_ms = imu_data->timestamp / 1000;
 
     // GZ is TURNING left/right (steering axis)
     // GX is TILTING up/down (aim up/down)
     // GY is TILTING left/right
 
-    // Convert gyro readings to radians/second
-    float angle_x = (float)imu_data->gy * SCALE_FACTOR * dt; // GY
-    float angle_y = (float)imu_data->gx * SCALE_FACTOR * dt; // GX
-    float angle_z = (float)imu_data->gz * SCALE_FACTOR * dt; // GZ
+    // Convert gyro readings to angular change (radians)
+    float angle_x = (float)imu_data->gy * GYRO_TO_RAD_PER_SEC * dt;
+    float angle_y = (float)imu_data->gx * GYRO_TO_RAD_PER_SEC * dt;
+    float angle_z = (float)imu_data->gz * GYRO_TO_RAD_PER_SEC * dt;
 
     // Euler to quaternion (in a custom Nintendo way)
     double norm_squared = angle_x * angle_x + angle_y * angle_y + angle_z * angle_z;

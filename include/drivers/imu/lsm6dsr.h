@@ -26,7 +26,7 @@
 #define PERF_1KHZ (0b10000000)  // 1.66KHz
 #define PERF_416HZ (0b01100000) // 416Hz
 
-#define XL_LOWPASS (0b00000001)
+#define XL_LOWPASS (0b10)
 
 // 2G
 #define XL_SENS_2G (0b00000000)
@@ -64,7 +64,7 @@
 // HPF 1.0f Hz
 #define G_HPF_3 (0b00110000)
 
-#define CTRL1_MASK (XL_SENS_8G | PERF_1KHZ)
+#define CTRL1_MASK (XL_SENS_8G | PERF_1KHZ | XL_LOWPASS)
 #define CTRL2_MASK (G_SENS_2000DPS | PERF_1KHZ)
 #define CTRL3_MASK (0b01000100) // Address auto-increment and BDU
 #define CTRL4_MASK (0b00000100) // I2C disable (Check later for LPF for gyro)
