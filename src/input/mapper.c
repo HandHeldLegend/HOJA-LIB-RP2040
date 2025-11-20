@@ -67,6 +67,35 @@ mapper_profile_s _map_default_switch = {
     .ry_down  = SWITCH_CODE_RY_DOWN,
 };
 
+mapper_output_type_t _switch_output_types[26] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // LZ
+    MAPPER_OUTPUT_DIGITAL, // RZ
+    MAPPER_OUTPUT_DIGITAL, // PLUS
+    MAPPER_OUTPUT_DIGITAL, // MINUS
+    MAPPER_OUTPUT_DIGITAL, // HOME
+    MAPPER_OUTPUT_DIGITAL, // CAPTURE
+    MAPPER_OUTPUT_DIGITAL, // LS Click
+    MAPPER_OUTPUT_DIGITAL, // RS Click
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN
+};
+
 // SNES (no sticks, no triggers beyond L/R) 
 mapper_profile_s _map_default_snes = {
 #if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
@@ -260,6 +289,7 @@ mapper_profile_s _map_default_xinput = {
 };
 
 mapper_input_s _mapper_input = {0};
+mapper_input_types_s _mapper_types = {0};
 
 uint16_t _base_stick_threshold_l = 1500;
 uint16_t _base_stick_threshold_r = 1500;
@@ -272,6 +302,194 @@ uint16_t *_joystick_thresholds[8] = {&_base_stick_threshold_l, &_base_stick_thre
                                      &_base_stick_threshold_r, &_base_stick_threshold_r, &_base_stick_threshold_r, &_base_stick_threshold_r};
 uint16_t *_trigger_thresholds[2] = {&_base_trigger_threshold_l, &_base_trigger_threshold_r};
 uint16_t *_trigger_static[2] = {&_base_trigger_static_l, &_base_trigger_static_r};
+
+mapper_input_s _mapper_task_switch_nu()
+{
+    mapper_input_s tmp = {0};
+    bool down = false;
+    uint32_t map_digital_bitmask = 0;
+    uint8_t analog_idx_in = 0;
+    uint8_t analog_idx_out = 0; 
+    
+    int8_t map_code_output;
+    int8_t map_output_type;
+
+    for(int i = 0; i < 36; i++)
+    {
+        // Obtain our output code
+        // The OUTPUT value assigned to the input (i) value
+        map_code_output = _mapper_profile->map[i];
+        
+        // Skip if unmapped or unused
+        if(map_code_output < 0) continue;
+
+        // Obtain the type of output based on the output code
+        map_output_type = _switch_output_types[map_code_output];
+
+        switch(_mapper_types.type[i])
+        {
+            case MAPPER_INPUT_TYPE_DIGITAL:
+            switch(map_output_type)
+            {
+                default:
+                // Do nothing
+                break;
+
+                case MAPPER_OUTPUT_DIGITAL:
+                break;
+
+                case MAPPER_OUTPUT_DPAD_UP ... MAPPER_OUTPUT_DPAD_RIGHT:
+                break;
+
+                case MAPPER_OUTPUT_TRIGGER_L ... MAPPER_OUTPUT_TRIGGER_R:
+                break;
+
+                case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
+                break;
+
+                // Digital Output
+                case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+                tmp.digital_inputs |= (1 << map_code_output);
+                break;
+
+                // Joystick Output
+                case SWITCH_CODE_LX_RIGHT ... SWITCH_CODE_RY_DOWN:
+                analog_idx_out = map_code_output - SWITCH_CODE_IDX_JOYSTICK_START;
+                tmp.joysticks_raw[analog_idx_out] = 2048;
+                break;
+            }
+            break;
+
+            case MAPPER_INPUT_TYPE_HOVER:
+            break;
+
+            case MAPPER_INPUT_TYPE_JOYSTICK:
+            break;
+
+            default:
+            case MAPPER_INPUT_TYPE_UNUSED:
+            break;
+        }
+    }
+    
+    //
+    // Digital Input
+    //
+    for(int i = 0; i < MAPPER_CODE_IDX_TRIGGER_START; i++)
+    {
+        // The OUTPUT value assigned to the input (i) value
+        map_code_output = _mapper_profile->map[i];
+
+        // Only process if this input is mapped to something
+        if(map_code_output < 0) continue;
+
+        map_digital_bitmask = (1 << i);
+        down = (_mapper_input.digital_inputs & map_digital_bitmask) != 0;
+
+        // Only process if the button is pressed
+        if(!down) continue;
+
+        switch(map_code_output)
+        {
+            default:
+            // Do nothing
+            break;
+
+            // Digital Output
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+            tmp.digital_inputs |= (1 << map_code_output);
+            break;
+
+            // Joystick Output
+            case SWITCH_CODE_LX_RIGHT ... SWITCH_CODE_RY_DOWN:
+            analog_idx_out = map_code_output - SWITCH_CODE_IDX_JOYSTICK_START;
+            tmp.joysticks_raw[analog_idx_out] = 0x7FF;
+            break;
+        }
+    }
+
+    //
+    // Analog Trigger Input
+    // 
+    for(int i = MAPPER_CODE_IDX_TRIGGER_START; i < MAPPER_CODE_IDX_JOYSTICK_START; i++)
+    {
+        // The OUTPUT value assigned to the input (i) value
+        map_code_output = _mapper_profile->map[i];
+
+        // Only process if this input is mapped to something
+        if(map_code_output < 0) continue;
+
+        // Obtain the index of our trigger input
+        analog_idx_in = i - MAPPER_CODE_IDX_TRIGGER_START;
+
+        switch(map_code_output)
+        {
+            default:
+            // Do nothing
+            break;
+
+            // Digital Output
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+            if(_mapper_input.triggers[analog_idx_in] >= *_trigger_thresholds[analog_idx_in])
+            {
+                tmp.digital_inputs |= (1 << map_code_output);
+            }
+            break;
+
+            // Joystick Output
+            case SWITCH_CODE_LX_RIGHT ... SWITCH_CODE_RY_DOWN:
+            analog_idx_out = map_code_output - SWITCH_CODE_IDX_JOYSTICK_START;
+            uint16_t trigger_scaled = _mapper_input.triggers[analog_idx_in]>>1;
+            if(trigger_scaled > tmp.joysticks_raw[analog_idx_out])
+            {
+                tmp.joysticks_raw[analog_idx_out] = trigger_scaled; // Half of trigger range
+            }
+            break;
+        }
+    }
+
+    //
+    // Analog Joystick Input
+    //
+    for (int i = MAPPER_CODE_IDX_JOYSTICK_START; i < MAPPER_CODE_MAX; i++)
+    {
+        // The OUTPUT value assigned to the input (i) value
+        map_code_output = _mapper_profile->map[i];
+
+        // Only process if this input is mapped to something
+        if(map_code_output < 0) continue;
+
+        // Obtain the index of our joystick input
+        analog_idx_in = i - MAPPER_CODE_IDX_JOYSTICK_START;
+
+        switch(map_code_output)
+        {
+            default:
+            // Do nothing
+            break;
+
+            // Digital Output
+            case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
+            if(_mapper_input.joysticks_raw[analog_idx_in] >= *_joystick_thresholds[analog_idx_in])
+            {
+                tmp.digital_inputs |= (1 << map_code_output);
+            }
+            break;
+
+            // Joystick Output
+            case SWITCH_CODE_LX_RIGHT ... SWITCH_CODE_RY_DOWN:
+            analog_idx_out = map_code_output - SWITCH_CODE_IDX_JOYSTICK_START;
+            if(_mapper_input.joysticks_raw[analog_idx_in] > tmp.joysticks_raw[analog_idx_out])
+            {
+                tmp.joysticks_raw[analog_idx_out] = _mapper_input.joysticks_raw[analog_idx_in];
+            }
+            break;
+        }
+    }
+
+    return tmp;
+}
+
 
 // Completed
 mapper_input_s _mapper_task_switch()

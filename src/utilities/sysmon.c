@@ -22,6 +22,29 @@ int  _shutdown_timeout_reset = 0;
 bool _shutdown_lockout = false;
 void sysmon_set_critical_shutdown(void);
 
+typedef enum
+{
+    SYSMON_EVT_UNPLUG,
+    SYSMON_EVT_PLUG,
+} sysmon_evt_t;
+
+void _sysmon_event_handler(int evt)
+{
+    switch(evt)
+    {
+        // 5V source plugged
+        case SYSMON_EVT_PLUG:
+
+        break;
+
+        // 5V source unplugged
+        case SYSMON_EVT_UNPLUG:
+        _shutdown_lockout = true;
+        hoja_deinit(hoja_shutdown);
+        break;
+    }
+}
+
 void sysmon_task(uint64_t timestamp)
 {
     if(_shutdown_lockout) return;
@@ -51,6 +74,8 @@ void sysmon_task(uint64_t timestamp)
 
         static battery_status_s tmp_battery;
         static fuelgauge_status_s tmp_fuel;
+
+        // Flip between updating battery and fuel gauge status
         if(flipflop)
         {
             battery_update_status();
@@ -69,13 +94,13 @@ void sysmon_task(uint64_t timestamp)
             if(_sysbattery.plugged && !tmp_battery.plugged)
             {
                 // UNPLUG EVENT
-                _shutdown_lockout = true;
-                hoja_deinit(hoja_shutdown);
+                _sysmon_event_handler(SYSMON_EVT_UNPLUG);
                 return;
             }
             else if(!_sysbattery.plugged && tmp_battery.plugged)
             {
                 // PLUG EVENT
+                _sysmon_event_handler(SYSMON_EVT_PLUG);
             }
 
             _sysbattery = tmp_battery;
@@ -86,6 +111,11 @@ void sysmon_task(uint64_t timestamp)
         if(tmp_battery.connected && tmp_fuel.connected)
         {
             _sysfuel = tmp_fuel;
+
+            if(_sysfuel.simple == BATTERY_LEVEL_CRITICAL)
+            {
+                sysmon_set_critical_shutdown();
+            }
         }
     }
 }

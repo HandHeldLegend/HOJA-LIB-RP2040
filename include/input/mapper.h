@@ -14,6 +14,34 @@
 
 typedef enum 
 {
+    MAPPER_INPUT_TYPE_UNUSED, // Input is disabled
+    MAPPER_INPUT_TYPE_DIGITAL, // Binary off or on
+    MAPPER_INPUT_TYPE_HOVER, // Analog input 0-4095 (12 bits)
+    MAPPER_INPUT_TYPE_JOYSTICK, // Analog input 0-2048 (half of 12 bit range)
+} mapper_input_type_t;
+
+typedef enum 
+{
+    MAPPER_OUTPUT_DISABLED,
+    MAPPER_OUTPUT_DIGITAL,
+    MAPPER_OUTPUT_TRIGGER_L,
+    MAPPER_OUTPUT_TRIGGER_R,
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN,
+} mapper_output_type_t;
+
+typedef enum 
+{
     MAPPER_CODE_UNSUPPORTED = -2,
     MAPPER_CODE_UNUSED = -1,
     MAPPER_CODE_SOUTH,
@@ -85,6 +113,8 @@ typedef enum
     SWITCH_CODE_RY_DOWN,
     SWITCH_CODE_MAX,
 } mapper_switch_code_t;
+
+
 
 #define SWITCH_CODE_IDX_DIGITAL_END    SWITCH_CODE_RS
 #define SWITCH_CODE_IDX_JOYSTICK_START SWITCH_CODE_LX_RIGHT
@@ -248,13 +278,58 @@ typedef struct
     };
 } mapper_profile_s; 
 
+
+
+typedef struct 
+{
+    union
+    {
+        struct
+        {
+            mapper_input_type_t south;
+            mapper_input_type_t east;
+            mapper_input_type_t west;
+            mapper_input_type_t north;
+            mapper_input_type_t up;
+            mapper_input_type_t down;
+            mapper_input_type_t left;
+            mapper_input_type_t right;
+            mapper_input_type_t lb;
+            mapper_input_type_t rb;
+            mapper_input_type_t lt;
+            mapper_input_type_t rt;
+            mapper_input_type_t start;
+            mapper_input_type_t select;
+            mapper_input_type_t home;
+            mapper_input_type_t capture;
+            mapper_input_type_t ls;
+            mapper_input_type_t rs;
+            mapper_input_type_t lg_upper;
+            mapper_input_type_t rg_upper;
+            mapper_input_type_t lg_lower;
+            mapper_input_type_t rg_lower;
+            mapper_input_type_t lt_analog;
+            mapper_input_type_t rt_analog;
+            mapper_input_type_t lx_right;
+            mapper_input_type_t lx_left;
+            mapper_input_type_t ly_up;
+            mapper_input_type_t ly_down;
+            mapper_input_type_t rx_right;
+            mapper_input_type_t rx_left;
+            mapper_input_type_t ry_up;
+            mapper_input_type_t ry_down;
+        };
+        mapper_input_type_t type[36]; // 32 used, but we have a reserved
+    };
+} mapper_input_types_s;
+
 #define MAPPER_PROFILE_SIZE sizeof(mapper_profile_s)
 
 typedef struct 
 {
     uint32_t digital_inputs;
-    uint16_t joysticks_raw[8];
-    int16_t joysticks_combined[4]; // Range of -2048 to 2048 with 0 center
+    uint16_t joysticks_raw[10];
+    int16_t joysticks_combined[5]; // Range of -2048 to 2048 with 0 center
     uint16_t triggers[2];
     union
     {

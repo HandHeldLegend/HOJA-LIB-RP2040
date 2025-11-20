@@ -8,6 +8,7 @@ typedef struct
     bool connected;  // If we have a fuel gauge connected or not
     uint8_t percent; // Percent 0-100
     uint8_t simple;  // 0-4 level (0: Empty, 1: Critical, 2: Low, 3: Med, 4: Full)
+    bool discharge_only; // Set this flag if we only get accurate levels during discharge
 } fuelgauge_status_s;
 
 typedef enum 

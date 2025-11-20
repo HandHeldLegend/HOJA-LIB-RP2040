@@ -167,8 +167,8 @@ void webusb_send_rawinput(uint64_t timestamp)
         fuelgauge_get_status(&fgstat);
 
         // Charge status
-        webusb_input_report[37] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1);
-        webusb_input_report[38] = ((uint8_t)fgstat.connected << 7) | fgstat.percent;
+        webusb_input_report[37] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
+        webusb_input_report[38] = fgstat.percent;
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);

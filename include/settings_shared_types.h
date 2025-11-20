@@ -81,6 +81,24 @@ typedef void (*webreport_cmd_confirm_t)(
     uint8_t* data, uint32_t size);
 
 #pragma pack(push, 1)
+
+typedef struct 
+{
+    uint8_t  digi_mode; // 0: Rapid Trigger, 1: Threshold
+    uint16_t min;
+    uint16_t max;
+    uint16_t threshold;
+    uint16_t deadzone;
+    bool invert;
+} hoverCalibration_s;
+
+#define HOVER_CALIBRATION_SIZE sizeof(hoverCalibration_s)
+
+typedef struct 
+{
+    hoverCalibration_s configs[32]; // SIZE=10
+} hoverConfig_s;
+
 typedef struct 
 {
     uint8_t battery_config_version;
@@ -196,7 +214,7 @@ typedef struct
 {
     uint8_t  gamepad_config_version;
     uint8_t  gamepad_default_mode;
-    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch
+    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch (BASE DEVICE MAC)
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
     uint32_t gamepad_color_grip_left;

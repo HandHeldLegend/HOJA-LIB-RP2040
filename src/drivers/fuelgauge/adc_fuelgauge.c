@@ -16,7 +16,6 @@
 
 #define VOLTAGE_RANGE (VOLTAGE_LEVEL_FULL - VOLTAGE_LEVEL_CRITICAL)
 
-
 uint8_t adc_fuelgauge_get_percent(void)
 {
     uint16_t raw_voltage = adc_read_battery();
@@ -36,11 +35,12 @@ uint8_t adc_fuelgauge_get_percent(void)
     return 0;
 }
 
-fuelgauge_status_s add_fuelgauge_get_status()
+fuelgauge_status_s adc_fuelgauge_get_status()
 {
     static fuelgauge_status_s status = {0};
     status.percent = adc_fuelgauge_get_percent();
     status.connected = true;
+    status.discharge_only = true;
 
     return status;
 }

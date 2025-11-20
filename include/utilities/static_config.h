@@ -50,6 +50,19 @@ typedef struct
 
 typedef struct 
 {
+    uint8_t name[8];
+    uint8_t type; // 0: Digital Button, 1: Analog Input
+    uint8_t react_group; // RGB react group number
+    uint8_t input; // Where this input is assigned to
+} hoverSlotInfo_s;
+
+typedef struct 
+{
+    hoverSlotInfo_s slots[32];
+} hoverInfoStatic_s;
+
+typedef struct 
+{
     uint8_t axis_lx : 1;
     uint8_t axis_ly : 1;
     uint8_t axis_rx : 1;
