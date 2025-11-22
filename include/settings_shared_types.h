@@ -7,26 +7,36 @@
 typedef enum 
 {
     CFG_BLOCK_GAMEPAD, 
-    CFG_BLOCK_REMAP, 
+    CFG_BLOCK_HOVER, 
     CFG_BLOCK_ANALOG, 
     CFG_BLOCK_RGB, 
     CFG_BLOCK_TRIGGER, 
     CFG_BLOCK_IMU, 
     CFG_BLOCK_HAPTIC, 
     CFG_BLOCK_USER, 
-    CFG_BLOCK_BATTERY,
+    CFG_BLOCK_INPUT,
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
 #define CFG_BLOCK_GAMEPAD_VERSION   0x12
-#define CFG_BLOCK_REMAP_VERSION     0x13
+
+// Remap config is replaced by hover cfg
+//#define CFG_BLOCK_REMAP_VERSION     0x13
+#define CFG_BLOCK_HOVER_VERSION     0x14
+
 #define CFG_BLOCK_ANALOG_VERSION    0x11
 #define CFG_BLOCK_RGB_VERSION       0x11
+
+// Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
+
 #define CFG_BLOCK_IMU_VERSION       0x11
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
-#define CFG_BLOCK_BATTERY_VERSION   0x12
+
+// Battery cfg is removed
+//#define CFG_BLOCK_BATTERY_VERSION   0x12
+#define CFG_BLOCK_INPUT_VERSION     0x13
 
 typedef enum 
 {
@@ -35,12 +45,6 @@ typedef enum
     GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
-
-typedef enum 
-{
-    REMAP_CMD_REFRESH, 
-    REMAP_CMD_DEFAULT, 
-} remap_cmd_t;
 
 typedef enum 
 {
@@ -67,13 +71,6 @@ typedef enum
     HAPTIC_CMD_TEST_STRENGTH, 
 } haptic_cmd_t;
 
-typedef enum 
-{
-    TRIGGER_CMD_REFRESH, 
-    TRIGGER_CMD_CALIBRATE_START, 
-    TRIGGER_CMD_CALIBRATE_STOP, 
-} trigger_cmd_t;
-
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 typedef void (*command_confirm_t)(cfg_block_t, uint8_t, uint8_t*, uint32_t);
 typedef void (*webreport_cmd_confirm_t)(
@@ -81,30 +78,6 @@ typedef void (*webreport_cmd_confirm_t)(
     uint8_t* data, uint32_t size);
 
 #pragma pack(push, 1)
-
-typedef struct 
-{
-    uint8_t  digi_mode; // 0: Rapid Trigger, 1: Threshold
-    uint16_t min;
-    uint16_t max;
-    uint16_t threshold;
-    uint16_t deadzone;
-    bool invert;
-} hoverCalibration_s;
-
-#define HOVER_CALIBRATION_SIZE sizeof(hoverCalibration_s)
-
-typedef struct 
-{
-    hoverCalibration_s configs[32]; // SIZE=10
-} hoverConfig_s;
-
-typedef struct 
-{
-    uint8_t battery_config_version;
-    float   charge_level_percent;
-    uint8_t reserved[11];
-} batteryConfig_s;
 
 typedef struct 
 {
@@ -132,23 +105,12 @@ typedef struct
     uint8_t     reserved[18];
 } imuConfig_s;
 
+// Trigger config is now unused
+// We can safely use this later for other
+// data
 typedef struct 
 {
-    uint8_t     trigger_config_version;
-    uint8_t     unused; // Now unused
-    uint16_t    left_min;
-    uint16_t    left_max;
-    uint16_t    left_deadzone : 15;
-    uint16_t    left_disabled : 1;
-    uint16_t    left_hairpin_value; // Threshold for analog->digital
-    uint16_t    left_static_output_value; // Static output value for digital->analog
-    uint16_t    right_min;
-    uint16_t    right_max;
-    uint16_t    right_deadzone : 15;
-    uint16_t    right_disabled : 1;
-    uint16_t    right_hairpin_value; // Threshold for analog->digital
-    uint16_t    right_static_output_value; // Static output value for digital->analog
-    uint8_t     reserved[42];
+    uint8_t reserved[64];
 } triggerConfig_s;
 
 typedef struct 
@@ -225,33 +187,71 @@ typedef struct
     uint8_t  reserved[27];
 } gamepadConfig_s;
 
+// Calibration data used for analog inputs (non-joystick)
+typedef struct 
+{
+    uint16_t invert : 1;
+    uint16_t min : 15;
+    uint16_t max;
+} hover_cfg_s;
+
+typedef struct 
+{
+    uint8_t hover_config_version;
+    hover_cfg_s config[36];
+    uint8_t reserved[111]
+} hoverConfig_s;
+
+// Input config replaces our remap config
+// It also now contains information for when it will be used
+// for analog to digital or digital to analog inputs
 typedef struct
 {
-    uint8_t remap_config_version;
-    // Switch, XInput, SNES, N64, GameCube
-    int8_t remap_profile_switch[36];
-    int8_t remap_profile_xinput[36];
-    int8_t remap_profile_snes[36];
-    int8_t remap_profile_n64[36];
-    int8_t remap_profile_gamecube[36];
-    uint8_t  reserved[75];
-} remapConfig_s; 
+    uint16_t output_mode : 4; // 0=default, 1=rapid trigger, 2=threshold
+    uint16_t static_output : 12; // Output that is used when this input is pressed
+    uint16_t threshold_delta; // Either a threshold for digital press or a delta for rapid trigger
+    int8_t output_code; // Code for what this outputs or is assigned to
+} input_cfg_s;
+
+typedef struct 
+{
+    uint8_t input_config_version;
+    input_cfg_s input_profile_switch[36];
+    input_cfg_s input_profile_xinput[36];
+    input_cfg_s input_profile_snes[36];
+    input_cfg_s input_profile_n64[36];
+    input_cfg_s input_profile_gamecube[36];
+    input_cfg_s input_profile_reserved_1[36];
+    input_cfg_s input_profile_reserved_2[36];
+    uint8_t reserved[787];
+} inputConfig_s;
+
 #pragma pack(pop)
 
 // Byte sizes of our various blocks
-#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) //64
-#define REMAP_CFB_SIZE      sizeof(remapConfig_s) // 256
+#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) // 64
+// Remap config is depreciated and replace this block with hover Config
+// #define REMAP_CFB_SIZE      sizeof(remapConfig_s) // 256
+#define HOVER_CFB_SIZE      sizeof(hoverConfig_s) // 256
+
 #define RGB_CFB_SIZE        sizeof(rgbConfig_s) // 256
 #define ANALOG_CFB_SIZE     sizeof(analogConfig_s) // 1024
-#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) //64
-#define IMU_CFB_SIZE        sizeof(imuConfig_s) //32
+
+// Trigger config is replaced and space is simply reserved
+#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) // 64
+
+#define IMU_CFB_SIZE        sizeof(imuConfig_s) // 32
 #define HAPTIC_CFB_SIZE     sizeof(hapticConfig_s) 
 #define USER_CFB_SIZE       sizeof(userConfig_s) // 64
-#define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) //16
+// Battery cfb was never used. Replace with more useful data
+// #define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) // 16
+#define INPUT_CFB_SIZE      sizeof(inputConfig_s) // 2048
 
 // Byte size of all combined blocks
-#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
+#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+HOVER_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE+BATTERY_CFB_SIZE)
+                        USER_CFB_SIZE+INPUT_CFB_SIZE)
+
+                        
 
 #endif

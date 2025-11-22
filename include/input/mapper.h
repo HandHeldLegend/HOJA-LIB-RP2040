@@ -8,6 +8,8 @@
 #define MAPPER_BUTTON_SET(down, code) (down ? (1<<code) : 0)
 #define MAPPER_BUTTON_DOWN(inputs, code) (((inputs & (1 << code)) != 0) ? true : false)
 
+#define MAPPER_INPUT_COUNT 36 // Maximum number of unique inputs
+
 // The mapper is a system that allows for a very broad range of mappings for input and output.
 // You can map digital inputs to analog outputs, and map analog inputs to digital outputs. 
 // 6 analog inputs and 6 analog outputs are supported. 
@@ -42,48 +44,6 @@ typedef enum
 
 typedef enum 
 {
-    MAPPER_CODE_UNSUPPORTED = -2,
-    MAPPER_CODE_UNUSED = -1,
-    MAPPER_CODE_SOUTH,
-    MAPPER_CODE_EAST,
-    MAPPER_CODE_WEST,
-    MAPPER_CODE_NORTH,
-    MAPPER_CODE_UP,
-    MAPPER_CODE_DOWN,
-    MAPPER_CODE_LEFT,
-    MAPPER_CODE_RIGHT,
-    MAPPER_CODE_LB, // Bumper L
-    MAPPER_CODE_RB, // Bumper R
-    MAPPER_CODE_LT, // Left Trigger (Digital ZL)
-    MAPPER_CODE_RT, // Right Trigger (Digital ZR)
-    MAPPER_CODE_START,
-    MAPPER_CODE_SELECT,
-    MAPPER_CODE_HOME,
-    MAPPER_CODE_CAPTURE,
-    MAPPER_CODE_LS, // Stick buttons
-    MAPPER_CODE_RS,
-    MAPPER_CODE_LG_UPPER, // Grip button left upper
-    MAPPER_CODE_RG_UPPER, // Grip button right upper
-    MAPPER_CODE_LG_LOWER, // Grip button left lower
-    MAPPER_CODE_RG_LOWER, // Grip button right lower
-    MAPPER_CODE_LT_ANALOG,
-    MAPPER_CODE_RT_ANALOG,
-    MAPPER_CODE_LX_RIGHT,
-    MAPPER_CODE_LX_LEFT,
-    MAPPER_CODE_LY_UP,
-    MAPPER_CODE_LY_DOWN,
-    MAPPER_CODE_RX_RIGHT,
-    MAPPER_CODE_RX_LEFT,
-    MAPPER_CODE_RY_UP,
-    MAPPER_CODE_RY_DOWN,
-    MAPPER_CODE_MAX,
-} mapper_code_t;
-
-#define MAPPER_CODE_IDX_TRIGGER_START  MAPPER_CODE_LT_ANALOG
-#define MAPPER_CODE_IDX_JOYSTICK_START MAPPER_CODE_LX_RIGHT
-
-typedef enum 
-{
     SWITCH_CODE_UNUSED = -1,
     SWITCH_CODE_A,
     SWITCH_CODE_B,
@@ -114,10 +74,34 @@ typedef enum
     SWITCH_CODE_MAX,
 } mapper_switch_code_t;
 
-
-
-#define SWITCH_CODE_IDX_DIGITAL_END    SWITCH_CODE_RS
-#define SWITCH_CODE_IDX_JOYSTICK_START SWITCH_CODE_LX_RIGHT
+mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // LZ
+    MAPPER_OUTPUT_DIGITAL, // RZ
+    MAPPER_OUTPUT_DIGITAL, // PLUS
+    MAPPER_OUTPUT_DIGITAL, // MINUS
+    MAPPER_OUTPUT_DIGITAL, // HOME
+    MAPPER_OUTPUT_DIGITAL, // CAPTURE
+    MAPPER_OUTPUT_DIGITAL, // LS Click
+    MAPPER_OUTPUT_DIGITAL, // RS Click
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN
+};
 
 typedef enum 
 {
@@ -137,7 +121,20 @@ typedef enum
     SNES_CODE_MAX,
 } mapper_snes_code_t;
 
-#define SNES_CODE_IDX_DIGITAL_END SNES_CODE_SELECT
+mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Select
+};
 
 typedef enum 
 {
@@ -163,8 +160,26 @@ typedef enum
     N64_CODE_MAX,
 } mapper_n64_code_t;
 
-#define N64_CODE_IDX_DIGITAL_END    N64_CODE_START
-#define N64_CODE_IDX_JOYSTICK_START N64_CODE_LX_RIGHT
+mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // CUP
+    MAPPER_OUTPUT_DIGITAL, // CDOWN
+    MAPPER_OUTPUT_DIGITAL, // CLEFT
+    MAPPER_OUTPUT_DIGITAL, // CRIGHT
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // Z
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+};
 
 typedef enum 
 {
@@ -194,9 +209,30 @@ typedef enum
     GAMECUBE_CODE_MAX,
 } mapper_gamecube_code_t;
 
-#define GAMECUBE_CODE_IDX_DIGITAL_END   GAMECUBE_CODE_R
-#define GAMECUBE_CODE_IDX_TRIGGER_START GAMECUBE_CODE_L_ANALOG
-#define GAMECUBE_CODE_IDX_JOYSTICK_START GAMECUBE_CODE_LX_RIGHT
+mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Z
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_TRIGGER_L, // L Analog
+    MAPPER_OUTPUT_TRIGGER_R, // R Analog
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN
+};
 
 typedef enum 
 {
@@ -216,8 +252,6 @@ typedef enum
     XINPUT_CODE_GUIDE,
     XINPUT_CODE_LS,
     XINPUT_CODE_RS,
-    XINPUT_CODE_LT_FULL,
-    XINPUT_CODE_RT_FULL,
     XINPUT_CODE_LT_ANALOG, 
     XINPUT_CODE_RT_ANALOG,
     XINPUT_CODE_LX_RIGHT,
@@ -231,54 +265,118 @@ typedef enum
     XINPUT_CODE_MAX,
 } mapper_xinput_code_t;
 
-#define XINPUT_CODE_IDX_DIGITAL_END   XINPUT_CODE_RT_FULL
-#define XINPUT_CODE_IDX_TRIGGER_START XINPUT_CODE_LT_ANALOG
-#define XINPUT_CODE_IDX_JOYSTICK_START XINPUT_CODE_LX_RIGHT
+mapper_input_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // LB
+    MAPPER_OUTPUT_DIGITAL, // RB
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Back
+    MAPPER_OUTPUT_DIGITAL, // Guide
+    MAPPER_OUTPUT_DIGITAL, // LS
+    MAPPER_OUTPUT_DIGITAL, // RS
+    MAPPER_OUTPUT_TRIGGER_L,
+    MAPPER_OUTPUT_TRIGGER_R,
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN,
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN,
+};
 
-typedef struct 
+typedef enum 
 {
-    union
-    {
-        struct
-        {
-            int8_t south;
-            int8_t east;
-            int8_t west;
-            int8_t north;
-            int8_t up;
-            int8_t down;
-            int8_t left;
-            int8_t right;
-            int8_t lb;
-            int8_t rb;
-            int8_t lt;
-            int8_t rt;
-            int8_t start;
-            int8_t select;
-            int8_t home;
-            int8_t capture;
-            int8_t ls;
-            int8_t rs;
-            int8_t lg_upper;
-            int8_t rg_upper;
-            int8_t lg_lower;
-            int8_t rg_lower;
-            int8_t lt_analog;
-            int8_t rt_analog;
-            int8_t lx_right;
-            int8_t lx_left;
-            int8_t ly_up;
-            int8_t ly_down;
-            int8_t rx_right;
-            int8_t rx_left;
-            int8_t ry_up;
-            int8_t ry_down;
-        };
-        int8_t map[36]; // 32 used, but we have a reserved
-    };
-} mapper_profile_s; 
+    SINPUT_CODE_UNUSED = -1,
+    SINPUT_CODE_SOUTH,
+    SINPUT_CODE_EAST,
+    SINPUT_CODE_WEST,
+    SINPUT_CODE_NORTH,
+    SINPUT_CODE_UP,
+    SINPUT_CODE_DOWN,
+    SINPUT_CODE_LEFT,
+    SINPUT_CODE_RIGHT,
+    SINPUT_CODE_LS, // Stick left
+    SINPUT_CODE_RS, // Stick right
+    SINPUT_CODE_LB,
+    SINPUT_CODE_RB,
+    SINPUT_CODE_LT, // Left trigger digital
+    SINPUT_CODE_RT, // Right trigger digital
+    SINPUT_CODE_LP_1, // Left paddle 1
+    SINPUT_CODE_RP_1, // Right paddle 1
+    SINPUT_CODE_START,
+    SINPUT_CODE_SELECT,
+    SINPUT_CODE_GUIDE,
+    SINPUT_CODE_SHARE,
+    SINPUT_CODE_LP_2, // Left paddle 2
+    SINPUT_CODE_RP_2, // Right paddle 2
+    SINPUT_CODE_TP_1, // Touchpad 1
+    SINPUT_CODE_TP_2, // Touchpad 2
+    SINPUT_CODE_MISC_3, // Misc 3
+    SINPUT_CODE_MISC_4, // Misc 4
+    SINPUT_CODE_MISC_5, // Misc 5
+    SINPUT_CODE_MISC_6, // Misc 6 
+    SINPUT_CODE_LT_ANALOG,
+    SINPUT_CODE_RT_ANALOG,
+    SINPUT_CODE_LX_RIGHT,
+    SINPUT_CODE_LX_LEFT,
+    SINPUT_CODE_LY_UP,
+    SINPUT_CODE_LY_DOWN,
+    SINPUT_CODE_RX_RIGHT,
+    SINPUT_CODE_RX_LEFT,
+    SINPUT_CODE_RY_UP,
+    SINPUT_CODE_RY_DOWN,
+    SINPUT_CODE_MAX,
+} mapper_sinput_code_t;
 
-
+mapper_input_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // SOUTH
+    MAPPER_OUTPUT_DIGITAL, // EAST
+    MAPPER_OUTPUT_DIGITAL, // WEST
+    MAPPER_OUTPUT_DIGITAL, // NORTH
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // Stick left
+    MAPPER_OUTPUT_DIGITAL, // Stick right
+    MAPPER_OUTPUT_DIGITAL, // Left bumper
+    MAPPER_OUTPUT_DIGITAL, // Right bumper
+    MAPPER_OUTPUT_DIGITAL, // Left trigger digital
+    MAPPER_OUTPUT_DIGITAL, // Right trigger digital
+    MAPPER_OUTPUT_DIGITAL, // Left paddle 1
+    MAPPER_OUTPUT_DIGITAL, // Right paddle 1
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Select
+    MAPPER_OUTPUT_DIGITAL, // Guide
+    MAPPER_OUTPUT_DIGITAL, // Share
+    MAPPER_OUTPUT_DIGITAL, // Left paddle 2
+    MAPPER_OUTPUT_DIGITAL, // Right paddle 2
+    MAPPER_OUTPUT_DIGITAL, // Touchpad 1
+    MAPPER_OUTPUT_DIGITAL, // Touchpad 2
+    MAPPER_OUTPUT_DIGITAL, // Misc 3
+    MAPPER_OUTPUT_DIGITAL, // Misc 4
+    MAPPER_OUTPUT_DIGITAL, // Misc 5
+    MAPPER_OUTPUT_DIGITAL, // Misc 6 
+    MAPPER_OUTPUT_TRIGGER_L,
+    MAPPER_OUTPUT_TRIGGER_R,
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN,
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN,
+};
 
 typedef struct 
 {
@@ -319,7 +417,7 @@ typedef struct
             mapper_input_type_t ry_up;
             mapper_input_type_t ry_down;
         };
-        mapper_input_type_t type[36]; // 32 used, but we have a reserved
+        mapper_input_type_t type[MAPPER_INPUT_COUNT]; // 32 used, but we have a reserved
     };
 } mapper_input_types_s;
 
@@ -328,9 +426,9 @@ typedef struct
 typedef struct 
 {
     uint32_t digital_inputs;
-    uint16_t joysticks_raw[10];
-    int16_t joysticks_combined[5]; // Range of -2048 to 2048 with 0 center
-    uint16_t triggers[2];
+    uint16_t joysticks_raw[8];
+    int16_t joysticks_combined[4]; // Range of -2048 to 2048 with 0 center
+ 
     union
     {
         struct 
@@ -345,6 +443,28 @@ typedef struct
 
 typedef struct 
 {
+    uint16_t inputs[MAPPER_INPUT_COUNT];
+    union
+    {
+        struct 
+        {
+            uint8_t button_sync : 1;
+            uint8_t button_safemode : 1; // MAPPER_CODE_LG_LOWER
+            uint8_t button_shipping : 1; // MAPPER_CODE_RG_LOWER
+        };
+        uint8_t buttons_system;
+    };
+} nu_mapper_input_s;
+
+typedef struct 
+{
+    uint32_t digital_input;
+    uint16_t triggers[2];
+    int16_t  joysticks[4];
+} mapper_output_s;
+
+typedef struct 
+{
     int16_t lx_threshold;
     int16_t ly_threshold;
     int16_t rx_threshold;
@@ -352,6 +472,20 @@ typedef struct
     uint16_t lt_threshold;
     uint16_t rt_threshold;
 } mapper_global_analog_s;
+
+typedef enum 
+{
+    MAPPER_OUTPUT_MODE_DEFAULT,
+    MAPPER_OUTPUT_MODE_RAPID,
+    MAPPER_OUTPUT_MODE_THRESHOLD,
+} mapper_output_mode_t;
+
+typedef struct 
+{
+    uint8_t  output_mode;
+    uint16_t static_output_val;
+    uint16_t threshold_delta_val;
+} mapper_output_cfg_s;
 
 #define MAPPER_PROFILE_GLOBAL_ANALOG_SIZE sizeof(mapper_global_analog_s)
 

@@ -289,6 +289,7 @@ mapper_profile_s _map_default_xinput = {
 };
 
 mapper_input_s _mapper_input = {0};
+nu_mapper_input_s _all_inputs = {0};
 mapper_input_types_s _mapper_types = {0};
 
 uint16_t _base_stick_threshold_l = 1500;
@@ -303,19 +304,114 @@ uint16_t *_joystick_thresholds[8] = {&_base_stick_threshold_l, &_base_stick_thre
 uint16_t *_trigger_thresholds[2] = {&_base_trigger_threshold_l, &_base_trigger_threshold_r};
 uint16_t *_trigger_static[2] = {&_base_trigger_static_l, &_base_trigger_static_r};
 
-mapper_input_s _mapper_task_switch_nu()
+mapper_output_cfg_s _output_cfgs[MAPPER_INPUT_COUNT] = {};
+uint16_t _rapid_vals[MAPPER_INPUT_COUNT] = {0};
+bool _rapid_press_state[MAPPER_INPUT_COUNT] = {0};
+
+void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
 {
-    mapper_input_s tmp = {0};
+    if(*input_modifiable < new_value)
+    {
+        *input_modifiable = new_value;
+    }
+}
+
+static inline bool _handle_analog_to_digital(uint16_t input, uint8_t mode, uint16_t param, uint16_t *rapid_val, bool *press)
+{
+    bool ret = *press;
+
+    switch(mode)
+    {
+        default:
+        case MAPPER_OUTPUT_MODE_DEFAULT:
+        case MAPPER_OUTPUT_MODE_RAPID:
+        if(input >= *rapid_val)
+        {
+            ret = true;
+
+            *rapid_val = input;
+
+            if(*rapid_val < param) *rapid_val = param;
+        }
+        else if (input < (*rapid_val - param))
+        {
+            ret = false;
+
+            *rapid_val = input + param;
+        }
+        *press = ret;
+        break;
+
+        case MAPPER_OUTPUT_MODE_THRESHOLD:
+        ret = (input >= param);
+        break;
+    }
+
+    return ret;
+}
+
+static inline uint16_t _handle_analog_to_analog(uint16_t input, uint8_t mode, uint16_t static_output, uint16_t param, uint16_t *rapid_val, bool *press)
+{
+    bool ret = *press;
+
+    switch(mode)
+    {
+        default:
+        case MAPPER_OUTPUT_MODE_DEFAULT:
+        return input;
+        break;
+
+        case MAPPER_OUTPUT_MODE_RAPID:
+        if(input >= *rapid_val)
+        {
+            ret = true;
+
+            *rapid_val = input;
+
+            if(*rapid_val < param) *rapid_val = param;
+        }
+        else if (input < (*rapid_val - param))
+        {
+            ret = false;
+
+            *rapid_val = input + param;
+        }
+        *press = ret;
+        break;
+
+        case MAPPER_OUTPUT_MODE_THRESHOLD:
+        ret = (input >= param);
+        break;
+    }
+
+    return ret ? static_output : 0;
+}
+
+mapper_output_s _mapper_task_switch_nu()
+{
+    // Temporary store for new output data
+    mapper_output_s tmp = {0};
+
     bool down = false;
     uint32_t map_digital_bitmask = 0;
-    uint8_t analog_idx_in = 0;
-    uint8_t analog_idx_out = 0; 
+    uint8_t map_idx_in = 0;
+    uint8_t map_idx_out = 0; 
     
     int8_t map_code_output;
     int8_t map_output_type;
 
-    for(int i = 0; i < 36; i++)
+    uint16_t dpads[4];
+    uint16_t joysticks[8];
+    uint16_t triggers[2];
+
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
+        // Grab the output configuration for this input
+        mapper_output_cfg_s *output_cfg = &_output_cfgs[i];
+
+        // The current input value
+        uint16_t input = _all_inputs.inputs[i];
+
         // Obtain our output code
         // The OUTPUT value assigned to the input (i) value
         map_code_output = _mapper_profile->map[i];
@@ -326,9 +422,53 @@ mapper_input_s _mapper_task_switch_nu()
         // Obtain the type of output based on the output code
         map_output_type = _switch_output_types[map_code_output];
 
+        // We perform different operation types dependent
+        // on the type of INPUT (Digital, Hover, Joystick)
+        // Joystick and Hover are both analog, but a Joystick is half of the resolution as a Hover (Half of 12 bits)
         switch(_mapper_types.type[i])
         {
             case MAPPER_INPUT_TYPE_DIGITAL:
+
+            // Calculate if our digital button is pressed or not
+            down = input != 0;
+
+            // Only process if the button is pressed
+            if (!down) continue;
+
+            switch(map_output_type)
+            {
+                default:
+                // Do nothing
+                break;
+
+                // The simplest output, just pass through using the output mapcode
+                case MAPPER_OUTPUT_DIGITAL:
+                tmp.digital_input |= (1 << map_code_output);
+                break;
+
+                // Output to our virtual analog dpad
+                // which will be translated later
+                case MAPPER_OUTPUT_DPAD_UP ... MAPPER_OUTPUT_DPAD_RIGHT:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_DPAD_UP;
+                _handle_analog_compare(&dpads[map_idx_out], 2047);
+                break;
+
+                // Output to our triggers using the configured static output value
+                // for this particular input
+                case MAPPER_OUTPUT_TRIGGER_L ... MAPPER_OUTPUT_TRIGGER_R:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_TRIGGER_L;
+                _handle_analog_compare(&triggers[map_idx_out], output_cfg->static_output_val);
+                break;
+
+                // Output to our joystick using the configured static output value (divided by 2)
+                case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_LX_RIGHT;
+                _handle_analog_compare(&joysticks[map_idx_out], output_cfg->static_output_val>>1);
+                break;
+            }
+            break;
+
+            case MAPPER_INPUT_TYPE_HOVER:
             switch(map_output_type)
             {
                 default:
@@ -336,34 +476,73 @@ mapper_input_s _mapper_task_switch_nu()
                 break;
 
                 case MAPPER_OUTPUT_DIGITAL:
+                down = _handle_analog_to_digital(input, output_cfg->output_mode, output_cfg->threshold_delta_val, 
+                    &_rapid_vals[i], &_rapid_press_state[i]);
+                tmp.digital_input |= (down << map_code_output);
                 break;
 
+                // Output to our virtual analog dpad
+                // which will be translated later
                 case MAPPER_OUTPUT_DPAD_UP ... MAPPER_OUTPUT_DPAD_RIGHT:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_DPAD_UP;
+                dpads[map_idx_out] = _handle_analog_to_analog(input, 
+                    output_cfg->output_mode, 0xFFF, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]) >> 1; // Divide by 2 (hover -> dpad)
                 break;
 
+                // Output to our triggers using the configured static output value
+                // for this particular input
                 case MAPPER_OUTPUT_TRIGGER_L ... MAPPER_OUTPUT_TRIGGER_R:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_TRIGGER_L;
+                triggers[map_idx_out] = _handle_analog_to_analog(input, 
+                    output_cfg->output_mode, output_cfg->static_output_val, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]);
                 break;
 
+                // Output to our joystick using the configured static output value (divided by 2)
                 case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
-                break;
-
-                // Digital Output
-                case 0 ... SWITCH_CODE_IDX_DIGITAL_END:
-                tmp.digital_inputs |= (1 << map_code_output);
-                break;
-
-                // Joystick Output
-                case SWITCH_CODE_LX_RIGHT ... SWITCH_CODE_RY_DOWN:
-                analog_idx_out = map_code_output - SWITCH_CODE_IDX_JOYSTICK_START;
-                tmp.joysticks_raw[analog_idx_out] = 2048;
+                map_idx_out = map_output_type-MAPPER_OUTPUT_LX_RIGHT;
+                joysticks[map_idx_out] = _handle_analog_to_analog(input, 
+                    output_cfg->output_mode, output_cfg->static_output_val, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]) >> 1; // Divide by 2 (hover -> joystick)
                 break;
             }
             break;
 
-            case MAPPER_INPUT_TYPE_HOVER:
-            break;
-
             case MAPPER_INPUT_TYPE_JOYSTICK:
+            switch(map_output_type)
+            {
+                default:
+                // Do nothing
+                break;
+
+                case MAPPER_OUTPUT_DIGITAL:
+                down = _handle_analog_to_digital(input<<1, output_cfg->output_mode, output_cfg->threshold_delta_val, 
+                    &_rapid_vals[i], &_rapid_press_state[i]);
+                tmp.digital_input |= (down << map_code_output);
+                break;
+
+                case MAPPER_OUTPUT_DPAD_UP ... MAPPER_OUTPUT_DPAD_RIGHT:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_DPAD_UP;
+                dpads[map_idx_out] = _handle_analog_to_analog(input << 1, 
+                    output_cfg->output_mode, 0xFFF, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]) >> 1; 
+                break;
+
+                case MAPPER_OUTPUT_TRIGGER_L ... MAPPER_OUTPUT_TRIGGER_R:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_TRIGGER_L;
+                triggers[map_idx_out] = _handle_analog_to_analog(input << 1, 
+                    output_cfg->output_mode, output_cfg->static_output_val, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]); 
+                break;
+
+                case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
+                map_idx_out = map_output_type-MAPPER_OUTPUT_LX_RIGHT;
+                joysticks[map_idx_out] = _handle_analog_to_analog(input << 1, 
+                    output_cfg->output_mode, output_cfg->static_output_val, output_cfg->threshold_delta_val,
+                    &_rapid_vals[i], &_rapid_press_state[i]) >> 1; 
+                break;
+            }
             break;
 
             default:

@@ -22,8 +22,8 @@ typedef struct
     // Gamepad configuration block
     uint8_t gamepad_configuration_block[GAMEPAD_CFB_SIZE]; 
 
-    // Remap configuration block
-    uint8_t remap_configuration_block[REMAP_CFB_SIZE]; 
+    // Hover configuration block
+    uint8_t hover_configuration_block[HOVER_CFB_SIZE]; 
 
     // RGB configuration block
     uint8_t rgb_configuration_block[RGB_CFB_SIZE]; 
@@ -43,10 +43,10 @@ typedef struct
     // User data configuration block
     uint8_t user_configuration_block[USER_CFB_SIZE];
 
-    // Battery data configuration block
-    uint8_t battery_configuration_block[BATTERY_CFB_SIZE];
+    // Input data configuration block
+    uint8_t input_configuration_block[INPUT_CFB_SIZE];
 
-    // REMAINING 2550 bytes
+    // REMAINING bytes
     uint8_t reserved[4096-TOTAL_CFB_SIZE]; 
 } settings_flash_s;
 
@@ -59,8 +59,8 @@ typedef struct
     // Gamepad configuration block
     uint8_t gamepad_configuration_block[GAMEPAD_CFB_SIZE]; 
 
-    // Remap configuration block
-    uint8_t remap_configuration_block[REMAP_CFB_SIZE]; 
+    // Hover configuration block
+    uint8_t hover_configuration_block[HOVER_CFB_SIZE]; 
 
     // RGB configuration block
     uint8_t rgb_configuration_block[RGB_CFB_SIZE]; 
@@ -80,21 +80,21 @@ typedef struct
     // User data configuration block
     uint8_t user_configuration_block[USER_CFB_SIZE];
 
-    // Battery data configuration block
-    uint8_t battery_configuration_block[BATTERY_CFB_SIZE];
+    // Input data configuration block
+    uint8_t input_configuration_block[INPUT_CFB_SIZE];
 } settings_live_s;
 #pragma pack(pop)
 
 extern settings_live_s      live_settings;
 extern gamepadConfig_s     *gamepad_config;
-extern remapConfig_s       *remap_config;
+extern hoverConfig_s       *hover_config;
 extern rgbConfig_s         *rgb_config;
 extern analogConfig_s      *analog_config;
 extern triggerConfig_s     *trigger_config;
 extern imuConfig_s         *imu_config;
 extern hapticConfig_s      *haptic_config;
 extern userConfig_s        *user_config;
-extern batteryConfig_s     *battery_config;
+extern inputConfig_s       *input_config;
 
 void settings_init();
 void settings_commit_blocks();
