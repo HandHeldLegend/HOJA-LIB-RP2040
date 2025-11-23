@@ -34,28 +34,28 @@
 
 settings_live_s     live_settings = {0};
 gamepadConfig_s     *gamepad_config    = NULL;
-remapConfig_s       *remap_config      = NULL;
+hoverConfig_s       *hover_config      = NULL;
 rgbConfig_s         *rgb_config        = NULL;
 analogConfig_s      *analog_config     = NULL;
 triggerConfig_s     *trigger_config    = NULL;
 imuConfig_s         *imu_config        = NULL;
 hapticConfig_s      *haptic_config     = NULL;
 userConfig_s        *user_config       = NULL;
-batteryConfig_s     *battery_config    = NULL;
+inputConfig_s       *input_config      = NULL;
 
 void settings_init()
 {
     flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
 
     gamepad_config     = (gamepadConfig_s *)  &live_settings.gamepad_configuration_block;
-    remap_config       = (remapConfig_s *)    &live_settings.remap_configuration_block;
+    hover_config       = (hoverConfig_s *)    &live_settings.hover_configuration_block;
     rgb_config         = (rgbConfig_s *)      &live_settings.rgb_configuration_block;
     analog_config      = (analogConfig_s *)   &live_settings.analog_configuration_block;
     trigger_config     = (triggerConfig_s *)  &live_settings.trigger_configuration_block;
     imu_config         = (imuConfig_s *)      &live_settings.imu_configuration_block;
     haptic_config      = (hapticConfig_s *)   &live_settings.haptic_configuration_block;
     user_config        = (userConfig_s *)     &live_settings.user_configuration_block;
-    battery_config     = (batteryConfig_s *)  &live_settings.battery_configuration_block;
+    input_config       = (inputConfig_s *)    &live_settings.input_configuration_block;
 
     // Debug mac address if zero
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
@@ -150,7 +150,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
             _gamepad_config_command(command, webusb_command_confirm_cb);
         break;
 
-        case CFG_BLOCK_REMAP:
+        case CFG_BLOCK_HOVER:
             mapper_config_command(command, webusb_command_confirm_cb);
         break;
 
@@ -178,7 +178,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
             
         break;
 
-        case CFG_BLOCK_BATTERY:
+        case CFG_BLOCK_INPUT:
 
         break;
     }
@@ -209,11 +209,11 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
             write_to_ptr = live_settings.gamepad_configuration_block;
         break;
 
-        case CFG_BLOCK_REMAP:
-            write_to_ptr = live_settings.remap_configuration_block;
+        case CFG_BLOCK_HOVER:
+            write_to_ptr = live_settings.hover_configuration_block;
 
-            if(completed)
-                mapper_init();
+            //if(completed)
+            //    mapper_init();
         break;
 
         case CFG_BLOCK_ANALOG:
@@ -253,8 +253,8 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
             write_to_ptr = live_settings.user_configuration_block;
         break;
 
-        case CFG_BLOCK_BATTERY:
-            write_to_ptr = live_settings.battery_configuration_block;
+        case CFG_BLOCK_INPUT:
+            write_to_ptr = live_settings.input_configuration_block;
         break;
     }
 
@@ -309,8 +309,8 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
             _serialize_block(block, live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE, cb);
         break;
 
-        case CFG_BLOCK_REMAP:
-            _serialize_block(block, live_settings.remap_configuration_block, REMAP_CFB_SIZE, cb);
+        case CFG_BLOCK_HOVER:
+            _serialize_block(block, live_settings.hover_configuration_block, HOVER_CFB_SIZE, cb);
         break;
 
         case CFG_BLOCK_ANALOG:
@@ -337,8 +337,8 @@ void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
             _serialize_block(block, live_settings.user_configuration_block, USER_CFB_SIZE, cb);
         break;
 
-        case CFG_BLOCK_BATTERY:
-            _serialize_block(block, live_settings.battery_configuration_block, BATTERY_CFB_SIZE, cb);
+        case CFG_BLOCK_INPUT:
+            _serialize_block(block, live_settings.input_configuration_block, INPUT_CFB_SIZE, cb);
         break;
     }
 }

@@ -24,6 +24,48 @@ typedef enum
 
 typedef enum 
 {
+    INPUT_CODE_UNUSED = -1,
+    INPUT_CODE_SOUTH,
+    INPUT_CODE_EAST, 
+    INPUT_CODE_WEST,
+    INPUT_CODE_NORTH,
+    INPUT_CODE_UP,
+    INPUT_CODE_DOWN,
+    INPUT_CODE_LEFT,
+    INPUT_CODE_RIGHT,
+    INPUT_CODE_SL,
+    INPUT_CODE_SR,
+    INPUT_CODE_LB,
+    INPUT_CODE_RB,
+    INPUT_CODE_LT,
+    INPUT_CODE_RT,
+    INPUT_CODE_LP1,
+    INPUT_CODE_RP1,
+    INPUT_CODE_START,
+    INPUT_CODE_SELECT,
+    INPUT_CODE_HOME,
+    INPUT_CODE_SHARE,
+    INPUT_CODE_LP2,
+    INPUT_CODE_RP2,
+    INPUT_CODE_TP1,
+    INPUT_CODE_TP2,
+    INPUT_CODE_MISC3,
+    INPUT_CODE_MISC4,
+    INPUT_CODE_LT_ANALOG,
+    INPUT_CODE_RT_ANALOG,
+    INPUT_CODE_LX_RIGHT,
+    INPUT_CODE_LX_LEFT,
+    INPUT_CODE_LY_UP,
+    INPUT_CODE_LY_DOWN,
+    INPUT_CODE_RX_RIGHT,
+    INPUT_CODE_RX_LEFT,
+    INPUT_CODE_RY_UP,
+    INPUT_CODE_RY_DOWN,
+    INPUT_CODE_MAX
+} mapper_input_code_t;
+
+typedef enum 
+{
     MAPPER_OUTPUT_DISABLED,
     MAPPER_OUTPUT_DIGITAL,
     MAPPER_OUTPUT_TRIGGER_L,
@@ -320,7 +362,7 @@ typedef enum
     SINPUT_CODE_RP_2, // Right paddle 2
     SINPUT_CODE_TP_1, // Touchpad 1
     SINPUT_CODE_TP_2, // Touchpad 2
-    SINPUT_CODE_MISC_3, // Misc 3
+    SINPUT_CODE_MISC_3, // Misc 3 (Power)
     SINPUT_CODE_MISC_4, // Misc 4
     SINPUT_CODE_MISC_5, // Misc 5
     SINPUT_CODE_MISC_6, // Misc 6 
@@ -377,49 +419,6 @@ mapper_input_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_RY_UP,
     MAPPER_OUTPUT_RY_DOWN,
 };
-
-typedef struct 
-{
-    union
-    {
-        struct
-        {
-            mapper_input_type_t south;
-            mapper_input_type_t east;
-            mapper_input_type_t west;
-            mapper_input_type_t north;
-            mapper_input_type_t up;
-            mapper_input_type_t down;
-            mapper_input_type_t left;
-            mapper_input_type_t right;
-            mapper_input_type_t lb;
-            mapper_input_type_t rb;
-            mapper_input_type_t lt;
-            mapper_input_type_t rt;
-            mapper_input_type_t start;
-            mapper_input_type_t select;
-            mapper_input_type_t home;
-            mapper_input_type_t capture;
-            mapper_input_type_t ls;
-            mapper_input_type_t rs;
-            mapper_input_type_t lg_upper;
-            mapper_input_type_t rg_upper;
-            mapper_input_type_t lg_lower;
-            mapper_input_type_t rg_lower;
-            mapper_input_type_t lt_analog;
-            mapper_input_type_t rt_analog;
-            mapper_input_type_t lx_right;
-            mapper_input_type_t lx_left;
-            mapper_input_type_t ly_up;
-            mapper_input_type_t ly_down;
-            mapper_input_type_t rx_right;
-            mapper_input_type_t rx_left;
-            mapper_input_type_t ry_up;
-            mapper_input_type_t ry_down;
-        };
-        mapper_input_type_t type[MAPPER_INPUT_COUNT]; // 32 used, but we have a reserved
-    };
-} mapper_input_types_s;
 
 #define MAPPER_PROFILE_SIZE sizeof(mapper_profile_s)
 
@@ -489,7 +488,7 @@ typedef struct
 
 #define MAPPER_PROFILE_GLOBAL_ANALOG_SIZE sizeof(mapper_global_analog_s)
 
-void mapper_config_command(remap_cmd_t cmd, webreport_cmd_confirm_t cb);
+//void mapper_config_command(remap_cmd_t cmd, webreport_cmd_confirm_t cb);
 void mapper_init();
 mapper_input_s* mapper_get_input();
 

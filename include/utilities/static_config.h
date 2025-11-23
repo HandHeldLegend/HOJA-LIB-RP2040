@@ -17,7 +17,7 @@
 typedef enum 
 {
     STATIC_BLOCK_DEVICE, // Half way through config block
-    STATIC_BLOCK_BUTTONS, 
+    STATIC_BLOCK_INPUT, 
     STATIC_BLOCK_ANALOG, 
     STATIC_BLOCK_HAPTIC, 
     STATIC_BLOCK_IMU, 
@@ -45,14 +45,9 @@ typedef struct
 
 typedef struct 
 {
-    uint32_t remap_mask;
-} buttonInfoStatic_s;
-
-typedef struct 
-{
     uint8_t input_type; // 0=unused, 1=digital, 2=hover, 3=joystick
     uint8_t input_name[8]; // Char name of input
-    int8_t  rgb_assignments[4]; // Which RGB(s) are correlated with this input (-1 means not used)
+    uint8_t  rgb_assignments[4]; // Which RGB(s) are correlated with this input (Results are -1, 0 is unused)
 } inputInfoSlot_s;
 
 typedef struct
