@@ -5,6 +5,12 @@
 #include "input/mapper.h"
 
     typedef enum {
+        INPUT_TYPE_DIGITAL,
+        INPUT_TYPE_HOVER,
+        INPUT_TYPE_JOYSTICK
+    } input_type_t;
+
+    typedef enum {
         ADC_CH_LX,
         ADC_CH_LY,
         ADC_CH_RX,

@@ -125,7 +125,7 @@ static inline uint16_t _handle_analog_to_analog(uint16_t input, uint8_t mode, ui
     return ret ? static_output : 0;
 }
 
-mapper_output_s _mapper_task_switch_nu()
+nu_mapper_input_s _mapper_task_switch_nu()
 {
     // Temporary store for new output data
     nu_mapper_input_s tmp = {0};
@@ -133,7 +133,7 @@ mapper_output_s _mapper_task_switch_nu()
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
         // Grab the configuration for this input
-        mapper_loaded_config_s  *cfg = &(_loaded_mapper_configs[i]);
+        mapper_loaded_config_s *cfg = &(_loaded_mapper_configs[i]);
 
         // The current input value
         uint16_t *input = &_all_inputs.inputs[i];
@@ -177,7 +177,7 @@ mapper_output_s _mapper_task_switch_nu()
 
                     // Output to our joystick using the configured static output value (divided by 2)
                     case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
-                    _handle_analog_compare(output, cfg->static_output>>1);
+                    _handle_analog_compare(output, cfg->static_output >> 1);
                     break;
                 }
             }
@@ -234,7 +234,7 @@ mapper_output_s _mapper_task_switch_nu()
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
-                    *output |= (uint16_t) _handle_analog_to_digital(*input<<1, cfg->output_mode, cfg->threshold_delta, 
+                    *output |= (uint16_t) _handle_analog_to_digital(*input << 1, cfg->output_mode, cfg->threshold_delta, 
                         &cfg->rapid_value, &cfg->rapid_press_state);
                     break;
 

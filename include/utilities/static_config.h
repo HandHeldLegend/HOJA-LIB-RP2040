@@ -111,7 +111,7 @@ typedef struct
 #pragma pack(pop)
 
 #define STATINFO_DEVICE_BLOCK_SIZE      sizeof(deviceInfoStatic_s)
-#define STATINFO_DEVICE_BUTTON_SIZE     sizeof(buttonInfoStatic_s)
+#define STATINFO_DEVICE_INPUT_SIZE      sizeof(inputInfoStatic_s)
 #define STATINFO_ANALOG_SIZE            sizeof(analogInfoStatic_s)
 #define STATINFO_IMU_SIZE               sizeof(imuInfoStatic_s)
 #define STATINFO_BATTERY_SIZE           sizeof(batteryInfoStatic_s)
@@ -120,12 +120,12 @@ typedef struct
 #define STATINFO_RGB_SIZE               sizeof(rgbInfoStatic_s)
 
 extern const deviceInfoStatic_s     device_static; 
-extern const buttonInfoStatic_s     buttons_static; 
 extern const analogInfoStatic_s     analog_static; 
 extern const imuInfoStatic_s        imu_static; 
 extern const batteryInfoStatic_s    battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
-extern bluetoothInfoStatic_s  bluetooth_static;
+extern const inputInfoStatic_s      input_static;
+extern bluetoothInfoStatic_s        bluetooth_static;
 extern rgbInfoStatic_s              rgb_static;
 
 void static_config_read_block(static_block_t block, setting_callback_t cb);

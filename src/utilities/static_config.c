@@ -291,8 +291,8 @@ const hapticInfoStatic_s    haptic_static = {
     STATIC_REMAP_LSTICK      | \
     STATIC_REMAP_RSTICK )
 
-const buttonInfoStatic_s buttons_static = {
-    .remap_mask = STATIC_REMAP_ALL
+const inputInfoStatic_s input_static = {
+    .input_info = HOJA_INPUT_SLOTS
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
@@ -416,8 +416,8 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
             _serialize_static_block(block, (uint8_t *) &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
         break;
 
-        case STATIC_BLOCK_BUTTONS:
-            _serialize_static_block(block, (uint8_t *) &buttons_static, STATINFO_DEVICE_BUTTON_SIZE, cb);
+        case STATIC_BLOCK_INPUT:
+            _serialize_static_block(block, (uint8_t *) &input_static, STATINFO_DEVICE_INPUT_SIZE, cb);
         break;
 
         case STATIC_BLOCK_ANALOG:
