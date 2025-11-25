@@ -1,6 +1,6 @@
 #include "usb/gcinput.h"
 #include "input/mapper.h"
-
+#include <stdlib.h>
 #include "usb/ginput_usbd.h"
 
 /**--------------------------**/
@@ -59,6 +59,33 @@ void gcinput_enable(bool enable)
 
 #define GCUSB_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
+int16_t scale_with_deadzone(int16_t value, int16_t max, int16_t deadzone) {
+    // Get the magnitude and sign of the input value
+    int16_t magnitude = abs(value);
+    int16_t sign = (value >= 0) ? 1 : -1;
+    
+    // If magnitude is within deadzone, return 0
+    if (magnitude <= deadzone) {
+        return 0;
+    }
+    
+    // If magnitude is already at or above max, return max with appropriate sign
+    if (magnitude >= max) {
+        return sign * max;
+    }
+    
+    // Calculate the usable range after deadzone
+    int32_t usable_range = max - deadzone;
+    int32_t adjusted_magnitude = magnitude - deadzone;
+    
+    // Scale the adjusted magnitude to the full 0-max range
+    // Using int32_t to prevent overflow during multiplication
+    int32_t scaled_magnitude = (adjusted_magnitude * max) / usable_range;
+    
+    return sign * (int16_t)scaled_magnitude;
+}
+
+
 void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static gc_input_s   data = {0};
@@ -69,6 +96,11 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     buffer[0] = 0x21;
 
     const float   target_max = 110.0f / 2048.0f;
+
+    input->joysticks_combined[0] = scale_with_deadzone(input->joysticks_combined[0], 2047, 64);
+    input->joysticks_combined[1] = scale_with_deadzone(input->joysticks_combined[1], 2047, 64);
+    input->joysticks_combined[2] = scale_with_deadzone(input->joysticks_combined[2], 2047, 64);
+    input->joysticks_combined[3] = scale_with_deadzone(input->joysticks_combined[3], 2047, 64);
 
     float lx = (float)input->joysticks_combined[0] * target_max;
     float ly = (float)input->joysticks_combined[1] * target_max;
