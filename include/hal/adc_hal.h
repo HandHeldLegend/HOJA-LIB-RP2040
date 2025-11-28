@@ -6,7 +6,7 @@
 #include "hoja_bsp.h"
 #include "board_config.h"
 
-bool        adc_hal_init_channel(adc_channel_cfg_s *cfg);
-uint16_t    adc_hal_read_channel(adc_channel_cfg_s *cfg);
+bool adc_hal_read(adc_hal_driver_s *driver);
+bool adc_hal_init(adc_hal_driver_s *driver);
 
 #endif

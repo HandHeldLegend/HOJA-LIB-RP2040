@@ -1,6 +1,7 @@
+#include "board_config.h"
 #include "input/mapper.h" 
 #include "input_shared_types.h"
-#include "board_config.h"
+
 
 #include "input/analog.h"
 
@@ -13,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-const mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
+mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -42,7 +43,7 @@ const mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN
 };
 
-const mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
+mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -57,7 +58,7 @@ const mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // Select
 };
 
-const mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
+mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // CUP
@@ -78,7 +79,7 @@ const mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_LY_DOWN, 
 };
 
-const mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
+mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -103,7 +104,7 @@ const mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN
 };
 
-const mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
+mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -131,7 +132,7 @@ const mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN,
 };
 
-const mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
+mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // SOUTH
     MAPPER_OUTPUT_DIGITAL, // EAST
     MAPPER_OUTPUT_DIGITAL, // WEST

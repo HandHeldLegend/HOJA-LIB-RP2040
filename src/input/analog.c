@@ -4,8 +4,6 @@
 #include "input/stick_deadzone.h"
 #include "input/idle_manager.h"
 
-#include "devices/adc.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <math.h>
@@ -122,8 +120,6 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
 
 void analog_init()
 {
-    adc_devices_init();
-
     switch_analog_calibration_init();
     stick_scaling_init();
 
@@ -148,10 +144,10 @@ void _analog_read_raw()
     static RollingAverage rary = {0};
     #endif
 
-    lx = adc_read_lx();
-    ly = adc_read_ly();
-    rx = adc_read_rx();
-    ry = adc_read_ry();
+    //lx = adc_read_lx();
+    //ly = adc_read_ly();
+    //rx = adc_read_rx();
+    //ry = adc_read_ry();
 
     #if (ADC_SMOOTHING_ENABLED==1)
         addSample(&ralx, lx);

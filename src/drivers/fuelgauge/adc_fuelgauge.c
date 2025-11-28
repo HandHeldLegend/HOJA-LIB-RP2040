@@ -1,5 +1,4 @@
 #include "drivers/fuelgauge/adc_fuelgauge.h"
-#include "devices/adc.h"
 
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_ADC)
 
