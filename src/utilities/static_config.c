@@ -291,6 +291,48 @@ const hapticInfoStatic_s    haptic_static = {
     STATIC_REMAP_LSTICK      | \
     STATIC_REMAP_RSTICK )
 
+#if !defined(HOJA_INPUT_SLOTS)
+    #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
+    #define HOJA_INPUT_SLOTS { \
+        (inputInfoSlot_s) {/*South*/.input_name="South", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={0}}, \
+        (inputInfoSlot_s) {/*East*/.input_name="East", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={1}}, \
+        (inputInfoSlot_s) {/*West*/.input_name="West", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={2}}, \
+        (inputInfoSlot_s) {/*North*/.input_name="North", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={3}}, \
+        (inputInfoSlot_s) {/*Up*/.input_name="Up", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Down*/.input_name="Down", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Left*/.input_name="Left", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Right*/.input_name="Right", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*SL*/.input_name="SL", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*SR*/.input_name="SR", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LB*/.input_name="LB", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*RB*/.input_name="RB", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LT*/.input_name="L", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*RT*/.input_name="R", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LP1*/0}, \
+        (inputInfoSlot_s) {/*RP1*/0}, \
+        (inputInfoSlot_s) {/*Start*/.input_name="Start", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Select*/.input_name="Select", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Home*/.input_name="Home", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Share*/.input_name="Share", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LP2*/0}, \
+        (inputInfoSlot_s) {/*RP2*/0}, \
+        (inputInfoSlot_s) {/*TP1*/0}, \
+        (inputInfoSlot_s) {/*TP2*/0}, \
+        (inputInfoSlot_s) {/*MISC3*/.input_name="Power", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*MISC4*/0}, \
+        (inputInfoSlot_s) {/*LTANALOG*/.input_name="LT", .input_type=INPUT_TYPE_HOVER}, \
+        (inputInfoSlot_s) {/*RTANALOG*/.input_name="RT", .input_type=INPUT_TYPE_HOVER}, \
+        (inputInfoSlot_s) {/*LX_RIGHT*/.input_name="LX+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LX_LEFT*/.input_name="LX-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LY_UP*/.input_name="LY+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LY_DOWN*/.input_name="LY-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RX_RIGHT*/.input_name="RX+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RX_LEFT*/.input_name="RX-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RY_UP*/.input_name="RY+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RY_DOWN*/.input_name="RY-", .input_type=INPUT_TYPE_JOYSTICK} \
+    }
+#endif
+
 const inputInfoStatic_s input_static = {
     .input_info = HOJA_INPUT_SLOTS
 };

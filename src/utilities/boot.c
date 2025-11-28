@@ -5,7 +5,7 @@
 #include "devices/battery.h"
 #include "devices/bluetooth.h"
 #include "utilities/settings.h"
-#include "input/mapper.h"
+#include "input/hover.h"
 
 #include "hoja.h"
 
@@ -36,8 +36,7 @@ void boot_clear_memory()
 void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *pair)
 {
     // Access boot time button state
-    mapper_input_s input = {0};
-    mapper_access_input(&input);
+    mapper_input_s input = hover_access_boot();
 
     // Set default return states
     gamepad_method_t thisMethod = GAMEPAD_METHOD_USB;

@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "devices/battery.h"
-#include "devices/adc.h"
 
 #include "hoja_bsp.h"
 #include "board_config.h"

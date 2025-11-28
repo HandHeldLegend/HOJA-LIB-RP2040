@@ -276,7 +276,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
       hoja_set_connected_status(CONN_STATUS_PLAYER_1);
     }
 
-    mapper_input_s *input = mapper_get_input();
+    mapper_input_s input = mapper_get_input();
 
     static bool _rumblestate = false;
     if (_gc_rumble != _rumblestate)
@@ -288,29 +288,29 @@ void joybus_gc_hal_task(uint64_t timestamp)
     // Our buttons are always the same formatting
     _out_buffer.blank_2 = 1;
 
-    _out_buffer.a = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_A);
-    _out_buffer.b = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_B);
-    _out_buffer.x = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_X);
-    _out_buffer.y = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_Y);
+    _out_buffer.a = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_A);
+    _out_buffer.b = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_B);
+    _out_buffer.x = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_X);
+    _out_buffer.y = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_Y);
 
-    _out_buffer.start = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_START);
-    _out_buffer.l = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_L);
-    _out_buffer.r = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_R);
+    _out_buffer.start = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_START);
+    _out_buffer.l = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_L);
+    _out_buffer.r = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_R);
 
-    _out_buffer.dpad_down = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_DOWN);
-    _out_buffer.dpad_left = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_LEFT);
-    _out_buffer.dpad_right = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_RIGHT);
-    _out_buffer.dpad_up = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_UP);
+    _out_buffer.dpad_down = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_DOWN);
+    _out_buffer.dpad_left = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_LEFT);
+    _out_buffer.dpad_right = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_RIGHT);
+    _out_buffer.dpad_up = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_UP);
 
-    _out_buffer.z = MAPPER_BUTTON_DOWN(input->inputs, GAMECUBE_CODE_Z);
+    _out_buffer.z = MAPPER_BUTTON_DOWN(input.inputs, GAMECUBE_CODE_Z);
 
     const float target_max = 110.0f / 2048.0f;
 
     // Analog stick data conversion
-    //float lx = input->joysticks_combined[0] * target_max;
-    //float ly = input->joysticks_combined[1] * target_max;
-    //float rx = input->joysticks_combined[2] * target_max;
-    //float ry = input->joysticks_combined[3] * target_max;
+    //float lx = input.joysticks_combined[0] * target_max;
+    //float ly = input.joysticks_combined[1] * target_max;
+    //float rx = input.joysticks_combined[2] * target_max;
+    //float ry = input.joysticks_combined[3] * target_max;
 
     uint8_t lx8 = 0; //GCWIRE_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = 0; //GCWIRE_CLAMP(ly + 128, 0, 255);
@@ -319,8 +319,8 @@ void joybus_gc_hal_task(uint64_t timestamp)
     // End analog stick conversion section
 
     // Trigger with SP function conversion
-    uint8_t lt8 = 0; //_out_buffer.l ? 255 : GCWIRE_CLAMP(input->triggers[0] >> 4, 0, 255);
-    uint8_t rt8 = 0; //_out_buffer.r ? 255 : GCWIRE_CLAMP(input->triggers[1] >> 4, 0, 255);
+    uint8_t lt8 = 0; //_out_buffer.l ? 255 : GCWIRE_CLAMP(input.triggers[0] >> 4, 0, 255);
+    uint8_t rt8 = 0; //_out_buffer.r ? 255 : GCWIRE_CLAMP(input.triggers[1] >> 4, 0, 255);
 
     // Handle reporting for differing modes
     switch (_workingMode)

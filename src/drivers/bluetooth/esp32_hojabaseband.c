@@ -539,7 +539,7 @@ void esp32hoja_task(uint64_t timestamp)
 
         if(read_write)
         {
-            mapper_input_s *input = mapper_get_input();
+            mapper_input_s input = mapper_get_input();
 
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location

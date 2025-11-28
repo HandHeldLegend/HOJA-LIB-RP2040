@@ -50,9 +50,11 @@ typedef struct
     uint8_t  rgb_assignments[4]; // Which RGB(s) are correlated with this input (Results are -1, 0 is unused)
 } inputInfoSlot_s;
 
+#define INPUTINFOSLOT_SIZE sizeof(inputInfoSlot_s)
+
 typedef struct
 {
-    inputInfoSlot_s input_info[36];
+    inputInfoSlot_s input_info[36]; // SIZE=13 
 } inputInfoStatic_s;
 
 typedef struct 

@@ -261,36 +261,36 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static sw_input_s data = {0};
 
-    mapper_input_s *input = mapper_get_input();
+    mapper_input_s input = mapper_get_input();
 
-    data.d_down     = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_DOWN);
-    data.d_right    = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_RIGHT);
-    data.d_left     = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_LEFT);
-    data.d_up       = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_UP);
+    data.d_down     = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_DOWN);
+    data.d_right    = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_RIGHT);
+    data.d_left     = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_LEFT);
+    data.d_up       = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_UP);
 
-    data.b_y = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_Y);
-    data.b_x = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_X);
-    data.b_a = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_A);
-    data.b_b = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_B);
+    data.b_y = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_Y);
+    data.b_x = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_X);
+    data.b_a = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_A);
+    data.b_b = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_B);
 
-    data.b_minus    = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_MINUS);
-    data.b_plus     = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_PLUS);
-    data.b_home     = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_HOME);
-    data.b_capture  = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_CAPTURE);
+    data.b_minus    = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_MINUS);
+    data.b_plus     = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_PLUS);
+    data.b_home     = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_HOME);
+    data.b_capture  = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_CAPTURE);
 
-    data.sb_left  = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_LS);
-    data.sb_right = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_RS);
+    data.sb_left  = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_LS);
+    data.sb_right = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_RS);
 
-    data.t_r = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_R);
-    data.t_l = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_L);
+    data.t_r = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_R);
+    data.t_l = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_L);
     
-    data.t_zl = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_ZL);
-    data.t_zr = MAPPER_BUTTON_DOWN(input->inputs, SWITCH_CODE_ZR);
+    data.t_zl = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_ZL);
+    data.t_zr = MAPPER_BUTTON_DOWN(input.inputs, SWITCH_CODE_ZR);
 
-    uint16_t lx = mapper_joystick_concat(2048, input->inputs[SWITCH_CODE_LX_LEFT], input->inputs[SWITCH_CODE_LX_RIGHT]);
-    uint16_t ly = mapper_joystick_concat(2048, input->inputs[SWITCH_CODE_LY_DOWN], input->inputs[SWITCH_CODE_LY_UP]);
-    uint16_t rx = mapper_joystick_concat(2048, input->inputs[SWITCH_CODE_RX_LEFT], input->inputs[SWITCH_CODE_RX_RIGHT]);
-    uint16_t ry = mapper_joystick_concat(2048, input->inputs[SWITCH_CODE_RY_DOWN], input->inputs[SWITCH_CODE_RY_UP]);
+    uint16_t lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]);
+    uint16_t ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);
+    uint16_t rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]);
+    uint16_t ry = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]);
 
     data.ls_x = (uint16_t) SWITCH_CLAMP(lx, 0, 4095); 
     data.ls_y = (uint16_t) SWITCH_CLAMP(ly, 0, 4095); 

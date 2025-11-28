@@ -4,7 +4,7 @@
 #include "input/stick_deadzone.h"
 #include "input/idle_manager.h"
 
-#include "devices/adc.h"
+#include "hoja.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -122,8 +122,6 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
 
 void analog_init()
 {
-    adc_devices_init();
-
     switch_analog_calibration_init();
     stick_scaling_init();
 
@@ -136,10 +134,7 @@ void analog_init()
 // Read analog values
 void _analog_read_raw()
 {
-    uint16_t lx = STICK_INTERNAL_CENTER;
-    uint16_t ly = STICK_INTERNAL_CENTER;
-    uint16_t rx = STICK_INTERNAL_CENTER;
-    uint16_t ry = STICK_INTERNAL_CENTER;
+    uint16_t joy[4] = {STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER};
 
     #if (ADC_SMOOTHING_ENABLED==1)
     static RollingAverage ralx = {0};
@@ -148,16 +143,13 @@ void _analog_read_raw()
     static RollingAverage rary = {0};
     #endif
 
-    lx = adc_read_lx();
-    ly = adc_read_ly();
-    rx = adc_read_rx();
-    ry = adc_read_ry();
+    cb_hoja_read_joystick(joy);
 
     #if (ADC_SMOOTHING_ENABLED==1)
-        addSample(&ralx, lx);
-        addSample(&raly, ly);
-        addSample(&rarx, rx);
-        addSample(&rary, ry);
+        addSample(&ralx, joy[0]);
+        addSample(&raly, joy[1]);
+        addSample(&rarx, joy[2]);
+        addSample(&rary, joy[3]);
 
         // Convert data
         _raw_analog_data.lx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&ralx), analog_config->lx_invert);
@@ -165,10 +157,10 @@ void _analog_read_raw()
         _raw_analog_data.rx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rarx), analog_config->rx_invert);
         _raw_analog_data.ry = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rary), analog_config->ry_invert);
     #else
-        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(lx, analog_config->lx_invert);
-        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(ly, analog_config->ly_invert);
-        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(rx, analog_config->rx_invert);
-        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(ry, analog_config->ry_invert);
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(joy[0], analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(joy[1], analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(joy[2], analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(joy[3], analog_config->ry_invert);
     #endif
 }
 

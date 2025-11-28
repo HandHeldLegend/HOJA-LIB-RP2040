@@ -1,19 +1,20 @@
+#include "board_config.h"
 #include "input/mapper.h" 
 #include "input_shared_types.h"
-#include "board_config.h"
+#include "utilities/static_config.h"
 
 #include "input/analog.h"
 
 #include "utilities/settings.h"
-
 #include "utilities/pcm.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "hoja.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-const mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
+mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -42,7 +43,7 @@ const mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN
 };
 
-const mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
+mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -57,7 +58,7 @@ const mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // Select
 };
 
-const mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
+mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // CUP
@@ -78,7 +79,7 @@ const mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_LY_DOWN, 
 };
 
-const mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
+mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -103,7 +104,7 @@ const mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN
 };
 
-const mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
+mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // X
@@ -131,7 +132,7 @@ const mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_RY_DOWN,
 };
 
-const mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
+mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // SOUTH
     MAPPER_OUTPUT_DIGITAL, // EAST
     MAPPER_OUTPUT_DIGITAL, // WEST
@@ -193,10 +194,15 @@ typedef struct
     bool rapid_press_state;
 } mapper_loaded_config_s;
 
-input_cfg_s *_loaded_input_config = NULL;
-mapper_loaded_config_s _loaded_mapper_configs[MAPPER_INPUT_COUNT] = {0};
+inputConfigSlot_s *_loaded_input_config = NULL;
 mapper_output_type_t *_loaded_output_types = NULL;
 uint8_t _loaded_output_types_max = 0;
+
+mapper_loaded_config_s _loaded_mapper_configs[MAPPER_INPUT_COUNT] = {0};
+
+SNAPSHOT_TYPE(mapper, mapper_input_s);
+snapshot_mapper_t _mapper_snap_in;
+snapshot_mapper_t _mapper_snap_out;
 
 mapper_input_s _all_inputs = {0};
 
@@ -477,8 +483,36 @@ typedef enum
     MAPPER_HAPTIC_MODE_ANALOG,
 } mapper_haptic_mode_t;
 
+static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *out_codes)
+{
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
+        cfg_slots[i].output_code = out_codes[i];
+        cfg_slots[i].output_mode = 0; // Default
+        cfg_slots[i].static_output = 0xFFF; // Max 
+        cfg_slots[i].threshold_delta = 0xFFF/4;
+    }
+}
+
 void mapper_init()
 {
+    const int8_t default_codes_switch[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SWITCH;
+    const int8_t default_codes_snes[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SNES;
+    const int8_t default_codes_n64[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_N64;
+    const int8_t default_codes_gamecube[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_GAMECUBE;
+    const int8_t default_codes_xinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_XINPUT;
+
+    // Debug always set to defaults on reboot
+    if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
+    {
+        input_config->input_config_version = CFG_BLOCK_INPUT_VERSION;
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch);
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes);
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64);
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube);
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput);
+    }
+
     switch(hoja_get_status().gamepad_mode)
     {
         default:
@@ -531,18 +565,24 @@ void mapper_init()
         _loaded_mapper_configs[i].threshold_delta = _loaded_input_config[i].threshold_delta;
         _loaded_mapper_configs[i].static_output = _loaded_input_config[i].static_output;
     }
-    
 }
 
-void mapper_access_input(mapper_input_s *out)
+// Thread safe access mapper outputs (Post-remapping)
+void mapper_access_output_safe(mapper_input_s *out)
 {
-    memcpy(out, &_all_inputs, sizeof(mapper_input_s));
+    snapshot_mapper_read(&_mapper_snap_out, out);
 }
 
-mapper_input_s* mapper_get_input()
+// Thread safe access mapper inputs (Post-scaling, Pre-remapping)
+void mapper_access_input_safe(mapper_input_s *out)
+{
+    snapshot_mapper_read(&_mapper_snap_in, out);
+}
+
+mapper_input_s mapper_get_input()
 {
     static mapper_input_s output;
 
     // Return output pointer
-    return &output;
+    return output;
 }
