@@ -545,19 +545,19 @@ void esp32hoja_task(uint64_t timestamp)
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
-            input_data.buttons_all      = 0;//buttons.buttons_all;
-            input_data.buttons_system   = 0;//buttons.buttons_system;
+            // input_data.buttons_all      = 0;//buttons.buttons_all;
+            // input_data.buttons_system   = 0;//buttons.buttons_system;
 
-            input_data.lx = (uint16_t) (input->joysticks_combined[0] + 2048);
-            input_data.ly = (uint16_t) (input->joysticks_combined[1] + 2048);
-            input_data.rx = (uint16_t) (input->joysticks_combined[2] + 2048);
-            input_data.ry = (uint16_t) (input->joysticks_combined[3] + 2048);
+            //input_data.lx = (uint16_t) (input->joysticks_combined[0] + 2048);
+            //input_data.ly = (uint16_t) (input->joysticks_combined[1] + 2048);
+            //input_data.rx = (uint16_t) (input->joysticks_combined[2] + 2048);
+            //input_data.ry = (uint16_t) (input->joysticks_combined[3] + 2048);
 
             // Clamp values between 0 and 4095
-            input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
-            input_data.ly = (input_data.ly > 4095) ? 4095 : input_data.ly;
-            input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
-            input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
+            //input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
+            //input_data.ly = (input_data.ly > 4095) ? 4095 : input_data.ly;
+            //input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
+            //input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
 
             
 
@@ -565,6 +565,7 @@ void esp32hoja_task(uint64_t timestamp)
             {
                 default:
                 case GAMEPAD_MODE_SWPRO:
+                /*
                 input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_B);
                 input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_A);
                 input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_Y);
@@ -590,9 +591,10 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
 
                 input_data.lt = (uint16_t) input->triggers[0];
-                input_data.rt = (uint16_t) input->triggers[1];
+                input_data.rt = (uint16_t) input->triggers[1];*/
                 break;
                 case GAMEPAD_MODE_SINPUT:
+                /*
                 input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
                 input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
                 input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
@@ -646,6 +648,7 @@ void esp32hoja_task(uint64_t timestamp)
                     input_data.rt = (uint16_t) input->triggers[1];
                     input_data.trigger_zr = r_digital;
                 }
+                    */
                 break;
             }
 

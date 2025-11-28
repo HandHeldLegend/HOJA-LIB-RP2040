@@ -1,7 +1,6 @@
 #ifndef HOJA_JOYBUS_N64_HAL_H
 #define HOJA_JOYBUS_N64_HAL_H
 
-#include "input/button.h"
 #include "input/analog.h"
 
 #include "hoja_bsp.h"

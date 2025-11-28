@@ -1,9 +1,8 @@
 #include "input/mapper.h" 
 #include "input_shared_types.h"
+#include "board_config.h"
 
 #include "input/analog.h"
-#include "input/trigger.h"
-#include "input/button.h"
 
 #include "utilities/settings.h"
 
@@ -14,7 +13,173 @@
 #include <stdlib.h>
 #include <string.h>
 
+const mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // LZ
+    MAPPER_OUTPUT_DIGITAL, // RZ
+    MAPPER_OUTPUT_DIGITAL, // PLUS
+    MAPPER_OUTPUT_DIGITAL, // MINUS
+    MAPPER_OUTPUT_DIGITAL, // HOME
+    MAPPER_OUTPUT_DIGITAL, // CAPTURE
+    MAPPER_OUTPUT_DIGITAL, // LS Click
+    MAPPER_OUTPUT_DIGITAL, // RS Click
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN
+};
+
+const mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Select
+};
+
+const mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // CUP
+    MAPPER_OUTPUT_DIGITAL, // CDOWN
+    MAPPER_OUTPUT_DIGITAL, // CLEFT
+    MAPPER_OUTPUT_DIGITAL, // CRIGHT
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_DIGITAL, // Z
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+};
+
+const mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Z
+    MAPPER_OUTPUT_DIGITAL, // L
+    MAPPER_OUTPUT_DIGITAL, // R
+    MAPPER_OUTPUT_TRIGGER_L, // L Analog
+    MAPPER_OUTPUT_TRIGGER_R, // R Analog
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN, 
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN
+};
+
+const mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // X
+    MAPPER_OUTPUT_DIGITAL, // Y
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // LB
+    MAPPER_OUTPUT_DIGITAL, // RB
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Back
+    MAPPER_OUTPUT_DIGITAL, // Guide
+    MAPPER_OUTPUT_DIGITAL, // LS
+    MAPPER_OUTPUT_DIGITAL, // RS
+    MAPPER_OUTPUT_TRIGGER_L,
+    MAPPER_OUTPUT_TRIGGER_R,
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN,
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN,
+};
+
+const mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // SOUTH
+    MAPPER_OUTPUT_DIGITAL, // EAST
+    MAPPER_OUTPUT_DIGITAL, // WEST
+    MAPPER_OUTPUT_DIGITAL, // NORTH
+    MAPPER_OUTPUT_DPAD_UP,
+    MAPPER_OUTPUT_DPAD_DOWN,
+    MAPPER_OUTPUT_DPAD_LEFT,
+    MAPPER_OUTPUT_DPAD_RIGHT,
+    MAPPER_OUTPUT_DIGITAL, // Stick left
+    MAPPER_OUTPUT_DIGITAL, // Stick right
+    MAPPER_OUTPUT_DIGITAL, // Left bumper
+    MAPPER_OUTPUT_DIGITAL, // Right bumper
+    MAPPER_OUTPUT_DIGITAL, // Left trigger digital
+    MAPPER_OUTPUT_DIGITAL, // Right trigger digital
+    MAPPER_OUTPUT_DIGITAL, // Left paddle 1
+    MAPPER_OUTPUT_DIGITAL, // Right paddle 1
+    MAPPER_OUTPUT_DIGITAL, // Start
+    MAPPER_OUTPUT_DIGITAL, // Select
+    MAPPER_OUTPUT_DIGITAL, // Guide
+    MAPPER_OUTPUT_DIGITAL, // Share
+    MAPPER_OUTPUT_DIGITAL, // Left paddle 2
+    MAPPER_OUTPUT_DIGITAL, // Right paddle 2
+    MAPPER_OUTPUT_DIGITAL, // Touchpad 1
+    MAPPER_OUTPUT_DIGITAL, // Touchpad 2
+    MAPPER_OUTPUT_DIGITAL, // Misc 3
+    MAPPER_OUTPUT_DIGITAL, // Misc 4
+    MAPPER_OUTPUT_DIGITAL, // Misc 5
+    MAPPER_OUTPUT_DIGITAL, // Misc 6 
+    MAPPER_OUTPUT_TRIGGER_L,
+    MAPPER_OUTPUT_TRIGGER_R,
+    MAPPER_OUTPUT_LX_RIGHT,
+    MAPPER_OUTPUT_LX_LEFT,
+    MAPPER_OUTPUT_LY_UP,
+    MAPPER_OUTPUT_LY_DOWN,
+    MAPPER_OUTPUT_RX_RIGHT,
+    MAPPER_OUTPUT_RX_LEFT,
+    MAPPER_OUTPUT_RY_UP,
+    MAPPER_OUTPUT_RY_DOWN,
+};
+
 const inputInfoSlot_s _infoslots[MAPPER_INPUT_COUNT] = HOJA_INPUT_SLOTS;
+
+typedef enum 
+{
+    MAPPER_OUTPUT_MODE_DEFAULT,
+    MAPPER_OUTPUT_MODE_RAPID,
+    MAPPER_OUTPUT_MODE_THRESHOLD,
+} mapper_output_mode_t;
 
 typedef struct 
 {
@@ -30,21 +195,10 @@ typedef struct
 
 input_cfg_s *_loaded_input_config = NULL;
 mapper_loaded_config_s _loaded_mapper_configs[MAPPER_INPUT_COUNT] = {0};
-mapper_input_type_t *_loaded_output_types = NULL;
+mapper_output_type_t *_loaded_output_types = NULL;
 uint8_t _loaded_output_types_max = 0;
 
-
-typedef mapper_input_s(*mapper_input_cb)(void);
-
-mapper_input_cb _mapper_input_cb;
-
-mapper_input_s _mapper_input = {0};
-nu_mapper_input_s _all_inputs = {0};
-nu_mapper_input_s _all_outputs = {0};
-
-mapper_output_cfg_s _output_cfgs[MAPPER_INPUT_COUNT] = {};
-uint16_t _rapid_vals[MAPPER_INPUT_COUNT] = {0};
-bool _rapid_press_state[MAPPER_INPUT_COUNT] = {0};
+mapper_input_s _all_inputs = {0};
 
 void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
 {
@@ -52,6 +206,14 @@ void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
     {
         *input_modifiable = new_value;
     }
+}
+
+uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos)
+{
+    neg = (neg > center) ? center : neg;
+    pos = (pos > center) ? center : pos;
+
+    return (center - neg) + pos;
 }
 
 static inline bool _handle_analog_to_digital(uint16_t input, uint8_t mode, uint16_t param, uint16_t *rapid_val, bool *press)
@@ -125,10 +287,10 @@ static inline uint16_t _handle_analog_to_analog(uint16_t input, uint8_t mode, ui
     return ret ? static_output : 0;
 }
 
-nu_mapper_input_s _mapper_task_switch_nu()
+mapper_input_s _mapper_operation()
 {
     // Temporary store for new output data
-    nu_mapper_input_s tmp = {0};
+    mapper_input_s tmp = {0};
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
@@ -192,7 +354,7 @@ nu_mapper_input_s _mapper_task_switch_nu()
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
-                    *output |= (uint16_t) _handle_analog_to_digital(input, cfg->output_mode, cfg->threshold_delta, 
+                    *output |= (uint16_t) _handle_analog_to_digital(*input, cfg->output_mode, cfg->threshold_delta, 
                         &cfg->rapid_value, &cfg->rapid_press_state);
                     break;
 
@@ -200,7 +362,7 @@ nu_mapper_input_s _mapper_task_switch_nu()
                     // which will be translated later
                     case MAPPER_OUTPUT_DPAD_UP ... MAPPER_OUTPUT_DPAD_RIGHT:
                     
-                    *output = _handle_analog_to_analog(input, 
+                    *output = _handle_analog_to_analog(*input, 
                         cfg->output_mode, 0xFFF, cfg->threshold_delta,
                         &cfg->rapid_value, &cfg->rapid_press_state) >> 1; // Divide by 2 (hover -> dpad)
                     break;
@@ -209,7 +371,7 @@ nu_mapper_input_s _mapper_task_switch_nu()
                     // for this particular input
                     case MAPPER_OUTPUT_TRIGGER_L ... MAPPER_OUTPUT_TRIGGER_R:
                     
-                    *output = _handle_analog_to_analog(input, 
+                    *output = _handle_analog_to_analog(*input, 
                         cfg->output_mode, cfg->static_output, cfg->threshold_delta,
                         &cfg->rapid_value, &cfg->rapid_press_state);
                     break;
@@ -217,7 +379,7 @@ nu_mapper_input_s _mapper_task_switch_nu()
                     // Output to our joystick using the configured static output value (divided by 2)
                     case MAPPER_OUTPUT_LX_RIGHT ... MAPPER_OUTPUT_RY_DOWN:
 
-                    *output = _handle_analog_to_analog(input, 
+                    *output = _handle_analog_to_analog(*input, 
                         cfg->output_mode, cfg->static_output, cfg->threshold_delta,
                         &cfg->rapid_value, &cfg->rapid_press_state) >> 1; // Divide by 2 (hover -> joystick)
                     break;
@@ -268,8 +430,6 @@ nu_mapper_input_s _mapper_task_switch_nu()
     return tmp;
 }
 
-
-
 static inline void _set_joystick_axis(uint16_t *pos, uint16_t *neg, int16_t value) {
     if (value > 0) {
         *pos = value;
@@ -292,20 +452,20 @@ void _set_mapper_defaults()
     //memcpy(remap_config->remap_profile_xinput, (uint8_t *)&_map_default_xinput, sizeof(_map_default_xinput));
 }
 
-//void mapper_config_command(remap_cmd_t cmd, webreport_cmd_confirm_t cb)
-//{
-//    switch(cmd)
-//    {
-//        default:
-//        cb(CFG_BLOCK_REMAP, cmd, false, NULL, 0);
-//        break;
-//
-//        case REMAP_CMD_DEFAULT:
-//            _set_mapper_defaults();
-//            cb(CFG_BLOCK_REMAP, cmd, true, NULL, 0);
-//        break;
-//    }  
-//}
+void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
+{
+    switch(cmd)
+    {
+        default:
+        cb(CFG_BLOCK_INPUT, cmd, false, NULL, 0);
+        break;
+
+        case MAPPER_CMD_DEFAULT:
+            _set_mapper_defaults();
+            cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        break;
+    }  
+}
 
 static uint8_t _lhapticmode = 0;
 static uint8_t _rhapticmode = 0;
@@ -374,86 +534,14 @@ void mapper_init()
     
 }
 
+void mapper_access_input(mapper_input_s *out)
+{
+    memcpy(out, &_all_inputs, sizeof(mapper_input_s));
+}
+
 mapper_input_s* mapper_get_input()
 {
-    // Get latest inputs
-    static analog_data_s joysticks;
-    static button_data_s buttons;
-    static trigger_data_s triggers;
     static mapper_input_s output;
-
-    // Get joysticks
-    analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
-
-    // Get triggers
-    trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
-
-    // Get buttons
-    button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
-
-    // Formulate mapper input
-    _mapper_input.digital_inputs = buttons.buttons;
-
-    // Set mapper joystick input
-    _set_joystick_axis(&_mapper_input.joysticks_raw[0], &_mapper_input.joysticks_raw[1], joysticks.lx);
-    _set_joystick_axis(&_mapper_input.joysticks_raw[2], &_mapper_input.joysticks_raw[3], joysticks.ly);
-    _set_joystick_axis(&_mapper_input.joysticks_raw[4], &_mapper_input.joysticks_raw[5], joysticks.rx);
-    _set_joystick_axis(&_mapper_input.joysticks_raw[6], &_mapper_input.joysticks_raw[7], joysticks.ry);
-
-    // Set mapper trigger input
-    //_mapper_input.triggers[0] = triggers.left_analog;
-    //_mapper_input.triggers[1] = triggers.right_analog;
-
-    bool lbump = false;
-    bool rbump = false;
-
-    switch(_lhapticmode)
-    {
-        case 0: // No trigger haptics
-        break;
-
-        case 1: // Haptics only on digital press
-        lbump = (buttons.trigger_zl != 0);
-        break;
-
-        case 2: // Haptics only on trigger threshold met
-        //lbump = (triggers.left_analog >= *_trigger_thresholds[0]);
-        break;
-    }
-
-    switch(_rhapticmode)
-    {
-        case 0: // No trigger haptics
-        break;
-
-        case 1: // Haptics only on digital press
-        rbump = (buttons.trigger_zr != 0);
-        break;
-
-        case 2: // Haptics only on trigger threshold met
-        //rbump = (triggers.right_analog >= *_trigger_thresholds[1]);
-        break;
-    }
-
-    pcm_play_bump(lbump, rbump);
-
-    //if(_mapper_input_cb != NULL && _mapper_profile != NULL)
-    //{
-    //    output = _mapper_input_cb();
-    //}
-    //else 
-    //{
-    //    output = _mapper_input;
-    //}
-
-    // Combine joystick input
-    output.joysticks_combined[0] = output.joysticks_raw[0] - output.joysticks_raw[1];
-    output.joysticks_combined[1] = output.joysticks_raw[2] - output.joysticks_raw[3];
-    output.joysticks_combined[2] = output.joysticks_raw[4] - output.joysticks_raw[5];
-    output.joysticks_combined[3] = output.joysticks_raw[6] - output.joysticks_raw[7];
-
-    // Always forward system buttons
-    output.buttons_system = buttons.buttons_system;
 
     // Return output pointer
     return &output;

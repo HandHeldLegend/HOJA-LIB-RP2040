@@ -17,8 +17,8 @@
 
 #include "input/stick_scaling.h"
 #include "input/imu.h"
-#include "input/trigger.h"
 #include "input/mapper.h"
+#include "input/hover.h"
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
@@ -151,7 +151,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_HOVER:
-            mapper_config_command(command, webusb_command_confirm_cb);
+            // NEED HOVER CFG COMMANDS
         break;
 
         case CFG_BLOCK_ANALOG:
@@ -159,11 +159,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_RGB:
-            
-        break;
-
-        case CFG_BLOCK_TRIGGER:
-            trigger_config_cmd(command, webusb_command_confirm_cb);
+            // NULL
         break;
 
         case CFG_BLOCK_IMU:
@@ -179,7 +175,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_INPUT:
-
+            mapper_config_command(command, webusb_command_confirm_cb);
         break;
     }
 }
@@ -212,8 +208,8 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
         case CFG_BLOCK_HOVER:
             write_to_ptr = live_settings.hover_configuration_block;
 
-            //if(completed)
-            //    mapper_init();
+            if(completed)
+                hover_init();
         break;
 
         case CFG_BLOCK_ANALOG:
@@ -231,11 +227,6 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_TRIGGER:
             write_to_ptr = live_settings.trigger_configuration_block;
-            if(completed)
-            {
-                trigger_init();
-                mapper_init();
-            }
         break;
 
         case CFG_BLOCK_IMU:
@@ -255,6 +246,8 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_INPUT:
             write_to_ptr = live_settings.input_configuration_block;
+            if(completed)
+                mapper_init();
         break;
     }
 

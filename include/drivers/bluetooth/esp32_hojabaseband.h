@@ -10,7 +10,6 @@
 
 #include "devices/bluetooth.h"
 
-#include "input/button.h"
 #include "input/imu.h"
 #include "input/analog.h"
 

@@ -9,5 +9,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+void hover_init();
 
 #endif

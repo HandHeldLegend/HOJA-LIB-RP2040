@@ -14,7 +14,7 @@ void _shutdown_finalize()
     _shutdown_ready = true;
 }
 
-void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
+void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
 {
     static interval_s interval = {0};
     static bool holding = false;
@@ -24,7 +24,7 @@ void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
 
     bool interval_reset = false;
 
-    if(boot_wait && !buttons->button_shipping)
+    if(boot_wait && !input->button_shipping)
     {
         boot_wait = false;
         interval_reset = true;
@@ -34,7 +34,7 @@ void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
     if(lockout)
     {
         // Only shut down when we release button
-        if(_shutdown_ready && !buttons->button_shipping)
+        if(_shutdown_ready && !input->button_shipping)
         {
             _shutdown_ready = false;
             hoja_shutdown();
@@ -44,11 +44,11 @@ void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
 
     if(interval_resettable_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, interval_reset, &interval))
     {
-        if(!holding && buttons->button_shipping)
+        if(!holding && input->button_shipping)
         {
             holding = true;
         }
-        else if(holding && !buttons->button_shipping)
+        else if(holding && !input->button_shipping)
         {
             holding = false;
             iterations = 0;

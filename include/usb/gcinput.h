@@ -2,7 +2,6 @@
 #define USB_GCINPUT_H
 
 #include <stdint.h>
-#include "input/button.h"
 #include "bsp/board.h"
 #include "tusb.h"
 #include "utilities/callback.h"

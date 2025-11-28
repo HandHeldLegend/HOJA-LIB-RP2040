@@ -17,10 +17,8 @@
 #include "utilities/hooks.h"
 #include "utilities/sysmon.h"
 
-#include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
-#include "input/trigger.h"
 #include "input/macros.h"
 #include "input/idle_manager.h"
 #include "input/mapper.h"
@@ -40,10 +38,10 @@ __attribute__((weak)) bool cb_hoja_buttons_init()
   return false;
 }
 
-__attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
-{
-  (void)&data;
-}
+//__attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
+//{
+//  (void)&data;
+//}
 
 void hoja_deinit(callback_t cb)
 {
@@ -268,9 +266,6 @@ void _hoja_task_1()
     // Get current system timestamp
     sys_hal_time_us(&c1_timestamp);
 
-    // Button task
-    button_task(c1_timestamp);
-
     // Flash task
     flash_hal_task();
 
@@ -321,9 +316,6 @@ void _hoja_task_0()
 
     // Analog task
     analog_task(c0_timestamp);
-
-    // Trigger task
-    trigger_task(c0_timestamp);
   }
 }
 
@@ -388,14 +380,8 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 
 bool _system_input_init()
 {
-  // Buttons
-  button_init();
-
   // Analog joysticks
   analog_init();
-
-  // Analog triggers
-  trigger_init();
 
   // IMU motion
   imu_init();

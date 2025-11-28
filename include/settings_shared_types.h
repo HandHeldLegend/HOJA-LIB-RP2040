@@ -48,6 +48,19 @@ typedef enum
 
 typedef enum 
 {
+    MAPPER_CMD_REFRESH, 
+    MAPPER_CMD_DEFAULT,
+} mapper_cmd_t;
+
+typedef enum 
+{
+    HOVER_CMD_REFRESH,
+    HOVER_CMD_CALIBRATE_START,
+    HOVER_CMD_CALIBRATE_STOP,
+} hover_cmd_t;
+
+typedef enum 
+{
     ANALOG_CMD_REFRESH, 
     ANALOG_CMD_CALIBRATE_START, 
     ANALOG_CMD_CALIBRATE_STOP, 
@@ -199,7 +212,7 @@ typedef struct
 {
     uint8_t hover_config_version;
     hover_cfg_s config[36];
-    uint8_t reserved[111]
+    uint8_t reserved[111];
 } hoverConfig_s;
 
 // Input config replaces our remap config

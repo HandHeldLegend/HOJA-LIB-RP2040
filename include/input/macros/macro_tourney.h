@@ -3,7 +3,8 @@
 
 #include "input_shared_types.h"
 #include <stdint.h>
+#include "input/mapper.h"
 
-void macro_tourney(uint64_t timestamp, button_data_s *buttons);
+void macro_tourney(uint64_t timestamp, mapper_input_s *input);
 
 #endif

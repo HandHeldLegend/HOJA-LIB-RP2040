@@ -165,36 +165,36 @@ void nesbus_hal_task(uint64_t timestamp)
 
             if(_nspi_snesdetected)
             {
-                tmpsnes.a = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
-                tmpsnes.b = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
-                tmpsnes.x = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_X);
-                tmpsnes.y = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_Y);
+                tmpsnes.a = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_A);
+                tmpsnes.b = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_B);
+                tmpsnes.x = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_X);
+                tmpsnes.y = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_Y);
 
-                tmpsnes.l = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_L);
-                tmpsnes.r = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_R);
+                tmpsnes.l = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_L);
+                tmpsnes.r = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_R);
 
-                tmpsnes.start = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
-                tmpsnes.select = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+                tmpsnes.start = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_START);
+                tmpsnes.select = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_SELECT);
 
-                tmpsnes.dup = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
-                tmpsnes.ddown = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
-                tmpsnes.dleft = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
-                tmpsnes.dright = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+                tmpsnes.dup = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_UP);
+                tmpsnes.ddown = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_DOWN);
+                tmpsnes.dleft = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_LEFT);
+                tmpsnes.dright = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_RIGHT);
 
                 pack = tmpsnes.value;
             }
             else
             {
-                tmpnes.a = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_A);
-                tmpnes.b = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_B);
+                tmpnes.a = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_A);
+                tmpnes.b = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_B);
 
-                tmpnes.start = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_START);
-                tmpnes.select = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_SELECT);
+                tmpnes.start = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_START);
+                tmpnes.select = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_SELECT);
 
-                tmpnes.dup = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_UP);
-                tmpnes.ddown = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_DOWN);
-                tmpnes.dleft = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_LEFT);
-                tmpnes.dright = !MAPPER_BUTTON_DOWN(input->digital_inputs, SNES_CODE_RIGHT);
+                tmpnes.dup = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_UP);
+                tmpnes.ddown = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_DOWN);
+                tmpnes.dleft = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_LEFT);
+                tmpnes.dright = !MAPPER_BUTTON_DOWN(input->inputs, SNES_CODE_RIGHT);
 
                 pack = tmpnes.value;
             }

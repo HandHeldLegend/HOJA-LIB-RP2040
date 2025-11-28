@@ -6,9 +6,7 @@
 #include "hal/sys_hal.h"
 
 #include "input/analog.h"
-#include "input/button.h"
 #include "input/imu.h"
-#include "input/trigger.h"
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
 
@@ -101,14 +99,8 @@ void webusb_send_rawinput(uint64_t timestamp)
         
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-        trigger_data_s triggers;
-        trigger_access_safe(&triggers, TRIGGER_ACCESS_SCALED_DATA);
-
         analog_data_s joysticks;
         analog_access_safe(&joysticks, ANALOG_ACCESS_SNAPBACK_DATA);
-
-        button_data_s buttons;
-        button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
 
         mapper_input_s *unused_mapper_data = mapper_get_input();
 
@@ -126,26 +118,6 @@ void webusb_send_rawinput(uint64_t timestamp)
         webusb_input_report[7] = (ry & 0xFF00) >> 8;
         webusb_input_report[8] = (ry & 0xFF);
 
-        webusb_input_report[9]  = (buttons.buttons >> 24) & 0xFF;
-        webusb_input_report[10] = (buttons.buttons >> 16) & 0xFF;
-        webusb_input_report[11] = (buttons.buttons >> 8) & 0xFF;
-        webusb_input_report[12] = buttons.buttons & 0xFF;
-
-        webusb_input_report[13] = (triggers.left_analog & 0xFF00)  >> 8;
-        webusb_input_report[14] = (triggers.left_analog & 0xFF);
-        webusb_input_report[15] = (triggers.right_analog & 0xFF00)  >> 8;
-        webusb_input_report[16] = (triggers.right_analog & 0xFF);
-
-        static imu_data_s imu = {0};
-        imu_access_safe(&imu);
-        memcpy(&webusb_input_report[17], &imu.ax, 2);
-        memcpy(&webusb_input_report[19], &imu.ay, 2);
-        memcpy(&webusb_input_report[21], &imu.az, 2);
-
-        memcpy(&webusb_input_report[23], &imu.gx, 2);
-        memcpy(&webusb_input_report[25], &imu.gy, 2);
-        memcpy(&webusb_input_report[27], &imu.gz, 2);
-
         analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
         lx = (uint16_t) (joysticks.lx + 2048);
         ly = (uint16_t) (joysticks.ly + 2048);
@@ -159,6 +131,16 @@ void webusb_send_rawinput(uint64_t timestamp)
         webusb_input_report[34] = (rx & 0xFF);
         webusb_input_report[35] = (ry & 0xFF00) >> 8;
         webusb_input_report[36] = (ry & 0xFF);
+
+        static imu_data_s imu = {0};
+        imu_access_safe(&imu);
+        memcpy(&webusb_input_report[17], &imu.ax, 2);
+        memcpy(&webusb_input_report[19], &imu.ay, 2);
+        memcpy(&webusb_input_report[21], &imu.az, 2);
+
+        memcpy(&webusb_input_report[23], &imu.gx, 2);
+        memcpy(&webusb_input_report[25], &imu.gy, 2);
+        memcpy(&webusb_input_report[27], &imu.gz, 2);
 
         static battery_status_s batstat = {0};
         static fuelgauge_status_s fgstat = {0};

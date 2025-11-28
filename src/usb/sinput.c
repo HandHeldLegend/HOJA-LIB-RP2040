@@ -4,10 +4,8 @@
 #include <string.h>
 #include "tusb.h"
 #include "hoja.h"
-#include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
-#include "input/trigger.h"
 #include "input/mapper.h"
 
 #include "utilities/pcm.h"
@@ -505,10 +503,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_x = 0;
     data.right_y = 0;
     #else
-    data.left_x = sinput_scale_axis(input->joysticks_combined[0]);
-    data.left_y = sinput_scale_axis(-input->joysticks_combined[1]);
-    data.right_x = sinput_scale_axis(input->joysticks_combined[2]);
-    data.right_y = sinput_scale_axis(-input->joysticks_combined[3]);
+    //data.left_x = sinput_scale_axis(input->joysticks_combined[0]);
+    //data.left_y = sinput_scale_axis(-input->joysticks_combined[1]);
+    //data.right_x = sinput_scale_axis(input->joysticks_combined[2]);
+    //data.right_y = sinput_scale_axis(-input->joysticks_combined[3]);
     #endif
 
     static imu_data_s imu = {0};
@@ -525,62 +523,36 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.imu_timestamp_us = (uint32_t) (imu.timestamp & UINT32_MAX);
 
     // Buttons
-    data.button_east   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
-    data.button_south  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
-    data.button_north  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_NORTH);
-    data.button_west   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
+    data.button_east   = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_EAST);
+    data.button_south  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_SOUTH);
+    data.button_north  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_NORTH);
+    data.button_west   = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_WEST);
 
-    data.button_stick_left  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LS);
-    data.button_stick_right = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RS);
+    data.button_stick_left  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_LS);
+    data.button_stick_right = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_RS);
 
-    data.button_start  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_START);
-    data.button_select = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SELECT);
-    data.button_guide  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_HOME);
-    data.button_share  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_CAPTURE);
+    data.button_start  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_START);
+    data.button_select = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_SELECT);
+    data.button_guide  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_GUIDE);
+    data.button_share  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_SHARE);
 
-    data.dpad_down  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_DOWN);
-    data.dpad_up    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_UP);
-    data.dpad_left  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LEFT);
-    data.dpad_right = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RIGHT);
+    data.dpad_down  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_DOWN);
+    data.dpad_up    = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_UP);
+    data.dpad_left  = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_LEFT);
+    data.dpad_right = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_RIGHT);
 
-    data.button_l_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
-    data.button_r_shoulder = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
+    data.button_l_shoulder = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_LB);
+    data.button_r_shoulder = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_RB);
 
-    data.button_l_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LG_UPPER);
-    data.button_r_paddle_1 = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RG_UPPER);
+    data.button_l_paddle_1 = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_LP_1);
+    data.button_r_paddle_1 = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_RP_1);
 
     data.button_power = input->button_shipping;
 
-    int16_t l_analog = sinput_scale_trigger(input->triggers[0]);
-    int16_t r_analog = sinput_scale_trigger(input->triggers[1]);
-    bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
-    bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
-
-    if(trigger_config->left_disabled == 1)
-    {
-        if(l_digital)
-            data.trigger_l = INT16_MAX;
-        else 
-            data.trigger_l = INT16_MIN;
-    }
-    else 
-    {
-        data.trigger_l = l_analog;
-        data.button_l_trigger = l_digital;
-    }
-
-    if(trigger_config->right_disabled == 1)
-    {
-        if(r_digital)
-            data.trigger_r = INT16_MAX;
-        else 
-            data.trigger_r = INT16_MIN;
-    }
-    else 
-    {
-        data.trigger_r = r_analog;
-        data.button_r_trigger = r_digital;
-    }
+    int16_t l_analog = 0; //sinput_scale_trigger(input->triggers[0]);
+    int16_t r_analog = 0; //sinput_scale_trigger(input->triggers[1]);
+    bool l_digital = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_LT);
+    bool r_digital = MAPPER_BUTTON_DOWN(input->inputs, SINPUT_CODE_RT);
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 
