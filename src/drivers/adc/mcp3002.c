@@ -21,6 +21,8 @@ bool mcp3002_init(adc_mcp3002_driver_s *driver)
 
 bool mcp3002_read(adc_mcp3002_driver_s *driver)
 {
+    if(!driver->initialized) return false;
+    
     uint8_t buffer[3] = {0};
     uint8_t spi_instance    = driver->spi_instance;
     uint8_t cs_gpio         = driver->cs_gpio;

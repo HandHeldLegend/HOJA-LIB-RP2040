@@ -6,8 +6,7 @@
 #include "settings_shared_types.h"
 #include "input_shared_types.h"
 
-#define MAPPER_DIGITAL_PRESS 0x8000
-#define MAPPER_BUTTON_DOWN(inputs, code) (((inputs[code] & MAPPER_DIGITAL_PRESS) != 0) ? true : false)
+#define MAPPER_BUTTON_DOWN(inputs, code) (inputs[code] != 0)
 
 uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos);
 void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb);
@@ -15,6 +14,6 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb);
 void mapper_access_input(mapper_input_s *out);
 
 void mapper_init();
-mapper_input_s* mapper_get_input();
+mapper_input_s mapper_get_input();
 
 #endif

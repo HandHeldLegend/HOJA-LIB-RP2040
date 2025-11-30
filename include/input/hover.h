@@ -8,7 +8,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "input_shared_types.h"
 
+mapper_input_s hover_access_boot();
+void hover_access_safe(mapper_input_s *out);
 void hover_init();
 
 #endif

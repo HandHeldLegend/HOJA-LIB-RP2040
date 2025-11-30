@@ -7,6 +7,7 @@
 
 #include "input/analog.h"
 #include "input/imu.h"
+#include "input/hover.h"
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
 
@@ -17,6 +18,7 @@
 
 #define WEBUSB_ITF 0
 
+uint8_t _webusb_focused_hover = 0;
 bool _ready_to_go = false;
 bool webusb_outputting_check()
 {
@@ -101,14 +103,10 @@ void webusb_send_rawinput(uint64_t timestamp)
 
         analog_data_s joysticks;
         analog_access_safe(&joysticks, ANALOG_ACCESS_SNAPBACK_DATA);
-
-        mapper_input_s *unused_mapper_data = mapper_get_input();
-
         uint16_t lx = (uint16_t) (joysticks.lx + 2048);
         uint16_t ly = (uint16_t) (joysticks.ly + 2048);
         uint16_t rx = (uint16_t) (joysticks.rx + 2048);
         uint16_t ry = (uint16_t) (joysticks.ry + 2048);
-
         webusb_input_report[1] = (lx & 0xFF00) >> 8;
         webusb_input_report[2] = (lx & 0xFF);       
         webusb_input_report[3] = (ly & 0xFF00) >> 8;
@@ -123,14 +121,14 @@ void webusb_send_rawinput(uint64_t timestamp)
         ly = (uint16_t) (joysticks.ly + 2048);
         rx = (uint16_t) (joysticks.rx + 2048);
         ry = (uint16_t) (joysticks.ry + 2048);
-        webusb_input_report[29] = (lx & 0xFF00) >> 8;
-        webusb_input_report[30] = (lx & 0xFF);
-        webusb_input_report[31] = (ly & 0xFF00) >> 8;
-        webusb_input_report[32] = (ly & 0xFF);
-        webusb_input_report[33] = (rx & 0xFF00) >> 8;
-        webusb_input_report[34] = (rx & 0xFF);
-        webusb_input_report[35] = (ry & 0xFF00) >> 8;
-        webusb_input_report[36] = (ry & 0xFF);
+        webusb_input_report[9] = (lx & 0xFF00) >> 8;
+        webusb_input_report[10] = (lx & 0xFF);
+        webusb_input_report[11] = (ly & 0xFF00) >> 8;
+        webusb_input_report[12] = (ly & 0xFF);
+        webusb_input_report[13] = (rx & 0xFF00) >> 8;
+        webusb_input_report[14] = (rx & 0xFF);
+        webusb_input_report[15] = (ry & 0xFF00) >> 8;
+        webusb_input_report[16] = (ry & 0xFF);
 
         static imu_data_s imu = {0};
         imu_access_safe(&imu);
@@ -142,6 +140,20 @@ void webusb_send_rawinput(uint64_t timestamp)
         memcpy(&webusb_input_report[25], &imu.gy, 2);
         memcpy(&webusb_input_report[27], &imu.gz, 2);
 
+        static mapper_input_s hover = {0};
+        hover_access_safe(&hover);
+
+        // One value is focused and we get the full uint16_t value
+        uint16_t focused_val = hover.inputs[_webusb_focused_hover];
+        webusb_input_report[28] = (focused_val & 0xFF00) >> 8;
+        webusb_input_report[29] = (focused_val & 0xFF); 
+
+        // Remainder of values are downsampled to 8 bits
+        for(int i = 0; i < 27; i++)
+        {
+            webusb_input_report[30+i] = (hover.inputs[i] >> 4) & 0xFF;
+        }
+
         static battery_status_s batstat = {0};
         static fuelgauge_status_s fgstat = {0};
 
@@ -149,8 +161,8 @@ void webusb_send_rawinput(uint64_t timestamp)
         fuelgauge_get_status(&fgstat);
 
         // Charge status
-        webusb_input_report[37] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
-        webusb_input_report[38] = fgstat.percent;
+        webusb_input_report[58] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
+        webusb_input_report[59] = fgstat.percent;
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);

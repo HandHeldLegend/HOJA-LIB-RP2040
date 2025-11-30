@@ -211,6 +211,7 @@ typedef struct
 typedef struct 
 {
     uint8_t hover_config_version;
+    uint8_t hover_calibration_set;
     hover_cfg_s config[36];
     uint8_t reserved[111];
 } hoverConfig_s;

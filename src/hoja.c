@@ -22,6 +22,7 @@
 #include "input/macros.h"
 #include "input/idle_manager.h"
 #include "input/mapper.h"
+#include "input/hover.h"
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
@@ -33,15 +34,20 @@
 time_callback_t _hoja_mode_task_cb = NULL;
 callback_t _hoja_mode_stop_cb = NULL;
 
-__attribute__((weak)) bool cb_hoja_buttons_init()
+__attribute__((weak)) void cb_hoja_init()
 {
-  return false;
+
 }
 
-//__attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
-//{
-//  (void)&data;
-//}
+__attribute__((weak)) void cb_hoja_read_joystick(uint16_t *input)
+{
+  (void)&input;
+}
+
+__attribute__((weak)) void cb_hoja_read_input(mapper_input_s *input)
+{
+  (void)&input;
+}
 
 void hoja_deinit(callback_t cb)
 {
@@ -350,6 +356,9 @@ bool _system_requirements_init()
   // System settings
   settings_init();
 
+  // MAIN.C BOARD INIT
+  cb_hoja_init();
+
   return true;
 }
 
@@ -380,6 +389,9 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 
 bool _system_input_init()
 {
+  // Hover input
+  hover_init();
+
   // Analog joysticks
   analog_init();
 

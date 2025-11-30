@@ -6,8 +6,8 @@
 #include "input/analog.h"
 
 #include "utilities/settings.h"
-
 #include "utilities/pcm.h"
+#include "utilities/crosscore_snapshot.h"
 
 #include "hoja.h"
 
@@ -198,6 +198,10 @@ input_cfg_s *_loaded_input_config = NULL;
 mapper_loaded_config_s _loaded_mapper_configs[MAPPER_INPUT_COUNT] = {0};
 mapper_output_type_t *_loaded_output_types = NULL;
 uint8_t _loaded_output_types_max = 0;
+
+SNAPSHOT_TYPE(mapper, mapper_input_s);
+snapshot_mapper_t _mapper_snap_in;
+snapshot_mapper_t _mapper_snap_out;
 
 mapper_input_s _all_inputs = {0};
 
@@ -532,18 +536,24 @@ void mapper_init()
         _loaded_mapper_configs[i].threshold_delta = _loaded_input_config[i].threshold_delta;
         _loaded_mapper_configs[i].static_output = _loaded_input_config[i].static_output;
     }
-    
 }
 
-void mapper_access_input(mapper_input_s *out)
+// Thread safe access mapper outputs (Post-remapping)
+void mapper_access_output_safe(mapper_input_s *out)
 {
-    memcpy(out, &_all_inputs, sizeof(mapper_input_s));
+    snapshot_mapper_read(&_mapper_snap_out, out);
 }
 
-mapper_input_s* mapper_get_input()
+// Thread safe access mapper inputs (Post-scaling, Pre-remapping)
+void mapper_access_input_safe(mapper_input_s *out)
+{
+    snapshot_mapper_read(&_mapper_snap_in, out);
+}
+
+mapper_input_s mapper_get_input()
 {
     static mapper_input_s output;
 
     // Return output pointer
-    return &output;
+    return output;
 }
