@@ -17,7 +17,6 @@
 // 'fall' before we activate
 #define TRIGGER_THRESHOLD 3
 #define SNAPBACK_WIDTH_MAX 30
-#define SNAPBACK_HEIGHT_MAX 2075
 #define SNAPBACK_STORE_HEIGHT 650
 #define SNAPBACK_DEADZONE 650
 #define SNAPBACK_DISTANCE_THRESHOLD 550
@@ -26,11 +25,15 @@
 // Additional amount to our decay as a tolerance window
 #define DECAY_TOLERANCE 4
 
+// If stick travels this much further than trigger point, cancel snapback (intentional input)
+#define SNAPBACK_CANCEL_THRESHOLD 50
+
 #define OUTBUFFER_SIZE 64
 
 typedef struct
 {
     float last_distance;
+    float trigger_distance; // Distance when snapback triggered
     int stored_x;
     int stored_y;
     int16_t crossover_expiration;
@@ -89,56 +92,77 @@ void _sbauto_add_axis(int16_t x, int16_t y, uint16_t in_distance, uint16_t *out_
         a->decaying = false;
         a->trigger_width = 0;
         a->trigger = 0;
+        a->trigger_distance = distance; // Store distance at trigger point
     }
     // Valid snapback wave potentially happening
     else if(a->rising)
     {
-        return_distance = 0;
-
-        a->trigger_width += 1;
-
-        if(sbutil_is_distance_falling(a->last_distance, distance))
+        // Cancel if stick travels further than trigger point (intentional input)
+        if(distance > a->trigger_distance + SNAPBACK_CANCEL_THRESHOLD)
         {
-            a->triggered = true;
-            a->trigger += 1;
-        }
-        else a->trigger = 0;
-
-        // Check if we should release
-        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) /*|| (distance >= SNAPBACK_HEIGHT_MAX)*/ )
-        {
-            //release
             a->rising = false;
-
+            a->decaying = false;
+            // Don't zero - output real distance
+        }
+        else
+        {
             return_distance = 0;
 
-            a->decaying = false;
-        }
-        else if(a->trigger >= TRIGGER_THRESHOLD)
-        {
-            // We are snapping back
-            a->triggered = false;
-            a->rising = false;
-            a->decaying = true;
-            a->decay_timer = a->trigger_width+DECAY_TOLERANCE;
+            a->trigger_width += 1;
 
-            // Set new stored X and Y
-            a->stored_x = x;
-            a->stored_y = y;
-            // Reset expiration
-            a->crossover_expiration = CROSSOVER_EXPIRATION;
+            if(sbutil_is_distance_falling(a->last_distance, distance))
+            {
+                a->triggered = true;
+                a->trigger += 1;
+            }
+            else a->trigger = 0;
+
+            // Check if we should release
+            if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) )
+            {
+                //release
+                a->rising = false;
+
+                return_distance = 0;
+
+                a->decaying = false;
+            }
+            else if(a->trigger >= TRIGGER_THRESHOLD)
+            {
+                // We are snapping back
+                a->triggered = false;
+                a->rising = false;
+                a->decaying = true;
+                a->decay_timer = a->trigger_width+DECAY_TOLERANCE;
+
+                // Set new stored X and Y
+                a->stored_x = x;
+                a->stored_y = y;
+                // Reset expiration
+                a->crossover_expiration = CROSSOVER_EXPIRATION;
+            }
         }
     }
     else if(a->decaying)
     {
-        return_distance = 0;
-
-        a->decay_timer -= 1;
-        if(!a->decay_timer)
+        // Cancel if stick travels further than trigger point (intentional input)
+        if(distance > a->trigger_distance + SNAPBACK_CANCEL_THRESHOLD)
         {
-            a->triggered = false;
             a->rising = false;
             a->decaying = false;
+            // Don't zero - output real distance
+        }
+        else
+        {
+            return_distance = 0;
+
+            a->decay_timer -= 1;
+            if(!a->decay_timer)
+            {
+                a->triggered = false;
+                a->rising = false;
+                a->decaying = false;
+            }
         }
     }
 
