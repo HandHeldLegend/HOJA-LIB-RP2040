@@ -194,7 +194,7 @@ typedef struct
     bool rapid_press_state;
 } mapper_loaded_config_s;
 
-input_cfg_s *_loaded_input_config = NULL;
+inputConfigSlot_s *_loaded_input_config = NULL;
 mapper_loaded_config_s _loaded_mapper_configs[MAPPER_INPUT_COUNT] = {0};
 mapper_output_type_t *_loaded_output_types = NULL;
 uint8_t _loaded_output_types_max = 0;

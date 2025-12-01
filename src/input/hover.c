@@ -62,7 +62,7 @@ uint16_t _hover_scale_input(uint16_t input,
 
 void hover_calibrate_start(uint8_t ch)
 {
-    hover_cfg_s *cfg;
+    hoverSlot_s *cfg;
     mapper_input_s tmp;
 
     // Perform a reading
@@ -120,7 +120,7 @@ void hover_init()
         
         for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
         {
-            hover_cfg_s *cfg = &hover_config->config[i];
+            hoverSlot_s *cfg = &hover_config->config[i];
             cfg->invert = 0;
             cfg->max = 0xFFF;
             cfg->min = 0x000;
@@ -133,7 +133,7 @@ void hover_init()
     {
         if(input_static.input_info[i].input_type == MAPPER_INPUT_TYPE_HOVER)
         {
-            hover_cfg_s *cfg = &hover_config->config[i];
+            hoverSlot_s *cfg = &hover_config->config[i];
 
             _hover_slot_reader_idx[_used_hover_slots] = i;
             _used_hover_slots++;
@@ -179,7 +179,7 @@ void hover_task(uint64_t timestamp)
 
     if(_calibration_ch_active == 0xFF)
     {
-        hover_cfg_s *cfg;
+        hoverSlot_s *cfg;
 
         // Iterate through hovers
         for(int i = 0; i < _used_hover_slots; i++)
@@ -213,7 +213,7 @@ void hover_task(uint64_t timestamp)
     }
     else if(_calibration_ch_active)
     {
-        hover_cfg_s *cfg;
+        hoverSlot_s *cfg;
         uint8_t target_ch = _calibration_ch_active-1;
         cfg = &hover_config->config[target_ch];
         uint16_t val = input.inputs[target_ch];
@@ -246,7 +246,7 @@ void hover_task(uint64_t timestamp)
     for(int i = 0; i < _used_hover_slots; i++)
     {
         uint8_t slot = _hover_slot_reader_idx[i];
-        hover_cfg_s *cfg = &hover_config->config[slot];
+        hoverSlot_s *cfg = &hover_config->config[slot];
 
         input.inputs[slot] = _hover_scale_input(
             input.inputs[slot], 
