@@ -641,24 +641,24 @@ void switch_haptics_arbitrary_playback(uint8_t intensity)
     if(!intensity)
     {
         // Stop the haptics
-        haptic_processed_s data = {
-            .hi_amplitude_fixed = 0,
-            .lo_amplitude_fixed = 0,
-            .hi_frequency_increment = 0,
-            .lo_frequency_increment = 0
-        };
-        haptics_set_hd(&data);
+        haptic_packet_s packet = {0};
+        packet.count = 1;
+        packet.pairs[0].hi_amplitude_fixed = 0;
+        packet.pairs[0].lo_amplitude_fixed = 0;
+        packet.pairs[0].hi_frequency_increment = 0;
+        packet.pairs[0].lo_frequency_increment = 0;
+        haptics_set_hd(&packet);
         return;
     }
 
-    haptic_processed_s data = {
-        .hi_amplitude_fixed = _ExpBase2LookupHi[dbg_ahi],
-        .lo_amplitude_fixed = _ExpBase2LookupLo[dbg_alo],
-        .hi_frequency_increment = _haptics_hi_freq_increment[dbg_hi],
-        .lo_frequency_increment = _haptics_lo_freq_increment[dbg_lo]
-    };
+    haptic_packet_s packet = {0};
+    packet.count = 1;
+    packet.pairs[0].hi_amplitude_fixed = _ExpBase2LookupHi[dbg_ahi];
+    packet.pairs[0].lo_amplitude_fixed = _ExpBase2LookupLo[dbg_alo];
+    packet.pairs[0].hi_frequency_increment = _haptics_hi_freq_increment[dbg_hi];
+    packet.pairs[0].lo_frequency_increment = _haptics_lo_freq_increment[dbg_lo];
 
-    haptics_set_hd(&data);
+    haptics_set_hd(&packet);
 }
 
 void switch_haptics_rumble_translate(const uint8_t *data)
@@ -668,21 +668,20 @@ void switch_haptics_rumble_translate(const uint8_t *data)
 
     _haptics_decode_samples((const SwitchHapticPacket_s *)data);
 
-    haptic_processed_s processed = {0};
+    // Build packet with all pairs at once
+    haptic_packet_s packet = {0};
+    packet.count = _raw_state.sample_count;
 
-    if(_raw_state.sample_count > 0) 
+    for(int i = 0; i < packet.count && i < 3; i++)
     {
-        for(int i = 0; i < _raw_state.sample_count; i++) 
-        {
-            processed.hi_amplitude_fixed        = _ExpBase2LookupHi[_raw_state.samples[i].hi_amplitude_idx];
-            processed.lo_amplitude_fixed        = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
-            processed.hi_frequency_increment    = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
-            processed.lo_frequency_increment    = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
-            processed.sample_len = _raw_state.sample_count;
-            
-            haptics_set_hd(&processed);
-        }
+        packet.pairs[i].hi_amplitude_fixed     = _ExpBase2LookupHi[_raw_state.samples[i].hi_amplitude_idx];
+        packet.pairs[i].lo_amplitude_fixed     = _ExpBase2LookupLo[_raw_state.samples[i].lo_amplitude_idx];
+        packet.pairs[i].hi_frequency_increment = _haptics_hi_freq_increment[_raw_state.samples[i].hi_frequency_idx];
+        packet.pairs[i].lo_frequency_increment = _haptics_lo_freq_increment[_raw_state.samples[i].lo_frequency_idx];
     }
+
+    // Single push with all pairs
+    haptics_set_hd(&packet);
 }
 
 

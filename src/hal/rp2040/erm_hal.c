@@ -187,12 +187,19 @@ void erm_hal_set_standard(uint8_t intensity, bool brake)
     _target_level = target;
 }
 
-void erm_hal_push_amfm(haptic_processed_s *input)
+void erm_hal_push_amfm(haptic_packet_s *packet)
 {
-    static bool lock = false;
-    uint16_t working_amp = (input->hi_amplitude_fixed > input->lo_amplitude_fixed) ? input->hi_amplitude_fixed : input->lo_amplitude_fixed;
-    
-    if(!working_amp) 
+    // Use the first pair (or find max amplitude across all pairs)
+    uint16_t working_amp = 0;
+    for(int i = 0; i < packet->count && i < 3; i++)
+    {
+        uint16_t pair_amp = (packet->pairs[i].hi_amplitude_fixed > packet->pairs[i].lo_amplitude_fixed)
+            ? packet->pairs[i].hi_amplitude_fixed
+            : packet->pairs[i].lo_amplitude_fixed;
+        if(pair_amp > working_amp) working_amp = pair_amp;
+    }
+
+    if(!working_amp)
     {
         erm_hal_set_standard(0, false);
         return;
@@ -203,7 +210,6 @@ void erm_hal_push_amfm(haptic_processed_s *input)
     new_intensity = new_intensity > 255 ? 255 : new_intensity;
 
     erm_hal_set_standard((uint8_t) new_intensity, false);
-        
 }
 
 #endif

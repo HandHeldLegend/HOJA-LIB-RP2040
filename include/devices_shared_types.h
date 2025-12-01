@@ -44,7 +44,7 @@ typedef struct
     uint16_t value;
 } hsv_s;
 
-typedef struct 
+typedef struct
 {
     uint16_t    hi_amplitude_fixed;
     uint16_t    lo_amplitude_fixed;
@@ -52,6 +52,12 @@ typedef struct
     uint16_t    lo_frequency_increment;
     uint8_t     sample_len; // How many sample chunks
 } haptic_processed_s;
+
+typedef struct
+{
+    haptic_processed_s pairs[3];
+    uint8_t count;
+} haptic_packet_s;
 
 typedef union
 {

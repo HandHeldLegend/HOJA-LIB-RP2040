@@ -57,7 +57,7 @@ uint32_t *single_sample_ptr = &single_sample;
 static volatile uint audio_buffer_idx = 0;
 //static uint32_t audio_buffers[2][BUFFER_SIZE] = {0};
 
-__attribute__((aligned(2048))) uint32_t audio_buffer[BUFFER_SIZE] = {0};
+__attribute__((aligned(512))) uint32_t audio_buffer[BUFFER_SIZE] = {0};
 uint32_t *audio_buffer_ptr = &audio_buffer[0];
 
 // Bool to indicate we need to fill our next sine wave
@@ -187,7 +187,7 @@ bool lra_hal_init(uint8_t intensity)
         channel_config_set_transfer_data_size(&dma_sample_cfg, DMA_SIZE_32); // transfer 8-bits at a time
         channel_config_set_read_increment(&dma_sample_cfg, true);            // increment read address to go through audio buffer
         channel_config_set_write_increment(&dma_sample_cfg, false);          // always write to the same address
-        channel_config_set_ring(&dma_sample_cfg, false, 11); // 1<<11 = 2048. 2048/4 = 512 buffer bytes
+        channel_config_set_ring(&dma_sample_cfg, false, 9); // 1<<9 = 512. 512/4 = 128 buffer bytes
 
         dma_channel_configure(dma_sample,
                             &dma_sample_cfg,
@@ -309,10 +309,10 @@ void lra_hal_task(uint64_t timestamp)
     }
 }
 
-void lra_hal_push_amfm(haptic_processed_s *input)
+void lra_hal_push_amfm(haptic_packet_s *packet)
 {
     _erm_simulation_enabled = false; // Unset our ERM simulation mode
-    pcm_amfm_push(input);
+    pcm_amfm_push(packet);
 }
 
 void lra_hal_set_standard(uint8_t intensity, bool brake)

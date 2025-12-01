@@ -21,7 +21,7 @@ typedef enum
 } rumble_t;
 
 void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb);
-void haptics_set_hd(haptic_processed_s *input);
+void haptics_set_hd(haptic_packet_s *packet);
 void haptics_set_std(uint8_t amplitude, bool brake);
 void haptics_stop();
 bool haptics_init();

@@ -33,10 +33,10 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
     }
 }
 
-void haptics_set_hd(haptic_processed_s *input)
+void haptics_set_hd(haptic_packet_s *packet)
 {
     #if defined(HOJA_HAPTICS_PUSH_AMFM)
-    HOJA_HAPTICS_PUSH_AMFM(input);
+    HOJA_HAPTICS_PUSH_AMFM(packet);
     #endif
 }
 

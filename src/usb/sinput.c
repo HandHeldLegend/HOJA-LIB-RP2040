@@ -248,7 +248,7 @@ const uint8_t sinput_configuration_descriptor[] = {
 
 void sinput_cmd_haptics(const uint8_t *data)
 {
-    haptic_processed_s val = {0};
+    haptic_packet_s packet = {0};
 
     sinput_haptic_s haptic = {0};
 
@@ -262,17 +262,17 @@ void sinput_cmd_haptics(const uint8_t *data)
         case 1:
             float a1_base = (float) (haptic.type_1.left.amplitude_1 > haptic.type_1.right.amplitude_1 ? haptic.type_1.left.amplitude_1 : haptic.type_1.right.amplitude_1);
             float a2_base = (float) (haptic.type_1.left.amplitude_2 > haptic.type_1.right.amplitude_2 ? haptic.type_1.left.amplitude_2 : haptic.type_1.right.amplitude_2);
-            
+
             float amp_1 = a1_base > 0 ? (float) a1_base / (float) UINT16_MAX : 0;
             float amp_2 = a2_base > 0 ? (float) a2_base / (float) UINT16_MAX : 0;
-        
-            val.hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
-            val.lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
-        
-            val.hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_1);
-            val.lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_2);
-        
-            pcm_amfm_push(&val);
+
+            packet.count = 1;
+            packet.pairs[0].hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
+            packet.pairs[0].lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
+            packet.pairs[0].hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_1);
+            packet.pairs[0].lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_2);
+
+            pcm_amfm_push(&packet);
         break;
 
         case 2:
