@@ -206,13 +206,15 @@ typedef struct
     uint16_t invert : 1;
     uint16_t min : 15;
     uint16_t max;
-} hover_cfg_s;
+} hoverSlot_s;
+
+#define HOVER_SLOT_SIZE sizeof(hover_cfg_s) 
 
 typedef struct 
 {
     uint8_t hover_config_version;
     uint8_t hover_calibration_set;
-    hover_cfg_s config[36];
+    hoverSlot_s config[36]; // SIZE=4
     uint8_t reserved[111];
 } hoverConfig_s;
 
@@ -225,18 +227,20 @@ typedef struct
     uint16_t static_output : 12; // Output that is used when this input is pressed
     uint16_t threshold_delta; // Either a threshold for digital press or a delta for rapid trigger
     int8_t output_code; // Code for what this outputs or is assigned to
-} input_cfg_s;
+} inputConfigSlot_s;
+
+#define INPUT_SLOT_SIZE sizeof(input_cfg_s) 
 
 typedef struct 
 {
     uint8_t input_config_version;
-    input_cfg_s input_profile_switch[36];
-    input_cfg_s input_profile_xinput[36];
-    input_cfg_s input_profile_snes[36];
-    input_cfg_s input_profile_n64[36];
-    input_cfg_s input_profile_gamecube[36];
-    input_cfg_s input_profile_reserved_1[36];
-    input_cfg_s input_profile_reserved_2[36];
+    inputConfigSlot_s input_profile_switch[36]; // SIZE=5
+    inputConfigSlot_s input_profile_xinput[36]; // SIZE=5
+    inputConfigSlot_s input_profile_snes[36]; // SIZE=5
+    inputConfigSlot_s input_profile_n64[36]; // SIZE=5
+    inputConfigSlot_s input_profile_gamecube[36]; // SIZE=5
+    inputConfigSlot_s input_profile_reserved_1[36]; // SIZE=5
+    inputConfigSlot_s input_profile_reserved_2[36]; // SIZE=5
     uint8_t reserved[787];
 } inputConfig_s;
 

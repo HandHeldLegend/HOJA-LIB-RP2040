@@ -101,68 +101,68 @@ void webusb_send_rawinput(uint64_t timestamp)
         
         webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-        analog_data_s joysticks;
-        analog_access_safe(&joysticks, ANALOG_ACCESS_SNAPBACK_DATA);
-        uint16_t lx = (uint16_t) (joysticks.lx + 2048);
-        uint16_t ly = (uint16_t) (joysticks.ly + 2048);
-        uint16_t rx = (uint16_t) (joysticks.rx + 2048);
-        uint16_t ry = (uint16_t) (joysticks.ry + 2048);
-        webusb_input_report[1] = (lx & 0xFF00) >> 8;
-        webusb_input_report[2] = (lx & 0xFF);       
-        webusb_input_report[3] = (ly & 0xFF00) >> 8;
-        webusb_input_report[4] = (ly & 0xFF);       
-        webusb_input_report[5] = (rx & 0xFF00) >> 8;
-        webusb_input_report[6] = (rx & 0xFF);       
-        webusb_input_report[7] = (ry & 0xFF00) >> 8;
-        webusb_input_report[8] = (ry & 0xFF);
-
-        analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
-        lx = (uint16_t) (joysticks.lx + 2048);
-        ly = (uint16_t) (joysticks.ly + 2048);
-        rx = (uint16_t) (joysticks.rx + 2048);
-        ry = (uint16_t) (joysticks.ry + 2048);
-        webusb_input_report[9] = (lx & 0xFF00) >> 8;
-        webusb_input_report[10] = (lx & 0xFF);
-        webusb_input_report[11] = (ly & 0xFF00) >> 8;
-        webusb_input_report[12] = (ly & 0xFF);
-        webusb_input_report[13] = (rx & 0xFF00) >> 8;
-        webusb_input_report[14] = (rx & 0xFF);
-        webusb_input_report[15] = (ry & 0xFF00) >> 8;
-        webusb_input_report[16] = (ry & 0xFF);
-
-        static imu_data_s imu = {0};
-        imu_access_safe(&imu);
-        memcpy(&webusb_input_report[17], &imu.ax, 2);
-        memcpy(&webusb_input_report[19], &imu.ay, 2);
-        memcpy(&webusb_input_report[21], &imu.az, 2);
-
-        memcpy(&webusb_input_report[23], &imu.gx, 2);
-        memcpy(&webusb_input_report[25], &imu.gy, 2);
-        memcpy(&webusb_input_report[27], &imu.gz, 2);
-
-        static mapper_input_s hover = {0};
-        hover_access_safe(&hover);
-
-        // One value is focused and we get the full uint16_t value
-        uint16_t focused_val = hover.inputs[_webusb_focused_hover];
-        webusb_input_report[28] = (focused_val & 0xFF00) >> 8;
-        webusb_input_report[29] = (focused_val & 0xFF); 
-
-        // Remainder of values are downsampled to 8 bits
-        for(int i = 0; i < 27; i++)
-        {
-            webusb_input_report[30+i] = (hover.inputs[i] >> 4) & 0xFF;
-        }
-
+        // Charge status
         static battery_status_s batstat = {0};
         static fuelgauge_status_s fgstat = {0};
 
         battery_get_status(&batstat);
         fuelgauge_get_status(&fgstat);
 
-        // Charge status
-        webusb_input_report[58] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
-        webusb_input_report[59] = fgstat.percent;
+        webusb_input_report[1] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
+        webusb_input_report[2] = fgstat.percent;
+
+        analog_data_s joysticks;
+        analog_access_safe(&joysticks, ANALOG_ACCESS_SNAPBACK_DATA);
+        uint16_t lx = (uint16_t) (joysticks.lx + 2048);
+        uint16_t ly = (uint16_t) (joysticks.ly + 2048);
+        uint16_t rx = (uint16_t) (joysticks.rx + 2048);
+        uint16_t ry = (uint16_t) (joysticks.ry + 2048);
+        webusb_input_report[3] = (lx & 0xFF00) >> 8;
+        webusb_input_report[4] = (lx & 0xFF);       
+        webusb_input_report[5] = (ly & 0xFF00) >> 8;
+        webusb_input_report[6] = (ly & 0xFF);       
+        webusb_input_report[7] = (rx & 0xFF00) >> 8;
+        webusb_input_report[8] = (rx & 0xFF);       
+        webusb_input_report[9] = (ry & 0xFF00) >> 8;
+        webusb_input_report[10] = (ry & 0xFF);
+
+        analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
+        lx = (uint16_t) (joysticks.lx + 2048);
+        ly = (uint16_t) (joysticks.ly + 2048);
+        rx = (uint16_t) (joysticks.rx + 2048);
+        ry = (uint16_t) (joysticks.ry + 2048);
+        webusb_input_report[11] = (lx & 0xFF00) >> 8;
+        webusb_input_report[12] = (lx & 0xFF);
+        webusb_input_report[13] = (ly & 0xFF00) >> 8;
+        webusb_input_report[14] = (ly & 0xFF);
+        webusb_input_report[15] = (rx & 0xFF00) >> 8;
+        webusb_input_report[16] = (rx & 0xFF);
+        webusb_input_report[17] = (ry & 0xFF00) >> 8;
+        webusb_input_report[18] = (ry & 0xFF);
+
+        static imu_data_s imu = {0};
+        imu_access_safe(&imu);
+        memcpy(&webusb_input_report[19], &imu.ax, 2);
+        memcpy(&webusb_input_report[21], &imu.ay, 2);
+        memcpy(&webusb_input_report[23], &imu.az, 2);
+
+        memcpy(&webusb_input_report[25], &imu.gx, 2);
+        memcpy(&webusb_input_report[27], &imu.gy, 2);
+        memcpy(&webusb_input_report[29], &imu.gz, 2);
+
+        static mapper_input_s hover = {0};
+        hover_access_safe(&hover);
+
+        // One value is focused and we get the full uint16_t value
+        uint16_t focused_val = hover.inputs[_webusb_focused_hover];
+        webusb_input_report[31] = (focused_val & 0xFF00) >> 8;
+        webusb_input_report[32] = (focused_val & 0xFF); 
+
+        // Remainder of values are downsampled to 8 bits
+        for(int i = 0; i < 27; i++)
+        {
+            webusb_input_report[32+i] = (hover.inputs[i] >> 4) & 0xFF;
+        }
 
         tud_vendor_n_write(0, webusb_input_report, 64);
         tud_vendor_n_flush(0);
