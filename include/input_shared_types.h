@@ -120,11 +120,11 @@ typedef enum
     CALIBRATE_SAVE,
 } calibrate_set_t;
 
-typedef enum 
+typedef enum
 {
+    SNAPBACK_TYPE_AUTO,
+    SNAPBACK_TYPE_LPF,
     SNAPBACK_TYPE_DISABLED,
-    SNAPBACK_TYPE_ZERO,
-    SNAPBACK_TYPE_POST,
 } snapback_type_t;
 
 // IMU data structure
