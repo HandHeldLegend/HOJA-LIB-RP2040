@@ -78,7 +78,7 @@ void pcm_play_bump(bool left, bool right);
 #endif
 
 void pcm_send_pulse();
-bool pcm_amfm_push(haptic_processed_s *value);
+bool pcm_amfm_push(haptic_packet_s *packet);
 void pcm_generate_buffer(uint32_t *buffer);
 
 #endif

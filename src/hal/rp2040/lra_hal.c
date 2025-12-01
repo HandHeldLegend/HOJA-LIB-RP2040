@@ -309,10 +309,10 @@ void lra_hal_task(uint64_t timestamp)
     }
 }
 
-void lra_hal_push_amfm(haptic_processed_s *input)
+void lra_hal_push_amfm(haptic_packet_s *packet)
 {
     _erm_simulation_enabled = false; // Unset our ERM simulation mode
-    pcm_amfm_push(input);
+    pcm_amfm_push(packet);
 }
 
 void lra_hal_set_standard(uint8_t intensity, bool brake)
