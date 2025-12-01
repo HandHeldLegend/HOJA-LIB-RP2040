@@ -16,6 +16,8 @@ bool mcp3002_init(adc_mcp3002_driver_s *driver)
     gpio_hal_init(driver->cs_gpio, true, false);
     // Set GPIO to true
     gpio_hal_write(driver->cs_gpio, true);
+
+    driver->initialized = true;
     return true;
 }
 

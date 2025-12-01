@@ -275,6 +275,9 @@ void _hoja_task_1()
     // Flash task
     flash_hal_task();
 
+    // Read inputs
+    hover_task(c1_timestamp);
+
     // Process any macros
     macros_task(c1_timestamp);
 

@@ -5,6 +5,7 @@
 #include "input/mapper.h"
 
     typedef enum {
+        INPUT_TYPE_UNUSED,
         INPUT_TYPE_DIGITAL,
         INPUT_TYPE_HOVER,
         INPUT_TYPE_JOYSTICK
