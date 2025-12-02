@@ -150,7 +150,8 @@ void webusb_send_rawinput(uint64_t timestamp)
                 // Remainder of values are downsampled to 8 bits
                 for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
                 {
-                    webusb_input_report[16+i] = (hover.inputs[i] >> 4) & 0xFF;
+                    uint8_t scaled = (hover.inputs[i] >> 4) & 0xFF;
+                    webusb_input_report[16+i] = (hover.inputs[i] > 0) & (!scaled) ? 1 : scaled;
                 }
             break;
 
