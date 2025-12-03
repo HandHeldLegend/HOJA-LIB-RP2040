@@ -230,6 +230,21 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
             settings_config_command(data[1], data[2]);
         break;
 
+        case WEBUSB_ID_INPUT_COMMAND:
+            switch(data[1])
+            {
+                case 0:
+                // Change reporting mode
+                _webusb_report_mode = data[2];
+                break;
+
+                case 1:
+                // Change focused input ID
+                _webusb_focused_hover = data[2];
+                break;
+            }
+        break;
+
         case WEBUSB_LEGACY_SET_BOOTLOADER:
             // Do nothing
         break;
