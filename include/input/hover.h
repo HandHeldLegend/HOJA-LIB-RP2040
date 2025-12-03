@@ -14,5 +14,6 @@ void hover_task(uint64_t timestamp);
 mapper_input_s hover_access_boot();
 void hover_access_safe(mapper_input_s *out);
 void hover_init();
+void hover_config_command(uint8_t cmd, webreport_cmd_confirm_t cb);
 
 #endif

@@ -54,13 +54,6 @@ typedef enum
 
 typedef enum 
 {
-    HOVER_CMD_REFRESH,
-    HOVER_CMD_CALIBRATE_START,
-    HOVER_CMD_CALIBRATE_STOP,
-} hover_cmd_t;
-
-typedef enum 
-{
     ANALOG_CMD_REFRESH, 
     ANALOG_CMD_CALIBRATE_START, 
     ANALOG_CMD_CALIBRATE_STOP, 

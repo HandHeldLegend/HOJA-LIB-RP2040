@@ -151,7 +151,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         break;
 
         case CFG_BLOCK_HOVER:
-            // NEED HOVER CFG COMMANDS
+            hover_config_command(command, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_ANALOG:

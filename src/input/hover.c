@@ -60,6 +60,10 @@ uint16_t _hover_scale_input(uint16_t input,
     return (uint16_t)scaled;
 }
 
+void hover_calibrate_stop(void) {
+    _calibration_ch_active = 0x00;
+}
+
 void hover_calibrate_start(uint8_t ch)
 {
     hoverSlot_s *cfg;
@@ -90,6 +94,7 @@ void hover_calibrate_start(uint8_t ch)
                 cfg->invert = 1;
             }
         }
+        _calibration_ch_active = 0xFF;
     }
     // Otherwise calibrate a single channel
     else 
@@ -105,13 +110,12 @@ void hover_calibrate_start(uint8_t ch)
         {
             cfg->invert = 1;
         }
+        // Channel active is ch+1
+        _calibration_ch_active = ch + 1;
     }
-
-    // Channel active is ch+1
-    _calibration_ch_active = ch + 1;
 }
 
-void hover_init()
+void hover_init(void)
 {
     // Check and default
     if(hover_config->hover_config_version != CFG_BLOCK_HOVER_VERSION)
@@ -159,6 +163,9 @@ void hover_init()
 
         _boot_capture.inputs[slot] = (_boot_capture.inputs[slot] > half) ? 1 : 0;
     }
+
+    //DEBUG
+    hover_calibrate_start(0xFF);
 }
 
 void hover_access_safe(mapper_input_s *out)
@@ -171,11 +178,51 @@ mapper_input_s hover_access_boot()
     return _boot_capture;
 }
 
+void hover_config_command(uint8_t cmd, webreport_cmd_confirm_t cb)
+{
+    uint8_t calibrate_ch = cmd & 0x3F;
+    uint8_t instruction = (cmd >> 6);
+
+    switch(instruction)
+    {
+        default:
+        case 0:
+        // Reload/Calibrate Stop
+        hover_calibrate_stop();
+        hover_init();
+        break;
+
+        // Calibrate
+        case 1:
+        hover_calibrate_start( (calibrate_ch==0x3F) ? 0xFF : calibrate_ch );
+        break;
+
+        case 2:
+        break;
+
+        case 3:
+        break;
+
+    }
+
+    cb(CFG_BLOCK_HOVER, cmd, true, NULL, 0);
+}
+
 void hover_task(uint64_t timestamp)
 {
     mapper_input_s input = {0};
     // Perform a reading
     cb_hoja_read_input(&input);
+
+    // Apply inversion FIRST, before calibration or scaling
+    for(int i = 0; i < _used_hover_slots; i++) {
+        uint8_t slot = _hover_slot_reader_idx[i];
+        hoverSlot_s *cfg = &hover_config->config[slot];
+        
+        if(cfg->invert) {
+            input.inputs[slot] = 0xFFF - input.inputs[slot];
+        }
+    }
 
     if(_calibration_ch_active == 0xFF)
     {
