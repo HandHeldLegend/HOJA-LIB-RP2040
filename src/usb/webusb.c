@@ -128,30 +128,20 @@ void webusb_send_rawinput(uint64_t timestamp)
             case WEBUSB_INPUT_RAW:
                 webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-                static mapper_input_s hover = {0};
-                hover_access_safe(&hover);
+                mapper_input_s mapper = mapper_get_webusb_input();
                 analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
 
-                hover.inputs[INPUT_CODE_LX_RIGHT] = (joysticks.lx > 0 ? joysticks.lx : 0);
-                hover.inputs[INPUT_CODE_LX_LEFT] = joysticks.lx < 0 ? -joysticks.lx : 0;
-                hover.inputs[INPUT_CODE_LY_UP] = joysticks.ly > 0 ? joysticks.ly : 0;
-                hover.inputs[INPUT_CODE_LY_DOWN] = joysticks.ly < 0 ? -joysticks.ly : 0;
-
-                hover.inputs[INPUT_CODE_RX_RIGHT] = joysticks.rx > 0 ? joysticks.rx : 0;
-                hover.inputs[INPUT_CODE_RX_LEFT] = joysticks.rx < 0 ? -joysticks.rx : 0;
-                hover.inputs[INPUT_CODE_RY_UP] = joysticks.ry > 0 ? joysticks.ry : 0;
-                hover.inputs[INPUT_CODE_RY_DOWN] = joysticks.ry < 0 ? -joysticks.ry : 0;
-
                 // One value is focused and we get the full uint16_t value
-                uint16_t focused_val = hover.inputs[_webusb_focused_hover];
+                uint16_t focused_val = mapper.inputs[_webusb_focused_hover];
                 webusb_input_report[14] = (focused_val & 0xFF00) >> 8;
                 webusb_input_report[15] = (focused_val & 0xFF); 
 
                 // Remainder of values are downsampled to 8 bits
                 for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
                 {
-                    uint8_t scaled = (hover.inputs[i] >> 4) & 0xFF;
-                    webusb_input_report[16+i] = (hover.inputs[i] > 0) & (!scaled) ? 1 : scaled;
+                    uint8_t press_state = (mapper.inputs[i] & 0x8000) >> 8;
+                    uint8_t scaled = ((mapper.inputs[i] >> 5) & 0x7F) | press_state;
+                    webusb_input_report[16+i] = scaled;
                 }
             break;
 
