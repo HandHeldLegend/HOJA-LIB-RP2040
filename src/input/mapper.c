@@ -366,7 +366,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]);
 
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
                     break;
 
                     // Output to our joystick using the configured static output value (divided by 2)
@@ -376,7 +376,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
                     break;
                 }
             }
@@ -415,7 +415,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
                     break;
 
                     case MAPPER_OUTPUT_JOYSTICK:
@@ -423,7 +423,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
                     break;
                 }
             }
@@ -478,8 +478,6 @@ void _set_webusb_output_profile(uint8_t mode)
 {
     _webusb_op.remap_en = false;
 
-    
-    
     switch(mode)
     {
         default:
