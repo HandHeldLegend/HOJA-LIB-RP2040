@@ -112,7 +112,7 @@ void rgb_init(int mode, int brightness)
     }
 
     // DEBUG
-    //set_mode = 0;
+    //set_mode = 2;
 
     // Load local colors
     for(int i = 0; i < RGB_MAX_GROUPS; i++)
