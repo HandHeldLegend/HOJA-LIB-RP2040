@@ -296,6 +296,8 @@ typedef struct
 mapper_operation_s _webusb_op = {.input_slots = NULL, .output_types = NULL, .remap_en=false, .rapid_value={0}, .rapid_press_state ={0}};
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
 
+#define MAPPER_ANALOG_MAX 0xFFF
+
 mapper_input_s _mapper_operation(mapper_operation_s *op)
 {
     // Temporary store for new output data
@@ -313,7 +315,12 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         uint16_t threshold_delta = op->input_slots[i].threshold_delta;
 
         uint16_t *input = &_all_inputs.inputs[i];
+        bool *press = &_all_inputs.presses[i];
         uint16_t *output = &tmp.inputs[output_code];
+        bool *output_press = &tmp.presses[output_code];
+
+        uint16_t this_output = 0;
+        bool this_press = false;
 
         // We perform different operation types dependent
         // on the type of INPUT (Digital, Hover, Joystick)
@@ -327,43 +334,31 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
             case MAPPER_INPUT_TYPE_DIGITAL:
             {
                 // Only process if the button is pressed
-                if (*input == 0) continue;
+                if (!*press) continue;
 
                 switch(output_type)
                 {
                     default:
                     if(!op->remap_en)
                     {
-                        *output |= MAPPER_DIGITAL_PRESS_MASK;
-                        *output |= 0xFFF;
+                        this_press = true;
+                        this_output = MAPPER_ANALOG_MAX;
                     }
                     break;
 
                     // The simplest output, just pass through using the output mapcode
                     case MAPPER_OUTPUT_DIGITAL:
-                    *output |= 0xFFF;
-                    // Set press mask
-                    *output |= MAPPER_DIGITAL_PRESS_MASK;
-                    break;
-
-                    // Output to our virtual analog dpad
-                    // which will be translated later
                     case MAPPER_OUTPUT_DPAD:
-                    _handle_analog_compare(output, 0xFFF);
-                    *output |= MAPPER_DIGITAL_PRESS_MASK;
+                    this_press = true;
+                    this_output = MAPPER_ANALOG_MAX;
                     break;
 
                     // Output to our triggers using the configured static output value
                     // for this particular input
                     case MAPPER_OUTPUT_HOVER:
-                    _handle_analog_compare(output, static_output);
-                    *output |= MAPPER_DIGITAL_PRESS_MASK;
-                    break;
-
-                    // Output to our joystick using the configured static output value
                     case MAPPER_OUTPUT_JOYSTICK:
-                    _handle_analog_compare(output, static_output);
-                    *output |= MAPPER_DIGITAL_PRESS_MASK;
+                    this_press = true;
+                    this_output = static_output;
                     break;
                 }
             }
@@ -376,47 +371,47 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     default:
                     if(!op->remap_en)
                     {
-                        *output |= *input;
-                        *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                        this_output = *input;
+                        this_press = *input>0 ? true : false;
                     }
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
-                    *output |= _handle_analog_to_digital(*input, output_mode, threshold_delta, 
-                        &op->rapid_value[i], &op->rapid_press_state[i]) ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = _handle_analog_to_digital(*input, output_mode, threshold_delta, 
+                        &op->rapid_value[i], &op->rapid_press_state[i]) ? true : false;
 
                     // Forward the original analog state too
-                    *output |= *input;
+                    this_output = *input;
                     break;
 
                     // Output to our virtual analog dpad
                     // which will be translated later
                     case MAPPER_OUTPUT_DPAD:
-                    *output = _handle_analog_to_analog(*input, 
-                        output_mode, 0xFFF, threshold_delta,
+                    this_output = _handle_analog_to_analog(*input, 
+                        output_mode, MAPPER_ANALOG_MAX, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
                     
                     // Apply press mask if we have an input
-                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
 
                     // Output to our triggers using the configured static output value
                     // for this particular input
                     case MAPPER_OUTPUT_HOVER:
-                    *output = _handle_analog_to_analog(*input, 
+                    this_output = _handle_analog_to_analog(*input, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]);
 
-                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
 
                     // Output to our joystick using the configured static output value (divided by 2)
                     case MAPPER_OUTPUT_JOYSTICK:
-                    *output = _handle_analog_to_analog(*input, 
+                    this_output = _handle_analog_to_analog(*input, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
                 }
             }
@@ -429,46 +424,50 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     default:
                     if(!op->remap_en)
                     {
-                        *output |= *input<<1;
-                        *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                        this_output = *input;
+                        this_press = *input>0 ? true : false;
                     }
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
-                    *output |= _handle_analog_to_digital(*input << 1, output_mode, threshold_delta, 
-                        &op->rapid_value[i], &op->rapid_press_state[i]) ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press |= _handle_analog_to_digital(*input << 1, output_mode, threshold_delta, 
+                        &op->rapid_value[i], &op->rapid_press_state[i]) ? true : false;
 
                     // Forward the original analog state too
-                    *output |= *input << 1;
+                    this_output = *input<<1;
                     break;
 
                     case MAPPER_OUTPUT_DPAD:
-                    *output = _handle_analog_to_analog(*input << 1, 
-                        output_mode, 0xFFF, threshold_delta,
+                    this_output = _handle_analog_to_analog(*input << 1, 
+                        output_mode, MAPPER_ANALOG_MAX, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]) >> 1; 
 
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
 
                     case MAPPER_OUTPUT_HOVER:
-                    *output = _handle_analog_to_analog(*input << 1, 
+                    this_output = _handle_analog_to_analog(*input << 1, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
 
                     case MAPPER_OUTPUT_JOYSTICK:
-                    *output = _handle_analog_to_analog(*input << 1, 
+                    this_output = _handle_analog_to_analog(*input << 1, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    this_press = this_output>0 ? true : false;
                     break;
                 }
             }
             break;
         }
+
+        // Apply new readings
+        _handle_analog_compare(output, this_output);
+        *output_press |= this_press;
     }
 
     return tmp;

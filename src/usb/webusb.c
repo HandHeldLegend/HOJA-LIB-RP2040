@@ -132,14 +132,14 @@ void webusb_send_rawinput(uint64_t timestamp)
                 analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
 
                 // One value is focused and we get the full uint16_t value
-                uint16_t focused_val = mapper.inputs[_webusb_focused_hover];
+                uint16_t focused_val = mapper.inputs[_webusb_focused_hover] | (mapper.presses[_webusb_focused_hover] ? 0x8000 : 0);
                 webusb_input_report[14] = (focused_val & 0xFF00) >> 8;
                 webusb_input_report[15] = (focused_val & 0xFF); 
 
                 // Remainder of values are downsampled to 8 bits
                 for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
                 {
-                    uint8_t press_state = (mapper.inputs[i] & 0x8000) >> 8;
+                    uint8_t press_state = (mapper.presses[i] ? 0x80 : 0);
                     uint8_t scaled = ((mapper.inputs[i] >> 5) & 0x7F) | press_state;
                     webusb_input_report[16+i] = scaled;
                 }

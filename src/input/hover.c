@@ -161,7 +161,7 @@ void hover_init(void)
         uint8_t slot = _hover_slot_reader_idx[i];
         const uint16_t half = (0xFFF>>1);
 
-        _boot_capture.inputs[slot] = (_boot_capture.inputs[slot] > half) ? 1 : 0;
+        _boot_capture.presses[slot] = (_boot_capture.inputs[slot] > half);
     }
 
     //DEBUG
