@@ -16,8 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAPPER_DIGITAL_PRESS_MASK 0x8000
-
 mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
@@ -206,6 +204,9 @@ void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
 
 uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos)
 {
+    neg = (neg & 0x1FFF)>>1;
+    pos = (pos & 0x1FFF)>>1;
+
     neg = (neg > center) ? center : neg;
     pos = (pos > center) ? center : pos;
 
@@ -396,7 +397,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
                     
                     // Apply press mask if we have an input
-                    *output |= *input>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
+                    *output |= *output>0 ? MAPPER_DIGITAL_PRESS_MASK : 0;
                     break;
 
                     // Output to our triggers using the configured static output value
@@ -411,7 +412,6 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
 
                     // Output to our joystick using the configured static output value (divided by 2)
                     case MAPPER_OUTPUT_JOYSTICK:
-
                     *output = _handle_analog_to_analog(*input, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
@@ -667,7 +667,7 @@ void mapper_init()
     const int8_t default_codes_sinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SINPUT;
 
     // Debug always set to defaults on reboot
-    //if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
+    if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
     {
         input_config->input_config_version = CFG_BLOCK_INPUT_VERSION;
         _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
@@ -761,8 +761,23 @@ mapper_input_s mapper_get_webusb_input()
 
 mapper_input_s mapper_get_input()
 {
-    static mapper_input_s output;
+    analog_data_s joysticks;
+    mapper_input_s hovers;
+
+    analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
+    hover_access_safe(&hovers);
+
+    _all_inputs = hovers;
+    _all_inputs.inputs[INPUT_CODE_LX_LEFT] = joysticks.lx < 0 ? -joysticks.lx : 0;
+    _all_inputs.inputs[INPUT_CODE_LX_RIGHT] = joysticks.lx > 0 ? joysticks.lx : 0;
+    _all_inputs.inputs[INPUT_CODE_LY_UP] = joysticks.ly > 0 ? joysticks.ly : 0;
+    _all_inputs.inputs[INPUT_CODE_LY_DOWN] = joysticks.ly < 0 ? -joysticks.ly : 0;
+
+    _all_inputs.inputs[INPUT_CODE_RX_LEFT] = joysticks.rx < 0 ? -joysticks.rx : 0;
+    _all_inputs.inputs[INPUT_CODE_RX_RIGHT] = joysticks.rx > 0 ? joysticks.rx : 0;
+    _all_inputs.inputs[INPUT_CODE_RY_UP] = joysticks.ry > 0 ? joysticks.ry : 0;
+    _all_inputs.inputs[INPUT_CODE_RY_DOWN] = joysticks.ry < 0 ? -joysticks.ry : 0;
 
     // Return output pointer
-    return output;
+    return _mapper_operation(&_standard_op);
 }

@@ -6,6 +6,8 @@
 
 #define MAPPER_INPUT_COUNT 36 // Maximum number of unique inputs
 
+#define MAPPER_DIGITAL_PRESS_MASK 0x8000
+
 typedef enum 
 {
     MAPPER_INPUT_TYPE_UNUSED, // Input is disabled
@@ -247,6 +249,8 @@ typedef enum
 typedef struct 
 {
     uint16_t inputs[MAPPER_INPUT_COUNT];
+    bool presses[MAPPER_INPUT_COUNT];
+    
     union
     {
         struct 
