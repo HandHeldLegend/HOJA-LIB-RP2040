@@ -128,7 +128,7 @@ void webusb_send_rawinput(uint64_t timestamp)
             case WEBUSB_INPUT_RAW:
                 webusb_input_report[0] = WEBUSB_INPUT_RAW;
 
-                mapper_input_s mapper = mapper_get_webusb_input();
+                mapper_input_s mapper = mapper_get_translated_input();
                 analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
 
                 // One value is focused and we get the full uint16_t value

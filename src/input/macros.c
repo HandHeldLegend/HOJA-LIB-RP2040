@@ -16,13 +16,12 @@
 
 void macros_task(uint64_t timestamp)
 {
-    static mapper_input_s input = {0};
+    mapper_input_s input = mapper_get_translated_input();
     static interval_s interval = {0};
     static bool first_run = false;
 
     if(interval_run(timestamp, 1000, &interval))
     {
-        //button_access_safe(&buttons, BUTTON_ACCESS_RAW_DATA);
         first_run = true;
     }
 

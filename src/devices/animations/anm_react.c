@@ -89,11 +89,16 @@ bool anm_react_get_state(rgb_s *output)
     return true;
 }
 
+uint16_t _parse_distance(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2)
+{
+    uint16_t max_x = (x1 > x2) ? x1 : x2;
+    uint16_t max_y = (y1 > y2) ? y1 : y2;
+    return (max_x > max_y) ? max_x : max_y;
+}
+
 bool anm_react_handler(rgb_s* output)
 {
-    mapper_input_s input = mapper_get_webusb_input();
-    analog_data_s joysticks;
-    analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
+    mapper_input_s input = mapper_get_translated_input();
     
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
@@ -105,11 +110,13 @@ bool anm_react_handler(rgb_s* output)
             switch(i)
             {
                 case INPUT_CODE_LX_RIGHT:
-                _handle_analog_input(joysticks.ldistance<<1, group, output);
+                uint16_t d1 = _parse_distance(input.inputs[INPUT_CODE_LX_LEFT], input.inputs[INPUT_CODE_LX_RIGHT], input.inputs[INPUT_CODE_LY_UP], input.inputs[INPUT_CODE_LY_DOWN]);
+                _handle_analog_input(d1, group, output);
                 break;
 
                 case INPUT_CODE_RX_RIGHT:
-                _handle_analog_input(joysticks.rdistance<<1, group, output);
+                uint16_t d2 = _parse_distance(input.inputs[INPUT_CODE_RX_LEFT], input.inputs[INPUT_CODE_RX_RIGHT], input.inputs[INPUT_CODE_RY_UP], input.inputs[INPUT_CODE_RY_DOWN]);
+                _handle_analog_input(d2, group, output);
                 break;
 
                 default:

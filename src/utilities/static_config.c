@@ -247,7 +247,7 @@ void _rgb_static_set_names()
 
 void _analog_static_setup()
 {
-    inputInfoSlot_s *slots = input_static.input_info;
+    const inputInfoSlot_s *slots = input_static.input_info;
 
     if(slots[INPUT_CODE_LT_ANALOG].input_type == INPUT_TYPE_HOVER)
         analog_static.axis_lt = 1;

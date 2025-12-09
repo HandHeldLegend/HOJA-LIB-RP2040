@@ -4,6 +4,7 @@
 #include "input/analog.h"
 #include "input_shared_types.h"
 #include "utilities/static_config.h"
+#include "input/idle_manager.h"
 
 #include "input/analog.h"
 
@@ -293,7 +294,7 @@ typedef struct
     bool rapid_press_state[MAPPER_INPUT_COUNT];
 } mapper_operation_s;
 
-mapper_operation_s _webusb_op = {.input_slots = NULL, .output_types = NULL, .remap_en=false, .rapid_value={0}, .rapid_press_state ={0}};
+mapper_operation_s _translated_op = {.input_slots = NULL, .output_types = NULL, .remap_en=false, .rapid_value={0}, .rapid_press_state ={0}};
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
 
 #define MAPPER_ANALOG_MAX 0xFFF
@@ -302,6 +303,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
 {
     // Temporary store for new output data
     mapper_input_s tmp = {0};
+    bool heartbeat = false;
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
@@ -468,7 +470,13 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         // Apply new readings
         _handle_analog_compare(output, this_output);
         *output_press |= this_press;
+
+        heartbeat |= this_output>0;
+        heartbeat |= this_press;
     }
+
+    // Heartbeat
+    if(heartbeat) idle_manager_heartbeat();
 
     return tmp;
 }
@@ -513,54 +521,54 @@ void _set_mapper_defaults(uint8_t command_code)
     }
 }
 
-void _set_webusb_output_profile(uint8_t mode)
+void _set_raw_output_profile(uint8_t mode)
 {
-    _webusb_op.remap_en = false;
+    _translated_op.remap_en = false;
 
     switch(mode)
     {
         default:
         case GAMEPAD_MODE_SWPRO:
-        _webusb_op.input_slots = input_config->input_profile_switch;
-        _webusb_op.output_types = _switch_output_types;
-        _webusb_op.output_types_max = SWITCH_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_switch;
+        _translated_op.output_types = _switch_output_types;
+        _translated_op.output_types_max = SWITCH_CODE_MAX;
         break;
 
         case GAMEPAD_MODE_GAMECUBE:
         case GAMEPAD_MODE_GCUSB:
-        _webusb_op.input_slots = input_config->input_profile_gamecube;
-        _webusb_op.output_types = _gamecube_output_types;
-        _webusb_op.output_types_max = GAMECUBE_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_gamecube;
+        _translated_op.output_types = _gamecube_output_types;
+        _translated_op.output_types_max = GAMECUBE_CODE_MAX;
         break;
 
         case GAMEPAD_MODE_SNES:
-        _webusb_op.input_slots = input_config->input_profile_snes;
-        _webusb_op.output_types = _snes_output_types;
-        _webusb_op.output_types_max = SNES_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_snes;
+        _translated_op.output_types = _snes_output_types;
+        _translated_op.output_types_max = SNES_CODE_MAX;
         break;
 
         case GAMEPAD_MODE_N64:
-        _webusb_op.input_slots = input_config->input_profile_n64;
-        _webusb_op.output_types = _n64_output_types;
-        _webusb_op.output_types_max = N64_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_n64;
+        _translated_op.output_types = _n64_output_types;
+        _translated_op.output_types_max = N64_CODE_MAX;
         break;
 
         case GAMEPAD_MODE_XINPUT:
-        _webusb_op.input_slots = input_config->input_profile_xinput;
-        _webusb_op.output_types = _xinput_output_types;
-        _webusb_op.output_types_max = XINPUT_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_xinput;
+        _translated_op.output_types = _xinput_output_types;
+        _translated_op.output_types_max = XINPUT_CODE_MAX;
         break;
 
         case GAMEPAD_MODE_SINPUT:
-        _webusb_op.input_slots = input_config->input_profile_sinput;
-        _webusb_op.output_types = _sinput_output_types;
-        _webusb_op.output_types_max = SINPUT_CODE_MAX;
+        _translated_op.input_slots = input_config->input_profile_sinput;
+        _translated_op.output_types = _sinput_output_types;
+        _translated_op.output_types_max = SINPUT_CODE_MAX;
         break;
     }
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
-        _webusb_op.rapid_value[i] = _webusb_op.input_slots[i].threshold_delta;
+        _translated_op.rapid_value[i] = _translated_op.input_slots[i].threshold_delta;
     }
 }
 
@@ -578,32 +586,32 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
-        _set_webusb_output_profile(GAMEPAD_MODE_SWPRO);
+        _set_raw_output_profile(GAMEPAD_MODE_SWPRO);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
-        _set_webusb_output_profile(GAMEPAD_MODE_XINPUT);
+        _set_raw_output_profile(GAMEPAD_MODE_XINPUT);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
-        _set_webusb_output_profile(GAMEPAD_MODE_SNES);
+        _set_raw_output_profile(GAMEPAD_MODE_SNES);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
-        _set_webusb_output_profile(GAMEPAD_MODE_N64);
+        _set_raw_output_profile(GAMEPAD_MODE_N64);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
-        _set_webusb_output_profile(GAMEPAD_MODE_GAMECUBE);
+        _set_raw_output_profile(GAMEPAD_MODE_GAMECUBE);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
-        _set_webusb_output_profile(GAMEPAD_MODE_SINPUT);
+        _set_raw_output_profile(GAMEPAD_MODE_SINPUT);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
     }  
@@ -679,7 +687,10 @@ void mapper_init()
 
     static bool boot_init = false;
     if(!boot_init)
-        _set_webusb_output_profile(GAMEPAD_MODE_SWPRO);
+    {
+        _set_raw_output_profile(hoja_get_status().gamepad_mode);
+    }
+        
     boot_init = true;
 
     switch(hoja_get_status().gamepad_mode)
@@ -729,7 +740,7 @@ void mapper_init()
     }
 }
 
-mapper_input_s mapper_get_webusb_input()
+mapper_input_s mapper_get_translated_input()
 {
     analog_data_s joysticks;
     mapper_input_s hovers;
@@ -748,7 +759,7 @@ mapper_input_s mapper_get_webusb_input()
     _all_inputs.inputs[INPUT_CODE_RY_UP] = joysticks.ry > 0 ? joysticks.ry : 0;
     _all_inputs.inputs[INPUT_CODE_RY_DOWN] = joysticks.ry < 0 ? -joysticks.ry : 0;
 
-    return _mapper_operation(&_webusb_op);
+    return _mapper_operation(&_translated_op);
 }
 
 mapper_input_s mapper_get_input()

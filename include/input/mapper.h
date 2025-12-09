@@ -12,7 +12,7 @@ uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos);
 void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb);
 
 void mapper_init();
-mapper_input_s mapper_get_webusb_input();
+mapper_input_s mapper_get_translated_input();
 mapper_input_s mapper_get_input();
 
 #endif
