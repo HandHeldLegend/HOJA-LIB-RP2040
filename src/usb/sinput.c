@@ -17,94 +17,98 @@
 
 #include "board_config.h"
 
-// SEWN (South, East, West, North)
-#if (defined(HOJA_INPUT_ENABLE_SEWN) && HOJA_INPUT_ENABLE_SEWN == 1)
-    #define SINPUT_MASK_SEWN 0x0F
-#else
-    #define SINPUT_MASK_SEWN 0
-#endif
+#define SINPUT_MASK_SEWN 0x0F
+#define SINPUT_MASK_DPAD 0xF0
 
-// DPAD (Up, Down, Left, Right)
-#if (defined(HOJA_INPUT_ENABLE_DPAD) && HOJA_INPUT_ENABLE_DPAD == 1)
-    #define SINPUT_MASK_DPAD 0xF0
-#else
-    #define SINPUT_MASK_DPAD 0
-#endif
+
 
 // Bumpers (L1, R1)
-#if (defined(HOJA_INPUT_ENABLE_BUMPERS) && HOJA_INPUT_ENABLE_BUMPERS == 1)
-    #define SINPUT_MASK_BUMPERS 0x0C
-#else
-    #define SINPUT_MASK_BUMPERS 0
-#endif
+#define SINPUT_MASK_BUMPERS 0x0C
 
 // Triggers (L2, R2)
-#if (defined(HOJA_INPUT_ENABLE_TRIGGERS) && HOJA_INPUT_ENABLE_TRIGGERS == 1)
-    #define SINPUT_MASK_TRIGGERS 0x30
-#else
-    #define SINPUT_MASK_TRIGGERS 0
-#endif
+#define SINPUT_MASK_TRIGGERS 0x30
 
 // Start + Select
-#if (defined(HOJA_INPUT_ENABLE_STARTSELECT) && HOJA_INPUT_ENABLE_STARTSELECT == 1)
-    #define SINPUT_MASK_STARTSELECT 0x03
-#else
-    #define SINPUT_MASK_STARTSELECT 0
-#endif
+#define SINPUT_MASK_STARTSELECT 0x03
 
 // Home
-#if (defined(HOJA_INPUT_ENABLE_HOME) && HOJA_INPUT_ENABLE_HOME == 1)
-    #define SINPUT_MASK_HOME 0x04
-#else
-    #define SINPUT_MASK_HOME 0
-#endif
+#define SINPUT_MASK_HOME 0x04
 
 // Capture
-#if (defined(HOJA_INPUT_ENABLE_CAPTURE) && HOJA_INPUT_ENABLE_CAPTURE == 1)
-    #define SINPUT_MASK_CAPTURE 0x08
-#else
-    #define SINPUT_MASK_CAPTURE 0
-#endif
+#define SINPUT_MASK_CAPTURE 0x08
 
 // Stick Click: L3
-#if defined(HOJA_ADC_LX_CFG)
-    #define SINPUT_MASK_LSTICK 0x01
-#else
-    #define SINPUT_MASK_LSTICK 0
-#endif
+#define SINPUT_MASK_LSTICK 0x01
 
 // Stick Click: R3
-#if defined(HOJA_ADC_RX_CFG)
-    #define SINPUT_MASK_RSTICK 0x02
-#else
-    #define SINPUT_MASK_RSTICK 0
-#endif
+#define SINPUT_MASK_RSTICK 0x02
 
 // Upper Grips (L4, R4)
-#if (defined(HOJA_INPUT_ENABLE_UPPERGRIPS) && HOJA_INPUT_ENABLE_UPPERGRIPS == 1)
-    #define SINPUT_MASK_UPPERGRIPS 0xC0
-#else
-    #define SINPUT_MASK_UPPERGRIPS 0
-#endif
+#define SINPUT_MASK_UPPERGRIPS 0xC0
 
 // Lower Grips (L5, R5)
-#if (defined(HOJA_INPUT_ENABLE_LOWERGRIPS) && HOJA_INPUT_ENABLE_LOWERGRIPS == 1)
-    #define SINPUT_MASK_LOWERGRIPS 0x30
-#else
-    #define SINPUT_MASK_LOWERGRIPS 0
-#endif
+#define SINPUT_MASK_LOWERGRIPS 0x30
 
 // Power
-#if (defined(HOJA_INPUT_ENABLE_POWER) && HOJA_INPUT_ENABLE_POWER == 1)
-    #define SINPUT_MASK_POWER 0x01
-#else 
-    #define SINPUT_MASK_POWER 0
-#endif
+#define SINPUT_MASK_POWER 0x01
 
 #define SINPUT_MASK_0 ( SINPUT_MASK_SEWN | SINPUT_MASK_DPAD )
 #define SINPUT_MASK_1 ( SINPUT_MASK_LSTICK | SINPUT_MASK_RSTICK | SINPUT_MASK_TRIGGERS | SINPUT_MASK_BUMPERS | SINPUT_MASK_UPPERGRIPS )
 #define SINPUT_MASK_2 ( SINPUT_MASK_STARTSELECT | SINPUT_MASK_HOME | SINPUT_MASK_CAPTURE | SINPUT_MASK_LOWERGRIPS )
 #define SINPUT_MASK_3 ( SINPUT_MASK_POWER )
+
+bool _s_enabled(uint8_t code)
+{
+    return (input_static.input_info[code].input_type > 0);
+}
+
+void _sinput_generate_input_masks(uint8_t *masks)
+{
+    uint8_t mask_0 = 0;
+    uint8_t mask_1 = 0;
+    uint8_t mask_2 = 0;
+    uint8_t mask_3 = 0;
+    if(_s_enabled(INPUT_CODE_SOUTH) | _s_enabled(INPUT_CODE_EAST) | _s_enabled(INPUT_CODE_WEST) | _s_enabled(INPUT_CODE_NORTH))
+        mask_0 |= SINPUT_MASK_SEWN;
+
+    if(_s_enabled(INPUT_CODE_UP) | _s_enabled(INPUT_CODE_DOWN) | _s_enabled(INPUT_CODE_LEFT) | _s_enabled(INPUT_CODE_RIGHT))
+        mask_0 |= SINPUT_MASK_DPAD;
+
+    if(_s_enabled(INPUT_CODE_LB) | _s_enabled(INPUT_CODE_RB))
+        mask_1 |= SINPUT_MASK_BUMPERS;
+
+    if(_s_enabled(INPUT_CODE_LS))
+        mask_1 |= SINPUT_MASK_LSTICK;
+
+    if(_s_enabled(INPUT_CODE_RS))
+        mask_1 |= SINPUT_MASK_RSTICK;
+
+    if(_s_enabled(INPUT_CODE_LT) | _s_enabled(INPUT_CODE_RT))
+        mask_1 |= SINPUT_MASK_TRIGGERS;
+
+    if(_s_enabled(INPUT_CODE_LP1) | _s_enabled(INPUT_CODE_RP1))
+        mask_1 |= SINPUT_MASK_UPPERGRIPS;
+
+    if(_s_enabled(INPUT_CODE_START) | _s_enabled(INPUT_CODE_SELECT))
+        mask_2 |= SINPUT_MASK_STARTSELECT;
+        
+    if(_s_enabled(INPUT_CODE_HOME))
+        mask_2 |= SINPUT_MASK_HOME;
+
+    if(_s_enabled(INPUT_CODE_SHARE))
+        mask_2 |= SINPUT_MASK_CAPTURE;
+
+    if(_s_enabled(INPUT_CODE_LP2) | _s_enabled(INPUT_CODE_RP2))
+        mask_2 |= SINPUT_MASK_LOWERGRIPS;
+
+    if(_s_enabled(INPUT_CODE_MISC3))
+        mask_3 |= SINPUT_MASK_POWER;
+
+    masks[0] = mask_0;
+    masks[1] = mask_1;
+    masks[2] = mask_2;
+    masks[3] = mask_3;
+}
 
 const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bLength = 18,
@@ -371,10 +375,7 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
-    buffer[12] = SINPUT_MASK_0;
-    buffer[13] = SINPUT_MASK_1;
-    buffer[14] = SINPUT_MASK_2;
-    buffer[15] = SINPUT_MASK_3;
+    _sinput_generate_input_masks(&buffer[12]);
 
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count

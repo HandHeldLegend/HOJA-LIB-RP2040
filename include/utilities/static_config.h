@@ -122,7 +122,7 @@ typedef struct
 #define STATINFO_RGB_SIZE               sizeof(rgbInfoStatic_s)
 
 extern const deviceInfoStatic_s     device_static; 
-extern const analogInfoStatic_s     analog_static; 
+extern analogInfoStatic_s           analog_static; 
 extern const imuInfoStatic_s        imu_static; 
 extern const batteryInfoStatic_s    battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
@@ -130,6 +130,7 @@ extern const inputInfoStatic_s      input_static;
 extern bluetoothInfoStatic_s        bluetooth_static;
 extern rgbInfoStatic_s              rgb_static;
 
+void static_config_init();
 void static_config_read_block(static_block_t block, setting_callback_t cb);
 
 #endif

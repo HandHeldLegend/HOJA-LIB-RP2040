@@ -133,15 +133,15 @@ void webusb_send_rawinput(uint64_t timestamp)
 
                 // One value is focused and we get the full uint16_t value
                 uint16_t focused_val = mapper.inputs[_webusb_focused_hover] | (mapper.presses[_webusb_focused_hover] ? 0x8000 : 0);
-                webusb_input_report[14] = (focused_val & 0xFF00) >> 8;
-                webusb_input_report[15] = (focused_val & 0xFF); 
+                webusb_input_report[15] = (focused_val & 0xFF00) >> 8;
+                webusb_input_report[16] = (focused_val & 0xFF); 
 
                 // Remainder of values are downsampled to 8 bits
                 for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
                 {
                     uint8_t press_state = (mapper.presses[i] ? 0x80 : 0);
                     uint8_t scaled = ((mapper.inputs[i] >> 5) & 0x7F) | press_state;
-                    webusb_input_report[16+i] = scaled;
+                    webusb_input_report[17+i] = scaled;
                 }
             break;
 
@@ -153,28 +153,28 @@ void webusb_send_rawinput(uint64_t timestamp)
                 uint16_t ly = (uint16_t) (joysticks.ly + 2048);
                 uint16_t rx = (uint16_t) (joysticks.rx + 2048);
                 uint16_t ry = (uint16_t) (joysticks.ry + 2048);
-                webusb_input_report[14] = (lx & 0xFF00) >> 8;
-                webusb_input_report[15] = (lx & 0xFF);       
-                webusb_input_report[16] = (ly & 0xFF00) >> 8;
-                webusb_input_report[17] = (ly & 0xFF);       
-                webusb_input_report[18] = (rx & 0xFF00) >> 8;
-                webusb_input_report[19] = (rx & 0xFF);       
-                webusb_input_report[20] = (ry & 0xFF00) >> 8;
-                webusb_input_report[21] = (ry & 0xFF);
+                webusb_input_report[15] = (lx & 0xFF00) >> 8;
+                webusb_input_report[16] = (lx & 0xFF);       
+                webusb_input_report[17] = (ly & 0xFF00) >> 8;
+                webusb_input_report[18] = (ly & 0xFF);       
+                webusb_input_report[19] = (rx & 0xFF00) >> 8;
+                webusb_input_report[20] = (rx & 0xFF);       
+                webusb_input_report[21] = (ry & 0xFF00) >> 8;
+                webusb_input_report[22] = (ry & 0xFF);
 
                 analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
                 lx = (uint16_t) (joysticks.lx + 2048);
                 ly = (uint16_t) (joysticks.ly + 2048);
                 rx = (uint16_t) (joysticks.rx + 2048);
                 ry = (uint16_t) (joysticks.ry + 2048);
-                webusb_input_report[22] = (lx & 0xFF00) >> 8;
-                webusb_input_report[23] = (lx & 0xFF);
-                webusb_input_report[24] = (ly & 0xFF00) >> 8;
-                webusb_input_report[25] = (ly & 0xFF);
-                webusb_input_report[26] = (rx & 0xFF00) >> 8;
-                webusb_input_report[27] = (rx & 0xFF);
-                webusb_input_report[28] = (ry & 0xFF00) >> 8;
-                webusb_input_report[29] = (ry & 0xFF);
+                webusb_input_report[23] = (lx & 0xFF00) >> 8;
+                webusb_input_report[24] = (lx & 0xFF);
+                webusb_input_report[25] = (ly & 0xFF00) >> 8;
+                webusb_input_report[26] = (ly & 0xFF);
+                webusb_input_report[27] = (rx & 0xFF00) >> 8;
+                webusb_input_report[28] = (rx & 0xFF);
+                webusb_input_report[29] = (ry & 0xFF00) >> 8;
+                webusb_input_report[30] = (ry & 0xFF);
             break;
         }
 

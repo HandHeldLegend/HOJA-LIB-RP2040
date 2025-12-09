@@ -356,6 +356,9 @@ bool _system_requirements_init()
   i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL, baudrate_khz_i2c1);
 #endif
 
+  // Static config
+  static_config_init();
+
   // System settings
   settings_init();
 

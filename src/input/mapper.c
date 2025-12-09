@@ -722,18 +722,11 @@ void mapper_init()
         _standard_op.output_types_max = SINPUT_CODE_MAX;
         break;
     }
-}
 
-// Thread safe access mapper outputs (Post-remapping)
-void mapper_access_output_safe(mapper_input_s *out)
-{
-    snapshot_mapper_read(&_mapper_snap_out, out);
-}
-
-// Thread safe access mapper inputs (Post-scaling, Pre-remapping)
-void mapper_access_input_safe(mapper_input_s *out)
-{
-    snapshot_mapper_read(&_mapper_snap_in, out);
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
+        _standard_op.rapid_value[i] = _standard_op.input_slots[i].threshold_delta;
+    }
 }
 
 mapper_input_s mapper_get_webusb_input()

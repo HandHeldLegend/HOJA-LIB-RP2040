@@ -78,51 +78,15 @@ const deviceInfoStatic_s    device_static = {
     .joybus_supported = JOYBUS_SUPPORT
 };
 
-#if defined(HOJA_ADC_LX_CFG) 
- #define ALX (1)
-#else 
- #define ALX (0)
-#endif
-
-#if defined(HOJA_ADC_LY_CFG) 
- #define ALY (1)
-#else 
- #define ALY (0)
-#endif
-
-#if defined(HOJA_ADC_RX_CFG) 
- #define ARX (1)
-#else 
- #define ARX (0)
-#endif
-
-#if defined(HOJA_ADC_RY_CFG) 
- #define ARY (1)
-#else 
- #define ARY (0)
-#endif
-
-#if defined(HOJA_ADC_LT_CFG) 
- #define ALT (1)
-#else 
- #define ALT (0)
-#endif
-
-#if defined(HOJA_ADC_RT_CFG) 
- #define ART (1)
-#else 
- #define ART (0)
-#endif
-
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)
 
-const analogInfoStatic_s    analog_static = {
-    .axis_lx = ALX,
-    .axis_ly = ALY,
-    .axis_rx = ARX,
-    .axis_ry = ARY,
-    .axis_lt = ALT,
-    .axis_rt = ART,
+analogInfoStatic_s analog_static = {
+    .axis_lx = 0,
+    .axis_ly = 0,
+    .axis_rx = 0,
+    .axis_ry = 0,
+    .axis_lt = 0,
+    .axis_rt = 0,
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)
@@ -175,121 +139,6 @@ const hapticInfoStatic_s    haptic_static = {
     .haptic_hd = HAPTICS_HD_EN,
     .haptic_sd = HAPTICS_SD_EN,
 };
-
-
-// SEWN (South, East, West, North)
-#if (defined(HOJA_INPUT_ENABLE_SEWN) && HOJA_INPUT_ENABLE_SEWN == 1)
-    #define STATIC_REMAP_SEWN 0x0000000F  // bits 0–3
-#else
-    #define STATIC_REMAP_SEWN 0
-#endif
-
-// DPAD (Up, Down, Left, Right)
-#if (defined(HOJA_INPUT_ENABLE_DPAD) && HOJA_INPUT_ENABLE_DPAD == 1)
-    #define STATIC_REMAP_DPAD 0x000000F0  // bits 4–7
-#else
-    #define STATIC_REMAP_DPAD 0
-#endif
-
-// Bumpers (L1, R1)
-#if (defined(HOJA_INPUT_ENABLE_BUMPERS) && HOJA_INPUT_ENABLE_BUMPERS == 1)
-    #define STATIC_REMAP_BUMPERS 0x00000300  // bits 8–9
-#else
-    #define STATIC_REMAP_BUMPERS 0
-#endif
-
-// Triggers (L2, R2)
-#if (defined(HOJA_INPUT_ENABLE_TRIGGERS) && HOJA_INPUT_ENABLE_TRIGGERS == 1)
-    #define STATIC_REMAP_TRIGGERS 0x00000C00  // bits 10–11
-#else
-    #define STATIC_REMAP_TRIGGERS 0
-#endif
-
-// Start + Select
-#if (defined(HOJA_INPUT_ENABLE_STARTSELECT) && HOJA_INPUT_ENABLE_STARTSELECT == 1)
-    #define STATIC_REMAP_STARTSELECT 0x00003000  // bits 12–13
-#else
-    #define STATIC_REMAP_STARTSELECT 0
-#endif
-
-// Home
-#if (defined(HOJA_INPUT_ENABLE_HOME) && HOJA_INPUT_ENABLE_HOME == 1)
-    #define STATIC_REMAP_HOME 0x00004000  // bit 14
-#else
-    #define STATIC_REMAP_HOME 0
-#endif
-
-// Capture
-#if (defined(HOJA_INPUT_ENABLE_CAPTURE) && HOJA_INPUT_ENABLE_CAPTURE == 1)
-    #define STATIC_REMAP_CAPTURE 0x00008000  // bit 15
-#else
-    #define STATIC_REMAP_CAPTURE 0
-#endif
-
-// Stick Click: L3
-#if (ALX == 1)
-    #define STATIC_REMAP_L3 0x00010000  // bit 16
-#else
-    #define STATIC_REMAP_L3 0
-#endif
-
-// Stick Click: R3
-#if (ARX == 1)
-    #define STATIC_REMAP_R3 0x00020000  // bit 17
-#else
-    #define STATIC_REMAP_R3 0
-#endif
-
-// Upper Grips (L4, R4)
-#if (defined(HOJA_INPUT_ENABLE_UPPERGRIPS) && HOJA_INPUT_ENABLE_UPPERGRIPS == 1)
-    #define STATIC_REMAP_UPPERGRIPS 0x000C0000  // bits 18–19
-#else
-    #define STATIC_REMAP_UPPERGRIPS 0
-#endif
-
-// Lower Grips (L5, R5)
-#if (defined(HOJA_INPUT_ENABLE_LOWERGRIPS) && HOJA_INPUT_ENABLE_LOWERGRIPS == 1)
-    #define STATIC_REMAP_LOWERGRIPS 0x00300000  // bits 20–21
-#else
-    #define STATIC_REMAP_LOWERGRIPS 0
-#endif
-
-// Analog Trigger Axes (L2 Analog, R2 Analog)
-#if (ALT == 1 || ART == 1)
-    #define STATIC_REMAP_TRIGGERAXES 0x00C00000  // bits 22–23
-#else
-    #define STATIC_REMAP_TRIGGERAXES 0
-#endif
-
-// Left Stick Axes (LX+, LX-, LY+, LY-)
-#if (ALX == 1)
-    #define STATIC_REMAP_LSTICK 0x0F000000  // bits 24–27
-#else
-    #define STATIC_REMAP_LSTICK 0
-#endif
-
-// Right Stick Axes (RX+, RX-, RY+, RY-)
-#if (ARX == 1)
-    #define STATIC_REMAP_RSTICK 0xF0000000  // bits 28–31
-#else
-    #define STATIC_REMAP_RSTICK 0
-#endif
-
-#define STATIC_REMAP_ALL ( \
-    STATIC_REMAP_SEWN        | \
-    STATIC_REMAP_DPAD        | \
-    STATIC_REMAP_BUMPERS     | \
-    STATIC_REMAP_TRIGGERS    | \
-    STATIC_REMAP_STARTSELECT | \
-    STATIC_REMAP_HOME        | \
-    STATIC_REMAP_CAPTURE     | \
-    STATIC_REMAP_L3          | \
-    STATIC_REMAP_R3          | \
-    STATIC_REMAP_UPPERGRIPS  | \
-    STATIC_REMAP_LOWERGRIPS  | \
-    STATIC_REMAP_TRIGGERAXES | \
-    STATIC_REMAP_LSTICK      | \
-    STATIC_REMAP_RSTICK )
 
 #if !defined(HOJA_INPUT_SLOTS)
     #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
@@ -396,6 +245,29 @@ void _rgb_static_set_names()
     }
 }
 
+void _analog_static_setup()
+{
+    inputInfoSlot_s *slots = input_static.input_info;
+
+    if(slots[INPUT_CODE_LT_ANALOG].input_type == INPUT_TYPE_HOVER)
+        analog_static.axis_lt = 1;
+
+    if(slots[INPUT_CODE_RT_ANALOG].input_type == INPUT_TYPE_HOVER)
+        analog_static.axis_rt = 1;
+
+    if(slots[INPUT_CODE_LX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_lx = 1;
+
+    if(slots[INPUT_CODE_LY_UP].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_ly = 1;
+
+    if(slots[INPUT_CODE_RX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_rx = 1;
+
+    if(slots[INPUT_CODE_RY_UP].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_ry = 1;
+}
+
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
 #define BLOCK_TYPE_IDX 1
@@ -404,6 +276,12 @@ void _rgb_static_set_names()
 #define BLOCK_CHUNK_BEGIN_IDX 4
 
 #define BLOCK_CHUNK_HEADER_SIZE 4
+
+void static_config_init()
+{
+    _rgb_static_set_names();
+    _analog_static_setup();
+}
 
 uint8_t _serdata[64] = {0};
 void _serialize_static_block(static_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
@@ -490,7 +368,6 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_RGB:
-            _rgb_static_set_names();
             _serialize_static_block(block, (uint8_t *) &rgb_static, STATINFO_RGB_SIZE, cb);
         break;
     }
