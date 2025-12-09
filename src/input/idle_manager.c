@@ -6,7 +6,7 @@
 
 #include "hoja.h"
 
-#define IDLE_ACTIVATION_TIME_SECONDS 10//5 * 60 // 5 mins
+#define IDLE_ACTIVATION_TIME_SECONDS 5 * 60 // 5 mins
 #define IDLE_ACTIVATION_TIME_US (IDLE_ACTIVATION_TIME_SECONDS * 1000 * 1000)
 
 volatile bool _reset_state = false;
