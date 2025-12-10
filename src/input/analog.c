@@ -314,8 +314,6 @@ void analog_task(uint64_t timestamp)
 
         stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
 
-        if(_is_analog_dist_changed(&_deadzone_analog_data)) idle_manager_heartbeat();
-
         // Cap values
         _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);
         _deadzone_analog_data.ly = CAP_ANALOG(_deadzone_analog_data.ly);

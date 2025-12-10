@@ -133,24 +133,26 @@ typedef struct
 
 typedef struct 
 {
-    int first_distance;
-    int16_t offsets[63];
-} analogPackedDistances_s;
-
-#define ANALOG_PACKED_DISTANCES_SIZE sizeof(analogPackedDistances_s)
-
-typedef struct
-{
-  float input;    // Input Angle
-  float output;   // Output Angle
-  int distance; // Distance to this input angle maximum for hard polygonal shape stick gates
-} angleMap_s;
-
-#define ANGLE_MAP_SIZE sizeof(angleMap_s)
+    uint8_t dpad_config_version;
+    uint8_t socd_type;
+    uint16_t dpad_deadzone;
+} dpadConfig_s;
 
 typedef struct 
 {
-        uint8_t     analog_config_version; // 0
+    float in_angle;
+    float out_angle;
+    float deadzone;
+    float in_distance;
+    float out_distance;
+    bool enabled;
+} joyConfigSlot_s;
+
+#define JOY_CFG_SIZE sizeof(joyConfigSlot_s)
+
+typedef struct 
+{
+        uint8_t     analog_config_version; 
         uint16_t    lx_invert : 1; 
         uint16_t    lx_center : 15; 
         uint16_t    ly_invert : 1;
@@ -159,12 +161,8 @@ typedef struct
         uint16_t    rx_center : 15;
         uint16_t    ry_invert : 1;
         uint16_t    ry_center : 15; 
-        analogPackedDistances_s l_packed_distances; // SIZE=130
-        analogPackedDistances_s r_packed_distances; // SIZE=130
-        angleMap_s  l_angle_maps[16]; // SIZE=12
-        angleMap_s  r_angle_maps[16]; // SIZE=12
-        uint8_t     l_scaler_type; 
-        uint8_t     r_scaler_type; 
+        joyConfigSlot_s  joy_config_l[16]; // SIZE=21
+        joyConfigSlot_s  joy_config_r[16]; // SIZE=21
         uint16_t    l_deadzone; 
         uint16_t    r_deadzone; 
         uint8_t     l_snapback_type;
@@ -175,8 +173,10 @@ typedef struct
         uint16_t    r_snapback_intensity;
         uint16_t    l_threshold; // Analog->Digital threshold for left joystick
         uint16_t    r_threshold; // Analog->Digital threshold for right joystick
-        uint8_t     reserved[351];
-} analogConfig_s;
+        uint8_t     reserved[325];
+} analogConfig_s; // 1024 bytes
+
+#define ACFGSIZE sizeof(analogConfig_s)
 
 #define RGB_BRIGHTNESS_MAX 4096
 
