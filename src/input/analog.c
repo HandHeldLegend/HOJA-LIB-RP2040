@@ -97,6 +97,8 @@ analog_data_s _safe_scaled_analog_data   = {0};  // Stage 1
 analog_data_s _safe_snapback_analog_data = {0};  // Stage 2
 analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
 
+volatile bool _capture_centers = false;
+
 // Access analog input data safely
 void analog_access_safe(analog_data_s *out, analog_access_t type)
 {
@@ -120,9 +122,15 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
     }
 }
 
+void _capture_center_offsets();
 void analog_init()
 {
     switch_analog_calibration_init();
+
+    if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
+    {
+        _capture_centers = true;
+    }
     stick_scaling_init();
 
     _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
@@ -164,10 +172,9 @@ void _analog_read_raw()
     #endif
 }
 
-volatile bool _capture_centers = false;
 void _capture_center_offsets()
 {
-    int32_t lx_sum = 0, ly_sum = 0, rx_sum = 0, ry_sum = 0;
+    int lx_sum = 0, ly_sum = 0, rx_sum = 0, ry_sum = 0;
     
     // Discard the first reading
     _analog_read_raw();
@@ -175,10 +182,10 @@ void _capture_center_offsets()
     // Average over 8 readings
     for (int i = 0; i < 8; i++) {
         _analog_read_raw();
-        lx_sum += _raw_analog_data.lx & 0x7FFF;
-        ly_sum += _raw_analog_data.ly & 0x7FFF;
-        rx_sum += _raw_analog_data.rx & 0x7FFF;
-        ry_sum += _raw_analog_data.ry & 0x7FFF;
+        lx_sum += _raw_analog_data.lx;
+        ly_sum += _raw_analog_data.ly;
+        rx_sum += _raw_analog_data.rx;
+        ry_sum += _raw_analog_data.ry;
         sys_hal_sleep_ms(1);
     }
     

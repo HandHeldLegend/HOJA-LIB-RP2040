@@ -79,8 +79,12 @@ typedef struct
 
 typedef struct 
 {
-    uint16_t    capacity_mah;
-    uint8_t     part_number[24];
+    uint16_t    battery_capacity_mah;
+    uint8_t     battery_part_number[24];
+    uint8_t     pmic_status;
+    uint8_t     pmic_part_number[24];
+    uint8_t     fuelgauge_status;
+    uint8_t     fuelgauge_part_number[24];
 } batteryInfoStatic_s;
 
 typedef struct 
@@ -92,11 +96,11 @@ typedef struct
 
 typedef struct 
 {
-    uint16_t    baseband_version;
-    uint16_t    baseband_type; // 0 is onboard
-    uint8_t     bluetooth_bdr : 1;
-    uint8_t     bluetooth_ble : 1;
-    uint8_t reserved      : 6;
+    uint8_t     part_number[24];
+    uint8_t     external_update_supported;
+    uint16_t    external_version_number;
+    uint8_t     bluetooth_bdr_supported;
+    uint8_t     bluetooth_ble_supported;
 } bluetoothInfoStatic_s;
 
 typedef struct 
@@ -124,7 +128,7 @@ typedef struct
 extern const deviceInfoStatic_s     device_static; 
 extern analogInfoStatic_s           analog_static; 
 extern const imuInfoStatic_s        imu_static; 
-extern const batteryInfoStatic_s    battery_static; 
+extern batteryInfoStatic_s          battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
 extern const inputInfoStatic_s      input_static;
 extern bluetoothInfoStatic_s        bluetooth_static;

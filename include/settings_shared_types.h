@@ -24,7 +24,7 @@ typedef enum
 //#define CFG_BLOCK_REMAP_VERSION     0x13
 #define CFG_BLOCK_HOVER_VERSION     0x14
 
-#define CFG_BLOCK_ANALOG_VERSION    0x11
+#define CFG_BLOCK_ANALOG_VERSION    0x12 // Migrate from 0x11
 #define CFG_BLOCK_RGB_VERSION       0x11
 
 // Reserved for later use now
@@ -145,7 +145,7 @@ typedef struct
     float deadzone;
     float in_distance;
     float out_distance;
-    bool enabled;
+    uint8_t enabled;
 } joyConfigSlot_s;
 
 #define JOY_CFG_SIZE sizeof(joyConfigSlot_s)
@@ -153,6 +153,7 @@ typedef struct
 typedef struct 
 {
         uint8_t     analog_config_version; 
+        uint8_t     analog_calibration_set;
         uint16_t    lx_invert : 1; 
         uint16_t    lx_center : 15; 
         uint16_t    ly_invert : 1;
@@ -173,7 +174,7 @@ typedef struct
         uint16_t    r_snapback_intensity;
         uint16_t    l_threshold; // Analog->Digital threshold for left joystick
         uint16_t    r_threshold; // Analog->Digital threshold for right joystick
-        uint8_t     reserved[325];
+        uint8_t     reserved[324];
 } analogConfig_s; // 1024 bytes
 
 #define ACFGSIZE sizeof(analogConfig_s)
@@ -213,7 +214,7 @@ typedef struct
     uint16_t max;
 } hoverSlot_s;
 
-#define HOVER_SLOT_SIZE sizeof(hover_cfg_s) 
+#define HOVER_SLOT_SIZE sizeof(hoverSlot_s)
 
 typedef struct 
 {

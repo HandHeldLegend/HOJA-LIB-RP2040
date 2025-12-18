@@ -207,25 +207,24 @@ int _joy_validation_sort_and_count(joyConfigSlot_s config[ADJUSTABLE_ANGLES])
     return enabled_count;
 }
 
+
 /**
  * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
- * @param in_angle The raw input angle (0-360).
- * @param in_distance The raw input distance (0-2048 range).
- * @param config The array of calibration slots.
- * @param out_angle Pointer to store the resulting output angle.
- * @param out_distance Pointer to store the resulting output distance.
+ * @param input Input coordinates array 
+ * @param output Pointer to the output struct
+ * @param config Configuration slot data array
  * @return true if scaling was successful, false if no enabled slots are found.
  */
-bool _joy_scale_input(int16_t *input, analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES], float *out_angle, float *out_distance)
+bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES])
 {
-    int index_a, index_b;
+    int index_a, index_b = -1;
 
     float in_angle = stick_scaling_coordinates_to_angle(input[0], input[1]);
     float in_distance = stick_scaling_coordinate_distance(input[0], input[1]);
 
     // 1. Find the two calibration points (a and b) that bracket the input angle.
     // NOTE: Requires 'joy_find_bracketing_indices' to be defined and functional.
-    if (!_joy_find_bracketing_indices(in_angle, config, &index_a, &index_b))
+    if (!_joy_find_bracketing_indices_fast(in_angle, config, 8, &index_a, &index_b))
     {
         return false; 
     }
@@ -258,11 +257,11 @@ bool _joy_scale_input(int16_t *input, analog_meta_s *output, const joyConfigSlot
         
         if (fabsf(diff_a) < fabsf(diff_b))
         {
-             *out_angle = slot_a->out_angle;
+            output->angle = slot_a->out_angle;
         }
         else
         {
-            *out_angle = slot_b->out_angle;
+            output->angle = slot_b->out_angle;
         }
         
         // Skip interpolation and go straight to distance scaling
@@ -287,14 +286,14 @@ bool _joy_scale_input(int16_t *input, analog_meta_s *output, const joyConfigSlot
     if (diff_from_start <= 0.0f) 
     {
         // Input is within the deadzone of slot_a (or exactly at the start of the effective range)
-        *out_angle = slot_a->out_angle;
+        output->angle = slot_a->out_angle;
         goto distance_scaling;
     }
     
     if (diff_from_start >= effective_in_range)
     {
         // Input is within the deadzone of slot_b (or exactly at the end of the effective range)
-        *out_angle = slot_b->out_angle;
+        output->angle = slot_b->out_angle;
         goto distance_scaling;
     }
     
@@ -304,11 +303,25 @@ bool _joy_scale_input(int16_t *input, analog_meta_s *output, const joyConfigSlot
     float t = diff_from_start / effective_in_range;
     
     // Angle Lerp: out = a + t * (b - a)
-    // The linear scaling is done between slot_a's out_angle and slot_b's out_angle.
-    *out_angle = slot_a->out_angle + t * (slot_b->out_angle - slot_a->out_angle);
+    // FIX: Calculate the output difference. 
+    // If we are wrapping indices (e.g. 7 -> 0), we must wrap the output difference 
+    // to ensure we interpolate across the 360/0 boundary correctly.
+    float out_diff = slot_b->out_angle - slot_a->out_angle;
+
+    if (index_a > index_b)
+    {
+        // If we are in the wrap-around segment and the diff is negative 
+        // (e.g. going from 315 to 0), add 360 to interpolate forward to 360.
+        if (out_diff < 0.0f)
+        {
+            out_diff += 360.0f;
+        }
+    }
+
+    output->angle = slot_a->out_angle + t * out_diff;
     
     // Ensure output angle is in the [0, 360) range
-    *out_angle = fmodf(*out_angle + 360.0f, 360.0f);
+    output->angle = fmodf(output->angle + 360.0f, 360.0f);
 
 
 distance_scaling:
@@ -319,25 +332,29 @@ distance_scaling:
     
     float a_out_dist = slot_a->out_distance;
     float b_out_dist = slot_b->out_distance;
-    
+
     // Determine the distance scaling factor (r)
     float r_a = slot_a->out_distance / (slot_a->in_distance > 0.0f ? slot_a->in_distance : 1.0f);
     float r_b = slot_b->out_distance / (slot_b->in_distance > 0.0f ? slot_b->in_distance : 1.0f);
 
     // If we snapped to a deadzone, 't' should be considered 0.0 or 1.0 for distance.
-    if (*out_angle == slot_a->out_angle) t = 0.0f;
-    else if (*out_angle == slot_b->out_angle) t = 1.0f;
+    if (output->angle == slot_a->out_angle) t = 0.0f;
+    else if (output->angle == slot_b->out_angle) t = 1.0f;
     // Otherwise, 't' is the calculated interpolation factor from the angle scaling.
+
+    output->target = a_out_dist + t * (b_out_dist - a_out_dist);
 
     // Linearly interpolate the *output distance ratio*
     float out_ratio = r_a + t * (r_b - r_a);
 
     // Apply the interpolated ratio to the input distance
-    *out_distance = in_distance * out_ratio;
+    output->distance = in_distance * out_ratio;
     
-    // Clamp the output distance to the maximum range (2048)
-    if (*out_distance > 2048.0f) *out_distance = 2048.0f;
-    if (*out_distance < 0.0f) *out_distance = 0.0f;
+    // Clamp the output distance to the maximum range (4096)
+    if (output->distance > 4096.0f) output->distance = 4096.0f;
+    if (output->distance < 0.0f)    output->distance = 0.0f;
+
+    
 
     return true;
 }
@@ -433,7 +450,6 @@ void _zero_distances(joyConfigSlot_s *slot)
   for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
   {
     slot[i].in_distance = 256;
-    slot[i].out_distance = 2048;
   }
 }
 
@@ -447,8 +463,13 @@ void _set_default_configslot(joyConfigSlot_s *slots)
             slots[i].enabled = true;
             slots[i].in_angle = i*45.0f;
             slots[i].out_angle = i*45.0f;
-            slots[i].in_distance = 2048.0f;
-            slots[i].out_distance = 2048.0f;
+
+            #if defined(HOJA_ANALOG_DEFAULT_DISTANCE)
+            slots[i].in_distance = HOJA_ANALOG_DEFAULT_DISTANCE;
+            #else
+            slots[i].in_distance = 1000.0f;
+            #endif
+            slots[i].out_distance = 2048;
         }
         else 
         {
@@ -481,21 +502,28 @@ void stick_scaling_calibrate_start(bool start)
 
 void stick_scaling_default_check()
 {
+    if(analog_config->analog_calibration_set == 0xFF)
+    {
+        analog_config->analog_calibration_set = 0;
+    }
+
   if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
   {
     analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
+
+    analog_config->analog_calibration_set = 0;
 
     // Set default deadzones
     analog_config->l_deadzone = 160;
     analog_config->r_deadzone = 160;
 
-    analog_config->l_deadzone_outer = 0;
-    analog_config->r_deadzone_outer = 0;
+    analog_config->l_deadzone_outer = 64;
+    analog_config->r_deadzone_outer = 64;
 
-    analog_config->lx_center = 2048;
-    analog_config->ly_center = 2048;
-    analog_config->rx_center = 2048;
-    analog_config->ry_center = 2048;
+    //analog_config->lx_center = 2048;
+    //analog_config->ly_center = 2048;
+    //analog_config->rx_center = 2048;
+    //analog_config->ry_center = 2048;
 
     analog_config->l_snapback_intensity = 600; // 60.0hz
     analog_config->r_snapback_intensity = 600;
@@ -505,8 +533,8 @@ void stick_scaling_default_check()
     analog_config->rx_invert = 0;
     analog_config->ry_invert = 0;
 
-    analog_config->l_snapback_type = 0;
-    analog_config->r_snapback_type = 0;
+    analog_config->l_snapback_type = 0; // Default LPF
+    analog_config->r_snapback_type = 0; // Default LPF
 
     // Set to default left setup
     _set_default_configslot(analog_config->joy_config_l);
@@ -536,8 +564,8 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
   if(_sticks_calibrating)
   {
-    bool left_done  = false; //_calibrate_axis(in_left, &_left_setup);
-    bool right_done = false; //_calibrate_axis(in_right, &_right_setup);
+    bool left_done  = _calibrate_axis(in_left, analog_config->joy_config_l);
+    bool right_done = _calibrate_axis(in_right, analog_config->joy_config_r);
     out_left[0] = 0;
     out_left[1] = 0;
     out_right[0] = 0;
@@ -550,8 +578,16 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
   }
   else 
   {
-    _process_axis(in_left,  &out_left_meta,   &_left_setup);
-    _process_axis(in_right, &out_right_meta,  &_right_setup);
+    if(!_joy_scale_input(in_left, &out_left_meta, analog_config->joy_config_l))
+    {
+
+    }
+
+    if(!_joy_scale_input(in_right, &out_right_meta, analog_config->joy_config_r))
+    {
+
+    }
+    
     analog_angle_distance_to_coordinate(out_left_meta.angle,  out_left_meta.distance,   out_left);
     analog_angle_distance_to_coordinate(out_right_meta.angle, out_right_meta.distance,  out_right);
   }
@@ -582,10 +618,6 @@ bool stick_scaling_init()
   // Perform a default check. This applies defaults
   // if the config block version is a mismatch
   stick_scaling_default_check();
-
-  // Validate our settings
-  _validate_setup(&_left_setup); 
-  _validate_setup(&_right_setup); 
 
   MUTEX_HAL_EXIT(&_stick_scaling_mutex);
   return true;

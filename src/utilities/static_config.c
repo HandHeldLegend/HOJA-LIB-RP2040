@@ -3,6 +3,9 @@
 #include "board_config.h"
 #include "usb/webusb.h"
 
+#include "devices/battery.h"
+#include "devices/fuelgauge.h"
+
 // Bluetooth driver nonsense
 #include "devices/bluetooth.h"
 
@@ -95,7 +98,7 @@ analogInfoStatic_s analog_static = {
     #define IMU_AVAILABLE 0
 #endif
 
-const imuInfoStatic_s       imu_static = {
+const imuInfoStatic_s imu_static = {
     .axis_gyro_a  = IMU_AVAILABLE,
     .axis_gyro_b  = IMU_AVAILABLE,
     .axis_accel_a = IMU_AVAILABLE,
@@ -112,9 +115,25 @@ const imuInfoStatic_s       imu_static = {
  #define HOJA_BATTERY_PART_CODE "N/A"
 #endif
 
-const batteryInfoStatic_s   battery_static = {
-    .capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
-    .part_number  = HOJA_BATTERY_PART_CODE,
+#if !defined(HOJA_BATTERY_PMIC_PART_NUMBER)
+ #warning "HOJA_BATTERY_PMIC_PART_NUMBER undefined in board_config.h."
+ #define HOJA_BATTERY_PMIC_PART_NUMBER "N/A"
+
+ #define PMIC_IGNORE_STATUS 1
+#endif
+
+#if !defined(HOJA_BATTERY_FUELGAUGE_PART_NUMBER)
+ #warning "HOJA_BATTERY_FUELGAUGE_PART_NUMBER undefined in board_config.h."
+ #define HOJA_BATTERY_FUELGAUGE_PART_NUMBER "N/A"
+
+ #define FUELGAUGE_IGNORE_STATUS 1
+#endif
+
+batteryInfoStatic_s battery_static = {
+    .battery_capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
+    .battery_part_number  = HOJA_BATTERY_PART_CODE,
+    .pmic_part_number = HOJA_BATTERY_PMIC_PART_NUMBER,
+    .fuelgauge_part_number = HOJA_BATTERY_FUELGAUGE_PART_NUMBER,
 };
 
 #if !defined(HOJA_HAPTICS_DRIVER)
@@ -187,22 +206,38 @@ const inputInfoStatic_s input_static = {
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
-    #define BTSUPPORT 1 
-    #define BT_BASEBAND_TYPE HOJA_BLUETOOTH_DRIVER
-    #define BT_BASEBAND_VERSION 0
+    #if (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_ESP32HOJA)
+        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
+            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
+            #define HOJA_BLUETOOTH_PART_NUMBER "ESP32"
+        #endif
+        #define STATBT_EXTERNAL_UPDATES 1
+        #define STATBT_BDR_EN 1
+        #define STATBT_BLE_EN 0
+    #elif (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
+        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
+            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
+            #define HOJA_BLUETOOTH_PART_NUMBER "BT Device"
+        #endif
+        #define STATBT_EXTERNAL_UPDATES 0
+        #define STATBT_BDR_EN 1
+        #define STATBT_BLE_EN 0
+    #endif
 #else 
     #warning "HOJA_BLUETOOTH_DRIVER undefined. Bluetooth features will be disabled."
-    #define BT_BASEBAND_TYPE 0
-    #define BT_BASEBAND_VERSION 0
-    #define BTSUPPORT 0
+    #define STATBT_BDR_EN 0
+    #define STATBT_BLE_EN 0
+    #define STATBT_EXTERNAL_UPDATES 0
+    #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
 #endif
 
-// Dynamic BT versoin
+// Dynamic BT
 bluetoothInfoStatic_s bluetooth_static = {
-    .bluetooth_bdr = BTSUPPORT,
-    .bluetooth_ble = BTSUPPORT,
-    .baseband_type = BT_BASEBAND_TYPE,
-    .baseband_version = BT_BASEBAND_VERSION,
+    .bluetooth_bdr_supported = STATBT_BDR_EN,
+    .bluetooth_ble_supported = STATBT_BLE_EN, 
+    .external_update_supported = STATBT_EXTERNAL_UPDATES,
+    .part_number = HOJA_BLUETOOTH_PART_NUMBER,
+    .external_version_number = 0x0000, // Needs to be filled later
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)
@@ -353,16 +388,33 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_BATTERY:
+            battery_status_s batstat = {0};
+            fuelgauge_status_s fgstat = {0};
+
+            battery_get_status(&batstat);
+            fuelgauge_get_status(&fgstat);
+
+            #if defined(FUELGAUGE_IGNORE_STATUS)
+            battery_static.fuelgauge_status = 0;
+            #else
+            battery_static.fuelgauge_status = fgstat.connected ? 2 : 1;
+            #endif
+
+            #if defined(PMIC_IGNORE_STATUS)
+            battery_static.pmic_status = 0;
+            #else
+            battery_static.pmic_status = batstat.connected ? 2 : 1;
+            #endif
+
             _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
-            bluetooth_static.baseband_type = BT_BASEBAND_TYPE;
             // Set our Bluetooth baseband version
             #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
-                bluetooth_static.baseband_version = HOJA_BLUETOOTH_GET_FWVERSION();
+                bluetooth_static.external_version_number = HOJA_BLUETOOTH_GET_FWVERSION();
             #else 
-                bluetooth_static.baseband_version = 0;
+                bluetooth_static.external_version_number = 0;
             #endif
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
