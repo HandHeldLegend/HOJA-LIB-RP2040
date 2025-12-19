@@ -75,7 +75,6 @@ const deviceInfoStatic_s    device_static = {
     .name           = DEVICE_NAME,
     .firmware_url   = FIRMWARE_URL,
     .manifest_url   = MANIFEST_URL,
-    .fcc_id         = FCC_ID_TEXT,
     .manual_url     = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT
@@ -231,6 +230,10 @@ const inputInfoStatic_s input_static = {
     #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
 #endif
 
+#if !defined(HOJA_BLUETOOTH_FCC_ID)
+    #define HOJA_BLUETOOTH_FCC_ID "N/A"
+#endif
+
 // Dynamic BT
 bluetoothInfoStatic_s bluetooth_static = {
     .bluetooth_bdr_supported = STATBT_BDR_EN,
@@ -238,6 +241,7 @@ bluetoothInfoStatic_s bluetooth_static = {
     .external_update_supported = STATBT_EXTERNAL_UPDATES,
     .part_number = HOJA_BLUETOOTH_PART_NUMBER,
     .external_version_number = 0x0000, // Needs to be filled later
+    .fcc_id = HOJA_BLUETOOTH_FCC_ID
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)

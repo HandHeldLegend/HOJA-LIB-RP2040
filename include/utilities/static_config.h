@@ -35,7 +35,7 @@ typedef struct
     uint8_t     manifest_url[256];
     uint8_t     firmware_url[256];
     uint8_t     manual_url[128];
-    uint8_t     fcc_id[32];
+    uint8_t     reserved[32];
     uint32_t    fw_version; 
     uint8_t     snes_supported : 1;
     uint8_t     joybus_supported : 1;
@@ -101,6 +101,8 @@ typedef struct
     uint16_t    external_version_number;
     uint8_t     bluetooth_bdr_supported;
     uint8_t     bluetooth_ble_supported;
+    uint8_t     bluetooth_status;
+    uint8_t     fcc_id[24];
 } bluetoothInfoStatic_s;
 
 typedef struct 
