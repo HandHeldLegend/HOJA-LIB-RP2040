@@ -139,8 +139,9 @@ void webusb_send_rawinput(uint64_t timestamp)
                 // Remainder of values are downsampled to 8 bits
                 for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
                 {
+                    uint16_t truncated = mapper.inputs[i] > 4095 ? 4095 : mapper.inputs[i];
                     uint8_t press_state = (mapper.presses[i] ? 0x80 : 0);
-                    uint8_t scaled = ((mapper.inputs[i] >> 5) & 0x7F) | press_state;
+                    uint8_t scaled = ((truncated>> 5) & 0x7F) | press_state;
                     webusb_input_report[17+i] = scaled;
                 }
             break;

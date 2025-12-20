@@ -76,8 +76,6 @@ void settings_init()
             gamepad_config->switch_mac_address[0]-=1;
         }
 
-        if(gamepad_config->webusb_enable_popup==0xFF) gamepad_config->webusb_enable_popup = 0;
-
         gamepad_config->gamepad_color_body = 0x2D2D2D;
         gamepad_config->gamepad_color_buttons = 0xE6E6E6;
         gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
@@ -86,6 +84,8 @@ void settings_init()
         // Commit changes
         settings_commit_blocks();
     }
+
+    if(gamepad_config->webusb_enable_popup==0xFF) gamepad_config->webusb_enable_popup = 0;
 
     // Always unset the first bit in octet 0
     if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
