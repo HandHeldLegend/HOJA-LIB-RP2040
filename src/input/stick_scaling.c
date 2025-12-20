@@ -31,6 +31,8 @@
 #define MINIMUM_REQUIRED_DISTANCE 1000
 
 bool _sticks_calibrating = false;
+uint8_t _l_count = 8;
+uint8_t _r_count = 8;
 
 MUTEX_HAL_INIT(_stick_scaling_mutex);
 
@@ -39,22 +41,10 @@ MUTEX_HAL_INIT(_stick_scaling_mutex);
  * * @param angle The input angle, which can be positive or negative.
  * @return The normalized angle in the range [0.0, 360.0).
  */
-float _angle_normalize(float angle)
-{
-    // 1. Calculate the remainder of the angle divided by 360.0.
-    // This handles angles > 360 or angles < -360.
-    // The result of fmodf(a, b) has the same sign as 'a'.
-    float normalized = fmodf(angle, 360.0f);
-
-    // 2. Adjust for negative results.
-    // If the input was negative (e.g., -10.0), fmodf returns -10.0.
-    // We add 360.0 to bring it into the [0, 360) range (e.g., -10.0 + 360.0 = 350.0).
-    if (normalized < 0.0f)
-    {
-        normalized += 360.0f;
-    }
-
-    return normalized;
+float _angle_normalize(float angle) {
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    return angle;
 }
 
 /**
@@ -210,16 +200,21 @@ int _joy_validation_sort_and_count(joyConfigSlot_s config[ADJUSTABLE_ANGLES])
  * @param config Configuration slot data array
  * @return true if scaling was successful, false if no enabled slots are found.
  */
-bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES])
+/**
+ * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
+ */
+/**
+ * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
+ */
+bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES], uint8_t count)
 {
     int index_a, index_b = -1;
 
     float in_angle = stick_scaling_coordinates_to_angle(input[0], input[1]);
     float in_distance = stick_scaling_coordinate_distance(input[0], input[1]);
 
-    // 1. Find the two calibration points that bracket the input angle physically.
-    // Use the updated search logic that handles the circular array.
-    if (!_joy_find_bracketing_indices_fast(in_angle, config, 8, &index_a, &index_b))
+    // 1. Find the bracketing slots
+    if (!_joy_find_bracketing_indices_fast(in_angle, config, count, &index_a, &index_b))
     {
         return false;
     }
@@ -227,62 +222,75 @@ bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSl
     const joyConfigSlot_s *slot_a = &config[index_a];
     const joyConfigSlot_s *slot_b = &config[index_b];
 
-    // --- ANGLE SCALING ---
-    
-    // Total physical arc between the two calibration points
+    // 2. Calculate linear interpolation factor (t) for the raw input angle
     float total_in_arc = slot_b->in_angle - slot_a->in_angle;
     if (total_in_arc < 0) total_in_arc += 360.0f;
 
-    // How far the stick is from slot_a's physical position
     float in_diff = in_angle - slot_a->in_angle;
     if (in_diff < 0) in_diff += 360.0f;
 
-    // Define Deadzone Halves
+    float t = in_diff / total_in_arc;
+
+    // 3. Scale to the "Ideal" Output Angle
+    float out_diff = slot_b->out_angle - slot_a->out_angle;
+    if (out_diff > 180.0f) out_diff -= 360.0f;
+    else if (out_diff < -180.0f) out_diff += 360.0f;
+
+    float ideal_out_angle = _angle_normalize(slot_a->out_angle + (t * out_diff));
+
+    // 4. Apply Deadzone to the OUTPUT Angle
+    // Get distance from slot_a out angle
+    float dist_a = _angle_normalize(ideal_out_angle - slot_a->out_angle);
+
+    // Get distance between out A and out B
+    float total_dz_range = _angle_normalize(slot_b->out_angle - slot_a->out_angle);
+
+
+    float dist_to_a = fabsf(fmodf(ideal_out_angle - slot_a->out_angle + 540.0f, 360.0f) - 180.0f);
+    float dist_to_b = fabsf(fmodf(ideal_out_angle - slot_b->out_angle + 540.0f, 360.0f) - 180.0f);
+
     float dz_a_half = slot_a->deadzone / 2.0f;
     float dz_b_half = slot_b->deadzone / 2.0f;
 
-    float t = 0.0f;
-
-    // Check for Deadzone Snap or Interpolate
-    if (in_diff <= dz_a_half)
+    if (dist_to_a < dz_a_half) 
     {
-        // Snap to start point
         output->angle = slot_a->out_angle;
-        t = 0.0f;
-    }
-    else if (in_diff >= (total_in_arc - dz_b_half))
+        t = 0.0f; // Force interpolation to Slot A
+    } 
+    else if (dist_to_b < dz_b_half) 
     {
-        // Snap to end point
         output->angle = slot_b->out_angle;
-        t = 1.0f;
-    }
-    else
+        t = 1.0f; // Force interpolation to Slot B
+    } 
+    else 
     {
-        // Smoothly scale 't' between the deadzone boundaries
-        float effective_range = total_in_arc - dz_a_half - dz_b_half;
-        t = (in_diff - dz_a_half) / effective_range;
-
-        // Calculate output difference using shortest-path logic
-        float out_diff = slot_b->out_angle - slot_a->out_angle;
-        if (out_diff > 180.0f) out_diff -= 360.0f;
-        else if (out_diff < -180.0f) out_diff += 360.0f;
-
-        output->angle = _angle_normalize(slot_a->out_angle + (t * out_diff));
+        // Re-scale the output angle to exclude the deadzone areas for a smooth transition
+        float total_out_arc = fabsf(out_diff);
+        float effective_out_range = total_out_arc - dz_a_half - dz_b_half;
+        
+        // Calculate a new 't' that spans only the active region between deadzones
+        float t_active = (dist_to_a - dz_a_half) / effective_out_range;
+        output->angle = _angle_normalize(slot_a->out_angle + (t_active * out_diff));
     }
 
-    // --- DISTANCE SCALING ---
-
-    // Distance ratios for both slots
+    // 5. Distance Scaling
+    // Use the forced t (0 or 1) from deadzones to ensure perfect distance values
     float r_a = slot_a->out_distance / (slot_a->in_distance > 0.0f ? slot_a->in_distance : 1.0f);
     float r_b = slot_b->out_distance / (slot_b->in_distance > 0.0f ? slot_b->in_distance : 1.0f);
+    
+    if (t == 0.0f) {
+        output->distance = (in_distance / slot_a->in_distance) * slot_a->out_distance;
+        output->target = slot_a->out_distance;
+    } else if (t == 1.0f) {
+        output->distance = (in_distance / slot_b->in_distance) * slot_b->out_distance;
+        output->target = slot_b->out_distance;
+    } else {
+        float out_ratio = r_a + t * (r_b - r_a);
+        output->target = slot_a->out_distance + t * (slot_b->out_distance - slot_a->out_distance);
+        output->distance = in_distance * out_ratio;
+    }
 
-    // Smoothly interpolate the target and the ratio
-    output->target = slot_a->out_distance + t * (slot_b->out_distance - slot_a->out_distance);
-    float out_ratio = r_a + t * (r_b - r_a);
-
-    output->distance = in_distance * out_ratio;
-
-    // Clamp the output distance
+    // Clamping
     if (output->distance > 4096.0f) output->distance = 4096.0f;
     if (output->distance < 0.0f) output->distance = 0.0f;
 
@@ -291,22 +299,14 @@ bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSl
 
 void _angle_distance_to_fcoordinate(float angle, float distance, float *out)
 {
-    // Normalize angle to 0-360 range
-    angle = fmodf(angle, 360.0f);
-    if (angle < 0)
-        angle += 360.0f;
+    angle = _angle_normalize(angle);
+    float angle_radians = angle * (M_PI / 180.0f);
 
-    // Convert angle to radians
-    float angle_radians = angle * M_PI / 180.0f;
+    out[0] = (float)lroundf(distance * cosf(angle_radians));
+    out[1] = (float)lroundf(distance * sinf(angle_radians));
 
-    // Calculate X and Y coordinates
-    // Limit to -2048 to +2048 range
-    out[0] = (distance * cosf(angle_radians));
-    out[1] = (distance * sinf(angle_radians));
-
-    // Clamp to prevent exceeding the specified range
-    out[0] = fmaxf(-2048, fminf(2047, out[0]));
-    out[1] = fmaxf(-2048, fminf(2047, out[1]));
+    out[0] = fmaxf(-2048, fminf(2048, out[0])); // Note: If 2048 is your max, you may want to allow 2048 here
+    out[1] = fmaxf(-2048, fminf(2048, out[1]));
 }
 
 float stick_scaling_coordinates_to_angle(int x, int y)
@@ -501,11 +501,11 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
     }
     else
     {
-        if (!_joy_scale_input(in_left, &out_left_meta, analog_config->joy_config_l))
+        if (!_joy_scale_input(in_left, &out_left_meta, analog_config->joy_config_l, _l_count))
         {
         }
 
-        if (!_joy_scale_input(in_right, &out_right_meta, analog_config->joy_config_r))
+        if (!_joy_scale_input(in_right, &out_right_meta, analog_config->joy_config_r, _r_count))
         {
         }
 
@@ -538,8 +538,8 @@ bool stick_scaling_init()
     stick_scaling_default_check();
 
     // Validate input angles etc. 
-    _joy_validation_sort_and_count(analog_config->joy_config_l);
-    _joy_validation_sort_and_count(analog_config->joy_config_r);
+    _l_count = _joy_validation_sort_and_count(analog_config->joy_config_l);
+    _r_count= _joy_validation_sort_and_count(analog_config->joy_config_r);
 
     MUTEX_HAL_EXIT(&_stick_scaling_mutex);
     return true;

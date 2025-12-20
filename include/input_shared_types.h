@@ -292,7 +292,7 @@ typedef struct
 {
     float    angle;
     bool     crossover;
-    uint16_t distance;
+    float    distance;
     uint16_t target;
 } analog_meta_s;
 

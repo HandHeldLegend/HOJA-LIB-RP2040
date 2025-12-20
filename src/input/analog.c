@@ -222,16 +222,21 @@ void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *o
     if (angle < 0) angle += 360.0f;
     
     // Convert angle to radians
-    float angle_radians = angle * M_PI / 180.0f;
+    float angle_radians = angle * (float)M_PI / 180.0f;
     
-    // Calculate X and Y coordinates
-    // Limit to -2048 to +2048 range
-    out[0] = (int)(distance * cosf(angle_radians));
-    out[1] = (int)(distance * sinf(angle_radians));
+    // Calculate coordinates - use truncation, not rounding
+    float x = distance * cosf(angle_radians);
+    float y = distance * sinf(angle_radians);
     
-    // Clamp to prevent exceeding the specified range
-    out[0] = fmaxf(-2048, fminf(2048, out[0]));
-    out[1] = fmaxf(-2048, fminf(2048, out[1]));
+    // Clamp to -2048 to 2048 range
+    if (x > 2048.0f) x = 2048.0f;
+    else if (x < -2048.0f) x = -2048.0f;
+
+    if (y > 2048.0f) y = 2048.0f;
+    else if (y < -2048.0f) y = -2048.0f;
+
+    out[0] = (int16_t)x;  // Truncates toward zero
+    out[1] = (int16_t)y;
 }
 
 void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
@@ -254,6 +259,7 @@ void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
 
         case ANALOG_CMD_CALIBRATE_STOP:
             stick_scaling_calibrate_start(false);
+            analog_config->analog_calibration_set = 1;
             _capture_centers = false;
             do_cb = true;
         break;

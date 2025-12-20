@@ -24,7 +24,7 @@ typedef enum
 //#define CFG_BLOCK_REMAP_VERSION     0x13
 #define CFG_BLOCK_HOVER_VERSION     0x14
 
-#define CFG_BLOCK_ANALOG_VERSION    0x12 // Migrate from 0x11
+#define CFG_BLOCK_ANALOG_VERSION    0x13 // Migrate from 0x11
 #define CFG_BLOCK_RGB_VERSION       0x11
 
 // Reserved for later use now
