@@ -216,7 +216,7 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
             write_to_ptr = live_settings.analog_configuration_block;
             // Reinit analog sections as needed 
             if(completed)
-                stick_scaling_init();
+                analog_init();
         break;
 
         case CFG_BLOCK_RGB:

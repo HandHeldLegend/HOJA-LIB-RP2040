@@ -200,11 +200,18 @@ void _capture_center_offsets()
     _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
 }
 
-void _capture_input_angle(float *left, float *right)
+void _capture_input_joystick_raw(bool left, float *angle, float *distance)
 {
-    // Extract angles from raw analog data and store them
-    *left   = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
-    *right  = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+    if(left)
+    {
+        *angle = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
+        *distance = stick_scaling_coordinate_distance(_raw_analog_data.lx, _raw_analog_data.ly);
+    }
+    else 
+    {
+        *angle = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+        *distance = stick_scaling_coordinate_distance(_raw_analog_data.rx, _raw_analog_data.ry);
+    }
 }
 
 // Helper function to convert angle/distance to coordinate pair
@@ -229,8 +236,8 @@ void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *o
 
 void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
 {
-    float left = 0.0f;
-    float right = 0.0f;
+    float angle = 0.0f;
+    float distance = 0.0f;
     bool do_cb = false;
 
     switch(cmd)
@@ -251,13 +258,23 @@ void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
             do_cb = true;
         break;
 
-        case ANALOG_CMD_CAPTURE_ANGLE:
+        case ANALOG_CMD_CAPTURE_JOYSTICK_LEFT:
             // Capture angles
-            _capture_input_angle(&left, &right);
-            uint8_t buffer[8] = {0};
-            memcpy(buffer, &left, sizeof(float));
-            memcpy(buffer+4, &right, sizeof(float));
-            cb(CFG_BLOCK_ANALOG, cmd, true, buffer, 8);
+            _capture_input_joystick_raw(true, &angle, &distance);
+            uint8_t buffer_l[8] = {0};
+            memcpy(buffer_l, &angle, sizeof(float));
+            memcpy(buffer_l+4, &distance, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer_l, 8);
+            return;
+        break;
+
+        case ANALOG_CMD_CAPTURE_JOYSTICK_RIGHT:
+            // Capture angles
+            _capture_input_joystick_raw(false, &angle, &distance);
+            uint8_t buffer_r[8] = {0};
+            memcpy(buffer_r, &angle, sizeof(float));
+            memcpy(buffer_r+4, &distance, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer_r, 8);
             return;
         break;
     }
