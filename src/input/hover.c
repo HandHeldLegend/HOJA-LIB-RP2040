@@ -211,6 +211,7 @@ void hover_config_command(uint8_t cmd, webreport_cmd_confirm_t cb)
 void hover_task(uint64_t timestamp)
 {
     mapper_input_s input = {0};
+    
     // Perform a reading
     cb_hoja_read_input(&input);
 

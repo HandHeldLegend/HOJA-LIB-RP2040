@@ -16,12 +16,13 @@
 
 void macros_task(uint64_t timestamp)
 {
-    mapper_input_s input = mapper_get_translated_input();
+    static mapper_input_s input = {0};
     static interval_s interval = {0};
     static bool first_run = false;
 
     if(interval_run(timestamp, 1000, &interval))
     {
+        input = mapper_get_translated_input();
         first_run = true;
     }
 

@@ -303,6 +303,10 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
 {
     // Temporary store for new output data
     mapper_input_s tmp = {0};
+
+    // Write system inputs
+    tmp.buttons_system = _all_inputs.buttons_system;
+
     bool heartbeat = false;
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
@@ -743,7 +747,7 @@ void mapper_init()
 mapper_input_s mapper_get_translated_input()
 {
     analog_data_s joysticks;
-    mapper_input_s hovers;
+    mapper_input_s hovers = {0};
 
     analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
     hover_access_safe(&hovers);
@@ -753,7 +757,6 @@ mapper_input_s mapper_get_translated_input()
     _all_inputs.inputs[INPUT_CODE_LX_RIGHT] = joysticks.lx > 0 ? joysticks.lx : 0;
     _all_inputs.inputs[INPUT_CODE_LY_UP] = joysticks.ly > 0 ? joysticks.ly : 0;
     _all_inputs.inputs[INPUT_CODE_LY_DOWN] = joysticks.ly < 0 ? -joysticks.ly : 0;
-
     _all_inputs.inputs[INPUT_CODE_RX_LEFT] = joysticks.rx < 0 ? -joysticks.rx : 0;
     _all_inputs.inputs[INPUT_CODE_RX_RIGHT] = joysticks.rx > 0 ? joysticks.rx : 0;
     _all_inputs.inputs[INPUT_CODE_RY_UP] = joysticks.ry > 0 ? joysticks.ry : 0;
