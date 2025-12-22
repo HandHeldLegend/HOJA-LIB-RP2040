@@ -248,8 +248,8 @@ typedef enum
 
 typedef struct 
 {
-    uint16_t inputs[MAPPER_INPUT_COUNT];
-    bool presses[MAPPER_INPUT_COUNT];
+    uint16_t inputs[48];
+    bool presses[48];
     
     union
     {

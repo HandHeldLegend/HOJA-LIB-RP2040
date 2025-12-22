@@ -20,8 +20,6 @@
 #define SINPUT_MASK_SEWN 0x0F
 #define SINPUT_MASK_DPAD 0xF0
 
-
-
 // Bumpers (L1, R1)
 #define SINPUT_MASK_BUMPERS 0x0C
 
@@ -68,13 +66,13 @@ void _sinput_generate_input_masks(uint8_t *masks)
     uint8_t mask_1 = 0;
     uint8_t mask_2 = 0;
     uint8_t mask_3 = 0;
-    if(_s_enabled(INPUT_CODE_SOUTH) | _s_enabled(INPUT_CODE_EAST) | _s_enabled(INPUT_CODE_WEST) | _s_enabled(INPUT_CODE_NORTH))
+    if(_s_enabled(INPUT_CODE_SOUTH) || _s_enabled(INPUT_CODE_EAST) || _s_enabled(INPUT_CODE_WEST) || _s_enabled(INPUT_CODE_NORTH))
         mask_0 |= SINPUT_MASK_SEWN;
 
-    if(_s_enabled(INPUT_CODE_UP) | _s_enabled(INPUT_CODE_DOWN) | _s_enabled(INPUT_CODE_LEFT) | _s_enabled(INPUT_CODE_RIGHT))
+    if(_s_enabled(INPUT_CODE_UP) || _s_enabled(INPUT_CODE_DOWN) || _s_enabled(INPUT_CODE_LEFT) || _s_enabled(INPUT_CODE_RIGHT))
         mask_0 |= SINPUT_MASK_DPAD;
 
-    if(_s_enabled(INPUT_CODE_LB) | _s_enabled(INPUT_CODE_RB))
+    if(_s_enabled(INPUT_CODE_LB) || _s_enabled(INPUT_CODE_RB))
         mask_1 |= SINPUT_MASK_BUMPERS;
 
     if(_s_enabled(INPUT_CODE_LS))
@@ -83,13 +81,13 @@ void _sinput_generate_input_masks(uint8_t *masks)
     if(_s_enabled(INPUT_CODE_RS))
         mask_1 |= SINPUT_MASK_RSTICK;
 
-    if(_s_enabled(INPUT_CODE_LT) | _s_enabled(INPUT_CODE_RT))
+    if(_s_enabled(INPUT_CODE_LT) || _s_enabled(INPUT_CODE_RT))
         mask_1 |= SINPUT_MASK_TRIGGERS;
 
-    if(_s_enabled(INPUT_CODE_LP1) | _s_enabled(INPUT_CODE_RP1))
+    if(_s_enabled(INPUT_CODE_LP1) || _s_enabled(INPUT_CODE_RP1))
         mask_1 |= SINPUT_MASK_UPPERGRIPS;
 
-    if(_s_enabled(INPUT_CODE_START) | _s_enabled(INPUT_CODE_SELECT))
+    if(_s_enabled(INPUT_CODE_START) || _s_enabled(INPUT_CODE_SELECT))
         mask_2 |= SINPUT_MASK_STARTSELECT;
         
     if(_s_enabled(INPUT_CODE_HOME))
@@ -98,7 +96,7 @@ void _sinput_generate_input_masks(uint8_t *masks)
     if(_s_enabled(INPUT_CODE_SHARE))
         mask_2 |= SINPUT_MASK_CAPTURE;
 
-    if(_s_enabled(INPUT_CODE_LP2) | _s_enabled(INPUT_CODE_RP2))
+    if(_s_enabled(INPUT_CODE_LP2) || _s_enabled(INPUT_CODE_RP2))
         mask_2 |= SINPUT_MASK_LOWERGRIPS;
 
     if(_s_enabled(INPUT_CODE_MISC3))
@@ -504,10 +502,16 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_x = 0;
     data.right_y = 0;
     #else
-    //data.left_x = sinput_scale_axis(input.joysticks_combined[0]);
-    //data.left_y = sinput_scale_axis(-input.joysticks_combined[1]);
-    //data.right_x = sinput_scale_axis(input.joysticks_combined[2]);
-    //data.right_y = sinput_scale_axis(-input.joysticks_combined[3]);
+
+    int lx = input.inputs[SINPUT_CODE_LX_RIGHT] - input.inputs[SINPUT_CODE_LX_LEFT];
+    int ly = input.inputs[SINPUT_CODE_LY_DOWN] - input.inputs[SINPUT_CODE_LY_UP];
+    int rx = input.inputs[SINPUT_CODE_RX_RIGHT] - input.inputs[SINPUT_CODE_RX_LEFT];
+    int ry = input.inputs[SINPUT_CODE_RY_DOWN] - input.inputs[SINPUT_CODE_RY_UP];
+    
+    data.left_x = sinput_scale_axis(lx);
+    data.left_y = sinput_scale_axis(ly);
+    data.right_x = sinput_scale_axis(rx);
+    data.right_y = sinput_scale_axis(ry);
     #endif
 
     static imu_data_s imu = {0};
@@ -524,36 +528,37 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.imu_timestamp_us = (uint32_t) (imu.timestamp & UINT32_MAX);
 
     // Buttons
-    data.button_east   = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_EAST);
-    data.button_south  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_SOUTH);
-    data.button_north  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_NORTH);
-    data.button_west   = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_WEST);
+    data.button_east   = input.presses[SINPUT_CODE_EAST];
+    data.button_south  = input.presses[SINPUT_CODE_SOUTH];
+    data.button_north  = input.presses[SINPUT_CODE_NORTH];
+    data.button_west   = input.presses[SINPUT_CODE_WEST];
 
-    data.button_stick_left  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_LS);
-    data.button_stick_right = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_RS);
+    data.button_stick_left  = input.presses[SINPUT_CODE_LS];
+    data.button_stick_right = input.presses[SINPUT_CODE_RS];
 
-    data.button_start  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_START);
-    data.button_select = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_SELECT);
-    data.button_guide  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_GUIDE);
-    data.button_share  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_SHARE);
+    data.button_start  = input.presses[SINPUT_CODE_START];
+    data.button_select = input.presses[SINPUT_CODE_SELECT];
+    data.button_guide  = input.presses[SINPUT_CODE_GUIDE];
+    data.button_share  = input.presses[SINPUT_CODE_SHARE];
 
-    data.dpad_down  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_DOWN);
-    data.dpad_up    = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_UP);
-    data.dpad_left  = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_LEFT);
-    data.dpad_right = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_RIGHT);
+    data.dpad_down  = input.presses[SINPUT_CODE_DOWN];
+    data.dpad_up    = input.presses[SINPUT_CODE_UP];
+    data.dpad_left  = input.presses[SINPUT_CODE_LEFT];
+    data.dpad_right = input.presses[SINPUT_CODE_RIGHT];
 
-    data.button_l_shoulder = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_LB);
-    data.button_r_shoulder = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_RB);
+    data.button_l_shoulder = input.presses[SINPUT_CODE_LB];
+    data.button_r_shoulder = input.presses[SINPUT_CODE_RB];
 
-    data.button_l_paddle_1 = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_LP_1);
-    data.button_r_paddle_1 = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_RP_1);
+    data.button_l_trigger = input.presses[SINPUT_CODE_LT];
+    data.button_r_trigger = input.presses[SINPUT_CODE_RT];
 
-    data.button_power = input.button_shipping;
+    data.button_l_paddle_1 = input.presses[SINPUT_CODE_LP_1];
+    data.button_r_paddle_1 = input.presses[SINPUT_CODE_RP_1];
 
-    int16_t l_analog = 0; //sinput_scale_trigger(input.triggers[0]);
-    int16_t r_analog = 0; //sinput_scale_trigger(input.triggers[1]);
-    bool l_digital = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_LT);
-    bool r_digital = MAPPER_BUTTON_DOWN(input.inputs, SINPUT_CODE_RT);
+    data.button_power = input.presses[SINPUT_CODE_MISC_3];
+
+    data.trigger_l = sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
+    data.trigger_r = sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
 
     memcpy(report_data, &data, sizeof(sinput_input_s));
 

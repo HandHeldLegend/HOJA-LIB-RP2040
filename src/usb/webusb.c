@@ -108,7 +108,7 @@ void webusb_send_rawinput(uint64_t timestamp)
         battery_get_status(&batstat);
         fuelgauge_get_status(&fgstat);
 
-        webusb_input_report[1] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1) | ((uint8_t)fgstat.connected << 2) | ((uint8_t) fgstat.discharge_only << 3) ;
+        webusb_input_report[1] = (uint8_t)batstat.charging | ((uint8_t)batstat.charging_done << 1);
         webusb_input_report[2] = fgstat.percent;
 
         static imu_data_s imu = {0};

@@ -61,7 +61,7 @@ mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // Select
 };
 
-mapper_output_type_t _n64_output_types[SWITCH_CODE_MAX] = {
+mapper_output_type_t _n64_output_types[N64_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
     MAPPER_OUTPUT_DIGITAL, // B
     MAPPER_OUTPUT_DIGITAL, // CUP
@@ -322,6 +322,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
 
         uint16_t *input = &_all_inputs.inputs[i];
         bool *press = &_all_inputs.presses[i];
+        
         uint16_t *output = &tmp.inputs[output_code];
         bool *output_press = &tmp.presses[output_code];
 
