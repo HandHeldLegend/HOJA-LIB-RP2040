@@ -61,13 +61,24 @@ uint16_t _hover_scale_input(uint16_t input,
 }
 
 void hover_calibrate_stop(void) {
+    hover_config->hover_calibration_set = 1;
     _calibration_ch_active = 0x00;
+}
+
+void _hover_set_ch_to_default(uint8_t ch)
+{
+    hoverSlot_s *cfg = &hover_config->config[ch];
+    cfg->invert = 0;
+    cfg->max = 0xFFF;
+    cfg->min = 0x000;
 }
 
 void hover_calibrate_start(uint8_t ch)
 {
     hoverSlot_s *cfg;
     mapper_input_s tmp;
+
+    hover_config->hover_calibration_set = 0;
 
     // Perform a reading
     cb_hoja_read_input(&tmp);
@@ -120,15 +131,16 @@ void hover_init(void)
     // Check and default
     if(hover_config->hover_config_version != CFG_BLOCK_HOVER_VERSION)
     {
+        hover_config->hover_calibration_set = 0;
         hover_config->hover_config_version = CFG_BLOCK_HOVER_VERSION;
         
         for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
         {
-            hoverSlot_s *cfg = &hover_config->config[i];
-            cfg->invert = 0;
-            cfg->max = 0xFFF;
-            cfg->min = 0x000;
+            _hover_set_ch_to_default(i);
         }
+
+        // Enable calibration all channels
+        hover_calibrate_start(0xFF);
     }
 
     _used_hover_slots = 0;
@@ -151,8 +163,14 @@ void hover_init(void)
         }
     }
 
-    // Perform boot input capture
-    cb_hoja_read_input(&_boot_capture);
+    static bool boot = false;
+
+    if(!boot)
+    {
+        // Perform boot input capture
+        cb_hoja_read_input(&_boot_capture);
+        boot=true;
+    }    
 
     // Adjust hovers to digital states
     // Perform scaling on hover channels
@@ -163,9 +181,6 @@ void hover_init(void)
 
         _boot_capture.presses[slot] = (_boot_capture.inputs[slot] > half);
     }
-
-    //DEBUG
-    hover_calibrate_start(0xFF);
 }
 
 void hover_access_safe(mapper_input_s *out)
@@ -196,13 +211,6 @@ void hover_config_command(uint8_t cmd, webreport_cmd_confirm_t cb)
         case 1:
         hover_calibrate_start( (calibrate_ch==0x3F) ? 0xFF : calibrate_ch );
         break;
-
-        case 2:
-        break;
-
-        case 3:
-        break;
-
     }
 
     cb(CFG_BLOCK_HOVER, cmd, true, NULL, 0);

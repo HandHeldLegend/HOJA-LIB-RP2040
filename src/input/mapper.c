@@ -498,30 +498,57 @@ static inline void _set_joystick_axis(uint16_t *pos, uint16_t *neg, int16_t valu
     }
 }
 
-void _set_mapper_defaults(uint8_t command_code)
+const int8_t default_codes_switch[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SWITCH;
+const int8_t default_codes_snes[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SNES;
+const int8_t default_codes_n64[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_N64;
+const int8_t default_codes_gamecube[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_GAMECUBE;
+const int8_t default_codes_xinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_XINPUT;
+const int8_t default_codes_sinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SINPUT;
+
+static uint8_t _lhapticmode = 0;
+static uint8_t _rhapticmode = 0;
+
+typedef enum 
 {
-    switch(command_code)
+    MAPPER_HAPTIC_MODE_DISABLE,
+    MAPPER_HAPTIC_MODE_DIGITAL,
+    MAPPER_HAPTIC_MODE_ANALOG,
+} mapper_haptic_mode_t;
+
+static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *output_codes, uint8_t *output_types)
+{
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
-        case MAPPER_CMD_DEFAULT_ALL:
-        break;
+        int8_t output_code = output_codes[i];
+        cfg_slots[i].output_code = output_code;
+        
 
-        case MAPPER_CMD_DEFAULT_SWITCH:
-        break;
+        switch(input_static.input_info[i].input_type)
+        {
+            case MAPPER_INPUT_TYPE_HOVER:
+            case MAPPER_INPUT_TYPE_JOYSTICK:
 
-        case MAPPER_CMD_DEFAULT_XINPUT:
-        break;
+            switch(output_types[output_code])
+            {
+                case MAPPER_OUTPUT_DPAD:
+                case MAPPER_OUTPUT_HOVER:
+                case MAPPER_OUTPUT_JOYSTICK:
+                cfg_slots[i].output_mode = MAPPER_OUTPUT_MODE_PASSTHROUGH;
+                break;
 
-        case MAPPER_CMD_DEFAULT_SNES:
-        break;
+                default:
+                cfg_slots[i].output_mode = 0; // Default
+                break;
+            }
+            break;
 
-        case MAPPER_CMD_DEFAULT_N64:
-        break;
+            default:
+            cfg_slots[i].output_mode = 0; // Default
+            break;
+        }
 
-        case MAPPER_CMD_DEFAULT_GAMECUBE:
-        break;
-
-        case MAPPER_CMD_DEFAULT_SINPUT:
-        break;
+        cfg_slots[i].static_output = 0xFFF+1; // Max 
+        cfg_slots[i].threshold_delta = (0xFFF+1)/6;
     }
 }
 
@@ -584,98 +611,61 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         cb(CFG_BLOCK_INPUT, cmd, false, NULL, 0);
         break;
 
-        case MAPPER_CMD_DEFAULT_ALL:
-        //_set_mapper_defaults();
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        case MAPPER_CMD_DEFAULT_SWITCH:
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
+        break;
+
+        case MAPPER_CMD_DEFAULT_XINPUT:
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
+        break;
+
+        case MAPPER_CMD_DEFAULT_SNES:
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
+        break;
+
+        case MAPPER_CMD_DEFAULT_N64:
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
+        break;
+
+        case MAPPER_CMD_DEFAULT_GAMECUBE:
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
+        break;
+
+        case MAPPER_CMD_DEFAULT_SINPUT:
+        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
         _set_raw_output_profile(GAMEPAD_MODE_SWPRO);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
         _set_raw_output_profile(GAMEPAD_MODE_XINPUT);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
         _set_raw_output_profile(GAMEPAD_MODE_SNES);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
         _set_raw_output_profile(GAMEPAD_MODE_N64);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
         _set_raw_output_profile(GAMEPAD_MODE_GAMECUBE);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
         _set_raw_output_profile(GAMEPAD_MODE_SINPUT);
-        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
     }  
-}
 
-static uint8_t _lhapticmode = 0;
-static uint8_t _rhapticmode = 0;
-
-typedef enum 
-{
-    MAPPER_HAPTIC_MODE_DISABLE,
-    MAPPER_HAPTIC_MODE_DIGITAL,
-    MAPPER_HAPTIC_MODE_ANALOG,
-} mapper_haptic_mode_t;
-
-static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *output_codes, uint8_t *output_types)
-{
-    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
-    {
-        int8_t output_code = output_codes[i];
-        cfg_slots[i].output_code = output_code;
-        
-
-        switch(input_static.input_info[i].input_type)
-        {
-            case MAPPER_INPUT_TYPE_HOVER:
-            case MAPPER_INPUT_TYPE_JOYSTICK:
-
-            switch(output_types[output_code])
-            {
-                case MAPPER_OUTPUT_DPAD:
-                case MAPPER_OUTPUT_HOVER:
-                case MAPPER_OUTPUT_JOYSTICK:
-                cfg_slots[i].output_mode = MAPPER_OUTPUT_MODE_PASSTHROUGH;
-                break;
-
-                default:
-                cfg_slots[i].output_mode = 0; // Default
-                break;
-            }
-            break;
-
-            default:
-            cfg_slots[i].output_mode = 0; // Default
-            break;
-        }
-
-        cfg_slots[i].static_output = 0xFFF+1; // Max 
-        cfg_slots[i].threshold_delta = (0xFFF+1)/6;
-    }
+    cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
 }
 
 void mapper_init()
 {
-    const int8_t default_codes_switch[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SWITCH;
-    const int8_t default_codes_snes[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SNES;
-    const int8_t default_codes_n64[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_N64;
-    const int8_t default_codes_gamecube[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_GAMECUBE;
-    const int8_t default_codes_xinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_XINPUT;
-    const int8_t default_codes_sinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SINPUT;
+    
 
     // Debug always set to defaults on reboot
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
