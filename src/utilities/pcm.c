@@ -194,6 +194,11 @@ bool pcm_amfm_push(haptic_packet_s *packet)
             packet->pairs[i].lo_frequency_increment = default_lo;
     }
 
+    static uint64_t counter = 0;
+    counter++;
+
+    packet->counter = counter;
+
     snapshot_haptic_packet_write(&_haptic_snap, packet);
     return true;
 }
@@ -480,194 +485,158 @@ void pcm_erm_set(uint8_t intensity, bool brake)
     _pcm_erm_state.apply_brake = brake;
 }
 
-// Generate PCM_BUFFER_SIZE samples of PCM data
-// Processes all pairs within the packet in a single call
-void pcm_generate_buffer(
-    uint32_t *buffer // Output buffer
-)
+static inline bool _is_haptic_packet_different(haptic_packet_s *a, haptic_packet_s *b)
 {
-    // These MUST be static to maintain continuity across buffer generations
+    if(a->counter != b->counter) return true;
+    return false;
+}
+
+// Generate PCM_BUFFER_SIZE samples of PCM data
+void pcm_generate_buffer(uint32_t *buffer)
+{
+    // --- Persistent State ---
     static uint32_t phase_hi = 0;
     static uint32_t phase_lo = 0;
-    static uint32_t dc_offset = 0;
-    static bool load_new = false;
+    
+    static haptic_packet_s current_packet     = {0};
+    static uint8_t         current_pair_idx   = 0;
+    static uint16_t        samples_remaining  = 0; // Tracks duration of current pair
+    static bool            is_active          = false;
 
-    // ERM if active
+    // Synthesis Parameters (Latch these to prevent mid-sample clicking)
+    static uint32_t hi_freq_inc = 200;
+    static uint32_t lo_freq_inc = 200;
+    static uint32_t hi_amp_scaler = 0;
+    static uint32_t lo_amp_scaler = 0;
+    static uint32_t target_dc_offset = 0;
+    static uint32_t dc_offset = 0;
+
+    // 1. ERM Processing (optional)
     if(_pcm_erm_state.erm_active)
     {
         _pcm_erm_handler(&_pcm_erm_state);
     }
 
-    // Get the packet with all pairs
-    haptic_packet_s packet;
-    pcm_amfm_pop(&packet);
-
-    // If no pairs, treat as 1 pair with current (possibly zero) values
-    int pair_count = packet.count;
-    if(pair_count < 1) pair_count = 1;
-    if(pair_count > 3) pair_count = 3;
-
-    // Calculate target DC offset ONCE using max amplitude across all pairs
-    uint32_t target_dc_offset = 0;
-    for(int i = 0; i < pair_count; i++)
+    // 2. Synthesis Loop (64 Samples)
+    for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
-        haptic_processed_s *p = &packet.pairs[i];
-        uint32_t hi_peak = 0;
-        uint32_t lo_peak = 0;
-
-        if(p->hi_amplitude_fixed)
+        // Check if we need to load a new pair or a new packet
+        // We do this inside the loop to ensure sample-accurate timing 
+        // even if a pair duration doesn't align perfectly with the 64-sample buffer boundary
+        if (samples_remaining == 0)
         {
-            uint32_t scaler = (p->hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            scaler += _hi_amp_scaler_fixed_min;
-            hi_peak = (scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-        }
-        if(p->lo_amplitude_fixed)
-        {
-            uint32_t scaler = (p->lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            scaler += _lo_amp_scaler_fixed_min;
-            lo_peak = (scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-        }
+            haptic_packet_s inbound_packet = {0};
+            pcm_amfm_pop(&inbound_packet);
 
-        uint32_t pair_dc = hi_peak + lo_peak;
-        if(pair_dc > target_dc_offset)
-            target_dc_offset = pair_dc;
-    }
-
-    int buffer_idx = 0;
-
-    // Process each pair in the packet
-    for(int pair_idx = 0; pair_idx < pair_count; pair_idx++)
-    {
-        haptic_processed_s *current = &packet.pairs[pair_idx];
-
-        // Calculate samples for this pair based on total pair count
-        int samples_for_pair;
-        switch(pair_count)
-        {
-            case 1:
-                samples_for_pair = PCM_BUFFER_SIZE;
-                break;
-            case 2:
-                samples_for_pair = PCM_BUFFER_SIZE / 2;
-                break;
-            case 3:
-                samples_for_pair = PCM_BUFFER_SIZE / 3;
-                break;
-            default:
-                samples_for_pair = PCM_BUFFER_SIZE;
-                break;
-        }
-
-        // Get frequency increments for this pair
-        uint32_t hi_frequency_increment = current->hi_frequency_increment;
-        uint32_t lo_frequency_increment = current->lo_frequency_increment;
-
-        // Calculate amplitude scalers for this pair
-        uint32_t hi_amp_scaler = 0;
-        uint32_t lo_amp_scaler = 0;
-
-        if(current->hi_amplitude_fixed)
-        {
-            hi_amp_scaler = (current->hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            hi_amp_scaler += _hi_amp_scaler_fixed_min;
-        }
-
-        if(current->lo_amplitude_fixed)
-        {
-            lo_amp_scaler = (current->lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE;
-            lo_amp_scaler += _lo_amp_scaler_fixed_min;
-        }
-
-        // Generate samples for this pair
-        for(int s = 0; s < samples_for_pair && buffer_idx < PCM_BUFFER_SIZE; s++)
-        {
-            uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
-            uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
-
-            int16_t sine_hi = _pcm_sine_table[idx_hi];
-            int16_t sine_lo = _pcm_sine_table[idx_lo];
-
-            bool hi_sign = (sine_hi >= 0);
-            bool lo_sign = (sine_lo >= 0);
-
-            if(!hi_sign) sine_hi = -sine_hi;
-            if(!lo_sign) sine_lo = -sine_lo;
-
-            int32_t scaled_hi = ((uint32_t)sine_hi * hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-            int32_t scaled_lo = ((uint32_t)sine_lo * lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE;
-
-            // External samples (trigger feedback)
-            uint32_t external_sample_l = 0;
-            uint32_t external_sample_r = 0;
-
-            if(_external_sample_remaining_l)
+            // CASE A: New data has arrived (Counter mismatch)
+            if (_is_haptic_packet_different(&inbound_packet, &current_packet))
             {
-                external_sample_l = (uint32_t)_external_sample_l[_external_sample_size_l - _external_sample_remaining_l] * _external_sample_scaler;
-                _external_sample_remaining_l--;
+                current_packet     = inbound_packet;
+                current_pair_idx   = 0;
+                is_active          = (current_packet.count > 0);
             }
-
-            if(_external_sample_remaining_r)
+            // CASE B: Current packet sequence still has pairs left
+            else if (is_active && (current_pair_idx < (current_packet.count - 1)))
             {
-                external_sample_r = (uint32_t)_external_sample_r[_external_sample_size_r - _external_sample_remaining_r] * _external_sample_scaler;
-                _external_sample_remaining_r--;
+                current_pair_idx++;
             }
-
-            #if !defined(HOJA_HAPTICS_CHAN_B_PIN)
-            external_sample_l |= external_sample_r;
-            external_sample_r |= external_sample_l;
-            #endif
-
-            // Reapply signs
-            if(!hi_sign) scaled_hi = -scaled_hi;
-            if(!lo_sign) scaled_lo = -scaled_lo;
-
-            // Mix the two channels
-            int32_t mixed = (scaled_hi + scaled_lo);
-
-            // Smooth DC offset transition
-            if(dc_offset < target_dc_offset)
+            // CASE C: We are at the end of a sequence (Hold/Idle)
+            else 
             {
-                dc_offset += DC_OFFSET_RAMP_RATE;
-                if(dc_offset > target_dc_offset)
-                    dc_offset = target_dc_offset;
-            }
-            else if(dc_offset > target_dc_offset)
-            {
-                // Prevent unsigned underflow
-                if(dc_offset >= DC_OFFSET_RAMP_RATE && dc_offset - DC_OFFSET_RAMP_RATE >= target_dc_offset)
-                    dc_offset -= DC_OFFSET_RAMP_RATE;
-                else
-                    dc_offset = target_dc_offset;
-            }
-
-            mixed += dc_offset;
-            if(mixed < 0) mixed = 0;
-
-            // Optional raw PCM queue mixing
-            int16_t pcm_raw_value = 0;
-            if(pcm_raw_queue_pop(&pcm_raw_value) && load_new)
-            {
-                if(pcm_raw_value >= 0)
+                // If the last pair was 0 amplitude, we are truly inactive
+                if (current_packet.pairs[current_pair_idx].hi_amplitude_fixed == 0 && 
+                    current_packet.pairs[current_pair_idx].lo_amplitude_fixed == 0)
                 {
-                    pcm_raw_value >>= 3;
-                    mixed = pcm_raw_value;
+                    is_active = false;
                 }
+                // We keep samples_remaining at 0 here so we check for new packets 
+                // every sample until one arrives.
             }
-            load_new = !load_new;
 
-            if(mixed < 0) mixed = 0;
+            // Update local synthesis parameters from the current pair
+            if (is_active)
+            {
+                haptic_processed_s *v = &current_packet.pairs[current_pair_idx];
+                
+                hi_freq_inc = v->hi_frequency_increment;
+                lo_freq_inc = v->lo_frequency_increment;
 
-            uint32_t outsample = ((uint32_t)(mixed + external_sample_l) << 16) | (uint32_t)(mixed + external_sample_r);
-            buffer[buffer_idx++] = outsample;
+                // Scaling logic from oldpcm
+                hi_amp_scaler = (v->hi_amplitude_fixed) ? 
+                    ((v->hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _hi_amp_scaler_fixed_min : 0;
+                
+                lo_amp_scaler = (v->lo_amplitude_fixed) ? 
+                    ((v->lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _lo_amp_scaler_fixed_min : 0;
 
-            phase_hi = (phase_hi + hi_frequency_increment) % PCM_SINE_WRAPAROUND;
-            phase_lo = (phase_lo + lo_frequency_increment) % PCM_SINE_WRAPAROUND;
+                uint32_t hi_peak = (hi_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                uint32_t lo_peak = (lo_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+                target_dc_offset = (hi_peak + lo_peak);
+
+                // Determine how many samples this specific pair should last
+                // If count is 3, we use the smaller chunk sizes to fit the 8ms window
+                if (current_packet.count == 3) samples_remaining = 63/3;
+                else if (current_packet.count == 2) samples_remaining = 63/2;
+                else samples_remaining = 63;
+            }
+            else 
+            {
+                hi_amp_scaler = 0;
+                lo_amp_scaler = 0;
+                target_dc_offset = 0;
+                // Avoid infinite loop if inactive
+                samples_remaining = PCM_BUFFER_SIZE; 
+            }
         }
-    }
 
-    // Fill any remaining buffer space (shouldn't happen normally)
-    while(buffer_idx < PCM_BUFFER_SIZE)
-    {
-        buffer[buffer_idx++] = ((uint32_t)dc_offset << 16) | (uint32_t)dc_offset;
+        // 3. Waveform Synthesis
+        uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
+        uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
+
+        int16_t sine_hi = _pcm_sine_table[idx_hi];
+        int16_t sine_lo = _pcm_sine_table[idx_lo];
+
+        // Apply signs and scaling
+        int32_t scaled_hi = ((int32_t)((sine_hi >= 0 ? sine_hi : -sine_hi) * hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE);
+        int32_t scaled_lo = ((int32_t)((sine_lo >= 0 ? sine_lo : -sine_lo) * lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE);
+        
+        if (sine_hi < 0) scaled_hi = -scaled_hi;
+        if (sine_lo < 0) scaled_lo = -scaled_lo;
+
+        int32_t mixed = (scaled_hi + scaled_lo);
+
+        // Ramp DC offset (Attack/Decay)
+        if (dc_offset < target_dc_offset) dc_offset+=2;
+        else if (dc_offset > target_dc_offset) dc_offset--;
+
+        mixed += dc_offset;
+        if (mixed < 0) mixed = 0;
+
+        // External/Trigger Sample Mixing
+        uint32_t ext_l = 0, ext_r = 0;
+        if (_external_sample_remaining_l) {
+            ext_l = (uint32_t)_external_sample_l[_external_sample_size_l - _external_sample_remaining_l] * _external_sample_scaler;
+            _external_sample_remaining_l--;
+        }
+        if (_external_sample_remaining_r) {
+            ext_r = (uint32_t)_external_sample_r[_external_sample_size_r - _external_sample_remaining_r] * _external_sample_scaler;
+            _external_sample_remaining_r--;
+        }
+
+        // Raw PCM Override Logic
+        static bool load_new_raw = false;
+        int16_t pcm_raw_val = 0;
+        if (load_new_raw && pcm_raw_queue_pop(&pcm_raw_val)) {
+            if (pcm_raw_val >= 0) mixed = (pcm_raw_val >> 3);
+        }
+        load_new_raw = !load_new_raw;
+
+        // Final Output
+        buffer[i] = (((uint32_t)(mixed + ext_l)) << 16) | ((uint32_t)(mixed + ext_r));
+
+        // Advance phases and decrement timers
+        phase_hi = (phase_hi + hi_freq_inc) % PCM_SINE_WRAPAROUND;
+        phase_lo = (phase_lo + lo_freq_inc) % PCM_SINE_WRAPAROUND;
+        
+        if (samples_remaining > 0) samples_remaining--;
     }
 }
