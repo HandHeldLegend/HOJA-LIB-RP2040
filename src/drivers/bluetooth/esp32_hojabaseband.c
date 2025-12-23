@@ -25,6 +25,7 @@
 #include "input/mapper.h"
 #include "input/imu.h"
 
+#define ESP32_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
@@ -526,6 +527,15 @@ void esp32hoja_stop()
     _esp32hoja_enable_chip(false);
 }
 
+static inline int16_t _esp32sinput_scale_trigger(uint16_t val)
+{
+    if (val > 4095) val = 4095; // Clamp just in case
+
+    // Scale: map [0, 4095] → [INT16_MIN, INT16_MAX]
+    // The range of INT16 is 65535, so multiply first to preserve precision
+    return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
+}
+
 void esp32hoja_task(uint64_t timestamp)
 {
     static interval_s       interval    = {0};
@@ -545,110 +555,80 @@ void esp32hoja_task(uint64_t timestamp)
             data_out[1] = 0;                  // Input CRC location
             data_out[2] = _current_i2c_packet_number; // Response packet number counter
 
-            // input_data.buttons_all      = 0;//buttons.buttons_all;
-            // input_data.buttons_system   = 0;//buttons.buttons_system;
-
-            //input_data.lx = (uint16_t) (input->joysticks_combined[0] + 2048);
-            //input_data.ly = (uint16_t) (input->joysticks_combined[1] + 2048);
-            //input_data.rx = (uint16_t) (input->joysticks_combined[2] + 2048);
-            //input_data.ry = (uint16_t) (input->joysticks_combined[3] + 2048);
-
-            // Clamp values between 0 and 4095
-            //input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
-            //input_data.ly = (input_data.ly > 4095) ? 4095 : input_data.ly;
-            //input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
-            //input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
-
-            
+            input_data.buttons_all      = 0;//buttons.buttons_all;
+            input_data.buttons_system   = 0;//buttons.buttons_system;
 
             switch(hoja_get_status().gamepad_mode)
             {
                 default:
                 case GAMEPAD_MODE_SWPRO:
-                /*
-                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_B);
-                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_A);
-                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_Y);
-                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_X);
+                int lx = (input.inputs[SWITCH_CODE_LX_RIGHT] - input.inputs[SWITCH_CODE_LX_LEFT]) + 2048;
+                int ly = input.inputs[SWITCH_CODE_LY_DOWN] - input.inputs[SWITCH_CODE_LY_UP] + 2048;
+                int rx = input.inputs[SWITCH_CODE_RX_RIGHT] - input.inputs[SWITCH_CODE_RX_LEFT] + 2048;
+                int ry = input.inputs[SWITCH_CODE_RY_DOWN] - input.inputs[SWITCH_CODE_RY_UP] + 2048;
 
-                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_DOWN);
-                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RIGHT);
-                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LEFT);
-                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_UP);
+                // Clamp values between 0 and 4095
+                input_data.lx = 2048;//(uint16_t) ESP32_CLAMP(lx, 0, 4095);
+                input_data.ly = 2048;//(uint16_t) ESP32_CLAMP(ly, 0, 4095);
+                input_data.rx = 2048;//(uint16_t) ESP32_CLAMP(rx, 0, 4095);
+                input_data.ry = 2048;//(uint16_t) ESP32_CLAMP(ry, 0, 4095);
 
-                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_MINUS);
-                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_PLUS);
-                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_HOME);
-                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_CAPTURE);
 
-                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
-                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
+                input_data.button_south = input.presses[SWITCH_CODE_B];
+                input_data.button_east  = input.presses[SWITCH_CODE_A];
+                input_data.button_west  = input.presses[SWITCH_CODE_Y];
+                input_data.button_north = input.presses[SWITCH_CODE_X];
 
-                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_R);
-                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_L);
+                input_data.dpad_down     = input.presses[SWITCH_CODE_DOWN];
+                input_data.dpad_right    = input.presses[SWITCH_CODE_RIGHT];
+                input_data.dpad_left     = input.presses[SWITCH_CODE_LEFT];
+                input_data.dpad_up       = input.presses[SWITCH_CODE_UP];
+
+                input_data.button_minus    = input.presses[SWITCH_CODE_MINUS];
+                input_data.button_plus     = input.presses[SWITCH_CODE_PLUS];
+                input_data.button_home     = input.presses[SWITCH_CODE_HOME];
+                input_data.button_capture  = input.presses[SWITCH_CODE_CAPTURE];
+
+                input_data.button_stick_left   = input.presses[SWITCH_CODE_LS];
+                input_data.button_stick_right    = input.presses[SWITCH_CODE_RS];
+
+                input_data.trigger_r = input.presses[SWITCH_CODE_R];
+                input_data.trigger_l = input.presses[SWITCH_CODE_L];
                 
-                input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LZ);
-                input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
+                input_data.trigger_zl = input.presses[SWITCH_CODE_ZL];
+                input_data.trigger_zr = input.presses[SWITCH_CODE_ZR];
 
-                input_data.lt = (uint16_t) input->triggers[0];
-                input_data.rt = (uint16_t) input->triggers[1];*/
+                input_data.lt = 0;
+                input_data.rt = 0;
                 break;
+
                 case GAMEPAD_MODE_SINPUT:
-                /*
-                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
-                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
-                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
-                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_NORTH);
+                input_data.button_south = input.presses[SINPUT_CODE_SOUTH];
+                input_data.button_east  = input.presses[SINPUT_CODE_EAST];
+                input_data.button_west  = input.presses[SINPUT_CODE_WEST];
+                input_data.button_north = input.presses[SINPUT_CODE_NORTH];
 
-                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_DOWN);
-                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RIGHT);
-                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LEFT);
-                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_UP);
+                input_data.dpad_down     = input.presses[SINPUT_CODE_DOWN];
+                input_data.dpad_right    = input.presses[SINPUT_CODE_RIGHT];
+                input_data.dpad_left     = input.presses[SINPUT_CODE_LEFT];
+                input_data.dpad_up       = input.presses[SINPUT_CODE_UP];
 
-                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SELECT);
-                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_START);
-                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_HOME);
-                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_CAPTURE);
+                input_data.button_minus    = input.presses[SINPUT_CODE_SELECT];
+                input_data.button_plus     = input.presses[SINPUT_CODE_START];
+                input_data.button_home     = input.presses[SINPUT_CODE_GUIDE];
+                input_data.button_capture  = input.presses[SINPUT_CODE_SHARE];
 
-                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LS);
-                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RS);
+                input_data.button_stick_left   = input.presses[SINPUT_CODE_LS];
+                input_data.button_stick_right    = input.presses[SINPUT_CODE_RS];
 
-                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
-                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
+                input_data.trigger_r = input.presses[SINPUT_CODE_RB];
+                input_data.trigger_l = input.presses[SINPUT_CODE_LB];
 
-                bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
-                bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+                input_data.trigger_zl = input.presses[SINPUT_CODE_LT];
+                input_data.trigger_zr = input.presses[SINPUT_CODE_RT];
 
-                #if defined(HOJA_ADC_LT_CFG)
-                if(trigger_config->left_disabled == 1)
-                {
-                    if(l_digital)
-                        input_data.lt = 0xFFF;
-                    else 
-                        input_data.lt = 0;
-                }
-                else 
-                #endif
-                {
-                    input_data.lt = (uint16_t) input->triggers[0];
-                    input_data.trigger_zl = l_digital;
-                }
-
-                #if defined(HOJA_ADC_RT_CFG)
-                if(trigger_config->right_disabled == 1)
-                {
-                    if(r_digital)
-                        input_data.rt = 0xFFF;
-                    else 
-                        input_data.rt = 0;
-                }
-                else 
-                #endif
-                {
-                    input_data.rt = (uint16_t) input->triggers[1];
-                    input_data.trigger_zr = r_digital;
-                }
-                    */
+                input_data.lt = _esp32sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
+                input_data.rt = _esp32sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
                 break;
             }
 

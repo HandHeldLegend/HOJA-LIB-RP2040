@@ -666,8 +666,6 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
 
 void mapper_init()
 {
-    
-
     // Debug always set to defaults on reboot
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
     {
