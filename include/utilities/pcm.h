@@ -10,7 +10,7 @@
 
 #define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
 
-#define PCM_BUFFER_SIZE         256
+#define PCM_BUFFER_SIZE         64
 #define PCM_SAMPLES_PER_PAIR    62
 #define PCM_SAMPLE_CHUNK_3      (PCM_SAMPLES_PER_PAIR / 3)
 #define PCM_SAMPLE_CHUNK_2      (PCM_SAMPLES_PER_PAIR / 2)
@@ -78,7 +78,7 @@ void pcm_play_bump(bool left, bool right);
 #endif
 
 void pcm_send_pulse();
-bool pcm_amfm_push(haptic_processed_s *value);
+bool pcm_amfm_push(haptic_packet_s *packet);
 void pcm_generate_buffer(uint32_t *buffer);
 
 #endif

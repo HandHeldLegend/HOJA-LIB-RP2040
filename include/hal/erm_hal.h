@@ -22,7 +22,7 @@
 void erm_hal_stop();
 bool erm_hal_init(uint8_t intensity);
 void erm_hal_task(uint64_t timestamp);
-void erm_hal_push_amfm(haptic_processed_s *input);
+void erm_hal_push_amfm(haptic_packet_s *packet);
 void erm_hal_set_standard(uint8_t intensity, bool brake);
 
 #endif
