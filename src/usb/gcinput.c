@@ -59,30 +59,18 @@ void gcinput_enable(bool enable)
 
 #define GCUSB_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-int16_t _gcusb_scale_with_deadzone(int16_t value, int16_t max, int16_t deadzone) {
+int16_t _gcusb_scale(int16_t value, int16_t max) {
     // Get the magnitude and sign of the input value
     int16_t magnitude = abs(value);
     int16_t sign = (value >= 0) ? 1 : -1;
-    
-    // If magnitude is within deadzone, return 0
-    if (magnitude <= deadzone) {
-        return 0;
-    }
     
     // If magnitude is already at or above max, return max with appropriate sign
     if (magnitude >= max) {
         return sign * max;
     }
     
-    // Calculate the usable range after deadzone
-    int32_t usable_range = max - deadzone;
-    int32_t adjusted_magnitude = magnitude - deadzone;
-    
-    // Scale the adjusted magnitude to the full 0-max range
-    // Using int32_t to prevent overflow during multiplication
-    int32_t scaled_magnitude = (adjusted_magnitude * max) / usable_range;
-    
-    return sign * (int16_t)scaled_magnitude;
+    // Value is already within range, return as-is
+    return value;
 }
 
 
@@ -97,10 +85,10 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     const float   target_max = 110.0f / 2048.0f;
 
-    float lx = _gcusb_scale_with_deadzone((input.inputs[GAMECUBE_CODE_LX_RIGHT]-input.inputs[GAMECUBE_CODE_LX_LEFT]), 2048, 64) * target_max;
-    float ly = _gcusb_scale_with_deadzone((input.inputs[GAMECUBE_CODE_LY_UP]-input.inputs[GAMECUBE_CODE_LY_DOWN]), 2048, 64)    * target_max;
-    float rx = _gcusb_scale_with_deadzone((input.inputs[GAMECUBE_CODE_RX_RIGHT]-input.inputs[GAMECUBE_CODE_RX_LEFT]), 2048, 64) * target_max;
-    float ry = _gcusb_scale_with_deadzone((input.inputs[GAMECUBE_CODE_RY_UP]-input.inputs[GAMECUBE_CODE_RY_DOWN]), 2047, 64)    * target_max;
+    float lx = _gcusb_scale((input.inputs[GAMECUBE_CODE_LX_RIGHT]-input.inputs[GAMECUBE_CODE_LX_LEFT]), 2048) * target_max;
+    float ly = _gcusb_scale((input.inputs[GAMECUBE_CODE_LY_UP]-input.inputs[GAMECUBE_CODE_LY_DOWN]), 2048)    * target_max;
+    float rx = _gcusb_scale((input.inputs[GAMECUBE_CODE_RX_RIGHT]-input.inputs[GAMECUBE_CODE_RX_LEFT]), 2048) * target_max;
+    float ry = _gcusb_scale((input.inputs[GAMECUBE_CODE_RY_UP]-input.inputs[GAMECUBE_CODE_RY_DOWN]), 2048)    * target_max;
 
     uint8_t lx8 = (uint8_t)GCUSB_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = (uint8_t)GCUSB_CLAMP(ly + 128, 0, 255);

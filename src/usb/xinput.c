@@ -20,29 +20,29 @@ void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.report_size = 20;
 
-    //data.stick_left_x     = xinput_scale_axis(input.joysticks_combined[0]);
-    //data.stick_left_y     = xinput_scale_axis(input.joysticks_combined[1]);
-    //data.stick_right_x    = xinput_scale_axis(input.joysticks_combined[2]);
-    //data.stick_right_y    = xinput_scale_axis(input.joysticks_combined[3]);
+    data.stick_left_x     = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_LX_RIGHT] - input.inputs[XINPUT_CODE_LX_LEFT]));
+    data.stick_left_y     = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_LY_DOWN] - input.inputs[XINPUT_CODE_LY_UP]));
+    data.stick_right_x    = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_RX_RIGHT] - input.inputs[XINPUT_CODE_RX_LEFT]));
+    data.stick_right_y    = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_RY_DOWN] - input.inputs[XINPUT_CODE_RY_UP]));
 
-    data.dpad_up      = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_UP);
-    data.dpad_down    = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_DOWN);
-    data.dpad_left    = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_LEFT);
-    data.dpad_right   = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_RIGHT);
+    data.dpad_up      = input.presses[XINPUT_CODE_UP];
+    data.dpad_down    = input.presses[XINPUT_CODE_DOWN];
+    data.dpad_left    = input.presses[XINPUT_CODE_LEFT];
+    data.dpad_right   = input.presses[XINPUT_CODE_RIGHT];
 
-    data.button_guide = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_GUIDE);
-    data.button_back = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_BACK);
-    data.button_menu = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_START);
-    data.bumper_r = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_RB);
-    data.bumper_l = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_LB);
+    data.button_guide = input.presses[XINPUT_CODE_GUIDE];
+    data.button_back = input.presses[XINPUT_CODE_BACK];
+    data.button_menu = input.presses[XINPUT_CODE_START];
+    data.bumper_r = input.presses[XINPUT_CODE_RB];
+    data.bumper_l = input.presses[XINPUT_CODE_LB];
 
-    data.button_a = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_A);
-    data.button_b = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_B);
-    data.button_x = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_X);
-    data.button_y = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_Y);
+    data.button_a = input.presses[XINPUT_CODE_A];
+    data.button_b = input.presses[XINPUT_CODE_B];
+    data.button_x = input.presses[XINPUT_CODE_X];
+    data.button_y = input.presses[XINPUT_CODE_Y];
 
-    data.button_stick_l = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_LS);
-    data.button_stick_r = MAPPER_BUTTON_DOWN(input.inputs, XINPUT_CODE_RS);
+    data.button_stick_l = input.presses[XINPUT_CODE_LS];
+    data.button_stick_r = input.presses[XINPUT_CODE_RS];
 
     tud_xinput_report(&data, XID_REPORT_LEN);
 }

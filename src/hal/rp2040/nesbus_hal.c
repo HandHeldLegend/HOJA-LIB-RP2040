@@ -34,8 +34,6 @@
     #define PIO_IRQ_USE_0 PIO1_IRQ_0
 #endif
 
-
-
 typedef struct
 {
     union
@@ -165,36 +163,36 @@ void nesbus_hal_task(uint64_t timestamp)
 
             if(_nspi_snesdetected)
             {
-                tmpsnes.a = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_A);
-                tmpsnes.b = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_B);
-                tmpsnes.x = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_X);
-                tmpsnes.y = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_Y);
+                tmpsnes.a = !input.presses[SNES_CODE_A];
+                tmpsnes.b = !input.presses[SNES_CODE_B];
+                tmpsnes.x = !input.presses[SNES_CODE_X];
+                tmpsnes.y = !input.presses[SNES_CODE_Y];
 
-                tmpsnes.l = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_L);
-                tmpsnes.r = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_R);
+                tmpsnes.l = !input.presses[SNES_CODE_L];
+                tmpsnes.r = !input.presses[SNES_CODE_R];
 
-                tmpsnes.start = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_START);
-                tmpsnes.select = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_SELECT);
+                tmpsnes.start = !input.presses[SNES_CODE_START];
+                tmpsnes.select = !input.presses[SNES_CODE_SELECT];
 
-                tmpsnes.dup = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_UP);
-                tmpsnes.ddown = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_DOWN);
-                tmpsnes.dleft = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_LEFT);
-                tmpsnes.dright = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_RIGHT);
+                tmpsnes.dup = !input.presses[SNES_CODE_UP];
+                tmpsnes.ddown = !input.presses[SNES_CODE_DOWN];
+                tmpsnes.dleft = !input.presses[SNES_CODE_LEFT];
+                tmpsnes.dright = !input.presses[SNES_CODE_RIGHT];
 
                 pack = tmpsnes.value;
             }
             else
             {
-                tmpnes.a = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_A);
-                tmpnes.b = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_B);
+                tmpnes.a = !input.presses[SNES_CODE_A];
+                tmpnes.b = !input.presses[SNES_CODE_B];
 
-                tmpnes.start = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_START);
-                tmpnes.select = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_SELECT);
+                tmpnes.start = !input.presses[SNES_CODE_START];
+                tmpnes.select = !input.presses[SNES_CODE_SELECT];
 
-                tmpnes.dup = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_UP);
-                tmpnes.ddown = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_DOWN);
-                tmpnes.dleft = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_LEFT);
-                tmpnes.dright = !MAPPER_BUTTON_DOWN(input.inputs, SNES_CODE_RIGHT);
+                tmpnes.dup = !input.presses[SNES_CODE_UP];
+                tmpnes.ddown = !input.presses[SNES_CODE_DOWN];
+                tmpnes.dleft = !input.presses[SNES_CODE_LEFT];
+                tmpnes.dright = !input.presses[SNES_CODE_RIGHT];
 
                 pack = tmpnes.value;
             }
@@ -206,8 +204,6 @@ void nesbus_hal_task(uint64_t timestamp)
                 pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
                 _nspi_clear = false;
             }
-            
-
         }
     }
 }
