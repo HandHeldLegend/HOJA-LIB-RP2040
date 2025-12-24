@@ -211,36 +211,36 @@ typedef enum
     SINPUT_CODE_DOWN,
     SINPUT_CODE_LEFT,
     SINPUT_CODE_RIGHT,
-    SINPUT_CODE_LS, // Stick left
-    SINPUT_CODE_RS, // Stick right
     SINPUT_CODE_LB,
     SINPUT_CODE_RB,
     SINPUT_CODE_LT, // Left trigger digital
+    SINPUT_CODE_LT_ANALOG,
     SINPUT_CODE_RT, // Right trigger digital
+    SINPUT_CODE_RT_ANALOG,
     SINPUT_CODE_LP_1, // Left paddle 1
     SINPUT_CODE_RP_1, // Right paddle 1
+    SINPUT_CODE_LP_2, // Left paddle 2
+    SINPUT_CODE_RP_2, // Right paddle 2
     SINPUT_CODE_START,
     SINPUT_CODE_SELECT,
     SINPUT_CODE_GUIDE,
     SINPUT_CODE_SHARE,
-    SINPUT_CODE_LP_2, // Left paddle 2
-    SINPUT_CODE_RP_2, // Right paddle 2
-    SINPUT_CODE_TP_1, // Touchpad 1
-    SINPUT_CODE_TP_2, // Touchpad 2
     SINPUT_CODE_MISC_3, // Misc 3 (Power)
     SINPUT_CODE_MISC_4, // Misc 4
-    SINPUT_CODE_MISC_5, // Misc 5
-    SINPUT_CODE_MISC_6, // Misc 6 
-    SINPUT_CODE_LT_ANALOG,
-    SINPUT_CODE_RT_ANALOG,
+    SINPUT_CODE_TP_1, // Touchpad 1
+    SINPUT_CODE_TP_2, // Touchpad 2
+    SINPUT_CODE_LS,   // Stick left
     SINPUT_CODE_LX_RIGHT,
     SINPUT_CODE_LX_LEFT,
     SINPUT_CODE_LY_UP,
     SINPUT_CODE_LY_DOWN,
+    SINPUT_CODE_RS, // Stick right
     SINPUT_CODE_RX_RIGHT,
     SINPUT_CODE_RX_LEFT,
     SINPUT_CODE_RY_UP,
     SINPUT_CODE_RY_DOWN,
+    SINPUT_CODE_MISC_5, // Misc 5
+    SINPUT_CODE_MISC_6, // Misc 6 
     SINPUT_CODE_MAX,
 } mapper_sinput_code_t;
 

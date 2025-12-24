@@ -560,6 +560,12 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.trigger_l = sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
     data.trigger_r = sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
 
+    if(!data.trigger_r & data.button_r_trigger)
+    {
+        data.trigger_r = INT16_MAX;
+        data.button_r_trigger = 0;
+    }
+
     memcpy(report_data, &data, sizeof(sinput_input_s));
 
     if(_sinput_current_command != 0)
