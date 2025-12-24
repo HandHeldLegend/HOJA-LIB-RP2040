@@ -132,6 +132,9 @@ void hover_init(void)
     if(hover_config->hover_config_version != CFG_BLOCK_HOVER_VERSION)
     {
         hover_config->hover_calibration_set = 0;
+
+        if(_used_hover_slots==0) hover_config->hover_calibration_set=1;
+
         hover_config->hover_config_version = CFG_BLOCK_HOVER_VERSION;
         
         for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
@@ -140,7 +143,8 @@ void hover_init(void)
         }
 
         // Enable calibration all channels
-        hover_calibrate_start(0xFF);
+        if(!hover_config->hover_calibration_set)
+            hover_calibrate_start(0xFF);
     }
 
     _used_hover_slots = 0;

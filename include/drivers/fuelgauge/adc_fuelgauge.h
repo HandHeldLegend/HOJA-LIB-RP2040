@@ -9,9 +9,7 @@
 #include <stdbool.h>
 
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_ADC)
-    #if !defined(HOJA_BATTERY_ADC_CFG)
-        #error "HOJA_BATTERY_ADC_CFG undefined in board_config.h" 
-    #endif 
+    #warning "Must define uint16_t cb_hoja_read_battery() in main.c" 
 
     #if !defined(HOJA_BATTERY_VOLTAGE_MEASURE_OFFSET)
         #warning "HOJA_BATTERY_VOLTAGE_MEASURE_OFFSET float optional define in board_config.h" 

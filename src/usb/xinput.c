@@ -20,10 +20,13 @@ void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     data.report_size = 20;
 
-    data.stick_left_x     = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_LX_RIGHT] - input.inputs[XINPUT_CODE_LX_LEFT]));
-    data.stick_left_y     = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_LY_DOWN] - input.inputs[XINPUT_CODE_LY_UP]));
-    data.stick_right_x    = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_RX_RIGHT] - input.inputs[XINPUT_CODE_RX_LEFT]));
-    data.stick_right_y    = xinput_scale_axis((int16_t) (input.inputs[XINPUT_CODE_RY_DOWN] - input.inputs[XINPUT_CODE_RY_UP]));
+    data.stick_left_x  = xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LX_LEFT], input.inputs[XINPUT_CODE_LX_RIGHT]));
+    data.stick_left_y  = xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LY_DOWN], input.inputs[XINPUT_CODE_LY_UP]));
+    data.stick_right_x = xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_RX_LEFT], input.inputs[XINPUT_CODE_RX_RIGHT]));
+    data.stick_right_y = xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_RY_DOWN], input.inputs[XINPUT_CODE_RY_UP]));
+
+    data.analog_trigger_l = XINPUT_CLAMP(input.inputs[XINPUT_CODE_LT_ANALOG], 0, 4095) >> 4;
+    data.analog_trigger_r = XINPUT_CLAMP(input.inputs[XINPUT_CODE_RT_ANALOG], 0, 4095) >> 4;
 
     data.dpad_up      = input.presses[XINPUT_CODE_UP];
     data.dpad_down    = input.presses[XINPUT_CODE_DOWN];

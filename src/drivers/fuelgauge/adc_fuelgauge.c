@@ -1,4 +1,5 @@
 #include "drivers/fuelgauge/adc_fuelgauge.h"
+#include "hoja.h"
 
 #if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_ADC)
 
@@ -17,7 +18,9 @@
 
 uint8_t adc_fuelgauge_get_percent(void)
 {
-    uint16_t raw_voltage = adc_read_battery();
+    uint16_t raw_voltage = cb_hoja_read_battery();
+    if(raw_voltage==0xFFFF) // Invalid reading or not implemented
+        return 100;
 
     // Convert to a voltage value (we use a voltage divider on this pin)
     float voltage = ( ( ((float)raw_voltage / 4095.0f) *  3.3f ) * 2.0f ) + VOLTAGE_MEASURE_OFFSET;

@@ -203,14 +203,10 @@ void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
     }
 }
 
-uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos)
+int mapper_joystick_concat(int center, int neg, int pos)
 {
     neg = (neg & 0x1FFF)>>1;
     pos = (pos & 0x1FFF)>>1;
-
-    neg = (neg > center) ? center : neg;
-    pos = (pos > center) ? center : pos;
-
     return (center - neg) + pos;
 }
 

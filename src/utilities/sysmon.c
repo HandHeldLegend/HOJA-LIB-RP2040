@@ -112,7 +112,7 @@ void sysmon_task(uint64_t timestamp)
         {
             _sysfuel = tmp_fuel;
 
-            if(_sysfuel.simple == BATTERY_LEVEL_CRITICAL)
+            if(_sysfuel.simple == BATTERY_LEVEL_CRITICAL && !_sysbattery.plugged)
             {
                 sysmon_set_critical_shutdown();
             }

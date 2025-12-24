@@ -527,15 +527,6 @@ void esp32hoja_stop()
     _esp32hoja_enable_chip(false);
 }
 
-static inline int16_t _esp32sinput_scale_trigger(uint16_t val)
-{
-    if (val > 4095) val = 4095; // Clamp just in case
-
-    // Scale: map [0, 4095] → [INT16_MIN, INT16_MAX]
-    // The range of INT16 is 65535, so multiply first to preserve precision
-    return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
-}
-
 void esp32hoja_task(uint64_t timestamp)
 {
     static interval_s       interval    = {0};
@@ -562,17 +553,16 @@ void esp32hoja_task(uint64_t timestamp)
             {
                 default:
                 case GAMEPAD_MODE_SWPRO:
-                int lx = (input.inputs[SWITCH_CODE_LX_RIGHT] - input.inputs[SWITCH_CODE_LX_LEFT]) + 2048;
-                int ly = input.inputs[SWITCH_CODE_LY_DOWN] - input.inputs[SWITCH_CODE_LY_UP] + 2048;
-                int rx = input.inputs[SWITCH_CODE_RX_RIGHT] - input.inputs[SWITCH_CODE_RX_LEFT] + 2048;
-                int ry = input.inputs[SWITCH_CODE_RY_DOWN] - input.inputs[SWITCH_CODE_RY_UP] + 2048;
+                int lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]); 
+                int ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);   
+                int rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]); 
+                int ry = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]);   
 
                 // Clamp values between 0 and 4095
-                input_data.lx = 2048;//(uint16_t) ESP32_CLAMP(lx, 0, 4095);
-                input_data.ly = 2048;//(uint16_t) ESP32_CLAMP(ly, 0, 4095);
-                input_data.rx = 2048;//(uint16_t) ESP32_CLAMP(rx, 0, 4095);
-                input_data.ry = 2048;//(uint16_t) ESP32_CLAMP(ry, 0, 4095);
-
+                input_data.lx = (uint16_t) ESP32_CLAMP(lx, 0, 4095);
+                input_data.ly = (uint16_t) ESP32_CLAMP(ly, 0, 4095);
+                input_data.rx = (uint16_t) ESP32_CLAMP(rx, 0, 4095);
+                input_data.ry = (uint16_t) ESP32_CLAMP(ry, 0, 4095);
 
                 input_data.button_south = input.presses[SWITCH_CODE_B];
                 input_data.button_east  = input.presses[SWITCH_CODE_A];
@@ -603,6 +593,17 @@ void esp32hoja_task(uint64_t timestamp)
                 break;
 
                 case GAMEPAD_MODE_SINPUT:
+                int slx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LX_LEFT], input.inputs[SINPUT_CODE_LX_RIGHT]);
+                int sly = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LY_DOWN], input.inputs[SINPUT_CODE_LY_UP]);   
+                int srx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RX_LEFT], input.inputs[SINPUT_CODE_RX_RIGHT]);
+                int sry = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RY_DOWN], input.inputs[SINPUT_CODE_RY_UP]);   
+
+                // Clamp values between 0 and 4095
+                input_data.lx = (uint16_t) ESP32_CLAMP(slx, 0, 4095);
+                input_data.ly = (uint16_t) ESP32_CLAMP(sly, 0, 4095);
+                input_data.rx = (uint16_t) ESP32_CLAMP(srx, 0, 4095);
+                input_data.ry = (uint16_t) ESP32_CLAMP(sry, 0, 4095);
+
                 input_data.button_south = input.presses[SINPUT_CODE_SOUTH];
                 input_data.button_east  = input.presses[SINPUT_CODE_EAST];
                 input_data.button_west  = input.presses[SINPUT_CODE_WEST];
@@ -619,7 +620,7 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.button_capture  = input.presses[SINPUT_CODE_SHARE];
 
                 input_data.button_stick_left   = input.presses[SINPUT_CODE_LS];
-                input_data.button_stick_right    = input.presses[SINPUT_CODE_RS];
+                input_data.button_stick_right  = input.presses[SINPUT_CODE_RS];
 
                 input_data.trigger_r = input.presses[SINPUT_CODE_RB];
                 input_data.trigger_l = input.presses[SINPUT_CODE_LB];
@@ -627,8 +628,10 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.trigger_zl = input.presses[SINPUT_CODE_LT];
                 input_data.trigger_zr = input.presses[SINPUT_CODE_RT];
 
-                input_data.lt = _esp32sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
-                input_data.rt = _esp32sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
+                input_data.lt = ESP32_CLAMP(input.inputs[SINPUT_CODE_LT_ANALOG], 0, 4095);
+                input_data.rt = ESP32_CLAMP(input.inputs[SINPUT_CODE_RT_ANALOG], 0, 4095);
+
+                input_data.button_shipping = input.presses[SINPUT_CODE_MISC_3];
                 break;
             }
 

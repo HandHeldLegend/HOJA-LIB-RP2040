@@ -41,7 +41,7 @@
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 #define N64_RANGE 90
-#define N64_RANGE_MULTIPLIER (N64_RANGE)/4095
+#define N64_RANGE_MULTIPLIER (N64_RANGE)/4096
 
 uint _n64_irq;
 uint _n64_offset;
@@ -324,10 +324,8 @@ void joybus_n64_hal_task(uint64_t timestamp)
       _out_buffer.button_r = input.presses[N64_CODE_R];
 
       const float   target_max = 85.0f / 2048.0f;
-
-      // Analog stick data conversion
-      float lx = (float) (input.inputs[N64_CODE_LX_RIGHT] - input.inputs[N64_CODE_LX_LEFT]) * target_max;
-      float ly = (float) (input.inputs[N64_CODE_LY_UP] - input.inputs[N64_CODE_LY_DOWN]) * target_max;
+      float lx = mapper_joystick_concat(0,input.inputs[N64_CODE_LX_LEFT],input.inputs[N64_CODE_LX_RIGHT] ) * target_max;
+      float ly = mapper_joystick_concat(0,input.inputs[N64_CODE_LY_DOWN],input.inputs[N64_CODE_LY_UP]    ) * target_max;
 
       int8_t lx8 = N64WIRE_CLAMP(lx, -128, 127);
       int8_t ly8 = N64WIRE_CLAMP(ly, -128, 127);

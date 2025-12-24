@@ -59,21 +59,6 @@ void gcinput_enable(bool enable)
 
 #define GCUSB_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-int16_t _gcusb_scale(int16_t value, int16_t max) {
-    // Get the magnitude and sign of the input value
-    int16_t magnitude = abs(value);
-    int16_t sign = (value >= 0) ? 1 : -1;
-    
-    // If magnitude is already at or above max, return max with appropriate sign
-    if (magnitude >= max) {
-        return sign * max;
-    }
-    
-    // Value is already within range, return as-is
-    return value;
-}
-
-
 void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static gc_input_s   data = {0};
@@ -84,11 +69,10 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     buffer[0] = 0x21;
 
     const float   target_max = 110.0f / 2048.0f;
-
-    float lx = _gcusb_scale((input.inputs[GAMECUBE_CODE_LX_RIGHT]-input.inputs[GAMECUBE_CODE_LX_LEFT]), 2048) * target_max;
-    float ly = _gcusb_scale((input.inputs[GAMECUBE_CODE_LY_UP]-input.inputs[GAMECUBE_CODE_LY_DOWN]), 2048)    * target_max;
-    float rx = _gcusb_scale((input.inputs[GAMECUBE_CODE_RX_RIGHT]-input.inputs[GAMECUBE_CODE_RX_LEFT]), 2048) * target_max;
-    float ry = _gcusb_scale((input.inputs[GAMECUBE_CODE_RY_UP]-input.inputs[GAMECUBE_CODE_RY_DOWN]), 2048)    * target_max;
+    float lx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LX_LEFT],input.inputs[GAMECUBE_CODE_LX_RIGHT] ) * target_max;
+    float ly = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LY_DOWN],input.inputs[GAMECUBE_CODE_LY_UP]    ) * target_max;
+    float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
+    float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
 
     uint8_t lx8 = (uint8_t)GCUSB_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = (uint8_t)GCUSB_CLAMP(ly + 128, 0, 255);

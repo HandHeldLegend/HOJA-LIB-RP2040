@@ -8,7 +8,7 @@
 
 #define MAPPER_BUTTON_DOWN(presses, code) (presses[code] ? true : false)
 
-uint16_t mapper_joystick_concat(uint16_t center, uint16_t neg, uint16_t pos);
+int mapper_joystick_concat(int center, int neg, int pos);
 void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb);
 
 void mapper_init();

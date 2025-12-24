@@ -39,6 +39,11 @@ __attribute__((weak)) void cb_hoja_init()
 
 }
 
+__attribute__((weak)) uint16_t cb_hoja_read_battery()
+{
+  return 0xFFFF;
+}
+
 __attribute__((weak)) void cb_hoja_read_joystick(uint16_t *input)
 {
   (void)&input;
@@ -228,6 +233,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
+  
 
   switch (method)
   {
@@ -324,7 +330,8 @@ void _hoja_task_0()
     sys_hal_time_us(&c0_timestamp);
 
     // Analog task
-    analog_task(c0_timestamp);
+    if(analog_static.axis_lx)
+      analog_task(c0_timestamp);
   }
 }
 

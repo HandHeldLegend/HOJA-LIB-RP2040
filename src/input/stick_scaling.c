@@ -47,6 +47,26 @@ float _angle_normalize(float angle) {
     return angle;
 }
 
+float _angle_distance(float angle1, float angle2) {
+    float diff = 0;
+
+    if(angle2 > angle1)
+    {
+        diff = angle2-angle1;
+    }
+    else 
+    {
+        diff = angle1-angle2;
+    }
+    
+    // If difference is greater than 180, the shorter path is the other way
+    if (diff > 180.0f) {
+        diff = 360.0f - diff;
+    }
+    
+    return diff;
+}
+
 /**
  * @brief Finds the index of the closest in_angle that is enabled.
  * * @param in_angle The raw input angle.
@@ -193,107 +213,60 @@ int _joy_validation_sort_and_count(joyConfigSlot_s config[ADJUSTABLE_ANGLES])
     return enabled_count;
 }
 
-/**
- * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
- * @param input Input coordinates array
- * @param output Pointer to the output struct
- * @param config Configuration slot data array
- * @return true if scaling was successful, false if no enabled slots are found.
- */
-/**
- * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
- */
-/**
- * @brief Performs linear scaling on input angle and distance, correctly accounting for deadzones.
- */
 bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES], uint8_t count)
 {
     int index_a, index_b = -1;
-
     float in_angle = stick_scaling_coordinates_to_angle(input[0], input[1]);
     float in_distance = stick_scaling_coordinate_distance(input[0], input[1]);
 
-    // 1. Find the bracketing slots
-    if (!_joy_find_bracketing_indices_fast(in_angle, config, count, &index_a, &index_b))
-    {
-        return false;
-    }
+    if (!_joy_find_bracketing_indices_fast(in_angle, config, count, &index_a, &index_b)) return false;
 
     const joyConfigSlot_s *slot_a = &config[index_a];
     const joyConfigSlot_s *slot_b = &config[index_b];
 
-    // 2. Calculate linear interpolation factor (t) for the raw input angle
-    float total_in_arc = slot_b->in_angle - slot_a->in_angle;
-    if (total_in_arc < 0) total_in_arc += 360.0f;
+    // Calculate total arcs (ensuring counter-clockwise direction matches bracket search)
+    float in_arc = slot_b->in_angle - slot_a->in_angle;
+    if (in_arc <= 0) in_arc += 360.0f;
 
+    float out_arc = slot_b->out_angle - slot_a->out_angle;
+    if (out_arc <= 0) out_arc += 360.0f;
+
+    // Calculate raw interpolation factor 't'
     float in_diff = in_angle - slot_a->in_angle;
     if (in_diff < 0) in_diff += 360.0f;
+    float t = in_diff / in_arc;
 
-    float t = in_diff / total_in_arc;
+    // Apply Angular Deadzones (snapping)
+    float dz_a = slot_a->deadzone / 2.0f;
+    float dz_b = slot_b->deadzone / 2.0f;
+    
+    // 'ideal_dist' is the distance along the output arc from out_a
+    float ideal_dist = t * out_arc;
+    float t_final = t;
 
-    // 3. Scale to the "Ideal" Output Angle
-    float out_diff = slot_b->out_angle - slot_a->out_angle;
-    if (out_diff > 180.0f) out_diff -= 360.0f;
-    else if (out_diff < -180.0f) out_diff += 360.0f;
-
-    float ideal_out_angle = _angle_normalize(slot_a->out_angle + (t * out_diff));
-
-    // 4. Apply Deadzone to the OUTPUT Angle
-    // Get distance from slot_a out angle
-    float dist_a = _angle_normalize(ideal_out_angle - slot_a->out_angle);
-
-    // Get distance between out A and out B
-    float total_dz_range = _angle_normalize(slot_b->out_angle - slot_a->out_angle);
-
-
-    float dist_to_a = fabsf(fmodf(ideal_out_angle - slot_a->out_angle + 540.0f, 360.0f) - 180.0f);
-    float dist_to_b = fabsf(fmodf(ideal_out_angle - slot_b->out_angle + 540.0f, 360.0f) - 180.0f);
-
-    float dz_a_half = slot_a->deadzone / 2.0f;
-    float dz_b_half = slot_b->deadzone / 2.0f;
-
-    if (dist_to_a < dz_a_half) 
-    {
+    if (ideal_dist <= dz_a) {
         output->angle = slot_a->out_angle;
-        t = 0.0f; // Force interpolation to Slot A
-    } 
-    else if (dist_to_b < dz_b_half) 
-    {
+        t_final = 0.0f; // Snap to slot A for distance scaling
+    } else if (ideal_dist >= (out_arc - dz_b)) {
         output->angle = slot_b->out_angle;
-        t = 1.0f; // Force interpolation to Slot B
-    } 
-    else 
-    {
-        // Re-scale the output angle to exclude the deadzone areas for a smooth transition
-        float total_out_arc = fabsf(out_diff);
-        float effective_out_range = total_out_arc - dz_a_half - dz_b_half;
-        
-        // Calculate a new 't' that spans only the active region between deadzones
-        float t_active = (dist_to_a - dz_a_half) / effective_out_range;
-        output->angle = _angle_normalize(slot_a->out_angle + (t_active * out_diff));
+        t_final = 1.0f; // Snap to slot B for distance scaling
+    } else {
+        // Remap the 'live' zone to cover the full output arc smoothly
+        float live_arc = out_arc - dz_a - dz_b;
+        float t_active = (ideal_dist - dz_a) / live_arc;
+        output->angle = _angle_normalize(slot_a->out_angle + (t_active * out_arc));
+        t_final = t; 
     }
 
-    // 5. Distance Scaling
-    // Use the forced t (0 or 1) from deadzones to ensure perfect distance values
+    // Distance Scaling using snapped 't_final' to ensure stability at axes
     float r_a = slot_a->out_distance / (slot_a->in_distance > 0.0f ? slot_a->in_distance : 1.0f);
     float r_b = slot_b->out_distance / (slot_b->in_distance > 0.0f ? slot_b->in_distance : 1.0f);
     
-    if (t == 0.0f) {
-        output->distance = (in_distance / slot_a->in_distance) * slot_a->out_distance;
-        output->target = slot_a->out_distance;
-    } else if (t == 1.0f) {
-        output->distance = (in_distance / slot_b->in_distance) * slot_b->out_distance;
-        output->target = slot_b->out_distance;
-    } else {
-        float out_ratio = r_a + t * (r_b - r_a);
-        output->target = slot_a->out_distance + t * (slot_b->out_distance - slot_a->out_distance);
-        output->distance = in_distance * out_ratio;
-    }
+    float out_ratio = r_a + t_final * (r_b - r_a);
+    output->target = slot_a->out_distance + t_final * (slot_b->out_distance - slot_a->out_distance);
+    output->distance = in_distance * out_ratio;
 
-    // Clamping
     if (output->distance > 4096.0f) output->distance = 4096.0f;
-    if (output->distance < 0.0f) output->distance = 0.0f;
-
     return true;
 }
 
@@ -435,6 +408,9 @@ void stick_scaling_default_check()
         analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
 
         analog_config->analog_calibration_set = 0;
+
+        if(!analog_static.axis_lx)
+            analog_config->analog_calibration_set = 1;
 
         // Set default deadzones
         analog_config->l_deadzone = 144;

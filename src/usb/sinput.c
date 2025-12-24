@@ -503,10 +503,10 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.right_y = 0;
     #else
 
-    int lx = input.inputs[SINPUT_CODE_LX_RIGHT] - input.inputs[SINPUT_CODE_LX_LEFT];
-    int ly = input.inputs[SINPUT_CODE_LY_DOWN] - input.inputs[SINPUT_CODE_LY_UP];
-    int rx = input.inputs[SINPUT_CODE_RX_RIGHT] - input.inputs[SINPUT_CODE_RX_LEFT];
-    int ry = input.inputs[SINPUT_CODE_RY_DOWN] - input.inputs[SINPUT_CODE_RY_UP];
+    int lx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LX_LEFT],input.inputs[SINPUT_CODE_LX_RIGHT]); 
+    int ly = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LY_UP]  ,input.inputs[SINPUT_CODE_LY_DOWN] ); 
+    int rx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RX_LEFT],input.inputs[SINPUT_CODE_RX_RIGHT]);
+    int ry = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RY_UP]  ,input.inputs[SINPUT_CODE_RY_DOWN] ); 
     
     data.left_x = sinput_scale_axis(lx);
     data.left_y = sinput_scale_axis(ly);

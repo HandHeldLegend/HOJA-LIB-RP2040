@@ -4,6 +4,10 @@
 #include "input/stick_deadzone.h"
 #include "input/idle_manager.h"
 
+#ifdef PICO_RP2040
+#include "pico/float.h"
+#endif
+
 #include "hoja.h"
 
 #include <stdbool.h>
@@ -217,26 +221,23 @@ void _capture_input_joystick_raw(bool left, float *angle, float *distance)
 // Helper function to convert angle/distance to coordinate pair
 void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out) 
 {    
-    // Normalize angle to 0-360 range
+    angle = roundf(angle * 10.0f) / 10.0f;
+
     angle = fmodf(angle, 360.0f);
     if (angle < 0) angle += 360.0f;
     
-    // Convert angle to radians
     float angle_radians = angle * (float)M_PI / 180.0f;
     
-    // Calculate coordinates - use truncation, not rounding
+    // Use rounding instead of truncation to prevent jitter and cardinal "off-by-one"
     float x = distance * cosf(angle_radians);
     float y = distance * sinf(angle_radians);
     
-    // Clamp to -2048 to 2048 range
-    if (x > 2048.0f) x = 2048.0f;
-    else if (x < -2048.0f) x = -2048.0f;
+    // Clamp before rounding to prevent overflow/wrap
+    x = fmaxf(-2048.0f, fminf(2048.0f, x));
+    y = fmaxf(-2048.0f, fminf(2048.0f, y));
 
-    if (y > 2048.0f) y = 2048.0f;
-    else if (y < -2048.0f) y = -2048.0f;
-
-    out[0] = (int16_t)x;  // Truncates toward zero
-    out[1] = (int16_t)y;
+    out[0] = (int16_t)roundf(x);
+    out[1] = (int16_t)roundf(y);
 }
 
 void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)

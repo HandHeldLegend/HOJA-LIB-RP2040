@@ -12,6 +12,7 @@
 #include "input/analog.h"
 #include "utilities/callback.h"
 
+uint16_t cb_hoja_read_battery();
 // Accessible as a uint16_t array of size 4 only
 void cb_hoja_read_joystick(uint16_t *input);
 void cb_hoja_read_input(mapper_input_s *input);

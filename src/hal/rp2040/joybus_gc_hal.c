@@ -320,14 +320,12 @@ void joybus_gc_hal_task(uint64_t timestamp)
 
     _out_buffer.z = input.presses[GAMECUBE_CODE_Z];
 
-    const float target_max = 110.0f / 2048.0f;
-
     // Analog stick data conversion
-    float lx = _gcwire_scale((input.inputs[GAMECUBE_CODE_LX_RIGHT]-input.inputs[GAMECUBE_CODE_LX_LEFT]), 2048) * target_max;
-    float ly = _gcwire_scale((input.inputs[GAMECUBE_CODE_LY_UP]-input.inputs[GAMECUBE_CODE_LY_DOWN]), 2048)    * target_max;
-    float rx = _gcwire_scale((input.inputs[GAMECUBE_CODE_RX_RIGHT]-input.inputs[GAMECUBE_CODE_RX_LEFT]), 2048) * target_max;
-    float ry = _gcwire_scale((input.inputs[GAMECUBE_CODE_RY_UP]-input.inputs[GAMECUBE_CODE_RY_DOWN]), 2048)    * target_max;
-
+    const float   target_max = 110.0f / 2048.0f;
+    float lx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LX_LEFT],input.inputs[GAMECUBE_CODE_LX_RIGHT] ) * target_max;
+    float ly = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LY_DOWN],input.inputs[GAMECUBE_CODE_LY_UP]    ) * target_max;
+    float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
+    float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
 
     uint8_t lx8 = GCWIRE_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = GCWIRE_CLAMP(ly + 128, 0, 255);
