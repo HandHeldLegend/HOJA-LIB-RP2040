@@ -4,6 +4,7 @@
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
+#include "input/idle_manager.h"
 
 #include "board_config.h"
 
@@ -46,6 +47,7 @@ void rgb_set_idle(bool enable)
 
 void rgb_init(int mode, int brightness)
 {
+    idle_manager_heartbeat();
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
@@ -77,6 +79,11 @@ void rgb_init(int mode, int brightness)
     }
     else {
         loaded_brightness = brightness;
+    }
+
+    if(rgb_config->rgb_idle_glow==0xFF)
+    {
+        rgb_config->rgb_idle_glow = 0;
     }
 
     // Handle defaulting if we don't have colors
