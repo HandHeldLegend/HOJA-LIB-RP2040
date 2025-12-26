@@ -7,7 +7,14 @@
 #include "hoja_shared_types.h"
 #include "hoja.h"
 
+static bool tourney_mode_enabled = false;
+
 #define PAIRING_TOURNEY_INTERVAL_US 3000
+
+bool macro_tourney_check()
+{
+    return tourney_mode_enabled;
+}
 
 void macro_tourney(uint64_t timestamp, mapper_input_s *input)
 {
@@ -15,7 +22,7 @@ void macro_tourney(uint64_t timestamp, mapper_input_s *input)
     static bool holding = false;
     static uint32_t iterations = 0;
     static bool lockout = false;
-    static bool tourney_mode_enabled = false;
+    
 
     if(interval_run(timestamp, PAIRING_TOURNEY_INTERVAL_US, &interval))
     {

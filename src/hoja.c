@@ -23,6 +23,7 @@
 #include "input/idle_manager.h"
 #include "input/mapper.h"
 #include "input/hover.h"
+#include "input/stick_scaling.h"
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
@@ -260,6 +261,9 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   // Reload our remap
   mapper_init();
+
+  // Reload stick config
+  stick_scaling_init();
   return true;
 }
 

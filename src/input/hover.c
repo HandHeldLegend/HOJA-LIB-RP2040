@@ -3,6 +3,7 @@
 #include "utilities/settings.h"
 #include "utilities/crosscore_snapshot.h"
 #include "input_shared_types.h"
+#include "input/macros/macro_tourney.h"
 
 SNAPSHOT_TYPE(hover, mapper_input_s);
 
@@ -128,25 +129,6 @@ void hover_calibrate_start(uint8_t ch)
 
 void hover_init(void)
 {
-    // Check and default
-    if(hover_config->hover_config_version != CFG_BLOCK_HOVER_VERSION)
-    {
-        hover_config->hover_calibration_set = 0;
-
-        if(_used_hover_slots==0) hover_config->hover_calibration_set=1;
-
-        hover_config->hover_config_version = CFG_BLOCK_HOVER_VERSION;
-        
-        for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
-        {
-            _hover_set_ch_to_default(i);
-        }
-
-        // Enable calibration all channels
-        if(!hover_config->hover_calibration_set)
-            hover_calibrate_start(0xFF);
-    }
-
     _used_hover_slots = 0;
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
@@ -165,6 +147,25 @@ void hover_init(void)
                     0xFFF
             );
         }
+    }
+
+    // Check and default
+    if(hover_config->hover_config_version != CFG_BLOCK_HOVER_VERSION)
+    {
+        hover_config->hover_calibration_set = 0;
+
+        if(_used_hover_slots==0) hover_config->hover_calibration_set=1;
+
+        hover_config->hover_config_version = CFG_BLOCK_HOVER_VERSION;
+        
+        for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+        {
+            _hover_set_ch_to_default(i);
+        }
+
+        // Enable calibration all channels
+        if(!hover_config->hover_calibration_set)
+            hover_calibrate_start(0xFF);
     }
 
     static bool boot = false;
@@ -226,6 +227,17 @@ void hover_task(uint64_t timestamp)
     
     // Perform a reading
     cb_hoja_read_input(&input);
+
+    if(macro_tourney_check())
+    {
+        const uint8_t codes[] = {INPUT_CODE_UP, INPUT_CODE_DOWN, INPUT_CODE_LEFT, INPUT_CODE_RIGHT,
+                                 INPUT_CODE_HOME, INPUT_CODE_START, INPUT_CODE_SHARE, INPUT_CODE_SELECT};
+        for(int i = 0; i < 8; i++)
+        {
+            input.inputs[codes[i]]  = 0;
+            input.presses[codes[i]] = 0;
+        }
+    }
 
     // Apply inversion FIRST, before calibration or scaling
     for(int i = 0; i < _used_hover_slots; i++) {

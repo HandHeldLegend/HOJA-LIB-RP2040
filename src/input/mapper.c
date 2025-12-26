@@ -193,6 +193,8 @@ SNAPSHOT_TYPE(mapper, mapper_input_s);
 snapshot_mapper_t _mapper_snap_in;
 snapshot_mapper_t _mapper_snap_out;
 
+uint16_t _minimum_d2a_value = 0;
+
 mapper_input_s _all_inputs = {0};
 
 void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
@@ -359,6 +361,11 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     // Output to our triggers using the configured static output value
                     // for this particular input
                     case MAPPER_OUTPUT_HOVER:
+                    static_output = static_output < _minimum_d2a_value ? _minimum_d2a_value : static_output;
+                    this_press = true;
+                    this_output = static_output;
+                    break;
+                    
                     case MAPPER_OUTPUT_JOYSTICK:
                     this_press = true;
                     this_output = static_output;
@@ -401,6 +408,8 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     // Output to our triggers using the configured static output value
                     // for this particular input
                     case MAPPER_OUTPUT_HOVER:
+                    static_output = static_output < _minimum_d2a_value ? _minimum_d2a_value : static_output;
+
                     this_output = _handle_analog_to_analog(*input, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]);
@@ -449,6 +458,8 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     break;
 
                     case MAPPER_OUTPUT_HOVER:
+                    static_output = static_output < _minimum_d2a_value ? _minimum_d2a_value : static_output;
+
                     this_output = _handle_analog_to_analog(*input << 1, 
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
@@ -682,6 +693,8 @@ void mapper_init()
         
     boot_init = true;
 
+    _minimum_d2a_value = 0;
+
     switch(hoja_get_status().gamepad_mode)
     {
         default:
@@ -693,6 +706,7 @@ void mapper_init()
 
         case GAMEPAD_MODE_GAMECUBE:
         case GAMEPAD_MODE_GCUSB:
+        _minimum_d2a_value = 784;
         _standard_op.input_slots = input_config->input_profile_gamecube;
         _standard_op.output_types = _gamecube_output_types;
         _standard_op.output_types_max = GAMECUBE_CODE_MAX;

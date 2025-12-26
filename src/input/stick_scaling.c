@@ -375,6 +375,9 @@ void _set_default_configslot(joyConfigSlot_s *slots)
     }
 }
 
+joyConfigSlot_s _active_l[ADJUSTABLE_ANGLES] = {0};
+joyConfigSlot_s _active_r[ADJUSTABLE_ANGLES] = {0};
+
 void stick_scaling_calibrate_start(bool start)
 {
     MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
@@ -392,6 +395,10 @@ void stick_scaling_calibrate_start(bool start)
     {
         hoja_set_notification_status(COLOR_BLACK);
         _sticks_calibrating = false;
+
+        // Copy to working mem
+        memcpy(_active_l, analog_config->joy_config_l, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        memcpy(_active_r, analog_config->joy_config_r, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
     }
     MUTEX_HAL_EXIT(&_stick_scaling_mutex);
 }
@@ -441,6 +448,25 @@ void stick_scaling_default_check()
     }
 }
 
+void _validate_gc_setup(joyConfigSlot_s slots[ADJUSTABLE_ANGLES], joyConfigSlot_s out[ADJUSTABLE_ANGLES])
+{
+    for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+    {
+        out[i] = slots[i];
+        if(slots[i].enabled)
+        {
+            if((int) slots[i].out_angle % 90 > 0)
+            {
+                out[i].deadzone = 0;
+            }
+            else 
+            {
+                out[i].deadzone = slots[i].deadzone > 4.0f ? 4.0f : slots[i].deadzone;
+            }
+        }
+    }
+}
+
 // Input and output are based around -2048 to 2048 values with 0 as centers
 void stick_scaling_process(analog_data_s *in, analog_data_s *out)
 {
@@ -477,11 +503,11 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
     }
     else
     {
-        if (!_joy_scale_input(in_left, &out_left_meta, analog_config->joy_config_l, _l_count))
+        if (!_joy_scale_input(in_left, &out_left_meta, _active_l, _l_count))
         {
         }
 
-        if (!_joy_scale_input(in_right, &out_right_meta, analog_config->joy_config_r, _r_count))
+        if (!_joy_scale_input(in_right, &out_right_meta, _active_r, _r_count))
         {
         }
 
@@ -516,6 +542,23 @@ bool stick_scaling_init()
     // Validate input angles etc. 
     _l_count = _joy_validation_sort_and_count(analog_config->joy_config_l);
     _r_count= _joy_validation_sort_and_count(analog_config->joy_config_r);
+
+    // Copy to working config set unless we are in a gamecube mode
+    switch(hoja_get_status().gamepad_mode)
+    {
+        case GAMEPAD_MODE_GAMECUBE:
+        case GAMEPAD_MODE_GCUSB:
+        _validate_gc_setup(analog_config->joy_config_l, _active_l);
+        _validate_gc_setup(analog_config->joy_config_r, _active_r);
+        break;
+
+        default:
+        // Copy to working mem
+        memcpy(_active_l, analog_config->joy_config_l, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        memcpy(_active_r, analog_config->joy_config_r, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        break;
+
+    }
 
     MUTEX_HAL_EXIT(&_stick_scaling_mutex);
     return true;

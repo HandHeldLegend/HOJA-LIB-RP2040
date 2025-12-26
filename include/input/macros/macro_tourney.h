@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "input/mapper.h"
 
+bool macro_tourney_check();
 void macro_tourney(uint64_t timestamp, mapper_input_s *input);
 
 #endif
