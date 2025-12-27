@@ -82,6 +82,12 @@ const deviceInfoStatic_s    device_static = {
 
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)
 
+#if defined(HOJA_ANALOG_INVERT_ALLOWED)
+    #define ANALOG_INVERT_ALLOWED 1
+#else 
+    #define ANALOG_INVERT_ALLOWED 0
+#endif
+
 analogInfoStatic_s analog_static = {
     .axis_lx = 0,
     .axis_ly = 0,
@@ -89,6 +95,7 @@ analogInfoStatic_s analog_static = {
     .axis_ry = 0,
     .axis_lt = 0,
     .axis_rt = 0,
+    .invert_allowed = ANALOG_INVERT_ALLOWED,
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)

@@ -305,6 +305,9 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
     // Write system inputs
     tmp.buttons_system = _all_inputs.buttons_system;
 
+    bool haptic_left = false;
+    bool haptic_right = false;
+
     bool heartbeat = false;
 
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
@@ -414,7 +417,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]);
 
-                    this_press = this_output>0 ? true : false;
+                    this_press = op->rapid_press_state[i];
                     break;
 
                     // Output to our joystick using the configured static output value (divided by 2)
@@ -423,7 +426,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    this_press = this_output>0 ? true : false;
+                    this_press = op->rapid_press_state[i];
                     break;
                 }
             }
@@ -464,7 +467,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    this_press = this_output>0 ? true : false;
+                    this_press = op->rapid_press_state[i];
                     break;
 
                     case MAPPER_OUTPUT_JOYSTICK:
@@ -472,7 +475,7 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                         output_mode, static_output, threshold_delta,
                         &op->rapid_value[i], &op->rapid_press_state[i]); 
 
-                    this_press = this_output>0 ? true : false;
+                    this_press = op->rapid_press_state[i];
                     break;
                 }
             }
@@ -483,12 +486,34 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         _handle_analog_compare(output, this_output);
         *output_press |= this_press;
 
+        switch(i)
+        {
+            case INPUT_CODE_LT:
+            case INPUT_CODE_LT_ANALOG:
+            if(this_press)
+            {
+                haptic_left = true;
+            }
+            break;
+
+            case INPUT_CODE_RT:
+            case INPUT_CODE_RT_ANALOG:
+            if(this_press)
+            {
+                haptic_right = true;
+            }
+            break;
+        }
+
         heartbeat |= this_output>0;
         heartbeat |= this_press;
     }
 
     // Heartbeat
     if(heartbeat) idle_manager_heartbeat();
+
+    // Haptic clicks
+    pcm_play_bump(haptic_right, haptic_left);
 
     return tmp;
 }

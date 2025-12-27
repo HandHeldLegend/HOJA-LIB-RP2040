@@ -65,7 +65,8 @@ typedef struct
     uint8_t axis_ry : 1;
     uint8_t axis_lt : 1;
     uint8_t axis_rt : 1;
-    uint8_t reserved : 2;
+    uint8_t invert_allowed : 1;
+    uint8_t reserved : 1;
 } analogInfoStatic_s;
 
 typedef struct 
