@@ -17,7 +17,7 @@
 typedef enum 
 {
     STATIC_BLOCK_DEVICE, // Half way through config block
-    STATIC_BLOCK_BUTTONS, 
+    STATIC_BLOCK_INPUT, 
     STATIC_BLOCK_ANALOG, 
     STATIC_BLOCK_HAPTIC, 
     STATIC_BLOCK_IMU, 
@@ -35,7 +35,7 @@ typedef struct
     uint8_t     manifest_url[256];
     uint8_t     firmware_url[256];
     uint8_t     manual_url[128];
-    uint8_t     fcc_id[32];
+    uint8_t     reserved[32];
     uint32_t    fw_version; 
     uint8_t     snes_supported : 1;
     uint8_t     joybus_supported : 1;
@@ -45,8 +45,17 @@ typedef struct
 
 typedef struct 
 {
-    uint32_t remap_mask;
-} buttonInfoStatic_s;
+    uint8_t input_type; // 0=unused, 1=digital, 2=hover, 3=joystick
+    uint8_t input_name[8]; // Char name of input
+    uint8_t rgb_group; // Which RGB group is correlated with this input for reactive mode (Results are -1, 0 is unused)
+} inputInfoSlot_s;
+
+#define INPUTINFOSLOT_SIZE sizeof(inputInfoSlot_s)
+
+typedef struct
+{
+    inputInfoSlot_s input_info[36]; // SIZE=10 
+} inputInfoStatic_s;
 
 typedef struct 
 {
@@ -56,7 +65,8 @@ typedef struct
     uint8_t axis_ry : 1;
     uint8_t axis_lt : 1;
     uint8_t axis_rt : 1;
-    uint8_t reserved : 2;
+    uint8_t invert_allowed : 1;
+    uint8_t reserved : 1;
 } analogInfoStatic_s;
 
 typedef struct 
@@ -70,8 +80,12 @@ typedef struct
 
 typedef struct 
 {
-    uint16_t    capacity_mah;
-    uint8_t     part_number[24];
+    uint16_t    battery_capacity_mah;
+    uint8_t     battery_part_number[24];
+    uint8_t     pmic_status;
+    uint8_t     pmic_part_number[24];
+    uint8_t     fuelgauge_status;
+    uint8_t     fuelgauge_part_number[24];
 } batteryInfoStatic_s;
 
 typedef struct 
@@ -83,11 +97,13 @@ typedef struct
 
 typedef struct 
 {
-    uint16_t    baseband_version;
-    uint16_t    baseband_type; // 0 is onboard
-    uint8_t     bluetooth_bdr : 1;
-    uint8_t     bluetooth_ble : 1;
-    uint8_t reserved      : 6;
+    uint8_t     part_number[24];
+    uint8_t     external_update_supported;
+    uint16_t    external_version_number;
+    uint8_t     bluetooth_bdr_supported;
+    uint8_t     bluetooth_ble_supported;
+    uint8_t     bluetooth_status;
+    uint8_t     fcc_id[24];
 } bluetoothInfoStatic_s;
 
 typedef struct 
@@ -104,7 +120,7 @@ typedef struct
 #pragma pack(pop)
 
 #define STATINFO_DEVICE_BLOCK_SIZE      sizeof(deviceInfoStatic_s)
-#define STATINFO_DEVICE_BUTTON_SIZE     sizeof(buttonInfoStatic_s)
+#define STATINFO_DEVICE_INPUT_SIZE      sizeof(inputInfoStatic_s)
 #define STATINFO_ANALOG_SIZE            sizeof(analogInfoStatic_s)
 #define STATINFO_IMU_SIZE               sizeof(imuInfoStatic_s)
 #define STATINFO_BATTERY_SIZE           sizeof(batteryInfoStatic_s)
@@ -113,14 +129,15 @@ typedef struct
 #define STATINFO_RGB_SIZE               sizeof(rgbInfoStatic_s)
 
 extern const deviceInfoStatic_s     device_static; 
-extern const buttonInfoStatic_s     buttons_static; 
-extern const analogInfoStatic_s     analog_static; 
+extern analogInfoStatic_s           analog_static; 
 extern const imuInfoStatic_s        imu_static; 
-extern const batteryInfoStatic_s    battery_static; 
+extern batteryInfoStatic_s          battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
-extern bluetoothInfoStatic_s  bluetooth_static;
+extern const inputInfoStatic_s      input_static;
+extern bluetoothInfoStatic_s        bluetooth_static;
 extern rgbInfoStatic_s              rgb_static;
 
+void static_config_init();
 void static_config_read_block(static_block_t block, setting_callback_t cb);
 
 #endif

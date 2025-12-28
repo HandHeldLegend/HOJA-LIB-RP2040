@@ -9,7 +9,7 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
-int _rgb_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
+//int _rgb_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 rgb_s _rgb_groups[HOJA_RGB_GROUPS_NUM];
 bool _none_init = false;
 
@@ -19,7 +19,7 @@ void _unpack_groups_to_leds(rgb_s *output)
     {
         for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
         {
-            int index_out = _rgb_group_leds[i][j];
+            int index_out = rgb_led_groups[i][j];
             if(index_out<0)
             {
                 continue;

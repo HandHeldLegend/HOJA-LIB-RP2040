@@ -11,6 +11,7 @@
 
 #include "devices_shared_types.h"
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
@@ -24,6 +25,7 @@
 #include "input/mapper.h"
 #include "input/imu.h"
 
+#define ESP32_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
@@ -538,7 +540,7 @@ void esp32hoja_task(uint64_t timestamp)
 
         if(read_write)
         {
-            mapper_input_s *input = mapper_get_input();
+            mapper_input_s input = mapper_get_input();
 
             data_out[0] = I2C_CMD_STANDARD;
             data_out[1] = 0;                  // Input CRC location
@@ -547,104 +549,89 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.buttons_all      = 0;//buttons.buttons_all;
             input_data.buttons_system   = 0;//buttons.buttons_system;
 
-            input_data.lx = (uint16_t) (input->joysticks_combined[0] + 2048);
-            input_data.ly = (uint16_t) (input->joysticks_combined[1] + 2048);
-            input_data.rx = (uint16_t) (input->joysticks_combined[2] + 2048);
-            input_data.ry = (uint16_t) (input->joysticks_combined[3] + 2048);
-
-            // Clamp values between 0 and 4095
-            input_data.lx = (input_data.lx > 4095) ? 4095 : input_data.lx;
-            input_data.ly = (input_data.ly > 4095) ? 4095 : input_data.ly;
-            input_data.rx = (input_data.rx > 4095) ? 4095 : input_data.rx;
-            input_data.ry = (input_data.ry > 4095) ? 4095 : input_data.ry;
-
-            
-
             switch(hoja_get_status().gamepad_mode)
             {
                 default:
                 case GAMEPAD_MODE_SWPRO:
-                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_B);
-                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_A);
-                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_Y);
-                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_X);
+                int lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]); 
+                int ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);   
+                int rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]); 
+                int ry = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]);   
 
-                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_DOWN);
-                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RIGHT);
-                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LEFT);
-                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_UP);
+                // Clamp values between 0 and 4095
+                input_data.lx = (uint16_t) ESP32_CLAMP(lx, 0, 4095);
+                input_data.ly = (uint16_t) ESP32_CLAMP(ly, 0, 4095);
+                input_data.rx = (uint16_t) ESP32_CLAMP(rx, 0, 4095);
+                input_data.ry = (uint16_t) ESP32_CLAMP(ry, 0, 4095);
 
-                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_MINUS);
-                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_PLUS);
-                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_HOME);
-                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_CAPTURE);
+                input_data.button_south = input.presses[SWITCH_CODE_B];
+                input_data.button_east  = input.presses[SWITCH_CODE_A];
+                input_data.button_west  = input.presses[SWITCH_CODE_Y];
+                input_data.button_north = input.presses[SWITCH_CODE_X];
 
-                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LS);
-                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RS);
+                input_data.dpad_down     = input.presses[SWITCH_CODE_DOWN];
+                input_data.dpad_right    = input.presses[SWITCH_CODE_RIGHT];
+                input_data.dpad_left     = input.presses[SWITCH_CODE_LEFT];
+                input_data.dpad_up       = input.presses[SWITCH_CODE_UP];
 
-                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_R);
-                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_L);
+                input_data.button_minus    = input.presses[SWITCH_CODE_MINUS];
+                input_data.button_plus     = input.presses[SWITCH_CODE_PLUS];
+                input_data.button_home     = input.presses[SWITCH_CODE_HOME];
+                input_data.button_capture  = input.presses[SWITCH_CODE_CAPTURE];
+
+                input_data.button_stick_left   = input.presses[SWITCH_CODE_LS];
+                input_data.button_stick_right    = input.presses[SWITCH_CODE_RS];
+
+                input_data.trigger_r = input.presses[SWITCH_CODE_R];
+                input_data.trigger_l = input.presses[SWITCH_CODE_L];
                 
-                input_data.trigger_zl = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_LZ);
-                input_data.trigger_zr = MAPPER_BUTTON_DOWN(input->digital_inputs, SWITCH_CODE_RZ);
+                input_data.trigger_zl = input.presses[SWITCH_CODE_ZL];
+                input_data.trigger_zr = input.presses[SWITCH_CODE_ZR];
 
-                input_data.lt = (uint16_t) input->triggers[0];
-                input_data.rt = (uint16_t) input->triggers[1];
+                input_data.lt = 0;
+                input_data.rt = 0;
                 break;
+
                 case GAMEPAD_MODE_SINPUT:
-                input_data.button_south = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SOUTH);
-                input_data.button_east = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_EAST);
-                input_data.button_west = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_WEST);
-                input_data.button_north = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_NORTH);
+                int slx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LX_LEFT], input.inputs[SINPUT_CODE_LX_RIGHT]);
+                int sly = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LY_DOWN], input.inputs[SINPUT_CODE_LY_UP]);   
+                int srx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RX_LEFT], input.inputs[SINPUT_CODE_RX_RIGHT]);
+                int sry = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RY_DOWN], input.inputs[SINPUT_CODE_RY_UP]);   
 
-                input_data.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_DOWN);
-                input_data.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RIGHT);
-                input_data.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LEFT);
-                input_data.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_UP);
+                // Clamp values between 0 and 4095
+                input_data.lx = (uint16_t) ESP32_CLAMP(slx, 0, 4095);
+                input_data.ly = (uint16_t) ESP32_CLAMP(sly, 0, 4095);
+                input_data.rx = (uint16_t) ESP32_CLAMP(srx, 0, 4095);
+                input_data.ry = (uint16_t) ESP32_CLAMP(sry, 0, 4095);
 
-                input_data.button_minus    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_SELECT);
-                input_data.button_plus     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_START);
-                input_data.button_home     = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_HOME);
-                input_data.button_capture  = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_CAPTURE);
+                input_data.button_south = input.presses[SINPUT_CODE_SOUTH];
+                input_data.button_east  = input.presses[SINPUT_CODE_EAST];
+                input_data.button_west  = input.presses[SINPUT_CODE_WEST];
+                input_data.button_north = input.presses[SINPUT_CODE_NORTH];
 
-                input_data.button_stick_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LS);
-                input_data.button_stick_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RS);
+                input_data.dpad_down     = input.presses[SINPUT_CODE_DOWN];
+                input_data.dpad_right    = input.presses[SINPUT_CODE_RIGHT];
+                input_data.dpad_left     = input.presses[SINPUT_CODE_LEFT];
+                input_data.dpad_up       = input.presses[SINPUT_CODE_UP];
 
-                input_data.trigger_r = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RB);
-                input_data.trigger_l = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LB);
+                input_data.button_minus    = input.presses[SINPUT_CODE_SELECT];
+                input_data.button_plus     = input.presses[SINPUT_CODE_START];
+                input_data.button_home     = input.presses[SINPUT_CODE_GUIDE];
+                input_data.button_capture  = input.presses[SINPUT_CODE_SHARE];
 
-                bool l_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_LT);
-                bool r_digital = MAPPER_BUTTON_DOWN(input->digital_inputs, MAPPER_CODE_RT);
+                input_data.button_stick_left   = input.presses[SINPUT_CODE_LS];
+                input_data.button_stick_right  = input.presses[SINPUT_CODE_RS];
 
-                #if defined(HOJA_ADC_LT_CFG)
-                if(trigger_config->left_disabled == 1)
-                {
-                    if(l_digital)
-                        input_data.lt = 0xFFF;
-                    else 
-                        input_data.lt = 0;
-                }
-                else 
-                #endif
-                {
-                    input_data.lt = (uint16_t) input->triggers[0];
-                    input_data.trigger_zl = l_digital;
-                }
+                input_data.trigger_r = input.presses[SINPUT_CODE_RB];
+                input_data.trigger_l = input.presses[SINPUT_CODE_LB];
 
-                #if defined(HOJA_ADC_RT_CFG)
-                if(trigger_config->right_disabled == 1)
-                {
-                    if(r_digital)
-                        input_data.rt = 0xFFF;
-                    else 
-                        input_data.rt = 0;
-                }
-                else 
-                #endif
-                {
-                    input_data.rt = (uint16_t) input->triggers[1];
-                    input_data.trigger_zr = r_digital;
-                }
+                input_data.trigger_zl = input.presses[SINPUT_CODE_LT];
+                input_data.trigger_zr = input.presses[SINPUT_CODE_RT];
+
+                input_data.lt = ESP32_CLAMP(input.inputs[SINPUT_CODE_LT_ANALOG], 0, 4095);
+                input_data.rt = ESP32_CLAMP(input.inputs[SINPUT_CODE_RT_ANALOG], 0, 4095);
+
+                input_data.button_shipping = input.presses[SINPUT_CODE_MISC_3];
                 break;
             }
 
@@ -660,42 +647,47 @@ void esp32hoja_task(uint64_t timestamp)
 
             // Power status
             {
-                battery_status_s stat = battery_get_status();
-                bat_status_u s = {
+                static battery_status_s bstat = {0};
+                static fuelgauge_status_s fstat = {0};
+
+                battery_get_status(&bstat);
+                fuelgauge_get_status(&fstat);
+
+                esp32_battery_status_u s = {
                     .bat_lvl    = 4,
-                    .charging   = 1,
+                    .charging   = 0,
                     .connection = 0
                 };
-            
-                switch(stat.charge_status)
+
+                if(bstat.connected)
                 {
-                    case BATTERY_CHARGE_CHARGING:
-                    s.charging = 1;
-                    break;
-                
-                    default:
-                    s.charging = 0;
-                    break;
+                    if(bstat.charging)
+                    {
+                        s.charging = 1;
+                    }
+                    else s.charging = 0;
                 }
-            
-                switch(stat.battery_level)
+
+                if(fstat.connected)
                 {
-                    case BATTERY_LEVEL_CRITICAL:
-                    s.bat_lvl = 1;
-                    break;
-                
-                    case BATTERY_LEVEL_LOW:
-                    s.bat_lvl = 1;
-                    break;
-                
-                    case BATTERY_LEVEL_MID:
-                    s.bat_lvl = 2;
-                    break;
-                
-                    default:
-                    case BATTERY_LEVEL_HIGH:
-                    s.bat_lvl = 4;
-                    break;
+                    switch(fstat.simple)
+                    {
+                        case BATTERY_LEVEL_CRITICAL:
+                        s.bat_lvl = 1;
+                        break;
+
+                        case BATTERY_LEVEL_LOW:
+                        s.bat_lvl = 1;
+                        break;
+
+                        case BATTERY_LEVEL_MID:
+                        s.bat_lvl = 2;
+                        break;
+
+                        case BATTERY_LEVEL_HIGH:
+                        s.bat_lvl = 4;
+                        break;
+                    }
                 }
 
                 input_data.power_stat = s.val;

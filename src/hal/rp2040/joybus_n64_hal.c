@@ -41,7 +41,7 @@
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
 #define N64_RANGE 90
-#define N64_RANGE_MULTIPLIER (N64_RANGE)/4095
+#define N64_RANGE_MULTIPLIER (N64_RANGE)/4096
 
 uint _n64_irq;
 uint _n64_offset;
@@ -305,29 +305,27 @@ void joybus_n64_hal_task(uint64_t timestamp)
           haptics_set_std(_rumblestate ? 255 : 0, false);
       }
 
-      mapper_input_s *input = mapper_get_input();
+      mapper_input_s input = mapper_get_input();
       
-      _out_buffer.button_a = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_A);
-      _out_buffer.button_b = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_B);
+      _out_buffer.button_a = input.presses[N64_CODE_A];
+      _out_buffer.button_b = input.presses[N64_CODE_B];
 
-      _out_buffer.cpad_up   = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_CUP);
-      _out_buffer.cpad_down = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_CDOWN);
+      _out_buffer.cpad_up   = input.presses[N64_CODE_CUP];
+      _out_buffer.cpad_down = input.presses[N64_CODE_CDOWN];
 
-      _out_buffer.cpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_CLEFT);
-      _out_buffer.cpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_CRIGHT);
+      _out_buffer.cpad_left     = input.presses[N64_CODE_CLEFT];
+      _out_buffer.cpad_right    = input.presses[N64_CODE_CRIGHT];
 
-      _out_buffer.button_start = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_START);
+      _out_buffer.button_start = input.presses[N64_CODE_START];
 
-      _out_buffer.button_l = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_L);
+      _out_buffer.button_l = input.presses[N64_CODE_L];
 
-      _out_buffer.button_z = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_Z);
-      _out_buffer.button_r = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_R);
+      _out_buffer.button_z = input.presses[N64_CODE_Z];
+      _out_buffer.button_r = input.presses[N64_CODE_R];
 
       const float   target_max = 85.0f / 2048.0f;
-
-      // Analog stick data conversion
-      float lx = input->joysticks_combined[0] * target_max;
-      float ly = input->joysticks_combined[1] * target_max;
+      float lx = mapper_joystick_concat(0,input.inputs[N64_CODE_LX_LEFT],input.inputs[N64_CODE_LX_RIGHT] ) * target_max;
+      float ly = mapper_joystick_concat(0,input.inputs[N64_CODE_LY_DOWN],input.inputs[N64_CODE_LY_UP]    ) * target_max;
 
       int8_t lx8 = N64WIRE_CLAMP(lx, -128, 127);
       int8_t ly8 = N64WIRE_CLAMP(ly, -128, 127);
@@ -335,10 +333,10 @@ void joybus_n64_hal_task(uint64_t timestamp)
       _out_buffer.stick_x = lx8;
       _out_buffer.stick_y = ly8;
 
-      _out_buffer.dpad_down     = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_DOWN);
-      _out_buffer.dpad_left     = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_LEFT);
-      _out_buffer.dpad_right    = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_RIGHT);
-      _out_buffer.dpad_up       = MAPPER_BUTTON_DOWN(input->digital_inputs, N64_CODE_UP);
+      _out_buffer.dpad_down     = input.presses[N64_CODE_DOWN];
+      _out_buffer.dpad_left     = input.presses[N64_CODE_LEFT];
+      _out_buffer.dpad_right    = input.presses[N64_CODE_RIGHT];
+      _out_buffer.dpad_up       = input.presses[N64_CODE_UP];
     }
 }
 

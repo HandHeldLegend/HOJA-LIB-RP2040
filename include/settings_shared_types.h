@@ -7,26 +7,36 @@
 typedef enum 
 {
     CFG_BLOCK_GAMEPAD, 
-    CFG_BLOCK_REMAP, 
+    CFG_BLOCK_HOVER, 
     CFG_BLOCK_ANALOG, 
     CFG_BLOCK_RGB, 
     CFG_BLOCK_TRIGGER, 
     CFG_BLOCK_IMU, 
     CFG_BLOCK_HAPTIC, 
     CFG_BLOCK_USER, 
-    CFG_BLOCK_BATTERY,
+    CFG_BLOCK_INPUT,
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
 #define CFG_BLOCK_GAMEPAD_VERSION   0x12
-#define CFG_BLOCK_REMAP_VERSION     0x13
-#define CFG_BLOCK_ANALOG_VERSION    0x11
+
+// Remap config is replaced by hover cfg
+//#define CFG_BLOCK_REMAP_VERSION     0x13
+#define CFG_BLOCK_HOVER_VERSION     0x14
+
+#define CFG_BLOCK_ANALOG_VERSION    0x13 // Migrate from 0x11
 #define CFG_BLOCK_RGB_VERSION       0x11
+
+// Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
+
 #define CFG_BLOCK_IMU_VERSION       0x11
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
-#define CFG_BLOCK_BATTERY_VERSION   0x12
+
+// Battery cfg is removed
+//#define CFG_BLOCK_BATTERY_VERSION   0x12
+#define CFG_BLOCK_INPUT_VERSION     0x13
 
 typedef enum 
 {
@@ -38,16 +48,29 @@ typedef enum
 
 typedef enum 
 {
-    REMAP_CMD_REFRESH, 
-    REMAP_CMD_DEFAULT, 
-} remap_cmd_t;
+    MAPPER_CMD_REFRESH, 
+    MAPPER_CMD_DEFAULT_ALL,
+    MAPPER_CMD_DEFAULT_SWITCH,
+    MAPPER_CMD_DEFAULT_XINPUT,
+    MAPPER_CMD_DEFAULT_SNES,
+    MAPPER_CMD_DEFAULT_N64,
+    MAPPER_CMD_DEFAULT_GAMECUBE,
+    MAPPER_CMD_DEFAULT_SINPUT,
+    MAPPER_CMD_WEBUSB_SWITCH,
+    MAPPER_CMD_WEBUSB_XINPUT,
+    MAPPER_CMD_WEBUSB_SNES,
+    MAPPER_CMD_WEBUSB_N64,
+    MAPPER_CMD_WEBUSB_GAMECUBE,
+    MAPPER_CMD_WEBUSB_SINPUT,
+} mapper_cmd_t;
 
 typedef enum 
 {
     ANALOG_CMD_REFRESH, 
     ANALOG_CMD_CALIBRATE_START, 
     ANALOG_CMD_CALIBRATE_STOP, 
-    ANALOG_CMD_CAPTURE_ANGLE, 
+    ANALOG_CMD_CAPTURE_JOYSTICK_LEFT, 
+    ANALOG_CMD_CAPTURE_JOYSTICK_RIGHT,
 } analog_cmd_t;
 
 typedef enum 
@@ -67,13 +90,6 @@ typedef enum
     HAPTIC_CMD_TEST_STRENGTH, 
 } haptic_cmd_t;
 
-typedef enum 
-{
-    TRIGGER_CMD_REFRESH, 
-    TRIGGER_CMD_CALIBRATE_START, 
-    TRIGGER_CMD_CALIBRATE_STOP, 
-} trigger_cmd_t;
-
 typedef void (*setting_callback_t)(const uint8_t *data, uint16_t size);
 typedef void (*command_confirm_t)(cfg_block_t, uint8_t, uint8_t*, uint32_t);
 typedef void (*webreport_cmd_confirm_t)(
@@ -81,12 +97,6 @@ typedef void (*webreport_cmd_confirm_t)(
     uint8_t* data, uint32_t size);
 
 #pragma pack(push, 1)
-typedef struct 
-{
-    uint8_t battery_config_version;
-    float   charge_level_percent;
-    uint8_t reserved[11];
-} batteryConfig_s;
 
 typedef struct 
 {
@@ -114,45 +124,37 @@ typedef struct
     uint8_t     reserved[18];
 } imuConfig_s;
 
+// Trigger config is now unused
+// We can safely use this later for other
+// data
 typedef struct 
 {
-    uint8_t     trigger_config_version;
-    uint8_t     unused; // Now unused
-    uint16_t    left_min;
-    uint16_t    left_max;
-    uint16_t    left_deadzone : 15;
-    uint16_t    left_disabled : 1;
-    uint16_t    left_hairpin_value; // Threshold for analog->digital
-    uint16_t    left_static_output_value; // Static output value for digital->analog
-    uint16_t    right_min;
-    uint16_t    right_max;
-    uint16_t    right_deadzone : 15;
-    uint16_t    right_disabled : 1;
-    uint16_t    right_hairpin_value; // Threshold for analog->digital
-    uint16_t    right_static_output_value; // Static output value for digital->analog
-    uint8_t     reserved[42];
+    uint8_t reserved[64];
 } triggerConfig_s;
 
 typedef struct 
 {
-    int first_distance;
-    int16_t offsets[63];
-} analogPackedDistances_s;
-
-#define ANALOG_PACKED_DISTANCES_SIZE sizeof(analogPackedDistances_s)
-
-typedef struct
-{
-  float input;    // Input Angle
-  float output;   // Output Angle
-  int distance; // Distance to this input angle maximum for hard polygonal shape stick gates
-} angleMap_s;
-
-#define ANGLE_MAP_SIZE sizeof(angleMap_s)
+    uint8_t dpad_config_version;
+    uint8_t socd_type;
+    uint16_t dpad_deadzone;
+} dpadConfig_s;
 
 typedef struct 
 {
-        uint8_t     analog_config_version; // 0
+    float in_angle;
+    float out_angle;
+    float deadzone;
+    float in_distance;
+    float out_distance;
+    uint8_t enabled;
+} joyConfigSlot_s;
+
+#define JOY_CFG_SIZE sizeof(joyConfigSlot_s)
+
+typedef struct 
+{
+        uint8_t     analog_config_version; 
+        uint8_t     analog_calibration_set;
         uint16_t    lx_invert : 1; 
         uint16_t    lx_center : 15; 
         uint16_t    ly_invert : 1;
@@ -161,12 +163,8 @@ typedef struct
         uint16_t    rx_center : 15;
         uint16_t    ry_invert : 1;
         uint16_t    ry_center : 15; 
-        analogPackedDistances_s l_packed_distances; // SIZE=130
-        analogPackedDistances_s r_packed_distances; // SIZE=130
-        angleMap_s  l_angle_maps[16]; // SIZE=12
-        angleMap_s  r_angle_maps[16]; // SIZE=12
-        uint8_t     l_scaler_type; 
-        uint8_t     r_scaler_type; 
+        joyConfigSlot_s  joy_config_l[16]; // SIZE=21
+        joyConfigSlot_s  joy_config_r[16]; // SIZE=21
         uint16_t    l_deadzone; 
         uint16_t    r_deadzone; 
         uint8_t     l_snapback_type;
@@ -177,8 +175,10 @@ typedef struct
         uint16_t    r_snapback_intensity;
         uint16_t    l_threshold; // Analog->Digital threshold for left joystick
         uint16_t    r_threshold; // Analog->Digital threshold for right joystick
-        uint8_t     reserved[351];
-} analogConfig_s;
+        uint8_t     reserved[324];
+} analogConfig_s; // 1024 bytes
+
+#define ACFGSIZE sizeof(analogConfig_s)
 
 #define RGB_BRIGHTNESS_MAX 4096
 
@@ -189,50 +189,95 @@ typedef struct
     uint16_t    rgb_speed; // RGB Speed in ms
     uint32_t    rgb_colors[32]; // Store 32 RGB colors
     uint16_t    rgb_brightness; // 4096 range
-    uint8_t     reserved[122];
+    uint8_t     rgb_idle_glow;
+    uint8_t     reserved[121];
 } rgbConfig_s;
 
 typedef struct 
 {
     uint8_t  gamepad_config_version;
     uint8_t  gamepad_default_mode;
-    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch
+    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch (BASE DEVICE MAC)
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
     uint32_t gamepad_color_grip_left;
     uint32_t gamepad_color_grip_right;
     uint8_t  host_mac_switch[6]; // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6]; // Mac address of the SInput device we are paired to
-    uint8_t  reserved[28];
+    uint8_t  webusb_enable_popup; // Whether or not the WebUSB toast should show
+    uint8_t  reserved[27];
 } gamepadConfig_s;
 
+// Calibration data used for analog inputs (non-joystick)
+typedef struct 
+{
+    uint16_t invert : 1;
+    uint16_t min : 15;
+    uint16_t max;
+} hoverSlot_s;
+
+#define HOVER_SLOT_SIZE sizeof(hoverSlot_s)
+
+typedef struct 
+{
+    uint8_t hover_config_version;
+    uint8_t hover_calibration_set;
+    hoverSlot_s config[36]; // SIZE=4
+    uint8_t reserved[111];
+} hoverConfig_s;
+
+// Input config replaces our remap config
+// It also now contains information for when it will be used
+// for analog to digital or digital to analog inputs
 typedef struct
 {
-    uint8_t remap_config_version;
-    // Switch, XInput, SNES, N64, GameCube
-    int8_t remap_profile_switch[36];
-    int8_t remap_profile_xinput[36];
-    int8_t remap_profile_snes[36];
-    int8_t remap_profile_n64[36];
-    int8_t remap_profile_gamecube[36];
-    uint8_t  reserved[75];
-} remapConfig_s; 
+    uint16_t output_mode : 3; // 0=default, 1=rapid trigger, 2=threshold
+    uint16_t static_output : 13; // Output that is used when this input is pressed
+    uint16_t threshold_delta; // Either a threshold for digital press or a delta for rapid trigger
+    int8_t output_code; // Code for what this outputs or is assigned to
+} inputConfigSlot_s;
+
+#define INPUT_SLOT_SIZE sizeof(input_cfg_s) 
+
+typedef struct 
+{
+    uint8_t input_config_version;
+    inputConfigSlot_s input_profile_switch[36]; // SIZE=5
+    inputConfigSlot_s input_profile_xinput[36]; // SIZE=5
+    inputConfigSlot_s input_profile_snes[36]; // SIZE=5
+    inputConfigSlot_s input_profile_n64[36]; // SIZE=5
+    inputConfigSlot_s input_profile_gamecube[36]; // SIZE=5
+    inputConfigSlot_s input_profile_sinput[36]; // SIZE=5
+    inputConfigSlot_s input_profile_reserved_2[36]; // SIZE=5
+    uint8_t reserved[787];
+} inputConfig_s;
+
 #pragma pack(pop)
 
 // Byte sizes of our various blocks
-#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) //64
-#define REMAP_CFB_SIZE      sizeof(remapConfig_s) // 256
+#define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) // 64
+// Remap config is depreciated and replace this block with hover Config
+// #define REMAP_CFB_SIZE      sizeof(remapConfig_s) // 256
+#define HOVER_CFB_SIZE      sizeof(hoverConfig_s) // 256
+
 #define RGB_CFB_SIZE        sizeof(rgbConfig_s) // 256
 #define ANALOG_CFB_SIZE     sizeof(analogConfig_s) // 1024
-#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) //64
-#define IMU_CFB_SIZE        sizeof(imuConfig_s) //32
+
+// Trigger config is replaced and space is simply reserved
+#define TRIGGER_CFB_SIZE    sizeof(triggerConfig_s) // 64
+
+#define IMU_CFB_SIZE        sizeof(imuConfig_s) // 32
 #define HAPTIC_CFB_SIZE     sizeof(hapticConfig_s) 
 #define USER_CFB_SIZE       sizeof(userConfig_s) // 64
-#define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) //16
+// Battery cfb was never used. Replace with more useful data
+// #define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) // 16
+#define INPUT_CFB_SIZE      sizeof(inputConfig_s) // 2048
 
 // Byte size of all combined blocks
-#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+REMAP_CFB_SIZE+RGB_CFB_SIZE+\
+#define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+HOVER_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE+BATTERY_CFB_SIZE)
+                        USER_CFB_SIZE+INPUT_CFB_SIZE)
+
+                        
 
 #endif

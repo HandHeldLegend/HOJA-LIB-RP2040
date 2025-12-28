@@ -32,9 +32,6 @@ void idle_manager_task(uint64_t timestamp)
         if(interval_resettable_run(timestamp, IDLE_ACTIVATION_TIME_US, _reset_state, &interval))
         {
             _idle_active = true;
-
-            hoja_set_notification_status(COLOR_BLUE);
-
             rgb_set_idle(true);
         }
         else if(_reset_state)
@@ -47,7 +44,6 @@ void idle_manager_task(uint64_t timestamp)
     }
     else if(_reset_state && _idle_active)
     {
-        hoja_set_notification_status(COLOR_BLACK);
         rgb_set_idle(false);
         _idle_active = false;
     }

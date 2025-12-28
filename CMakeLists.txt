@@ -20,12 +20,14 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/sysmon.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/transport.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/adc.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
@@ -33,16 +35,16 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_motion.c 
 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/button.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_deadzone.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/trigger.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/dpad.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/idle_manager.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/input/hover.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
 
@@ -52,7 +54,6 @@ target_sources(hoja_lib INTERFACE
 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/swpro.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ds4input.c
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/sinput.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
 

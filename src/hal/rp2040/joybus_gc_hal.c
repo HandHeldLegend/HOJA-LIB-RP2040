@@ -11,6 +11,8 @@
 #include "input_shared_types.h"
 #include "input/mapper.h"
 
+#include <stdlib.h>
+
 #include "board_config.h"
 
 #if defined(HOJA_JOYBUS_GC_DRIVER) && (HOJA_JOYBUS_GC_DRIVER == JOYBUS_GC_DRIVER_HAL)
@@ -252,6 +254,20 @@ bool joybus_gc_hal_init()
 #define INPUT_POLL_RATE 1000 // 1ms
 #define GCWIRE_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
+int16_t _gcwire_scale(int16_t value, int16_t max) {
+    // Get the magnitude and sign of the input value
+    int16_t magnitude = abs(value);
+    int16_t sign = (value >= 0) ? 1 : -1;
+    
+    // If magnitude is already at or above max, return max with appropriate sign
+    if (magnitude >= max) {
+        return sign * max;
+    }
+    
+    // Value is already within range, return as-is
+    return value;
+}
+
 void joybus_gc_hal_task(uint64_t timestamp)
 {
   static interval_s interval_reset = {0};
@@ -276,7 +292,7 @@ void joybus_gc_hal_task(uint64_t timestamp)
       hoja_set_connected_status(CONN_STATUS_PLAYER_1);
     }
 
-    mapper_input_s *input = mapper_get_input();
+    mapper_input_s input = mapper_get_input();
 
     static bool _rumblestate = false;
     if (_gc_rumble != _rumblestate)
@@ -288,29 +304,28 @@ void joybus_gc_hal_task(uint64_t timestamp)
     // Our buttons are always the same formatting
     _out_buffer.blank_2 = 1;
 
-    _out_buffer.a = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_A);
-    _out_buffer.b = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_B);
-    _out_buffer.x = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_X);
-    _out_buffer.y = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Y);
+    _out_buffer.a = input.presses[GAMECUBE_CODE_A];
+    _out_buffer.b = input.presses[GAMECUBE_CODE_B];
+    _out_buffer.x = input.presses[GAMECUBE_CODE_X];
+    _out_buffer.y = input.presses[GAMECUBE_CODE_Y];
 
-    _out_buffer.start = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_START);
-    _out_buffer.l = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_L);
-    _out_buffer.r = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_R);
+    _out_buffer.start = input.presses[GAMECUBE_CODE_START];
+    _out_buffer.l = input.presses[GAMECUBE_CODE_L];
+    _out_buffer.r = input.presses[GAMECUBE_CODE_R];
 
-    _out_buffer.dpad_down = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_DOWN);
-    _out_buffer.dpad_left = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_LEFT);
-    _out_buffer.dpad_right = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_RIGHT);
-    _out_buffer.dpad_up = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_UP);
+    _out_buffer.dpad_down = input.presses[GAMECUBE_CODE_DOWN];
+    _out_buffer.dpad_left = input.presses[GAMECUBE_CODE_LEFT];
+    _out_buffer.dpad_right = input.presses[GAMECUBE_CODE_RIGHT];
+    _out_buffer.dpad_up = input.presses[GAMECUBE_CODE_UP];
 
-    _out_buffer.z = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Z);
-
-    const float target_max = 110.0f / 2048.0f;
+    _out_buffer.z = input.presses[GAMECUBE_CODE_Z];
 
     // Analog stick data conversion
-    float lx = input->joysticks_combined[0] * target_max;
-    float ly = input->joysticks_combined[1] * target_max;
-    float rx = input->joysticks_combined[2] * target_max;
-    float ry = input->joysticks_combined[3] * target_max;
+    const float   target_max = 110.0f / 2048.0f;
+    float lx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LX_LEFT],input.inputs[GAMECUBE_CODE_LX_RIGHT] ) * target_max;
+    float ly = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LY_DOWN],input.inputs[GAMECUBE_CODE_LY_UP]    ) * target_max;
+    float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
+    float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
 
     uint8_t lx8 = GCWIRE_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = GCWIRE_CLAMP(ly + 128, 0, 255);
@@ -319,8 +334,8 @@ void joybus_gc_hal_task(uint64_t timestamp)
     // End analog stick conversion section
 
     // Trigger with SP function conversion
-    uint8_t lt8 = _out_buffer.l ? 255 : GCWIRE_CLAMP(input->triggers[0] >> 4, 0, 255);
-    uint8_t rt8 = _out_buffer.r ? 255 : GCWIRE_CLAMP(input->triggers[1] >> 4, 0, 255);
+    uint8_t lt8 = _out_buffer.l ? 255 : GCWIRE_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4, 0, 255);
+    uint8_t rt8 = _out_buffer.r ? 255 : GCWIRE_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4, 0, 255);
 
     // Handle reporting for differing modes
     switch (_workingMode)

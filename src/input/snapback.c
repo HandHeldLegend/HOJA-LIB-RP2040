@@ -106,38 +106,48 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
 
     sbutil_data_to_axis(input, &l, &r);
 
-    if(!analog_config->l_snapback_type)
-    {
-        snapback_auto_process(&l, &l_out);
-    }
-    else if (analog_config->l_snapback_type == 1)
-    {
+    switch(analog_config->l_snapback_type)
+    {   
+        // LPF
+        default:
         snapback_lpf_process(&l, &l_out);
-    }
-    else 
-    {
+        break;
+
+        // Auto
+        case 1:
+        snapback_auto_process(&l, &l_out);
+        break;
+
+        // Off
+        case 2:
         l_out.x          = l.x;
         l_out.y          = l.y;
         l_out.distance   = l.distance;
         l_out.target     = l.target;
         l_out.angle      = l.angle;
+        break;
     }
 
-    if(!analog_config->r_snapback_type)
-    {
-        snapback_auto_process(&r, &r_out);
-    }
-    else if (analog_config->r_snapback_type == 1)
-    {
+    switch(analog_config->r_snapback_type)
+    {   
+        // LPF
+        default:
         snapback_lpf_process(&r, &r_out);
-    }
-    else 
-    {
+        break;
+
+        // Auto
+        case 1:
+        snapback_auto_process(&r, &r_out);
+        break;
+
+        // Off
+        case 2:
         r_out.x          = r.x;
         r_out.y          = r.y;
         r_out.distance   = r.distance;
         r_out.target     = r.target;
         r_out.angle      = r.angle;
+        break;
     }
 
     // Copy output data

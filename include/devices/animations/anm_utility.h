@@ -10,6 +10,7 @@ void anm_utility_apply_color_safety(rgb_s *color);
 uint32_t anm_utility_pack_local_color(rgb_s color);
 rgb_s anm_utility_unpack_local_color(uint32_t color);
 uint32_t anm_utility_get_time_fixedpoint();
+uint32_t anm_utility_ms_to_frames(uint32_t time_ms);
 void anm_utility_set_time_ms(uint32_t time_ms);
 uint32_t anm_utility_blend(rgb_s *original, rgb_s *new, uint32_t blend);
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness);

@@ -3,6 +3,8 @@
 #include "devices/rgb.h"
 #include "devices/haptics.h"
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
+#include "utilities/sysmon.h"
 
 #include "hal/sys_hal.h"
 
@@ -33,9 +35,9 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
         #endif
     }
 
-    battery_status_s bat_stat = battery_get_status();
+    fuelgauge_status_s fuel_stat = {0};
 
-    if(bat_stat.battery_level == BATTERY_LEVEL_CRITICAL)
+    if(fuel_stat.connected && fuel_stat.percent<5)
     {
         return false;
     }
@@ -85,7 +87,7 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
 
                 // Critical battery power
                 case 2:
-                battery_set_critical_shutdown();
+                sysmon_set_critical_shutdown();
                 break;
 
                 default:

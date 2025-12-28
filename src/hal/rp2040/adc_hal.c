@@ -16,7 +16,6 @@
 #define SAMPLES_PER_CHANNEL (1<<SAMPLES_BIT_SHIFT)
 
 volatile uint16_t _dma_adc_buffer[SAMPLES_PER_CHANNEL];
-uint16_t _current_adc_values[4];
 
 static uint32_t _adc_dma_chan = 0;
 
@@ -46,13 +45,14 @@ uint16_t _process_samples(volatile uint16_t *source)
 static bool adc_init_done = false;
 
 // Read channel according to cfg data
-uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
+bool adc_hal_read(adc_hal_driver_s *driver)
 {
-    if(!adc_init_done || cfg->ch_local>3) return 0;
+    if(!adc_init_done) return false;
+    if(!driver->initialized) return false;
 
     mutex_enter_blocking(&_adc_safe_mutex);
 
-    adc_select_input(cfg->ch_local);
+    adc_select_input(driver->ch);
     dma_channel_set_write_addr(_adc_dma_chan, _dma_adc_buffer, true);
     adc_run(true);
 
@@ -61,11 +61,11 @@ uint16_t adc_hal_read_channel(adc_channel_cfg_s *cfg)
     adc_run(false);
     adc_fifo_drain();
 
-    _current_adc_values[cfg->ch_local] = _process_samples(_dma_adc_buffer);
+    driver->output = _process_samples(_dma_adc_buffer);
 
     mutex_exit(&_adc_safe_mutex);
 
-    return cfg->ch_invert ? (0xFFF - _current_adc_values[cfg->ch_local]) : _current_adc_values[cfg->ch_local];
+    return true;
 }
 
 bool _adc_hal_init(uint32_t gpio)
@@ -107,11 +107,13 @@ bool _adc_hal_init(uint32_t gpio)
     return true;
 }
 
-bool adc_hal_init_channel(adc_channel_cfg_s *cfg)
+bool adc_hal_init(adc_hal_driver_s *driver)
 {
-    if(cfg->ch_local>3) return false;
+    uint8_t gpio = driver->gpio;
+    if(gpio<26 || gpio>29) return false;
 
-    // Initialize GPIO for HAL ADC
-    uint32_t gpio = cfg->ch_local + 26;
-    return  _adc_hal_init(gpio);
+    _adc_hal_init(gpio);
+    driver->ch = gpio-26;
+    driver->initialized = true;
+    return true;
 }

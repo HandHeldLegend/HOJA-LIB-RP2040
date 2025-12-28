@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
+#include "input_shared_types.h"
 #include "utilities/interval.h"
-#include "input/button.h"
 #include "settings_shared_types.h"
 
 #define ANALOG_POLL_INTERVAL 500 

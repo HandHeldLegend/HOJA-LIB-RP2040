@@ -59,76 +59,43 @@ void gcinput_enable(bool enable)
 
 #define GCUSB_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-int16_t scale_with_deadzone(int16_t value, int16_t max, int16_t deadzone) {
-    // Get the magnitude and sign of the input value
-    int16_t magnitude = abs(value);
-    int16_t sign = (value >= 0) ? 1 : -1;
-    
-    // If magnitude is within deadzone, return 0
-    if (magnitude <= deadzone) {
-        return 0;
-    }
-    
-    // If magnitude is already at or above max, return max with appropriate sign
-    if (magnitude >= max) {
-        return sign * max;
-    }
-    
-    // Calculate the usable range after deadzone
-    int32_t usable_range = max - deadzone;
-    int32_t adjusted_magnitude = magnitude - deadzone;
-    
-    // Scale the adjusted magnitude to the full 0-max range
-    // Using int32_t to prevent overflow during multiplication
-    int32_t scaled_magnitude = (adjusted_magnitude * max) / usable_range;
-    
-    return sign * (int16_t)scaled_magnitude;
-}
-
-
 void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 {
     static gc_input_s   data = {0};
     static uint8_t      buffer[37] = {0};
 
-    mapper_input_s *input = mapper_get_input();
+    mapper_input_s input = mapper_get_input();
 
     buffer[0] = 0x21;
 
     const float   target_max = 110.0f / 2048.0f;
-
-    input->joysticks_combined[0] = scale_with_deadzone(input->joysticks_combined[0], 2047, 64);
-    input->joysticks_combined[1] = scale_with_deadzone(input->joysticks_combined[1], 2047, 64);
-    input->joysticks_combined[2] = scale_with_deadzone(input->joysticks_combined[2], 2047, 64);
-    input->joysticks_combined[3] = scale_with_deadzone(input->joysticks_combined[3], 2047, 64);
-
-    float lx = (float)input->joysticks_combined[0] * target_max;
-    float ly = (float)input->joysticks_combined[1] * target_max;
-    float rx = (float)input->joysticks_combined[2] * target_max;
-    float ry = (float)input->joysticks_combined[3] * target_max;
+    float lx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LX_LEFT],input.inputs[GAMECUBE_CODE_LX_RIGHT] ) * target_max;
+    float ly = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LY_DOWN],input.inputs[GAMECUBE_CODE_LY_UP]    ) * target_max;
+    float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
+    float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
 
     uint8_t lx8 = (uint8_t)GCUSB_CLAMP(lx + 128, 0, 255);
     uint8_t ly8 = (uint8_t)GCUSB_CLAMP(ly + 128, 0, 255);
     uint8_t rx8 = (uint8_t)GCUSB_CLAMP(rx + 128, 0, 255);
     uint8_t ry8 = (uint8_t)GCUSB_CLAMP(ry + 128, 0, 255);
 
-    data.button_a = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_A);
-    data.button_b = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_B);
-    data.button_x = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_X);
-    data.button_y = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Y);
+    data.button_a = input.presses[GAMECUBE_CODE_A];
+    data.button_b = input.presses[GAMECUBE_CODE_B];
+    data.button_x = input.presses[GAMECUBE_CODE_X];
+    data.button_y = input.presses[GAMECUBE_CODE_Y];
 
-    data.button_start   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_START);
-    data.button_l       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_L);
-    data.button_r       = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_R);
+    data.button_start   = input.presses[GAMECUBE_CODE_START];
+    data.button_l       = input.presses[GAMECUBE_CODE_L];
+    data.button_r       = input.presses[GAMECUBE_CODE_R];
 
-    uint8_t lt8 = data.button_l ? 255 : GCUSB_CLAMP(input->triggers[0] >> 4, 0, 255);
-    uint8_t rt8 = data.button_r ? 255 : GCUSB_CLAMP(input->triggers[1] >> 4, 0, 255);
+    uint8_t lt8 = data.button_l ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4, 0, 255);
+    uint8_t rt8 = data.button_r ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4, 0, 255);
 
-    data.dpad_down   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_DOWN);
-    data.dpad_left   = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_LEFT);
-    data.dpad_right  = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_RIGHT);
-    data.dpad_up     = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_UP);
-    data.button_z    = MAPPER_BUTTON_DOWN(input->digital_inputs, GAMECUBE_CODE_Z);
+    data.dpad_down   = input.presses[GAMECUBE_CODE_DOWN];
+    data.dpad_left   = input.presses[GAMECUBE_CODE_LEFT];
+    data.dpad_right  = input.presses[GAMECUBE_CODE_RIGHT];
+    data.dpad_up     = input.presses[GAMECUBE_CODE_UP];
+    data.button_z    = input.presses[GAMECUBE_CODE_Z];
 
     data.stick_x = lx8;
     data.stick_y = ly8;

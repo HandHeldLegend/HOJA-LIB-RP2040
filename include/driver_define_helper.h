@@ -5,77 +5,32 @@
 #include "input/mapper.h"
 
     typedef enum {
-        ADC_CH_LX,
-        ADC_CH_LY,
-        ADC_CH_RX,
-        ADC_CH_RY,
-        ADC_CH_LT,
-        ADC_CH_RT,
-        ADC_CH_BAT,
-        ADC_CH_MAX,
-    } adc_ch_t;
-
-    typedef enum {
-        ADC_DRIVER_NONE,
-        ADC_DRIVER_HAL,
-        ADC_DRIVER_MCP3002,
-        ADC_DRIVER_TMUX1204,
-        ADC_DRIVER_ADS7142
-    } adc_driver_t;
-
-    /**
-     * A driver may exist more than once,
-     * but we take care to isolate driver instances 
-     * from our channel configuration. A channel configuration
-     * points to a driver configuration instance
-    **/
+        INPUT_TYPE_UNUSED,
+        INPUT_TYPE_DIGITAL,
+        INPUT_TYPE_HOVER,
+        INPUT_TYPE_JOYSTICK
+    } input_type_t;
 
     typedef struct {
-        int8_t  gpio;
-    } adc_hal_cfg_t;
+        uint8_t  gpio;
+        uint8_t  ch; // READ ONLY
+        bool initialized; // READ ONLY
+        uint16_t output; // READ ONLY
+    } adc_hal_driver_s;
 
     typedef struct {
-        int8_t  cs_gpio;
-        int8_t  spi_instance;
-    } adc_mcp3002_cfg_t;
-
-    typedef struct { 
-        int8_t i2c_instance;
-    } adc_ads7142_cfg_t;
-
-    // Forward declare the driver config struct
-    typedef struct adc_driver_cfg_s adc_driver_cfg_s;
-    typedef struct adc_channel_cfg_s adc_channel_cfg_s;
+        uint8_t  cs_gpio;
+        uint8_t  spi_instance; 
+        uint16_t output_ch_0; // READ ONLY
+        uint16_t output_ch_1; // READ ONLY
+        bool initialized; // READ ONLY
+    } adc_mcp3002_driver_s;
 
     typedef struct {
-        adc_driver_cfg_s *host_cfg; // Configuration of host driver (TMUX1204 needs another ADC to send data to)
-        int8_t          host_ch_local; // Local channel for host driver. IE if the output is going to ADC HAL ch 0, use ch 0!
-        int8_t          a0_gpio;
-        int8_t          a1_gpio;
-    } adc_tmux1204_cfg_t;
-
-    // ADC Drivers
-    struct adc_driver_cfg_s
-    {
-        adc_driver_t    driver_type;        // Type of ADC driver
-        int8_t          driver_instance;    // Instance of driver
-
-        // CFG data for specific driver
-        union 
-        {
-            adc_hal_cfg_t       hal_cfg;
-            adc_mcp3002_cfg_t   mcp3002_cfg;
-            adc_tmux1204_cfg_t  tmux1204_cfg;
-            adc_ads7142_cfg_t   ads7142_cfg;
-        };
-    };
-
-    struct adc_channel_cfg_s {
-        int8_t  ch_local; // Local channel for the given driver
-        uint8_t ch_invert;
-        adc_driver_cfg_s *driver_cfg;
-    };
-
+        uint8_t a0_gpio; 
+        uint8_t a1_gpio; 
+        bool initialized; // READ ONLY
+    } mux_tmux1204_driver_s;
 
     // ------------------------------
     // Helper macro: convert name to mask
@@ -90,9 +45,6 @@
 
     // Helper to expand a list of buttons
     #define HOJA_ENABLE_INPUT(code) | HOJA_MASK(code)
-
-
-    typedef uint16_t(*adc_read_fn_t)(adc_channel_cfg_s *cfg);
     
     // IMU Drivers
     #define IMU_DRIVER_LSM6DSR_SPI 1
@@ -103,6 +55,11 @@
 
     // Battery Drivers
     #define BATTERY_DRIVER_BQ25180 1
+
+    // Fuel Gauge Drivers
+    #define FUELGAUGE_DRIVER_ADC 1
+    #define FUELGAUGE_DRIVER_ESP32 2
+    #define FUELGAUGE_DRIVER_BQ27621G1 3
 
     // Bluetooth Drivers 
     #define BLUETOOTH_DRIVER_HAL 1
@@ -137,7 +94,7 @@
     #define JOYBUS_GC_DRIVER_HAL 1
 
     // Button layout for SEWN types
-    #define SEWN_LAYOUT_ABXY 0 //Xbox Style
+    #define SEWN_LAYOUT_ABXY 0 // Xbox Style
     #define SEWN_LAYOUT_BAYX 1 // Nintendo Style
     #define SEWN_LAYOUT_AXBY 2 // GameCube Style
 

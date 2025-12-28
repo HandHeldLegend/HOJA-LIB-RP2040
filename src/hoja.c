@@ -15,32 +15,44 @@
 #include "utilities/settings.h"
 #include "utilities/boot.h"
 #include "utilities/hooks.h"
+#include "utilities/sysmon.h"
 
-#include "input/button.h"
 #include "input/analog.h"
 #include "input/imu.h"
-#include "input/trigger.h"
 #include "input/macros.h"
 #include "input/idle_manager.h"
 #include "input/mapper.h"
+#include "input/hover.h"
+#include "input/stick_scaling.h"
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
 #include "devices/bluetooth.h"
 #include "wired/wired.h"
 #include "devices/haptics.h"
+#include "devices/fuelgauge.h"
 
 time_callback_t _hoja_mode_task_cb = NULL;
 callback_t _hoja_mode_stop_cb = NULL;
 
-__attribute__((weak)) bool cb_hoja_buttons_init()
+__attribute__((weak)) void cb_hoja_init()
 {
-  return false;
+
 }
 
-__attribute__((weak)) void cb_hoja_read_buttons(button_data_s *data)
+__attribute__((weak)) uint16_t cb_hoja_read_battery()
 {
-  (void)&data;
+  return 0xFFFF;
+}
+
+__attribute__((weak)) void cb_hoja_read_joystick(uint16_t *input)
+{
+  (void)&input;
+}
+
+__attribute__((weak)) void cb_hoja_read_input(mapper_input_s *input)
+{
+  (void)&input;
 }
 
 void hoja_deinit(callback_t cb)
@@ -179,40 +191,39 @@ bool thisPair = false;
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 {
-// If we have a battery driver
-// we should perform a power check and some
-// other logic
-#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER > 0)
   if (method == GAMEPAD_METHOD_AUTO)
   {
-    battery_status_s stat = battery_get_status();
+    battery_status_s status;
+    battery_get_status(&status);
 
-    if (stat.plug_status == BATTERY_PLUG_UNPLUGGED)
-    {
-      switch (mode)
-      {
-      case GAMEPAD_MODE_SWPRO:
-      case GAMEPAD_MODE_SINPUT:
-      case GAMEPAD_MODE_XINPUT:
-        method = GAMEPAD_METHOD_BLUETOOTH;
-        break;
-
-      default:
-        method = GAMEPAD_METHOD_USB;
-        break;
-      }
-    }
-    else
+    // PMIC unused
+    if (!status.connected)
     {
       method = GAMEPAD_METHOD_USB;
     }
+    else
+    {
+      if (!status.plugged)
+      {
+        switch (mode)
+        {
+        case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_SINPUT:
+        case GAMEPAD_MODE_XINPUT:
+          method = GAMEPAD_METHOD_BLUETOOTH;
+          break;
+
+        default:
+          method = GAMEPAD_METHOD_USB;
+          break;
+        }
+      }
+      else
+      {
+        method = GAMEPAD_METHOD_USB;
+      }
+    }
   }
-#else
-  if (method == GAMEPAD_METHOD_AUTO)
-  {
-    method = GAMEPAD_METHOD_USB;
-  }
-#endif
 
   // debug
   // method = GAMEPAD_METHOD_BLUETOOTH;
@@ -223,6 +234,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
+  
 
   switch (method)
   {
@@ -249,6 +261,9 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   // Reload our remap
   mapper_init();
+
+  // Reload stick config
+  stick_scaling_init();
   return true;
 }
 
@@ -267,11 +282,11 @@ void _hoja_task_1()
     // Get current system timestamp
     sys_hal_time_us(&c1_timestamp);
 
-    // Button task
-    button_task(c1_timestamp);
-
     // Flash task
     flash_hal_task();
+
+    // Read inputs
+    hover_task(c1_timestamp);
 
     // Process any macros
     macros_task(c1_timestamp);
@@ -292,8 +307,8 @@ void _hoja_task_1()
     // RGB task
     rgb_task(c1_timestamp);
 
-    // Battery task
-    battery_task(c1_timestamp);
+    // System Monitor task (battery/fuel gauge)
+    sysmon_task(c1_timestamp);
 
     // Update sys tick
     sys_hal_tick();
@@ -319,10 +334,8 @@ void _hoja_task_0()
     sys_hal_time_us(&c0_timestamp);
 
     // Analog task
-    analog_task(c0_timestamp);
-
-    // Trigger task
-    trigger_task(c0_timestamp);
+    if(analog_static.axis_lx)
+      analog_task(c0_timestamp);
   }
 }
 
@@ -354,8 +367,14 @@ bool _system_requirements_init()
   i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL, baudrate_khz_i2c1);
 #endif
 
+  // Static config
+  static_config_init();
+
   // System settings
   settings_init();
+
+  // MAIN.C BOARD INIT
+  cb_hoja_init();
 
   return true;
 }
@@ -363,16 +382,20 @@ bool _system_requirements_init()
 bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  int bat_return = battery_init(method==GAMEPAD_METHOD_WIRED);
+  if(method!=GAMEPAD_METHOD_WIRED)
+    battery_init();
+
+  // Fuel gauge
+  fuelgauge_init(1200);
 
   // Haptics
   haptics_init();
 
   int bright = -1;
-  
-  if(method==GAMEPAD_METHOD_BLUETOOTH || method==GAMEPAD_METHOD_WIRED)
+
+  if (method == GAMEPAD_METHOD_BLUETOOTH || method == GAMEPAD_METHOD_WIRED)
   {
-    const int halfbright = (RGB_BRIGHTNESS_MAX/3);
+    const int halfbright = (RGB_BRIGHTNESS_MAX / 3);
     bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
   }
 
@@ -383,14 +406,11 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 
 bool _system_input_init()
 {
-  // Buttons
-  button_init();
+  // Hover input
+  hover_init();
 
   // Analog joysticks
   analog_init();
-
-  // Analog triggers
-  trigger_init();
 
   // IMU motion
   imu_init();

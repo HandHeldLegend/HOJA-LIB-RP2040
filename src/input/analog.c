@@ -4,7 +4,11 @@
 #include "input/stick_deadzone.h"
 #include "input/idle_manager.h"
 
-#include "devices/adc.h"
+#ifdef PICO_RP2040
+#include "pico/float.h"
+#endif
+
+#include "hoja.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -97,6 +101,8 @@ analog_data_s _safe_scaled_analog_data   = {0};  // Stage 1
 analog_data_s _safe_snapback_analog_data = {0};  // Stage 2
 analog_data_s _safe_deadzone_analog_data = {0};  // Stage 3
 
+volatile bool _capture_centers = false;
+
 // Access analog input data safely
 void analog_access_safe(analog_data_s *out, analog_access_t type)
 {
@@ -120,11 +126,15 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
     }
 }
 
+void _capture_center_offsets();
 void analog_init()
 {
-    adc_devices_init();
-
     switch_analog_calibration_init();
+
+    if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
+    {
+        _capture_centers = true;
+    }
     stick_scaling_init();
 
     _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
@@ -136,10 +146,7 @@ void analog_init()
 // Read analog values
 void _analog_read_raw()
 {
-    uint16_t lx = STICK_INTERNAL_CENTER;
-    uint16_t ly = STICK_INTERNAL_CENTER;
-    uint16_t rx = STICK_INTERNAL_CENTER;
-    uint16_t ry = STICK_INTERNAL_CENTER;
+    uint16_t joy[4] = {STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER, STICK_INTERNAL_CENTER};
 
     #if (ADC_SMOOTHING_ENABLED==1)
     static RollingAverage ralx = {0};
@@ -148,16 +155,13 @@ void _analog_read_raw()
     static RollingAverage rary = {0};
     #endif
 
-    lx = adc_read_lx();
-    ly = adc_read_ly();
-    rx = adc_read_rx();
-    ry = adc_read_ry();
+    cb_hoja_read_joystick(joy);
 
     #if (ADC_SMOOTHING_ENABLED==1)
-        addSample(&ralx, lx);
-        addSample(&raly, ly);
-        addSample(&rarx, rx);
-        addSample(&rary, ry);
+        addSample(&ralx, joy[0]);
+        addSample(&raly, joy[1]);
+        addSample(&rarx, joy[2]);
+        addSample(&rary, joy[3]);
 
         // Convert data
         _raw_analog_data.lx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&ralx), analog_config->lx_invert);
@@ -165,17 +169,16 @@ void _analog_read_raw()
         _raw_analog_data.rx = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rarx), analog_config->rx_invert);
         _raw_analog_data.ry = STICK_OPTIONAL_INVERT((uint16_t) getAverage(&rary), analog_config->ry_invert);
     #else
-        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(lx, analog_config->lx_invert);
-        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(ly, analog_config->ly_invert);
-        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(rx, analog_config->rx_invert);
-        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(ry, analog_config->ry_invert);
+        _raw_analog_data.lx = STICK_OPTIONAL_INVERT(joy[0], analog_config->lx_invert);
+        _raw_analog_data.ly = STICK_OPTIONAL_INVERT(joy[1], analog_config->ly_invert);
+        _raw_analog_data.rx = STICK_OPTIONAL_INVERT(joy[2], analog_config->rx_invert);
+        _raw_analog_data.ry = STICK_OPTIONAL_INVERT(joy[3], analog_config->ry_invert);
     #endif
 }
 
-volatile bool _capture_centers = false;
 void _capture_center_offsets()
 {
-    int32_t lx_sum = 0, ly_sum = 0, rx_sum = 0, ry_sum = 0;
+    int lx_sum = 0, ly_sum = 0, rx_sum = 0, ry_sum = 0;
     
     // Discard the first reading
     _analog_read_raw();
@@ -183,10 +186,10 @@ void _capture_center_offsets()
     // Average over 8 readings
     for (int i = 0; i < 8; i++) {
         _analog_read_raw();
-        lx_sum += _raw_analog_data.lx & 0x7FFF;
-        ly_sum += _raw_analog_data.ly & 0x7FFF;
-        rx_sum += _raw_analog_data.rx & 0x7FFF;
-        ry_sum += _raw_analog_data.ry & 0x7FFF;
+        lx_sum += _raw_analog_data.lx;
+        ly_sum += _raw_analog_data.ly;
+        rx_sum += _raw_analog_data.rx;
+        ry_sum += _raw_analog_data.ry;
         sys_hal_sleep_ms(1);
     }
     
@@ -201,37 +204,46 @@ void _capture_center_offsets()
     _center_offsets[3] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ry_center;
 }
 
-void _capture_input_angle(float *left, float *right)
+void _capture_input_joystick_raw(bool left, float *angle, float *distance)
 {
-    // Extract angles from raw analog data and store them
-    *left   = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
-    *right  = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+    if(left)
+    {
+        *angle = stick_scaling_coordinates_to_angle(_raw_analog_data.lx, _raw_analog_data.ly);
+        *distance = stick_scaling_coordinate_distance(_raw_analog_data.lx, _raw_analog_data.ly);
+    }
+    else 
+    {
+        *angle = stick_scaling_coordinates_to_angle(_raw_analog_data.rx, _raw_analog_data.ry);
+        *distance = stick_scaling_coordinate_distance(_raw_analog_data.rx, _raw_analog_data.ry);
+    }
 }
 
 // Helper function to convert angle/distance to coordinate pair
 void analog_angle_distance_to_coordinate(float angle, float distance, int16_t *out) 
 {    
-    // Normalize angle to 0-360 range
+    angle = roundf(angle * 10.0f) / 10.0f;
+
     angle = fmodf(angle, 360.0f);
     if (angle < 0) angle += 360.0f;
     
-    // Convert angle to radians
-    float angle_radians = angle * M_PI / 180.0f;
+    float angle_radians = angle * (float)M_PI / 180.0f;
     
-    // Calculate X and Y coordinates
-    // Limit to -2048 to +2048 range
-    out[0] = (int)(distance * cosf(angle_radians));
-    out[1] = (int)(distance * sinf(angle_radians));
+    // Use rounding instead of truncation to prevent jitter and cardinal "off-by-one"
+    float x = distance * cosf(angle_radians);
+    float y = distance * sinf(angle_radians);
     
-    // Clamp to prevent exceeding the specified range
-    out[0] = fmaxf(-2048, fminf(2048, out[0]));
-    out[1] = fmaxf(-2048, fminf(2048, out[1]));
+    // Clamp before rounding to prevent overflow/wrap
+    x = fmaxf(-2048.0f, fminf(2048.0f, x));
+    y = fmaxf(-2048.0f, fminf(2048.0f, y));
+
+    out[0] = (int16_t)roundf(x);
+    out[1] = (int16_t)roundf(y);
 }
 
 void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
 {
-    float left = 0.0f;
-    float right = 0.0f;
+    float angle = 0.0f;
+    float distance = 0.0f;
     bool do_cb = false;
 
     switch(cmd)
@@ -248,17 +260,28 @@ void analog_config_command(analog_cmd_t cmd, webreport_cmd_confirm_t cb)
 
         case ANALOG_CMD_CALIBRATE_STOP:
             stick_scaling_calibrate_start(false);
+            analog_config->analog_calibration_set = 1;
             _capture_centers = false;
             do_cb = true;
         break;
 
-        case ANALOG_CMD_CAPTURE_ANGLE:
+        case ANALOG_CMD_CAPTURE_JOYSTICK_LEFT:
             // Capture angles
-            _capture_input_angle(&left, &right);
-            uint8_t buffer[8] = {0};
-            memcpy(buffer, &left, sizeof(float));
-            memcpy(buffer+4, &right, sizeof(float));
-            cb(CFG_BLOCK_ANALOG, cmd, true, buffer, 8);
+            _capture_input_joystick_raw(true, &angle, &distance);
+            uint8_t buffer_l[8] = {0};
+            memcpy(buffer_l, &angle, sizeof(float));
+            memcpy(buffer_l+4, &distance, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer_l, 8);
+            return;
+        break;
+
+        case ANALOG_CMD_CAPTURE_JOYSTICK_RIGHT:
+            // Capture angles
+            _capture_input_joystick_raw(false, &angle, &distance);
+            uint8_t buffer_r[8] = {0};
+            memcpy(buffer_r, &angle, sizeof(float));
+            memcpy(buffer_r+4, &distance, sizeof(float));
+            cb(CFG_BLOCK_ANALOG, cmd, true, buffer_r, 8);
             return;
         break;
     }
@@ -321,8 +344,6 @@ void analog_task(uint64_t timestamp)
         snapshot_js_write(&_js_snapback, &_snapback_analog_data);
 
         stick_deadzone_process(&_snapback_analog_data, &_deadzone_analog_data);
-
-        if(_is_analog_dist_changed(&_deadzone_analog_data)) idle_manager_heartbeat();
 
         // Cap values
         _deadzone_analog_data.lx = CAP_ANALOG(_deadzone_analog_data.lx);

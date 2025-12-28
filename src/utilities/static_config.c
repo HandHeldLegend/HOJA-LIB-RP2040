@@ -3,8 +3,11 @@
 #include "board_config.h"
 #include "usb/webusb.h"
 
+#include "devices/battery.h"
+#include "devices/fuelgauge.h"
+
 // Bluetooth driver nonsense
-#include "drivers/bluetooth/esp32_hojabaseband.h"
+#include "devices/bluetooth.h"
 
 #include <string.h>
 
@@ -72,57 +75,27 @@ const deviceInfoStatic_s    device_static = {
     .name           = DEVICE_NAME,
     .firmware_url   = FIRMWARE_URL,
     .manifest_url   = MANIFEST_URL,
-    .fcc_id         = FCC_ID_TEXT,
     .manual_url     = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT
 };
 
-#if defined(HOJA_ADC_LX_CFG) 
- #define ALX (1)
-#else 
- #define ALX (0)
-#endif
-
-#if defined(HOJA_ADC_LY_CFG) 
- #define ALY (1)
-#else 
- #define ALY (0)
-#endif
-
-#if defined(HOJA_ADC_RX_CFG) 
- #define ARX (1)
-#else 
- #define ARX (0)
-#endif
-
-#if defined(HOJA_ADC_RY_CFG) 
- #define ARY (1)
-#else 
- #define ARY (0)
-#endif
-
-#if defined(HOJA_ADC_LT_CFG) 
- #define ALT (1)
-#else 
- #define ALT (0)
-#endif
-
-#if defined(HOJA_ADC_RT_CFG) 
- #define ART (1)
-#else 
- #define ART (0)
-#endif
-
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)
 
-const analogInfoStatic_s    analog_static = {
-    .axis_lx = ALX,
-    .axis_ly = ALY,
-    .axis_rx = ARX,
-    .axis_ry = ARY,
-    .axis_lt = ALT,
-    .axis_rt = ART,
+#if defined(HOJA_ANALOG_INVERT_ALLOWED)
+    #define ANALOG_INVERT_ALLOWED 1
+#else 
+    #define ANALOG_INVERT_ALLOWED 0
+#endif
+
+analogInfoStatic_s analog_static = {
+    .axis_lx = 0,
+    .axis_ly = 0,
+    .axis_rx = 0,
+    .axis_ry = 0,
+    .axis_lt = 0,
+    .axis_rt = 0,
+    .invert_allowed = ANALOG_INVERT_ALLOWED,
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)
@@ -131,7 +104,7 @@ const analogInfoStatic_s    analog_static = {
     #define IMU_AVAILABLE 0
 #endif
 
-const imuInfoStatic_s       imu_static = {
+const imuInfoStatic_s imu_static = {
     .axis_gyro_a  = IMU_AVAILABLE,
     .axis_gyro_b  = IMU_AVAILABLE,
     .axis_accel_a = IMU_AVAILABLE,
@@ -148,9 +121,25 @@ const imuInfoStatic_s       imu_static = {
  #define HOJA_BATTERY_PART_CODE "N/A"
 #endif
 
-const batteryInfoStatic_s   battery_static = {
-    .capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
-    .part_number  = HOJA_BATTERY_PART_CODE,
+#if !defined(HOJA_BATTERY_PMIC_PART_NUMBER)
+ #warning "HOJA_BATTERY_PMIC_PART_NUMBER undefined in board_config.h."
+ #define HOJA_BATTERY_PMIC_PART_NUMBER "N/A"
+
+ #define PMIC_IGNORE_STATUS 1
+#endif
+
+#if !defined(HOJA_BATTERY_FUELGAUGE_PART_NUMBER)
+ #warning "HOJA_BATTERY_FUELGAUGE_PART_NUMBER undefined in board_config.h."
+ #define HOJA_BATTERY_FUELGAUGE_PART_NUMBER "N/A"
+
+ #define FUELGAUGE_IGNORE_STATUS 1
+#endif
+
+batteryInfoStatic_s battery_static = {
+    .battery_capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
+    .battery_part_number  = HOJA_BATTERY_PART_CODE,
+    .pmic_part_number = HOJA_BATTERY_PMIC_PART_NUMBER,
+    .fuelgauge_part_number = HOJA_BATTERY_FUELGAUGE_PART_NUMBER,
 };
 
 #if !defined(HOJA_HAPTICS_DRIVER)
@@ -176,142 +165,90 @@ const hapticInfoStatic_s    haptic_static = {
     .haptic_sd = HAPTICS_SD_EN,
 };
 
-
-// SEWN (South, East, West, North)
-#if (defined(HOJA_INPUT_ENABLE_SEWN) && HOJA_INPUT_ENABLE_SEWN == 1)
-    #define STATIC_REMAP_SEWN 0x0000000F  // bits 0–3
-#else
-    #define STATIC_REMAP_SEWN 0
+#if !defined(HOJA_INPUT_SLOTS)
+    #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
+    #define HOJA_INPUT_SLOTS { \
+        (inputInfoSlot_s) {/*South*/.input_name="South", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={0}}, \
+        (inputInfoSlot_s) {/*East*/.input_name="East", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={1}}, \
+        (inputInfoSlot_s) {/*West*/.input_name="West", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={2}}, \
+        (inputInfoSlot_s) {/*North*/.input_name="North", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={3}}, \
+        (inputInfoSlot_s) {/*Up*/.input_name="Up", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Down*/.input_name="Down", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Left*/.input_name="Left", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Right*/.input_name="Right", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*SL*/.input_name="SL", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*SR*/.input_name="SR", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LB*/.input_name="LB", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*RB*/.input_name="RB", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LT*/.input_name="L", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*RT*/.input_name="R", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LP1*/0}, \
+        (inputInfoSlot_s) {/*RP1*/0}, \
+        (inputInfoSlot_s) {/*Start*/.input_name="Start", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Select*/.input_name="Select", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Home*/.input_name="Home", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*Share*/.input_name="Share", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*LP2*/0}, \
+        (inputInfoSlot_s) {/*RP2*/0}, \
+        (inputInfoSlot_s) {/*TP1*/0}, \
+        (inputInfoSlot_s) {/*TP2*/0}, \
+        (inputInfoSlot_s) {/*MISC3*/.input_name="Power", .input_type=INPUT_TYPE_DIGITAL}, \
+        (inputInfoSlot_s) {/*MISC4*/0}, \
+        (inputInfoSlot_s) {/*LTANALOG*/.input_name="LT", .input_type=INPUT_TYPE_HOVER}, \
+        (inputInfoSlot_s) {/*RTANALOG*/.input_name="RT", .input_type=INPUT_TYPE_HOVER}, \
+        (inputInfoSlot_s) {/*LX_RIGHT*/.input_name="LX+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LX_LEFT*/.input_name="LX-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LY_UP*/.input_name="LY+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*LY_DOWN*/.input_name="LY-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RX_RIGHT*/.input_name="RX+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RX_LEFT*/.input_name="RX-", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RY_UP*/.input_name="RY+", .input_type=INPUT_TYPE_JOYSTICK}, \
+        (inputInfoSlot_s) {/*RY_DOWN*/.input_name="RY-", .input_type=INPUT_TYPE_JOYSTICK} \
+    }
 #endif
 
-// DPAD (Up, Down, Left, Right)
-#if (defined(HOJA_INPUT_ENABLE_DPAD) && HOJA_INPUT_ENABLE_DPAD == 1)
-    #define STATIC_REMAP_DPAD 0x000000F0  // bits 4–7
-#else
-    #define STATIC_REMAP_DPAD 0
-#endif
-
-// Bumpers (L1, R1)
-#if (defined(HOJA_INPUT_ENABLE_BUMPERS) && HOJA_INPUT_ENABLE_BUMPERS == 1)
-    #define STATIC_REMAP_BUMPERS 0x00000300  // bits 8–9
-#else
-    #define STATIC_REMAP_BUMPERS 0
-#endif
-
-// Triggers (L2, R2)
-#if (defined(HOJA_INPUT_ENABLE_TRIGGERS) && HOJA_INPUT_ENABLE_TRIGGERS == 1)
-    #define STATIC_REMAP_TRIGGERS 0x00000C00  // bits 10–11
-#else
-    #define STATIC_REMAP_TRIGGERS 0
-#endif
-
-// Start + Select
-#if (defined(HOJA_INPUT_ENABLE_STARTSELECT) && HOJA_INPUT_ENABLE_STARTSELECT == 1)
-    #define STATIC_REMAP_STARTSELECT 0x00003000  // bits 12–13
-#else
-    #define STATIC_REMAP_STARTSELECT 0
-#endif
-
-// Home
-#if (defined(HOJA_INPUT_ENABLE_HOME) && HOJA_INPUT_ENABLE_HOME == 1)
-    #define STATIC_REMAP_HOME 0x00004000  // bit 14
-#else
-    #define STATIC_REMAP_HOME 0
-#endif
-
-// Capture
-#if (defined(HOJA_INPUT_ENABLE_CAPTURE) && HOJA_INPUT_ENABLE_CAPTURE == 1)
-    #define STATIC_REMAP_CAPTURE 0x00008000  // bit 15
-#else
-    #define STATIC_REMAP_CAPTURE 0
-#endif
-
-// Stick Click: L3
-#if (ALX == 1)
-    #define STATIC_REMAP_L3 0x00010000  // bit 16
-#else
-    #define STATIC_REMAP_L3 0
-#endif
-
-// Stick Click: R3
-#if (ARX == 1)
-    #define STATIC_REMAP_R3 0x00020000  // bit 17
-#else
-    #define STATIC_REMAP_R3 0
-#endif
-
-// Upper Grips (L4, R4)
-#if (defined(HOJA_INPUT_ENABLE_UPPERGRIPS) && HOJA_INPUT_ENABLE_UPPERGRIPS == 1)
-    #define STATIC_REMAP_UPPERGRIPS 0x000C0000  // bits 18–19
-#else
-    #define STATIC_REMAP_UPPERGRIPS 0
-#endif
-
-// Lower Grips (L5, R5)
-#if (defined(HOJA_INPUT_ENABLE_LOWERGRIPS) && HOJA_INPUT_ENABLE_LOWERGRIPS == 1)
-    #define STATIC_REMAP_LOWERGRIPS 0x00300000  // bits 20–21
-#else
-    #define STATIC_REMAP_LOWERGRIPS 0
-#endif
-
-// Analog Trigger Axes (L2 Analog, R2 Analog)
-#if (ALT == 1 || ART == 1)
-    #define STATIC_REMAP_TRIGGERAXES 0x00C00000  // bits 22–23
-#else
-    #define STATIC_REMAP_TRIGGERAXES 0
-#endif
-
-// Left Stick Axes (LX+, LX-, LY+, LY-)
-#if (ALX == 1)
-    #define STATIC_REMAP_LSTICK 0x0F000000  // bits 24–27
-#else
-    #define STATIC_REMAP_LSTICK 0
-#endif
-
-// Right Stick Axes (RX+, RX-, RY+, RY-)
-#if (ARX == 1)
-    #define STATIC_REMAP_RSTICK 0xF0000000  // bits 28–31
-#else
-    #define STATIC_REMAP_RSTICK 0
-#endif
-
-#define STATIC_REMAP_ALL ( \
-    STATIC_REMAP_SEWN        | \
-    STATIC_REMAP_DPAD        | \
-    STATIC_REMAP_BUMPERS     | \
-    STATIC_REMAP_TRIGGERS    | \
-    STATIC_REMAP_STARTSELECT | \
-    STATIC_REMAP_HOME        | \
-    STATIC_REMAP_CAPTURE     | \
-    STATIC_REMAP_L3          | \
-    STATIC_REMAP_R3          | \
-    STATIC_REMAP_UPPERGRIPS  | \
-    STATIC_REMAP_LOWERGRIPS  | \
-    STATIC_REMAP_TRIGGERAXES | \
-    STATIC_REMAP_LSTICK      | \
-    STATIC_REMAP_RSTICK )
-
-const buttonInfoStatic_s buttons_static = {
-    .remap_mask = STATIC_REMAP_ALL
+const inputInfoStatic_s input_static = {
+    .input_info = HOJA_INPUT_SLOTS
 };
 
 #if defined(HOJA_BLUETOOTH_DRIVER)
-    #define BTSUPPORT 1 
-    #define BT_BASEBAND_TYPE HOJA_BLUETOOTH_DRIVER
-    #define BT_BASEBAND_VERSION 0
+    #if (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_ESP32HOJA)
+        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
+            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
+            #define HOJA_BLUETOOTH_PART_NUMBER "ESP32"
+        #endif
+        #define STATBT_EXTERNAL_UPDATES 1
+        #define STATBT_BDR_EN 1
+        #define STATBT_BLE_EN 0
+    #elif (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
+        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
+            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
+            #define HOJA_BLUETOOTH_PART_NUMBER "BT Device"
+        #endif
+        #define STATBT_EXTERNAL_UPDATES 0
+        #define STATBT_BDR_EN 1
+        #define STATBT_BLE_EN 0
+    #endif
 #else 
     #warning "HOJA_BLUETOOTH_DRIVER undefined. Bluetooth features will be disabled."
-    #define BT_BASEBAND_TYPE 0
-    #define BT_BASEBAND_VERSION 0
-    #define BTSUPPORT 0
+    #define STATBT_BDR_EN 0
+    #define STATBT_BLE_EN 0
+    #define STATBT_EXTERNAL_UPDATES 0
+    #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
 #endif
 
-// Dynamic BT versoin
+#if !defined(HOJA_BLUETOOTH_FCC_ID)
+    #define HOJA_BLUETOOTH_FCC_ID "N/A"
+#endif
+
+// Dynamic BT
 bluetoothInfoStatic_s bluetooth_static = {
-    .bluetooth_bdr = BTSUPPORT,
-    .bluetooth_ble = BTSUPPORT,
-    .baseband_type = BT_BASEBAND_TYPE,
-    .baseband_version = BT_BASEBAND_VERSION,
+    .bluetooth_bdr_supported = STATBT_BDR_EN,
+    .bluetooth_ble_supported = STATBT_BLE_EN, 
+    .external_update_supported = STATBT_EXTERNAL_UPDATES,
+    .part_number = HOJA_BLUETOOTH_PART_NUMBER,
+    .external_version_number = 0x0000, // Needs to be filled later
+    .fcc_id = HOJA_BLUETOOTH_FCC_ID
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)
@@ -354,6 +291,29 @@ void _rgb_static_set_names()
     }
 }
 
+void _analog_static_setup()
+{
+    const inputInfoSlot_s *slots = input_static.input_info;
+
+    if(slots[INPUT_CODE_LT_ANALOG].input_type == INPUT_TYPE_HOVER)
+        analog_static.axis_lt = 1;
+
+    if(slots[INPUT_CODE_RT_ANALOG].input_type == INPUT_TYPE_HOVER)
+        analog_static.axis_rt = 1;
+
+    if(slots[INPUT_CODE_LX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_lx = 1;
+
+    if(slots[INPUT_CODE_LY_UP].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_ly = 1;
+
+    if(slots[INPUT_CODE_RX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_rx = 1;
+
+    if(slots[INPUT_CODE_RY_UP].input_type == INPUT_TYPE_JOYSTICK)
+        analog_static.axis_ry = 1;
+}
+
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
 #define BLOCK_TYPE_IDX 1
@@ -362,6 +322,12 @@ void _rgb_static_set_names()
 #define BLOCK_CHUNK_BEGIN_IDX 4
 
 #define BLOCK_CHUNK_HEADER_SIZE 4
+
+void static_config_init()
+{
+    _rgb_static_set_names();
+    _analog_static_setup();
+}
 
 uint8_t _serdata[64] = {0};
 void _serialize_static_block(static_block_t block, uint8_t *data , uint32_t size, setting_callback_t cb)
@@ -416,8 +382,8 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
             _serialize_static_block(block, (uint8_t *) &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
         break;
 
-        case STATIC_BLOCK_BUTTONS:
-            _serialize_static_block(block, (uint8_t *) &buttons_static, STATINFO_DEVICE_BUTTON_SIZE, cb);
+        case STATIC_BLOCK_INPUT:
+            _serialize_static_block(block, (uint8_t *) &input_static, STATINFO_DEVICE_INPUT_SIZE, cb);
         break;
 
         case STATIC_BLOCK_ANALOG:
@@ -433,26 +399,38 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_BATTERY:
+            battery_status_s batstat = {0};
+            fuelgauge_status_s fgstat = {0};
+
+            battery_get_status(&batstat);
+            fuelgauge_get_status(&fgstat);
+
+            #if defined(FUELGAUGE_IGNORE_STATUS)
+            battery_static.fuelgauge_status = 0;
+            #else
+            battery_static.fuelgauge_status = fgstat.connected ? 2 : 1;
+            #endif
+
+            #if defined(PMIC_IGNORE_STATUS)
+            battery_static.pmic_status = 0;
+            #else
+            battery_static.pmic_status = batstat.connected ? 2 : 1;
+            #endif
+
             _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
-            // Optional compile for bluetooth version checks
-            #if(BT_BASEBAND_TYPE > 1)
-                // Set our Bluetooth baseband version
-                #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
-                    bluetooth_static.baseband_version = HOJA_BLUETOOTH_GET_FWVERSION();
-                #else 
-                    bluetooth_static.baseband_version = 0;
-                #endif
-            #else
-                bluetooth_static.baseband_version = 0;
+            // Set our Bluetooth baseband version
+            #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
+                bluetooth_static.external_version_number = HOJA_BLUETOOTH_GET_FWVERSION();
+            #else 
+                bluetooth_static.external_version_number = 0;
             #endif
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
         case STATIC_BLOCK_RGB:
-            _rgb_static_set_names();
             _serialize_static_block(block, (uint8_t *) &rgb_static, STATINFO_RGB_SIZE, cb);
         break;
     }

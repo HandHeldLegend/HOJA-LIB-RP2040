@@ -10,7 +10,7 @@
 #define PAIRING_MACRO_INTERVAL_US 3000
 #define PAIRING_HOLD_LOOPS ( (PAIRING_HOLD_TIME*1000*1000) / PAIRING_MACRO_INTERVAL_US )
 
-void macro_pairing(uint64_t timestamp, button_data_s *buttons)
+void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 {
     static interval_s interval = {0};
     static bool holding = false;
@@ -21,7 +21,7 @@ void macro_pairing(uint64_t timestamp, button_data_s *buttons)
 
     bool interval_reset = false;
 
-    if(boot_wait && !buttons->button_sync)
+    if(boot_wait && !input->button_sync)
     {
         boot_wait = false;
         interval_reset = true;
@@ -35,11 +35,11 @@ void macro_pairing(uint64_t timestamp, button_data_s *buttons)
 
     if(interval_resettable_run(timestamp, PAIRING_MACRO_INTERVAL_US, interval_reset, &interval))
     {
-        if(!holding && buttons->button_sync)
+        if(!holding && input->button_sync)
         {
             holding = true;
         }
-        else if(holding && !buttons->button_sync)
+        else if(holding && !input->button_sync)
         {
             holding = false;
             iterations = 0;

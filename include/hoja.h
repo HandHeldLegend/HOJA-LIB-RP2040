@@ -9,14 +9,16 @@
 #include "input_shared_types.h"
 #include "devices_shared_types.h"
 
-#include "input/button.h"
 #include "input/analog.h"
 #include "utilities/callback.h"
 
-void hoja_set_debug_data(uint8_t data);
+uint16_t cb_hoja_read_battery();
+// Accessible as a uint16_t array of size 4 only
+void cb_hoja_read_joystick(uint16_t *input);
+void cb_hoja_read_input(mapper_input_s *input);
+void cb_hoja_init();
 
-void cb_hoja_read_buttons(button_data_s *data);
-bool cb_hoja_buttons_init();
+void hoja_set_debug_data(uint8_t data);
 
 void hoja_set_connected_status(connection_status_t status);
 void hoja_set_notification_status(rgb_s color);

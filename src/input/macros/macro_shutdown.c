@@ -14,27 +14,37 @@ void _shutdown_finalize()
     _shutdown_ready = true;
 }
 
-void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
+void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
 {
     static interval_s interval = {0};
     static bool holding = false;
     static uint32_t iterations = 0;
     static bool lockout = false;
     static bool boot_wait = true;
+    static bool interval_initialized = false;
 
-    bool interval_reset = false;
-
-    if(boot_wait && !buttons->button_shipping)
+    // Wait for shipping button to be released after boot
+    if(boot_wait)
     {
-        boot_wait = false;
-        interval_reset = true;
+        if(!input->button_shipping)
+        {
+            boot_wait = false;
+        }
+        return;
     }
-    else if(boot_wait) return;
+
+    // Initialize interval on first run after boot
+    if(!interval_initialized)
+    {
+        interval_resettable_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, true, &interval);
+        interval_initialized = true;
+        return;
+    }
 
     if(lockout)
     {
         // Only shut down when we release button
-        if(_shutdown_ready && !buttons->button_shipping)
+        if(_shutdown_ready && !input->button_shipping)
         {
             _shutdown_ready = false;
             hoja_shutdown();
@@ -42,13 +52,14 @@ void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
         return;
     }
 
-    if(interval_resettable_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, interval_reset, &interval))
+    if(interval_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, &interval))
     {
-        if(!holding && buttons->button_shipping)
+        if(!holding && input->button_shipping)
         {
             holding = true;
+            iterations = 0; // Reset iterations when starting to hold
         }
-        else if(holding && !buttons->button_shipping)
+        else if(holding && !input->button_shipping)
         {
             holding = false;
             iterations = 0;
@@ -57,7 +68,7 @@ void macro_shutdown(uint64_t timestamp, button_data_s *buttons)
         if(holding)
         {
             iterations++;
-            if(iterations>=SHUTDOWN_HOLD_LOOPS)
+            if(iterations >= SHUTDOWN_HOLD_LOOPS)
             {
                 lockout = true;
                 // Deinit, then shut down

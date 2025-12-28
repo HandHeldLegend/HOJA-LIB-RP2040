@@ -20,732 +20,546 @@
 #define TOTAL_ANGLES 64
 #define ADJUSTABLE_ANGLES 16
 #define DEFAULT_ANGLES_COUNT 8
-#define ANGLE_MAP_COUNT ADJUSTABLE_ANGLES
-#define ANGLE_CHUNK (float) 5.625f
-#define HALF_ANGLE_CHUNK (float) ANGLE_CHUNK/2
-#define ANGLE_MAPPING_CHUNK (float) 22.5f 
-#define ANGLE_DEFAULT_CHUNK (float) (360.0f / 8.0f)
+#define ANGLE_CHUNK (float)5.625f
+#define HALF_ANGLE_CHUNK (float)ANGLE_CHUNK / 2
+#define ANGLE_MAPPING_CHUNK (float)22.5f
+#define ANGLE_DEFAULT_CHUNK (float)(360.0f / 8.0f)
 #define ANALOG_MAX_DISTANCE 2048
 #define LERP(a, b, t) ((a) + (t) * ((b) - (a)))
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
 
-typedef struct 
-{
-  float distance;
-  float midpoint_magnitude;
-} polygon_solved_s;
-
-typedef struct 
-{
-  int max_idx; 
-  angleMap_s angle_maps[ADJUSTABLE_ANGLES];
-  polygon_solved_s polygon_mid_distances[ADJUSTABLE_ANGLES];
-  int round_distances[64];
-  analog_scaler_t scaling_mode;
-} angle_setup_s;
-
-#define ANGLE_SETUP_DEFAULT (angle_setup_s) {.angle_maps = {0}, \
-                                             .max_idx = ADJUSTABLE_ANGLES-1, \
-                                             .round_distances = {0}, \
-                                             .scaling_mode = ANALOG_SCALER_ROUND}
-
-angle_setup_s _left_setup   = ANGLE_SETUP_DEFAULT;
-angle_setup_s _right_setup  = ANGLE_SETUP_DEFAULT;
-
 bool _sticks_calibrating = false;
+uint8_t _l_count = 8;
+uint8_t _r_count = 8;
 
 MUTEX_HAL_INIT(_stick_scaling_mutex);
 
-float _normalize_angle(float angle);
-float _angle_diff(float angle1, float angle2);
-int   _find_lower_index(float input_angle, angleMap_s *map);
-bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map);
-float _transform_angle(float input_angle, angleMap_s *map);
-
-// Reset distances 
-void _zero_distances(angle_setup_s *setup)
-{
-  for(int i = 0; i < TOTAL_ANGLES; i++)
-  {
-    setup->round_distances[i] = 5;
-  }
+/**
+ * @brief Normalizes an angle (in degrees) to the range [0.0, 360.0).
+ * * @param angle The input angle, which can be positive or negative.
+ * @return The normalized angle in the range [0.0, 360.0).
+ */
+float _angle_normalize(float angle) {
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+    return angle;
 }
 
-// Initialize angle setup to defaults
-void _angle_setup_reset_to_defaults(angle_setup_s *setup)
-{
-  setup->max_idx = DEFAULT_ANGLES_COUNT - 1;
-  setup->scaling_mode = 0;
+float _angle_distance(float angle1, float angle2) {
+    float diff = 0;
 
-  // Reset to zero
-  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
-
-  // Set up angle maps
-  for(int i = 0; i < DEFAULT_ANGLES_COUNT; i++)
-  {
-    setup->angle_maps[i].input  = i * ANGLE_DEFAULT_CHUNK;
-    setup->angle_maps[i].output = i * ANGLE_DEFAULT_CHUNK;
-    setup->angle_maps[i].distance = ANALOG_MAX_DISTANCE;
-  }
-
-  // Set up distances 
-  for(int i = 0; i < 64; i++)
-  {
-    setup->round_distances[i] = 1432;
-  }
-
-  setup->scaling_mode = ANALOG_SCALER_ROUND;
-}
-
-// Comparison function for qsort
-int _compare_by_input(const void *a, const void *b) {
-    const angleMap_s *angle_a = (const angleMap_s *)a;
-    const angleMap_s *angle_b = (const angleMap_s *)b;
-
-    if (angle_a->input < angle_b->input) {
-        return -1;
-    } else if (angle_a->input > angle_b->input) {
-        return 1;
-    } else {
-        return 0;
+    if(angle2 > angle1)
+    {
+        diff = angle2-angle1;
     }
+    else 
+    {
+        diff = angle1-angle2;
+    }
+    
+    // If difference is greater than 180, the shorter path is the other way
+    if (diff > 180.0f) {
+        diff = 360.0f - diff;
+    }
+    
+    return diff;
+}
+
+/**
+ * @brief Finds the index of the closest in_angle that is enabled.
+ * * @param in_angle The raw input angle.
+ * @param config The array of calibration slots.
+ * @return The index of the closest enabled slot, or -1 if none are enabled.
+ */
+int _joy_get_closest_enabled_index(float in_angle, const joyConfigSlot_s config[ADJUSTABLE_ANGLES])
+{
+    int closest_index = -1;
+    float min_diff = 360.0f; // Max possible difference
+
+    for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
+    {
+        if (!config[i].enabled)
+            continue;
+
+        // Compute the shortest angular difference (e.g., diff between 355 and 5 is 10)
+        // `fmodf(a - b + 180 + 360, 360) - 180` gives the signed shortest difference
+        float diff = fabsf(fmodf(in_angle - config[i].in_angle + 180.0f + 360.0f, 360.0f) - 180.0f);
+
+        if (diff < min_diff)
+        {
+            min_diff = diff;
+            closest_index = i;
+        }
+    }
+
+    return closest_index;
+}
+
+/**
+ * @brief Finds the two closest enabled configuration indices that bracket the input angle.
+ * * ASSUMPTION: The 'config' array has been partitioned and the enabled slots (0 to 'enabled_count - 1')
+ * are sorted by their 'in_angle' in ascending order.
+ * * @param in_angle The raw input angle.
+ * @param config The array of calibration slots.
+ * @param enabled_count The number of enabled, sorted slots in the front of the array.
+ * @param index_a Pointer to store the index of the lower bracketing slot.
+ * @param index_b Pointer to store the index of the upper bracketing slot.
+ * @return true if two bracketing slots were found, false otherwise.
+ */
+bool _joy_find_bracketing_indices_fast(float in_angle,
+                                       const joyConfigSlot_s config[ADJUSTABLE_ANGLES],
+                                       int enabled_count,
+                                       int *index_a,
+                                       int *index_b)
+{
+    if (enabled_count < 2) return false;
+
+    float normalized_in = _angle_normalize(in_angle);
+    int best_a = -1;
+    int best_b = -1;
+    float min_arc = 360.0f;
+
+    for (int i = 0; i < enabled_count; i++)
+    {
+        // The next point in the circle (wrapping to 0)
+        int next = (i + 1) % enabled_count;
+
+        float start = config[i].in_angle;
+        float end = config[next].in_angle;
+
+        // Calculate the angular distance between these two points
+        float arc_len = end - start;
+        if (arc_len <= 0) arc_len += 360.0f;
+
+        // Check if the current in_angle falls within this wedge
+        float offset = normalized_in - start;
+        if (offset < 0) offset += 360.0f;
+
+        if (offset <= arc_len)
+        {
+            // We found the wedge. Because calibration points might be messy,
+            // we look for the smallest arc that contains the angle.
+            if (arc_len < min_arc)
+            {
+                min_arc = arc_len;
+                best_a = i;
+                best_b = next;
+            }
+        }
+    }
+
+    if (best_a != -1)
+    {
+        *index_a = best_a;
+        *index_b = best_b;
+        return true;
+    }
+
+    return false;
+}
+
+// Used for internal sorting by in_angle
+int _compare_joyConfigSlot_by_angle(const void *a, const void *b)
+{
+    const joyConfigSlot_s *slot_a = (const joyConfigSlot_s *)a;
+    const joyConfigSlot_s *slot_b = (const joyConfigSlot_s *)b;
+
+    if (slot_a->out_angle < slot_b->out_angle)
+        return -1;
+    if (slot_a->out_angle > slot_b->out_angle)
+        return 1;
+    return 0;
+}
+
+/**
+ * @brief Sorts the array: enabled slots first (sorted by in_angle), then disabled slots.
+ * * @param config The array of calibration slots (will be modified).
+ * @return The count of enabled slots.
+ */
+int _joy_validation_sort_and_count(joyConfigSlot_s config[ADJUSTABLE_ANGLES])
+{
+    int enabled_count = 0;
+    int write_ptr = 0;
+
+    // --- Step 1: Partition Enabled and Disabled Slots ---
+    // Use a two-pointer approach to move all enabled slots to the front.
+
+    for (int read_ptr = 0; read_ptr < ADJUSTABLE_ANGLES; read_ptr++)
+    {
+        if (config[read_ptr].enabled)
+        {
+            // If the slot is enabled, check if a swap is needed
+            if (read_ptr != write_ptr)
+            {
+                // Swap the enabled slot with the slot at the write pointer
+                joyConfigSlot_s temp = config[write_ptr];
+                config[write_ptr] = config[read_ptr];
+                config[read_ptr] = temp;
+            }
+            write_ptr++;
+            enabled_count++;
+        }
+    }
+
+    // --- Step 2: Sort the Enabled Slots by in_angle ---
+    // The enabled slots now occupy indices 0 to (enabled_count - 1).
+    if (enabled_count > 1)
+    {
+        qsort(config, enabled_count, sizeof(joyConfigSlot_s), _compare_joyConfigSlot_by_angle);
+    }
+
+    return enabled_count;
+}
+
+bool _joy_scale_input(int16_t input[2], analog_meta_s *output, const joyConfigSlot_s config[ADJUSTABLE_ANGLES], uint8_t count)
+{
+    int index_a, index_b = -1;
+    float in_angle = stick_scaling_coordinates_to_angle(input[0], input[1]);
+    float in_distance = stick_scaling_coordinate_distance(input[0], input[1]);
+
+    if (!_joy_find_bracketing_indices_fast(in_angle, config, count, &index_a, &index_b)) return false;
+
+    const joyConfigSlot_s *slot_a = &config[index_a];
+    const joyConfigSlot_s *slot_b = &config[index_b];
+
+    // Calculate total arcs (ensuring counter-clockwise direction matches bracket search)
+    float in_arc = slot_b->in_angle - slot_a->in_angle;
+    if (in_arc <= 0) in_arc += 360.0f;
+
+    float out_arc = slot_b->out_angle - slot_a->out_angle;
+    if (out_arc <= 0) out_arc += 360.0f;
+
+    // Calculate raw interpolation factor 't'
+    float in_diff = in_angle - slot_a->in_angle;
+    if (in_diff < 0) in_diff += 360.0f;
+    float t = in_diff / in_arc;
+
+    // Apply Angular Deadzones (snapping)
+    float dz_a = slot_a->deadzone / 2.0f;
+    float dz_b = slot_b->deadzone / 2.0f;
+    
+    // 'ideal_dist' is the distance along the output arc from out_a
+    float ideal_dist = t * out_arc;
+    float t_final = t;
+
+    if (ideal_dist <= dz_a) {
+        output->angle = slot_a->out_angle;
+        t_final = 0.0f; // Snap to slot A for distance scaling
+    } else if (ideal_dist >= (out_arc - dz_b)) {
+        output->angle = slot_b->out_angle;
+        t_final = 1.0f; // Snap to slot B for distance scaling
+    } else {
+        // Remap the 'live' zone to cover the full output arc smoothly
+        float live_arc = out_arc - dz_a - dz_b;
+        float t_active = (ideal_dist - dz_a) / live_arc;
+        output->angle = _angle_normalize(slot_a->out_angle + (t_active * out_arc));
+        t_final = t; 
+    }
+
+    // Distance Scaling using snapped 't_final' to ensure stability at axes
+    float r_a = slot_a->out_distance / (slot_a->in_distance > 0.0f ? slot_a->in_distance : 1.0f);
+    float r_b = slot_b->out_distance / (slot_b->in_distance > 0.0f ? slot_b->in_distance : 1.0f);
+    
+    float out_ratio = r_a + t_final * (r_b - r_a);
+    output->target = slot_a->out_distance + t_final * (slot_b->out_distance - slot_a->out_distance);
+    output->distance = in_distance * out_ratio;
+
+    if (output->distance > 4096.0f) output->distance = 4096.0f;
+    return true;
+}
+
+void _angle_distance_to_fcoordinate(float angle, float distance, float *out)
+{
+    angle = _angle_normalize(angle);
+    float angle_radians = angle * (M_PI / 180.0f);
+
+    out[0] = (float)lroundf(distance * cosf(angle_radians));
+    out[1] = (float)lroundf(distance * sinf(angle_radians));
+
+    out[0] = fmaxf(-2048, fminf(2048, out[0])); // Note: If 2048 is your max, you may want to allow 2048 here
+    out[1] = fmaxf(-2048, fminf(2048, out[1]));
+}
+
+float stick_scaling_coordinates_to_angle(int x, int y)
+{
+    // Handle special cases to avoid division by zero
+    if (x == 0)
+    {
+        // Vertical lines
+        return (y > 0) ? 90.0f : 270.0f;
+    }
+
+    // Calculate arctangent and convert to degrees
+    float angle_radians = atan2f((float)y, (float)x);
+
+    // Convert to degrees and normalize to 0-360 range
+    float angle_degrees = angle_radians * 180.0f / M_PI;
+
+    // Adjust to ensure 0-360 range with positive angles
+    if (angle_degrees < 0)
+    {
+        angle_degrees += 360.0f;
+    }
+
+    return angle_degrees;
 }
 
 // Get distance to coordinates based on a 0, 0 center
-float stick_scaling_coordinate_distance(int x, int y) {
+float stick_scaling_coordinate_distance(int x, int y)
+{
     // Use Pythagorean theorem to calculate distance
     // Convert to float to ensure floating-point precision
     return sqrtf((float)(x * x + y * y));
 }
 
-// Calculates the shortest angular distance between two angles
-float _angle_diff(float angle1, float angle2)
+bool _calibrate_axis(int16_t *in, joyConfigSlot_s slots[ADJUSTABLE_ANGLES])
 {
-  float diff = fmodf(fabsf(angle1 - angle2), 360.0f); // Normalize difference to 0–360
-  return diff > 180.0f ? 360.0f - diff : diff;        // Use the shorter path
-}
+    // Get input distance
+    float distance = stick_scaling_coordinate_distance(in[0], in[1]);
+    // Get input angle
+    float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
 
-// Set mapping with angle difference validation
-bool  _set_angle_mapping(int index, float input_angle, float output_angle, angleMap_s *map)
-{
-  // Validate index
-  if (index < 0 || index >= ADJUSTABLE_ANGLES)
-  {
-    return false;
-  }
+    // Get slot number
+    int idx = _joy_get_closest_enabled_index(angle, slots);
+    if (idx < 0)
+        return false;
 
-  // Normalize input and output angles
-  input_angle   = _normalize_angle(input_angle);
-  output_angle  = _normalize_angle(output_angle);
+    // Assign distance if needed
+    if (distance > slots[idx].in_distance)
+    {
+        slots[idx].in_distance = distance;
+    }
 
-  // If this is the first point, always allow
-  if (index == 0)
-  {
-    map[index].input = input_angle;
-    map[index].output = output_angle;
+    // Return false if an enabled angle is less than 400 distance for the input
+    for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
+    {
+        if ((slots[i].in_distance < 400) && slots[i].enabled)
+            return false;
+    }
+
     return true;
-  }
-
-  // Check previous point
-  int prev_index = (index - 1 + ADJUSTABLE_ANGLES) % ADJUSTABLE_ANGLES;
-  float prev_input  = map[prev_index].input;
-  float prev_output = map[prev_index].output;
-
-  // Calculate input and output angle differences
-  float input_distance  = _angle_diff(input_angle, prev_input);
-  float output_distance = _angle_diff(output_angle, prev_output);
-
-  // Validate that both input and output differences are within ±10 degrees
-  if (input_distance >= MAX_ANGLE_ADJUSTMENT || output_distance >= MAX_ANGLE_ADJUSTMENT)
-  {
-    return false;
-  }
-
-  // Store the mapping
-  map[index].input  = input_angle;
-  map[index].output = output_angle;
-
-  return true;
 }
 
-// Normalize angle to 0-360 range
-float _normalize_angle(float angle)
+void _zero_distances(joyConfigSlot_s *slot)
 {
-  angle = fmodf(angle, 360.0f);
-  return angle < 0 ? angle + 360.0f : angle;
-}
-
-// Find the low and high index pair that contains our angle
-void _find_containing_index_pair(float input_angle, angle_setup_s *setup, int *idx_pair)
-{
-  idx_pair[0] = -1;
-  idx_pair[1] = -1;
-
-  if(setup->angle_maps[0].input > 0)
-  {
-    if(input_angle < setup->angle_maps[0].input)
+    for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
     {
-      idx_pair[0] = (setup->max_idx);
-      idx_pair[1] = 0;
-      return;
+        slot[i].in_distance = 256;
     }
-  }
+}
 
-  if( (input_angle >= setup->angle_maps[(setup->max_idx)].input) )
-  {
-    idx_pair[0] = (setup->max_idx);
-    idx_pair[1] = 0;
-    return;
-  }
-
-  for (int i = 0; i < (setup->max_idx); i++)
-  {
-    if( (input_angle >= setup->angle_maps[i].input) && (input_angle < setup->angle_maps[i+1].input) )
+void _set_default_configslot(joyConfigSlot_s *slots)
+{
+    for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
     {
-      idx_pair[0] = i;
-      idx_pair[1] = i+1;
-      return;
-    }
-  }
-}
-
-float _angle_magnitude(float input, float lower, float upper)
-{ 
-  if(upper < lower)
-  {
-    upper += 360.0f;
-    if(input < lower) input += 360.0f;
-  }
-
-  float distance = _angle_diff(lower, upper);
-  float magnitude_distance = _angle_diff(lower, input);
-
-  return (magnitude_distance/distance);
-}
-
-float _angle_lerp(float magnitude, float lower, float upper)
-{
-  if(upper < lower)
-  {
-    upper += 360.0f;
-  }
-
-  float distance = _angle_diff(lower, upper);
-  float new_out = (distance*magnitude) + lower;
-  return _normalize_angle(new_out);
-}
-
-float _distance_lerp(float magnitude, float lower, float upper) 
-{
-  float distance = upper-lower;
-  float new_out = lower+magnitude * (upper-lower);
-  return new_out;
-}
-
-// Transform input angle based on configured mappings
-float _transform_angle(float input_angle, angleMap_s *map)
-{
-  // Normalize input angle
-  input_angle = _normalize_angle(input_angle);
-
-  // Find the lower and upper mapping indices
-  int lower_index = _find_lower_index(input_angle, map);
-  int upper_index = (lower_index + 1) % ADJUSTABLE_ANGLES;
-
-  // Get input and output angles for lower and upper points
-  float lower_input   = map[lower_index].input;
-  float lower_output  = map[lower_index].output;
-  float upper_input   = map[upper_index].input;
-  float upper_output  = map[upper_index].output;
-
-  // Handle wrap-around for input angles
-  if (upper_input < lower_input)
-  {
-    upper_input += 360.0f;
-    if (input_angle < lower_input)
-      input_angle += 360.0f;
-  }
-
-  // Linear interpolation
-  float t = (input_angle - lower_input) / (upper_input - lower_input);
-  float output_angle = lower_output + t * (upper_output - lower_output);
-
-  // Normalize output angle
-  return _normalize_angle(output_angle);
-}
-
-void _angle_distance_to_fcoordinate(float angle, float distance, float *out) 
-{    
-    // Normalize angle to 0-360 range
-    angle = fmodf(angle, 360.0f);
-    if (angle < 0) angle += 360.0f;
-    
-    // Convert angle to radians
-    float angle_radians = angle * M_PI / 180.0f;
-    
-    // Calculate X and Y coordinates
-    // Limit to -2048 to +2048 range
-    out[0] = (distance * cosf(angle_radians));
-    out[1] = (distance * sinf(angle_radians));
-    
-    // Clamp to prevent exceeding the specified range
-    out[0] = fmaxf(-2048, fminf(2047, out[0]));
-    out[1] = fmaxf(-2048, fminf(2047, out[1]));
-}
-
-float stick_scaling_coordinates_to_angle(int x, int y) 
-{
-    // Handle special cases to avoid division by zero
-    if (x == 0) {
-        // Vertical lines
-        return (y > 0) ? 90.0f : 270.0f;
-    }
-    
-    // Calculate arctangent and convert to degrees
-    float angle_radians = atan2f((float)y, (float)x);
-    
-    // Convert to degrees and normalize to 0-360 range
-    float angle_degrees = angle_radians * 180.0f / M_PI;
-    
-    // Adjust to ensure 0-360 range with positive angles
-    if (angle_degrees < 0) {
-        angle_degrees += 360.0f;
-    }
-    
-    return angle_degrees;
-}
-
-bool _calibrate_axis(int16_t *in, angle_setup_s *setup)
-{
-  // Get input distance
-  float distance  = stick_scaling_coordinate_distance(in[0], in[1]);
-  // Get input angle
-  float angle     = stick_scaling_coordinates_to_angle(in[0], in[1]);
-
-  angle   -= HALF_ANGLE_CHUNK;
-  angle   = roundf(angle/ANGLE_CHUNK);
-  int idx = (int) angle % 64;
-
-  // Assign distance if needed
-  if(distance > setup->round_distances[idx])
-  {
-    setup->round_distances[idx] = distance;
-  }
-
-  // Return true if all distances are greater than minimum
-  for(int i = 0; i < TOTAL_ANGLES; i++)
-  {
-    if(setup->round_distances[i] < 400) return false;
-  }
-
-  return true;
-}
-
-float _closest_distance_to_line(float x1, float y1, float x2, float y2) {
-    // Calculate the line equation coefficients (Ax + By + C = 0)
-    float A = y2 - y1;
-    float B = x1 - x2;
-    float C = x2 * y1 - x1 * y2;
-
-    // Calculate the distance from (0, 0) to the line
-    float distance = fabs(A * 0 + B * 0 + C) / sqrt(A * A + B * B);
-
-    return distance;
-}
-
-void _solve_polygon(float d1, float a1, float d2, float a2, polygon_solved_s *solved)
-{
-  float c1[2] = {0};
-  float c2[2] = {0};
-
-  _angle_distance_to_fcoordinate(a1, d1, c1);
-  _angle_distance_to_fcoordinate(a2, d2, c2);
-
-  // Calculate the midpoint
-  float midX = (c1[0] + c2[0]) * 0.5f;
-  float midY = (c1[1] + c2[1]) * 0.5f;
-
-  // Calculate the distance from (0,0) to the midpoint
-  solved->distance = sqrt(midX * midX + midY * midY);
-
-  // Calculate the angle from (0,0) to the midpoint (in radians)
-  float angleRadians = atan2(midY, midX);
-  float angle = _normalize_angle(angleRadians * 180.0f / M_PI);
-
-  solved->midpoint_magnitude = _angle_magnitude(angle, a1, a2);
-}
-
-void _process_axis(int16_t *in, analog_meta_s *meta_out, angle_setup_s *setup)
-{
-  // Get input distance
-  float distance = stick_scaling_coordinate_distance(in[0], in[1]);
-
-  // Get input angle
-  float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
-
-  // Get the index pair from our calibrated angles
-  // (Which indeces is our angle between?)
-  int idx_pair[2] = {-1,-1};
-  _find_containing_index_pair(angle, setup, idx_pair);
-  
-  // Only process if we have a valid pair
-  if( (idx_pair[0]>-1) && (idx_pair[1]>-1))
-  {
-    // Calculate magnitude of current angle between input angles for our angle map
-    float magnitude = _angle_magnitude(angle, setup->angle_maps[idx_pair[0]].input, setup->angle_maps[idx_pair[1]].input);
-    // Calculate new output angle based on magnitudes
-    float new_angle = _angle_lerp(magnitude, setup->angle_maps[idx_pair[0]].output, setup->angle_maps[idx_pair[1]].output);
-
-    // Variable initializations
-    float angle_floor = 0;
-    int   distance_index_lower  = 0;
-    int   distance_index_upper  = 0;
-    float distance_magnitude    = 0;
-    float target_distance       = ANALOG_MAX_DISTANCE;
-    float calibrated_distance   = 0;
-    float distance_scale_factor = 1;
-    float output_distance       = 0;
-
-    // Determine which polygon half we are in 
-    int   polygon_half        = 0;
-    float magnitude_expanded  = 0;
-    float magnitude_polygon   = 0;
-    float scaler_magnitude    = 0;
-
-    // We will calculate the new distance appropriately according to our scaling mode
-    switch(setup->scaling_mode)
-    {
-      case ANALOG_SCALER_POLYGON:
-        // Get the magnitude of the halfway point we stored
-        magnitude_polygon = setup->polygon_mid_distances[idx_pair[0]].midpoint_magnitude;
-        // Determine which half of the polygon line we are in
-        polygon_half = (magnitude >= magnitude_polygon) ? 1 : 0;
-        
-
-        // Scale up the magnitude to a full scale 
-        if(!polygon_half)
+        if (i < 8)
         {
-          scaler_magnitude = 1 / magnitude_polygon;
-          magnitude_expanded = magnitude * scaler_magnitude;
-        }
-        else 
-        {
-          scaler_magnitude = 1 / (1 - magnitude_polygon);
-          magnitude_expanded = (magnitude - magnitude_polygon) * scaler_magnitude;
-        }
+            slots[i].deadzone = 2.0f; // 2 degree deadzone default
+            slots[i].enabled = true;
+            slots[i].in_angle = i * 45.0f;
+            slots[i].out_angle = i * 45.0f;
 
-        if(!polygon_half) 
-        {
-          target_distance       = _distance_lerp(magnitude_expanded, 
-          setup->angle_maps[idx_pair[0]].distance, 
-          setup->polygon_mid_distances[idx_pair[0]].distance);
+#if defined(HOJA_ANALOG_DEFAULT_DISTANCE)
+            slots[i].in_distance = HOJA_ANALOG_DEFAULT_DISTANCE;
+#else
+            slots[i].in_distance = 1000.0f;
+#endif
+            slots[i].out_distance = 2048;
         }
-        else 
+        else
         {
-          target_distance       = _distance_lerp(magnitude_expanded, 
-          setup->polygon_mid_distances[idx_pair[0]].distance,
-          setup->angle_maps[idx_pair[1]].distance);
+            slots[i].enabled = false;
         }
-
-      default:
-      case ANALOG_SCALER_ROUND:
-        // Get our 64 angle index
-        if(angle >= (ANGLE_CHUNK*63))
-        {
-          distance_index_lower = 63;
-          distance_index_upper = 0;
-        }
-        else 
-        {
-          distance_index_lower  = floorf(angle / ANGLE_CHUNK);
-          distance_index_upper  = (distance_index_lower+1);
-        }
-        
-        angle_floor           = distance_index_lower*ANGLE_CHUNK;
-        
-        // Calculate the magnitude of our angle for the 64 chunks
-        distance_magnitude    = _angle_magnitude(angle, angle_floor, angle_floor+ANGLE_CHUNK);
-
-        // Calculate a calibrated distance that is interpolated from our saved actual distances
-        calibrated_distance   = _distance_lerp(distance_magnitude, 
-          setup->round_distances[distance_index_lower], 
-          setup->round_distances[distance_index_upper]);        
-      break;
-
     }
-
-    float adjusted_distance = target_distance + 64;
-
-    distance_scale_factor = (!calibrated_distance) ? 0 : (adjusted_distance / calibrated_distance);
-    output_distance = distance*distance_scale_factor;
-
-    if(output_distance > target_distance)
-    {
-      output_distance = target_distance;
-    }
-
-    meta_out->angle     = new_angle;
-    meta_out->distance  = output_distance;
-    meta_out->target    = target_distance;
-
-    // We may not need this at all until the end!
-    //_angle_distance_to_coordinate(new_angle, output_distance, out);
-  }
 }
 
-void _unpack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
-{
-  // Set first distance
-  setup->round_distances[0] = distances->first_distance;
-   
-  for(int i = 1; i < TOTAL_ANGLES; i++)
-  {
-    setup->round_distances[i] = setup->round_distances[i-1] + (int) distances->offsets[i-1];
-  }
-}
-
-void _pack_stick_distances(analogPackedDistances_s *distances, angle_setup_s *setup)
-{
-  // Set first distance
-  distances->first_distance = setup->round_distances[0];
-   
-  for(int i = 1; i<TOTAL_ANGLES; i++)
-  {
-    int16_t diff = (int16_t) setup->round_distances[i] - (int16_t) setup->round_distances[i-1];
-    distances->offsets[i-1] = diff;
-  }
-}
-
-// Write distance data to config block
-void _write_to_config_block()
-{
-  analogPackedDistances_s packed = {0};
-
-  _pack_stick_distances(&packed, &_left_setup);
-  memcpy(&(analog_config->l_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
-
-  _pack_stick_distances(&packed, &_right_setup);
-  memcpy(&(analog_config->r_packed_distances), &packed, ANALOG_PACKED_DISTANCES_SIZE);
-
-  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
-  {
-    analog_config->l_angle_maps[i].distance = _left_setup.angle_maps[i].distance;
-    analog_config->l_angle_maps[i].input    = _left_setup.angle_maps[i].input;
-    analog_config->l_angle_maps[i].output   = _left_setup.angle_maps[i].output;
-
-    analog_config->r_angle_maps[i].distance = _right_setup.angle_maps[i].distance;
-    analog_config->r_angle_maps[i].input    = _right_setup.angle_maps[i].input;
-    analog_config->r_angle_maps[i].output   = _right_setup.angle_maps[i].output;
-  }
-}
-   
-// Read parameters from config block
-void _read_from_config_block() 
-{
-  memcpy(_left_setup.angle_maps,   analog_config->l_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
-  memcpy(_right_setup.angle_maps,  analog_config->r_angle_maps, ANGLE_MAP_SIZE * ANGLE_MAP_COUNT);
-
-  analogPackedDistances_s tmp = {0};
-  memcpy(&tmp, &(analog_config->l_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
-  _unpack_stick_distances(&tmp, &_left_setup);
-  memcpy(&tmp, &(analog_config->r_packed_distances), ANALOG_PACKED_DISTANCES_SIZE);
-  _unpack_stick_distances(&tmp, &_right_setup);
-
-  _left_setup.scaling_mode  = analog_config->l_scaler_type;
-  _right_setup.scaling_mode = analog_config->r_scaler_type;
-
-  if(analog_config->l_snapback_type == 0xFF) analog_config->l_snapback_type = 0;
-  if(analog_config->r_snapback_type == 0xFF) analog_config->r_snapback_type = 0;
-}
-
-// Validates a setup
-void _validate_setup(angle_setup_s *setup)
-{
-  angleMap_s filtered_map[ADJUSTABLE_ANGLES] = {0};
-  int used_size_max = 0;
-
-  for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
-  {
-    if(setup->angle_maps[i].distance<=MINIMUM_REQUIRED_DISTANCE)
-    {
-      continue;
-    }
-
-    filtered_map[used_size_max].distance = setup->angle_maps[i].distance;
-    filtered_map[used_size_max].input    = setup->angle_maps[i].input;
-    filtered_map[used_size_max].output   = setup->angle_maps[i].output;
-    used_size_max++;
-  }
-
-  // Sort our angles by input
-  qsort(filtered_map, used_size_max, ANGLE_MAP_SIZE, _compare_by_input);
-
-  memset(setup->angle_maps, 0, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
-  memcpy(setup->angle_maps, filtered_map, ANGLE_MAP_SIZE * ADJUSTABLE_ANGLES);
-
-  // Set up polygon solves
-  for(int i = 0; i < used_size_max; i++) {
-    _solve_polygon(setup->angle_maps[i].distance, setup->angle_maps[i].output, 
-                   setup->angle_maps[(i+1)%used_size_max].distance, setup->angle_maps[(i+1)%used_size_max].output, 
-                   &setup->polygon_mid_distances[i]);
-  }
-
-  if(used_size_max < 4) // We need 4 valid angles
-  {
-    _angle_setup_reset_to_defaults(setup);
-  }
-  else 
-  {
-    setup->max_idx = used_size_max-1;
-  }
-}
+joyConfigSlot_s _active_l[ADJUSTABLE_ANGLES] = {0};
+joyConfigSlot_s _active_r[ADJUSTABLE_ANGLES] = {0};
 
 void stick_scaling_calibrate_start(bool start)
 {
-  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
-  if(!_sticks_calibrating && start) 
-  {
-    // Reset all to default
-    _zero_distances(&_left_setup);
-    _zero_distances(&_right_setup);
+    MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+    if (!_sticks_calibrating && start)
+    {
+        // Reset all to default
+        _zero_distances(analog_config->joy_config_l);
+        _zero_distances(analog_config->joy_config_r);
 
-    hoja_set_notification_status(COLOR_RED);
+        hoja_set_notification_status(COLOR_RED);
 
-    _sticks_calibrating = true;
-  }
-  else if (_sticks_calibrating && !start) 
-  {
-    hoja_set_notification_status(COLOR_BLACK);
-    _write_to_config_block();
-    _sticks_calibrating = false;
-  }
-  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+        _sticks_calibrating = true;
+    }
+    else if (_sticks_calibrating && !start)
+    {
+        hoja_set_notification_status(COLOR_BLACK);
+        _sticks_calibrating = false;
+
+        // Copy to working mem
+        memcpy(_active_l, analog_config->joy_config_l, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        memcpy(_active_r, analog_config->joy_config_r, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+    }
+    MUTEX_HAL_EXIT(&_stick_scaling_mutex);
 }
 
 void stick_scaling_default_check()
 {
-  // Check if the analog outer deadzone blocks are valid
-  if(analog_config->l_deadzone_outer == 0xFFFF) analog_config->l_deadzone_outer = 0;
-  if(analog_config->r_deadzone_outer == 0xFFFF) analog_config->r_deadzone_outer = 0;
+    if (analog_config->analog_calibration_set == 0xFF)
+    {
+        analog_config->analog_calibration_set = 0;
+    }
 
-  // Check snapback intensities
-  if(analog_config->l_snapback_intensity == 0xFFFF) analog_config->l_snapback_intensity = 600; // 60.0hz
-  if(analog_config->r_snapback_intensity == 0xFFFF) analog_config->r_snapback_intensity = 600;
+    if (analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
+    {
+        analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
 
-  if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
-  {
-    analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
+        analog_config->analog_calibration_set = 0;
 
-    // Set default deadzones
-    analog_config->l_deadzone = 160;
-    analog_config->r_deadzone = 160;
+        if(!analog_static.axis_lx)
+            analog_config->analog_calibration_set = 1;
 
-    analog_config->l_deadzone_outer = 0;
-    analog_config->r_deadzone_outer = 0;
+        // Set default deadzones
+        analog_config->l_deadzone = 144;
+        analog_config->r_deadzone = 144;
 
-    analog_config->lx_center = 2048;
-    analog_config->ly_center = 2048;
-    analog_config->rx_center = 2048;
-    analog_config->ry_center = 2048;
+        analog_config->l_deadzone_outer = 72;
+        analog_config->r_deadzone_outer = 72;
 
-    analog_config->lx_invert = 0;
-    analog_config->ly_invert = 0;
-    analog_config->rx_invert = 0;
-    analog_config->ry_invert = 0;
+        // analog_config->lx_center = 2048;
+        // analog_config->ly_center = 2048;
+        // analog_config->rx_center = 2048;
+        // analog_config->ry_center = 2048;
 
-    analog_config->l_snapback_type = 0;
-    analog_config->r_snapback_type = 0;
+        analog_config->l_snapback_intensity = 600; // 60.0hz
+        analog_config->r_snapback_intensity = 600;
 
-    // Set to default left setup
-    _angle_setup_reset_to_defaults(&_left_setup);
-    _angle_setup_reset_to_defaults(&_right_setup);
+        analog_config->lx_invert = 0;
+        analog_config->ly_invert = 0;
+        analog_config->rx_invert = 0;
+        analog_config->ry_invert = 0;
 
-    _write_to_config_block();
-  }
+        analog_config->l_snapback_type = 0; // Default LPF
+        analog_config->r_snapback_type = 0; // Default LPF
 
-  // Check digital thresholds
-  if(analog_config->l_threshold < 128) analog_config->l_threshold = 128;
-  if(analog_config->r_threshold < 128) analog_config->r_threshold = 128;
+        // Set to default left setup
+        _set_default_configslot(analog_config->joy_config_l);
+        _set_default_configslot(analog_config->joy_config_r);
+    }
+}
 
-  if(analog_config->l_threshold > 1800) analog_config->l_threshold = 1800;
-  if(analog_config->r_threshold > 1800) analog_config->r_threshold = 1800;
+void _validate_gc_setup(joyConfigSlot_s slots[ADJUSTABLE_ANGLES], joyConfigSlot_s out[ADJUSTABLE_ANGLES])
+{
+    for(int i = 0; i < ADJUSTABLE_ANGLES; i++)
+    {
+        out[i] = slots[i];
+        if(slots[i].enabled)
+        {
+            if((int) slots[i].out_angle % 90 > 0)
+            {
+                out[i].deadzone = 0;
+            }
+            else 
+            {
+                out[i].deadzone = slots[i].deadzone > 4.0f ? 4.0f : slots[i].deadzone;
+            }
+        }
+    }
 }
 
 // Input and output are based around -2048 to 2048 values with 0 as centers
 void stick_scaling_process(analog_data_s *in, analog_data_s *out)
 {
-  static int16_t in_left[2]    = {0};
-  static int16_t in_right[2]   = {0};
+    static int16_t in_left[2] = {0};
+    static int16_t in_right[2] = {0};
 
-  in_left[0] = in->lx;
-  in_left[1] = in->ly;
+    in_left[0] = in->lx;
+    in_left[1] = in->ly;
 
-  in_right[0] = in->rx;
-  in_right[1] = in->ry;
+    in_right[0] = in->rx;
+    in_right[1] = in->ry;
 
-  // Float angle and distance data
-  analog_meta_s out_left_meta  = {0};
-  analog_meta_s out_right_meta = {0};
+    // Float angle and distance data
+    analog_meta_s out_left_meta = {0};
+    analog_meta_s out_right_meta = {0};
 
-  int16_t out_left[2];
-  int16_t out_right[2];
+    int16_t out_left[2];
+    int16_t out_right[2];
 
-  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
-  if(_sticks_calibrating)
-  {
-    bool left_done  = _calibrate_axis(in_left, &_left_setup);
-    bool right_done = _calibrate_axis(in_right, &_right_setup);
-    out_left[0] = 0;
-    out_left[1] = 0;
-    out_right[0] = 0;
-    out_right[1] = 0;
-
-    if(left_done && right_done)
+    MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+    if (_sticks_calibrating)
     {
-      hoja_set_notification_status(COLOR_CYAN);
+        bool left_done = _calibrate_axis(in_left, analog_config->joy_config_l);
+        bool right_done = _calibrate_axis(in_right, analog_config->joy_config_r);
+        out_left[0] = 0;
+        out_left[1] = 0;
+        out_right[0] = 0;
+        out_right[1] = 0;
+
+        if (left_done && right_done)
+        {
+            hoja_set_notification_status(COLOR_CYAN);
+        }
     }
-  }
-  else 
-  {
-    _process_axis(in_left,  &out_left_meta,   &_left_setup);
-    _process_axis(in_right, &out_right_meta,  &_right_setup);
-    analog_angle_distance_to_coordinate(out_left_meta.angle,  out_left_meta.distance,   out_left);
-    analog_angle_distance_to_coordinate(out_right_meta.angle, out_right_meta.distance,  out_right);
-  }
+    else
+    {
+        if (!_joy_scale_input(in_left, &out_left_meta, _active_l, _l_count))
+        {
+        }
 
-  out->lx = out_left[0];
-  out->ly = out_left[1];
-  out->rx = out_right[0];
-  out->ry = out_right[1];
+        if (!_joy_scale_input(in_right, &out_right_meta, _active_r, _r_count))
+        {
+        }
 
-  out->langle     = out_left_meta.angle;
-  out->ldistance  = out_left_meta.distance;
-  out->ltarget    = out_left_meta.target;
+        analog_angle_distance_to_coordinate(out_left_meta.angle, out_left_meta.distance, out_left);
+        analog_angle_distance_to_coordinate(out_right_meta.angle, out_right_meta.distance, out_right);
+    }
 
-  out->rangle     = out_right_meta.angle;
-  out->rdistance  = out_right_meta.distance;
-  out->rtarget    = out_right_meta.target;
+    out->lx = out_left[0];
+    out->ly = out_left[1];
+    out->rx = out_right[0];
+    out->ry = out_right[1];
 
-  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+    out->langle = out_left_meta.angle;
+    out->ldistance = out_left_meta.distance;
+    out->ltarget = out_left_meta.target;
+
+    out->rangle = out_right_meta.angle;
+    out->rdistance = out_right_meta.distance;
+    out->rtarget = out_right_meta.target;
+
+    MUTEX_HAL_EXIT(&_stick_scaling_mutex);
 }
 
 bool stick_scaling_init()
 {
-  MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
+    MUTEX_HAL_ENTER_BLOCKING(&_stick_scaling_mutex);
 
-  // Load from config
-  _read_from_config_block();
+    // Perform a default check. This applies defaults
+    // if the config block version is a mismatch
+    stick_scaling_default_check();
 
-  // Perform a default check. This applies defaults
-  // if the config block version is a mismatch
-  stick_scaling_default_check();
+    // Validate input angles etc. 
+    _l_count = _joy_validation_sort_and_count(analog_config->joy_config_l);
+    _r_count= _joy_validation_sort_and_count(analog_config->joy_config_r);
 
-  // Validate our settings
-  _validate_setup(&_left_setup); 
-  _validate_setup(&_right_setup); 
+    // Copy to working config set unless we are in a gamecube mode
+    switch(hoja_get_status().gamepad_mode)
+    {
+        case GAMEPAD_MODE_GAMECUBE:
+        case GAMEPAD_MODE_GCUSB:
+        _validate_gc_setup(analog_config->joy_config_l, _active_l);
+        _validate_gc_setup(analog_config->joy_config_r, _active_r);
+        break;
 
-  MUTEX_HAL_EXIT(&_stick_scaling_mutex);
-  return true;
+        default:
+        // Copy to working mem
+        memcpy(_active_l, analog_config->joy_config_l, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        memcpy(_active_r, analog_config->joy_config_r, sizeof(joyConfigSlot_s) * ADJUSTABLE_ANGLES);
+        break;
+
+    }
+
+    MUTEX_HAL_EXIT(&_stick_scaling_mutex);
+    return true;
 }

@@ -17,6 +17,4 @@ void usb_mode_task(uint64_t timestamp);
 
 bool usb_mode_start(gamepad_mode_t mode);
 
-uint8_t dir_to_hat(hat_mode_t hat_type, uint8_t leftRight, uint8_t upDown);
-
 #endif

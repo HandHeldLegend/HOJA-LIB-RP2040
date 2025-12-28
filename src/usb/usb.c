@@ -11,6 +11,7 @@
 #include "hal/sys_hal.h"
 
 #include "utilities/callback.h"
+#include "utilities/settings.h"
 
 #include "board_config.h"
 
@@ -617,12 +618,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     // Web USB Descriptor
     case VENDOR_REQUEST_WEBUSB:
     {
+      if(gamepad_config->webusb_enable_popup == 1)
       // match vendor request in BOS descriptor
       // Get landing page url
-      //return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
-
-      // Reimplement later
-      return false;
+        return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+      else return false;
     }
 
     // MS OS 2.0 Descriptor
@@ -668,100 +668,4 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
   // stall unknown request
   return false;
-}
-
-/********* USB Data Handling Utilities ***************/
-/**
- * @brief Takes in directions and outputs a byte output appropriate for
- * HID Hat usage.
- * @param hat_type hat_mode_t type - The type of controller you're converting for.
- * @param leftRight 0 through 2 (2 is right) to indicate the direction left/right
- * @param upDown 0 through 2 (2 is up) to indicate the direction up/down
- */
-uint8_t dir_to_hat(hat_mode_t hat_type, uint8_t leftRight, uint8_t upDown)
-{
-  uint8_t ret = 0;
-  switch (hat_type)
-  {
-  default:
-  case HAT_MODE_DI:
-    ret = DI_HAT_CENTER;
-
-    if (leftRight == 2)
-    {
-      ret = DI_HAT_RIGHT;
-      if (upDown == 2)
-      {
-        ret = DI_HAT_TOP_RIGHT;
-      }
-      else if (upDown == 0)
-      {
-        ret = DI_HAT_BOTTOM_RIGHT;
-      }
-    }
-    else if (leftRight == 0)
-    {
-      ret = DI_HAT_LEFT;
-      if (upDown == 2)
-      {
-        ret = DI_HAT_TOP_LEFT;
-      }
-      else if (upDown == 0)
-      {
-        ret = DI_HAT_BOTTOM_LEFT;
-      }
-    }
-
-    else if (upDown == 2)
-    {
-      ret = DI_HAT_TOP;
-    }
-    else if (upDown == 0)
-    {
-      ret = DI_HAT_BOTTOM;
-    }
-
-    return ret;
-    break;
-
-  case HAT_MODE_XI:
-    ret = XI_HAT_CENTER;
-
-    if (leftRight == 2)
-    {
-      ret = XI_HAT_RIGHT;
-      if (upDown == 2)
-      {
-        ret = XI_HAT_TOP_RIGHT;
-      }
-      else if (upDown == 0)
-      {
-        ret = XI_HAT_BOTTOM_RIGHT;
-      }
-    }
-    else if (leftRight == 0)
-    {
-      ret = XI_HAT_LEFT;
-      if (upDown == 2)
-      {
-        ret = XI_HAT_TOP_LEFT;
-      }
-      else if (upDown == 0)
-      {
-        ret = XI_HAT_BOTTOM_LEFT;
-      }
-    }
-
-    else if (upDown == 2)
-    {
-      ret = XI_HAT_TOP;
-    }
-    else if (upDown == 0)
-    {
-      ret = XI_HAT_BOTTOM;
-    }
-
-    return ret;
-    break;
-  }
 }

@@ -44,14 +44,24 @@ typedef struct
     uint16_t value;
 } hsv_s;
 
-typedef struct 
+typedef union
 {
-    uint16_t    hi_amplitude_fixed;
-    uint16_t    lo_amplitude_fixed;
-    uint16_t    hi_frequency_increment;
-    uint16_t    lo_frequency_increment;
-    uint8_t     sample_len; // How many sample chunks
+    struct
+    {
+        uint16_t    hi_amplitude_fixed;
+        uint16_t    lo_amplitude_fixed;
+        uint16_t    hi_frequency_increment;
+        uint16_t    lo_frequency_increment;
+    };
+    uint64_t value; 
 } haptic_processed_s;
+
+typedef struct
+{
+    haptic_processed_s pairs[3];
+    uint8_t count;
+    uint64_t counter; 
+} haptic_packet_s;
 
 typedef union
 {
@@ -65,6 +75,19 @@ typedef union
     };
     uint8_t val;
 } bat_status_u;
+
+typedef union
+{
+    struct
+    {
+        uint8_t power_source : 1;
+        uint8_t connection : 2;
+        uint8_t reserved : 1;
+        uint8_t charging : 1;
+        uint8_t bat_lvl : 3;
+    };
+    uint8_t val;
+} esp32_battery_status_u;
 
 #define COLOR_RED    (rgb_s) {.r = 0xFF, .g = 0x00, .b = 0x00}
 #define COLOR_ORANGE (rgb_s) {.r = 0xFF, .g = 0x4d, .b = 0x00}
