@@ -95,7 +95,7 @@ analogInfoStatic_s analog_static = {
     .axis_ry = 0,
     .axis_lt = 0,
     .axis_rt = 0,
-    .invert_allowed = ANALOG_INVERT_ALLOWED,
+    .invert_allowed = 0,
 };
 
 #if defined(HOJA_IMU_CHAN_A_DRIVER)
@@ -312,6 +312,8 @@ void _analog_static_setup()
 
     if(slots[INPUT_CODE_RY_UP].input_type == INPUT_TYPE_JOYSTICK)
         analog_static.axis_ry = 1;
+
+    analog_static.invert_allowed = ANALOG_INVERT_ALLOWED;
 }
 
 #define BLOCK_CHUNK_MAX 32
