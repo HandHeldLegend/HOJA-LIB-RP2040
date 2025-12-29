@@ -109,7 +109,9 @@ void battery_set_ship_mode()
 {
     battery_status_s tmp;
     snapshot_battery_read(&_battery_snap, &tmp);
-    if(!tmp.connected) return;
+
+    // Always try
+    //if(!tmp.connected) return;
 
     #if defined(HOJA_BATTERY_SET_SHIP_MODE)
     HOJA_BATTERY_SET_SHIP_MODE();

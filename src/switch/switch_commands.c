@@ -36,13 +36,13 @@ uint8_t _switch_ltk[16] = {0};
 
 void generate_ltk()
 {
-  //printf("Generated LTK: ");
+  // printf("Generated LTK: ");
   for (uint8_t i = 0; i < 16; i++)
   {
-    _switch_ltk[i] = sys_hal_random() & 0xFF; 
-    //printf("%X : ", _switch_ltk[i]);
+    _switch_ltk[i] = sys_hal_random() & 0xFF;
+    // printf("%X : ", _switch_ltk[i]);
   }
-  //printf("\n");
+  // printf("\n");
 }
 
 void clear_report()
@@ -73,11 +73,11 @@ void set_timer()
 
   static uint64_t _switch_timer = 0;
   _switch_command_buffer[0] = (uint8_t)_switch_timer;
-  
+
   _switch_timer += this_ms;
   if (_switch_timer > 0xFF)
   {
-    _switch_timer %= 0xFF;  // or -= 0xFF depending on requirements
+    _switch_timer %= 0xFF; // or -= 0xFF depending on requirements
   }
 }
 
@@ -90,14 +90,13 @@ void set_battconn()
   battery_get_status(&bstat);
 
   bat_status_u s = {
-    .bat_lvl    = 4,
-    .charging   = 1,
-    .connection = 0
-  };
+      .bat_lvl = 4,
+      .charging = 1,
+      .connection = 0};
 
-  if(bstat.connected)
+  if (bstat.connected)
   {
-    if(bstat.charging)
+    if (bstat.charging)
     {
       s.charging = 1;
       s.connection = 1;
@@ -107,39 +106,39 @@ void set_battconn()
       s.charging = 0;
       s.connection = 1;
     }
+
+    if (fstat.connected)
+    {
+      switch (fstat.simple)
+      {
+      default:
+        s.bat_lvl = 1;
+        break;
+
+      case 1:
+        s.bat_lvl = 1;
+        break;
+
+      case 2:
+        s.bat_lvl = 2;
+        break;
+
+      case 3:
+        s.bat_lvl = 3;
+        break;
+
+      case 4:
+        s.bat_lvl = 4;
+        break;
+      }
+    }
   }
-  else 
+  else
   {
     s.charging = 0;
     s.connection = 1;
   }
 
-  if(fstat.connected)
-  {
-    switch(fstat.simple)
-    {
-      default:
-      s.bat_lvl = 1;
-      break;
-
-      case 1:
-      s.bat_lvl = 1;
-      break;
-
-      case 2:
-      s.bat_lvl = 2;
-      break;
-
-      case 3:
-      s.bat_lvl = 3;
-      break;
-
-      case 4:
-      s.bat_lvl = 4;
-      break;
-    }
-  }
-  
   // Always set to USB connected
   _switch_command_buffer[1] = s.val;
 }
@@ -148,7 +147,7 @@ void set_devinfo()
 {
   // New firmware causes issue with gyro needs more research
   _switch_command_buffer[14] = 0x04; // NS Firmware primary   (4.x)
-  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21) 
+  _switch_command_buffer[15] = 0x33; // NS Firmware secondary (x.21)
 
   //_switch_command_buffer[14] = 0x03; // NS Firmware primary   (3.x)
   //_switch_command_buffer[15] = 72;   // NS Firmware secondary (x.72)
@@ -234,25 +233,25 @@ void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
   switch (info_code)
   {
   case 0x01:
-    //printf("MAC Address requested.");
+    // printf("MAC Address requested.");
     info_set_mac();
     break;
 
   default:
-    //printf("Unknown setup requested: %X", info_code);
+    // printf("Unknown setup requested: %X", info_code);
     _switch_command_buffer[0] = info_code;
     break;
   }
-  
-  switch(hoja_get_status().gamepad_method)
+
+  switch (hoja_get_status().gamepad_method)
   {
-    default:
-    case GAMEPAD_METHOD_USB:
-      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+  default:
+  case GAMEPAD_METHOD_USB:
+    cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
     break;
 
-    case GAMEPAD_METHOD_BLUETOOTH:
-      cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+  case GAMEPAD_METHOD_BLUETOOTH:
+    cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
     break;
   }
 }
@@ -272,7 +271,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
   case 1:
 
     // Get host address and compare it.
-    //for (uint i = 0; i < 6; i++)
+    // for (uint i = 0; i < 6; i++)
     //{
     //  if (global_loaded_settings.switch_host_address[i] != host_address[5 - i])
     //  {
@@ -283,7 +282,7 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
 
     // Save if we have an updated host address.
     // if (diff_host)
-      //settings_save_from_core0();
+    // settings_save_from_core0();
 
     set_ack(0x81);
     _switch_command_buffer[14] = 1;
@@ -327,46 +326,46 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
 
   // Set subcmd
   set_command(command);
-  //printf("CMD: ");
+  // printf("CMD: ");
 
   switch (command)
   {
   case SW_CMD_SET_NFC:
-    //printf("Set NFC MCU:\n");
+    // printf("Set NFC MCU:\n");
     set_ack(0x80);
     break;
 
   case SW_CMD_ENABLE_IMU:
-    //printf("Enable IMU: %d\n", data[11]);
-    //imu_set_enabled(data[11] > 0);
+    // printf("Enable IMU: %d\n", data[11]);
+    // imu_set_enabled(data[11] > 0);
     _switch_imu_mode = data[11];
     set_ack(0x80);
     break;
 
   case SW_CMD_SET_PAIRING:
-    //printf("Set pairing.\n");
+    // printf("Set pairing.\n");
     pairing_set(data[11], &data[12]);
     break;
 
   case SW_CMD_SET_INPUTMODE:
-    //printf("Input mode change: %X\n", data[11]);
+    // printf("Input mode change: %X\n", data[11]);
     set_ack(0x80);
     _switch_reporting_mode = data[11];
     break;
 
   case SW_CMD_GET_DEVICEINFO:
-    //printf("Get device info.\n");
+    // printf("Get device info.\n");
     set_ack(0x82);
     set_devinfo();
     break;
 
   case SW_CMD_SET_SHIPMODE:
-    //printf("Set ship mode: %X\n", data[11]);
+    // printf("Set ship mode: %X\n", data[11]);
     set_ack(0x80);
     break;
 
   case SW_CMD_GET_SPI:
-    //printf("Read SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    // printf("Read SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
     set_ack(0x90);
     sw_spi_readfromaddress(data[12], data[11], data[15]);
     break;
@@ -377,7 +376,7 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
     break;
 
   case SW_CMD_SET_SPI:
-    //printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    // printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
     set_ack(0x80);
 
     // Write IMU calibration data
@@ -395,18 +394,18 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
     break;
 
   case SW_CMD_GET_TRIGGERET:
-    //printf("Get trigger ET.\n");
+    // printf("Get trigger ET.\n");
     set_ack(0x83);
     set_sub_triggertime(100);
     break;
 
   case SW_CMD_ENABLE_VIBRATE:
-    //printf("Enable vibration.\n");
+    // printf("Enable vibration.\n");
     set_ack(0x80);
     break;
 
   case SW_CMD_SET_PLAYER:
-    //printf("Set player: ");
+    // printf("Set player: ");
     set_ack(0x80);
 
     uint8_t player = data[11] & 0xF;
@@ -447,8 +446,8 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
       set_num = 8;
       break;
     }
-    
-    if(set_num > 0)
+
+    if (set_num > 0)
     {
       hoja_set_connected_status(set_num);
     }
@@ -456,32 +455,32 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
     break;
 
   default:
-    //printf("Unhandled: %X\n", command);
+    // printf("Unhandled: %X\n", command);
     for (uint16_t i = 0; i < len; i++)
     {
-      //printf("%X, ", data[i]);
+      // printf("%X, ", data[i]);
     }
-    //printf("\n");
+    // printf("\n");
     set_ack(0x80);
     break;
   }
 
-  //printf("Sent: ");
-  //for (uint8_t i = 0; i < 32; i++)
+  // printf("Sent: ");
+  // for (uint8_t i = 0; i < 32; i++)
   {
-    //printf("%X, ", _switch_command_buffer[i]);
+    // printf("%X, ", _switch_command_buffer[i]);
   }
-  //printf("\n");
+  // printf("\n");
 
-  switch(hoja_get_status().gamepad_method)
+  switch (hoja_get_status().gamepad_method)
   {
-    default:
-    case GAMEPAD_METHOD_USB:
-      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+  default:
+  case GAMEPAD_METHOD_USB:
+    cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
     break;
 
-    case GAMEPAD_METHOD_BLUETOOTH:
-      cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+  case GAMEPAD_METHOD_BLUETOOTH:
+    cb(0x21, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
     break;
   }
 }
@@ -506,7 +505,7 @@ void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_re
     break;
 
   default:
-    //printf("Unknown report: %X\n", report_id);
+    // printf("Unknown report: %X\n", report_id);
     break;
   }
 }
@@ -543,7 +542,7 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
       set_timer();
       set_battconn();
 
-      if(_switch_imu_mode == 0x01)
+      if (_switch_imu_mode == 0x01)
       {
         imu_data_s imu = {0};
 
@@ -596,10 +595,8 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
         _switch_command_buffer[46] = imu[2].gz_8l;
         _switch_command_buffer[47] = imu[2].gz_8h;
         */
-
-
       }
-      else if(_switch_imu_mode == 0x02)
+      else if (_switch_imu_mode == 0x02)
       {
         // New Gyro test code
         static mode_2_s mode_2_data = {0};
@@ -633,15 +630,15 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
       //_switch_command_buffer[11] = _unknown_thing();
 
       // //printf("V: %d, %d\n", _switch_command_buffer[46], _switch_command_buffer[47]);
-      switch(hoja_get_status().gamepad_method)
+      switch (hoja_get_status().gamepad_method)
       {
-        default:
-        case GAMEPAD_METHOD_USB:
-          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
+      default:
+      case GAMEPAD_METHOD_USB:
+        cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_USB);
         break;
 
-        case GAMEPAD_METHOD_BLUETOOTH:
-          cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+      case GAMEPAD_METHOD_BLUETOOTH:
+        cb(0x30, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
         break;
       }
     }
