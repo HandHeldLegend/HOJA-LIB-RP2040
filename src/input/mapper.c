@@ -314,15 +314,42 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
     {
         // i here is the input code
         uint8_t input_type = input_static.input_info[i].input_type;
-        uint8_t mapped_output_code = op->input_slots[i].output_code;
-        uint8_t output_type = op->output_types[mapped_output_code];
-        uint8_t output_code = op->remap_en ? mapped_output_code : i;
+        int8_t mapped_output_code = op->input_slots[i].output_code;
+        uint16_t *input = &_all_inputs.inputs[i];
+        bool *press = &_all_inputs.presses[i];
+
+        uint8_t output_type = 0;
+        if (mapped_output_code<0)
+        {
+            output_type = MAPPER_OUTPUT_DISABLED;
+            if(!op->remap_en)
+            {
+                switch(input_type)
+                {
+                    default:
+                    case INPUT_TYPE_DIGITAL:
+                    tmp.presses[i] = *press;
+                    tmp.inputs[i] = *press ? MAPPER_ANALOG_MAX : 0;
+                    break;
+
+                    case INPUT_TYPE_JOYSTICK:
+                    case INPUT_TYPE_HOVER:
+                    tmp.inputs[i] = *input;
+                    break;
+                }
+            }
+            continue;
+        }
+        else 
+        {
+            output_type = op->output_types[mapped_output_code];
+        }
+
+        int8_t output_code = op->remap_en ? mapped_output_code : i;
+
         uint8_t output_mode = op->input_slots[i].output_mode;
         uint16_t static_output = op->input_slots[i].static_output;
         uint16_t threshold_delta = op->input_slots[i].threshold_delta;
-
-        uint16_t *input = &_all_inputs.inputs[i];
-        bool *press = &_all_inputs.presses[i];
         
         uint16_t *output = &tmp.inputs[output_code];
         bool *output_press = &tmp.presses[output_code];
@@ -347,11 +374,6 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                 switch(output_type)
                 {
                     default:
-                    if(!op->remap_en)
-                    {
-                        this_press = true;
-                        this_output = MAPPER_ANALOG_MAX;
-                    }
                     break;
 
                     // The simplest output, just pass through using the output mapcode
@@ -382,11 +404,6 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                 switch(output_type)
                 {
                     default:
-                    if(!op->remap_en)
-                    {
-                        this_output = *input;
-                        this_press = *input>0 ? true : false;
-                    }
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
@@ -437,11 +454,6 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                 switch(output_type)
                 {
                     default:
-                    if(!op->remap_en)
-                    {
-                        this_output = *input;
-                        this_press = *input>0 ? true : false;
-                    }
                     break;
 
                     case MAPPER_OUTPUT_DIGITAL:
