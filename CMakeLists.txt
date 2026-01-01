@@ -82,6 +82,15 @@ target_compile_definitions(hoja_lib
   CYW43_LWIP=0
 )
 
+set(BLUETOOTH_DRIVERS 
+    pico_cyw43_arch_threadsafe_background 
+    pico_btstack_cyw43 
+    pico_btstack_hci_transport_cyw43 
+    pico_btstack_ble 
+    pico_btstack_classic 
+)
+
+
 # Pull in pico libraries that we need
 target_link_libraries(hoja_lib INTERFACE
   pico_stdlib 
@@ -91,12 +100,6 @@ target_link_libraries(hoja_lib INTERFACE
   pico_platform
   pico_rand
   pico_float
-
-  pico_cyw43_arch_threadsafe_background 
-  pico_btstack_cyw43 
-  pico_btstack_hci_transport_cyw43 
-  pico_btstack_ble 
-  pico_btstack_classic 
 
   hardware_exception
   hardware_gpio
@@ -114,6 +117,12 @@ target_link_libraries(hoja_lib INTERFACE
   tinyusb_device
   tinyusb_board
 )
+
+if(HOJA_USE_BT_HAL)
+  target_link_libraries(hoja_lib INTERFACE
+    ${BLUETOOTH_DRIVERS}
+  )
+endif()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
