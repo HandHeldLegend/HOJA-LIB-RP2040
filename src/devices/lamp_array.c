@@ -31,7 +31,7 @@ uint16_t _attr_res_report(uint8_t* buffer) {
         255,                             // Red level count
         255,                             // Blue level count
         255,                             // Green level count
-        255,                             // Intensity
+        1,                               // Intensity
         1,                               // Is Programmable
         0                                // InputBinding
     };
@@ -60,13 +60,8 @@ void _update_multi_report(const uint8_t* buffer) {
         anm_external_queue_rgb_group(report->lamp_ids[i], color);
     }
     bool update_complete = report->flags & LAMP_UPDATE_FLAG_COMPLETE;
-    if (update_complete) {
+    if (update_complete)
         anm_external_dequeue();
-        if (report->lamp_count > 0) {
-            uint16_t brightness = (report->colors[0].intensity * RGB_BRIGHTNESS_MAX) / 255;
-            anm_set_brightness(brightness);
-        }
-    }
 }
 
 void _update_range_report(const uint8_t* buffer) {
@@ -80,11 +75,8 @@ void _update_range_report(const uint8_t* buffer) {
     };
     anm_external_queue_rgb_group_range(report->lamp_id_start, report->lamp_id_end, color);
     bool update_complete = report->flags & LAMP_UPDATE_FLAG_COMPLETE;
-    if (update_complete) {
+    if (update_complete)
         anm_external_dequeue();
-        uint16_t brightness = (report->color.intensity * RGB_BRIGHTNESS_MAX) / 255;
-        anm_set_brightness(brightness);
-    }
 }
 
 void _control_report(const uint8_t* buffer) {
@@ -92,7 +84,7 @@ void _control_report(const uint8_t* buffer) {
     if (report->autonomous_mode) {
         rgb_init(-1, -1);
     } else {
-        rgb_init(RGB_ANIM_EXTERNAL, -1);
+        rgb_init(RGB_ANIM_EXTERNAL, RGB_BRIGHTNESS_MAX);
     }
 }
 

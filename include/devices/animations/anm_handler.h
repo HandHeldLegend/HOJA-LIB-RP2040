@@ -23,7 +23,6 @@ typedef enum
 
 void anm_handler_shutdown(callback_t cb);
 void anm_set_idle_enable(bool enable);
-void anm_set_brightness(uint16_t brightness);
 void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t animation_time_ms);
 void anm_handler_tick();
 

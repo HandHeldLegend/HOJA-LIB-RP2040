@@ -325,16 +325,6 @@ void anm_handler_tick()
     #endif
 }
 
-void anm_set_brightness(uint16_t brightness) {
-
-    if (brightness < 0)
-        _anim_brightness = 0;
-    else if (brightness > RGB_BRIGHTNESS_MAX)
-        _anim_brightness = RGB_BRIGHTNESS_MAX;
-    else
-        _anim_brightness = brightness;
-}
-
 void ani_setup_override(rgb_override_t override, uint32_t *parameters)
 {
     
