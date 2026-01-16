@@ -20,6 +20,7 @@
 #include "devices/animations/anm_react.h"
 #include "devices/animations/anm_shutdown.h"
 #include "devices/animations/anm_idle.h"
+#include "devices/animations/anm_external.h"
 
 // Player LED animation modes
 #include "devices/animations/ply_chase.h"
@@ -49,23 +50,6 @@ rgb_anim_stop_fn    _ani_fn_stop = NULL; // Call this to stop/pause the rgb stat
 
 rgb_anim_fn         _ani_override_fn = NULL; // Override function
 rgb_anim_stop_fn    _ani_override_stop_fn = NULL;
-
-typedef enum 
-{
-    RGB_ANIM_NONE,      // Show stored colors static
-    RGB_ANIM_RAINBOW,   // Fade through the RGB rainbow
-    RGB_ANIM_REACT,     // React to user input
-    RGB_ANIM_FAIRY,     // Play a random animation between user preset colors
-    RGB_ANIM_BREATHE,   // Looping animation using stored colors
-    RGB_ANIM_IDLE,      // Idle animation where no LEDs are shown
-} rgb_anim_t;
-
-typedef enum 
-{
-    RGB_OVERRIDE_FLASH,
-    RGB_OVERRIDE_INDICATE,
-    RGB_OVERRIDE_SHUTDOWN,
-} rgb_override_t;
 
 uint32_t _fade_progress  = 0;
 
@@ -175,6 +159,10 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
             _ani_main_fn = anm_idle_handler;
             _ani_fn_get_state = anm_idle_get_state;
         break;
+
+        case RGB_ANIM_EXTERNAL:
+            _ani_main_fn = anm_external_handler;
+            _ani_fn_get_state = anm_external_get_state;
     }
 
     _ani_queue_fade_start();
@@ -335,6 +323,16 @@ void anm_handler_tick()
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
     #endif
+}
+
+void anm_set_brightness(uint16_t brightness) {
+
+    if (brightness < 0)
+        _anim_brightness = 0;
+    else if (brightness > RGB_BRIGHTNESS_MAX)
+        _anim_brightness = RGB_BRIGHTNESS_MAX;
+    else
+        _anim_brightness = brightness;
 }
 
 void ani_setup_override(rgb_override_t override, uint32_t *parameters)
