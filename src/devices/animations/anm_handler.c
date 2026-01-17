@@ -318,10 +318,14 @@ void anm_handler_tick()
         _notification_manager(_current_ani_leds);
     }
 
-    // Process brightness/gamma
-    anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);
-
-    RGB_DRIVER_UPDATE(_adjusted_ani_leds);
+    if (_current_mode == RGB_ANIM_EXTERNAL) {
+        // Display colors directly. Upto the host to handle brightness/gamma
+        RGB_DRIVER_UPDATE(_current_ani_leds);
+    } else {
+        // Process brightness/gamma
+        anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);
+        RGB_DRIVER_UPDATE(_adjusted_ani_leds);
+    }
     #endif
 }
 
