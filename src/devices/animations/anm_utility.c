@@ -297,6 +297,25 @@ void anm_utility_hsv_to_rgb(hsv_s *hsv, rgb_s *out)
     out->color = color_out.color;
 }
 
+void anm_utility_unpack_groups_to_leds(rgb_s *output, rgb_s rgb_groups[HOJA_RGB_GROUPS_NUM])
+{
+    for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+    {
+        for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
+        {
+            int index_out = rgb_led_groups[i][j];
+            if(index_out<0)
+            {
+                continue;
+            }
+            else
+            {
+                output[index_out].color = rgb_groups[i].color;
+            }
+        }
+    }
+}
+
 static inline uint32_t _urgb_u32(uint8_t r, uint8_t g, uint8_t b)
 {
     return ((uint32_t)(r) << 8) |

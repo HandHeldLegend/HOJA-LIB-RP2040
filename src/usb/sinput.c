@@ -7,6 +7,7 @@
 #include "input/analog.h"
 #include "input/imu.h"
 #include "input/mapper.h"
+#include "devices/lamp_array.h"
 
 #include "utilities/pcm.h"
 #include "utilities/static_config.h"
@@ -137,7 +138,7 @@ const ext_tusb_desc_device_t sinput_device_descriptor = {
     .bNumConfigurations = 0x01
     };
 
-const uint8_t sinput_hid_report_descriptor[139] = {
+const uint8_t sinput_hid_report_descriptor[466] = {
     0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
     0x09, 0x05,                    // Usage (Gamepad)
     0xA1, 0x01,                    // Collection (Application)
@@ -230,7 +231,9 @@ const uint8_t sinput_hid_report_descriptor[139] = {
     0x95, 0x2F,                    //   Report Count (47) - 48 bytes minus report ID
     0x91, 0x02,                    //   Output (Data,Var,Abs)
 
-    0xC0                           // End Collection 
+    0xC0,                          // End Collection
+
+    TUD_HID_REPORT_DESC_LIGHTING(REPORT_ID_LIGHTING_LAMP_ARRAY_ATTRIBUTES)
 };
 
 const uint8_t sinput_configuration_descriptor[] = {

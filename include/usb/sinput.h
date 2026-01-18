@@ -199,7 +199,7 @@ typedef union
 #pragma pack(pop)
 
 extern const ext_tusb_desc_device_t sinput_device_descriptor;
-extern const uint8_t sinput_hid_report_descriptor[139];
+extern const uint8_t sinput_hid_report_descriptor[466];
 extern const uint8_t sinput_configuration_descriptor[];
 
 void sinput_cmd_haptics(const uint8_t *data);

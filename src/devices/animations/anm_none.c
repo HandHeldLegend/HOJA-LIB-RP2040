@@ -1,4 +1,5 @@
 #include "devices/animations/anm_none.h"
+#include "devices/animations/anm_utility.h"
 #include "devices/rgb.h"
 
 #include <stdint.h>
@@ -13,25 +14,6 @@
 rgb_s _rgb_groups[HOJA_RGB_GROUPS_NUM];
 bool _none_init = false;
 
-void _unpack_groups_to_leds(rgb_s *output)
-{
-    for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
-    {
-        for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
-        {
-            int index_out = rgb_led_groups[i][j];
-            if(index_out<0)
-            {
-                continue;
-            }
-            else
-            {
-                output[index_out].color = _rgb_groups[i].color;
-            }
-        }
-    }
-}
-
 // Get current rgb state
 bool anm_none_get_state(rgb_s *output)
 {
@@ -43,15 +25,14 @@ bool anm_none_get_state(rgb_s *output)
         _rgb_groups[i].color = tmp_color.color;
     }
 
-    _unpack_groups_to_leds(output);
+    anm_utility_unpack_groups_to_leds(output, _rgb_groups);
 }
 
 const uint32_t delayed = 24;
 uint32_t _delay = delayed;
 bool anm_none_handler(rgb_s* output)
 {
-
-    _unpack_groups_to_leds(output);
+    anm_utility_unpack_groups_to_leds(output, _rgb_groups);
     return true;
 }
 

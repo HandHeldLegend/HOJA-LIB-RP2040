@@ -15,5 +15,6 @@ void anm_utility_set_time_ms(uint32_t time_ms);
 uint32_t anm_utility_blend(rgb_s *original, rgb_s *new, uint32_t blend);
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness);
 void anm_utility_hsv_to_rgb(hsv_s *hsv, rgb_s *out);
+void anm_utility_unpack_groups_to_leds(rgb_s *output, rgb_s rgb_groups[HOJA_RGB_GROUPS_NUM]);
 
 #endif
