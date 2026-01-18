@@ -555,6 +555,9 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_l_paddle_1 = input.presses[SINPUT_CODE_LP_1];
     data.button_r_paddle_1 = input.presses[SINPUT_CODE_RP_1];
 
+    data.button_l_paddle_2 = input.presses[SINPUT_CODE_LP_2];
+    data.button_r_paddle_2 = input.presses[SINPUT_CODE_RP_2];
+
     data.button_power = input.presses[SINPUT_CODE_MISC_3];
 
     data.trigger_l = sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
