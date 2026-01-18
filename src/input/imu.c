@@ -306,6 +306,7 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 // IMU module operational task
 void imu_task(uint64_t timestamp)
 {
+  #if defined(HOJA_IMU_CHAN_A_DRIVER)
   static interval_s _imu_read_interval = {0};
 
   if(interval_run(timestamp, IMU_READ_RATE, &_imu_read_interval))
@@ -316,6 +317,7 @@ void imu_task(uint64_t timestamp)
     else
       _imu_read_standard(timestamp);
   }
+  #endif
 }
 
 // IMU module initialization function
