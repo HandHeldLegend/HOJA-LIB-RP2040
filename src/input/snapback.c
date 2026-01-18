@@ -18,7 +18,7 @@ bool _snapback_add_value(int val)
 {
     static uint8_t _idx = 0;
     int t = val >> 4;
-    _snapback_report[_idx + 2] = (uint8_t)t;
+    _snapback_report[_idx + 2] = (uint8_t)CLAMP_0_255(t);
     _idx += 1;
     if (_idx > 61)
     {
@@ -35,25 +35,24 @@ bool _snapback_add_value(int val)
 
 void snapback_webcapture(analog_data_s *data)
 {
-
     static bool _capturing = false;
-    static uint16_t *selection = NULL;
     static bool _got_selection = false;
     static uint8_t _selection_idx = 0;
 
-    uint16_t lx = (uint16_t) (data->lx + 2048);
-    uint16_t ly = (uint16_t) (data->ly + 2048);
-    uint16_t rx = (uint16_t) (data->rx + 2048);
-    uint16_t ry = (uint16_t) (data->ry + 2048);
+    // 1. Calculate current values
+    uint16_t vals[4];
+    vals[0] = (uint16_t)(data->lx + 2048);
+    vals[1] = (uint16_t)(data->ly + 2048);
+    vals[2] = (uint16_t)(data->rx + 2048);
+    vals[3] = (uint16_t)(data->ry + 2048);
 
     if (_capturing)
     {
-        if (_snapback_add_value(*selection))
+        // Use the index to get the current value from the array instead of a pointer
+        if (_snapback_add_value(vals[_selection_idx]))
         {
-            // Send packet
             _snapback_report[0] = WEBUSB_ANALOG_DUMP;
             _snapback_report[1] = _selection_idx;
-
             webusb_send_bulk(_snapback_report, 64);
 
             _capturing = false;
@@ -62,39 +61,23 @@ void snapback_webcapture(analog_data_s *data)
     }
     else if (!_got_selection)
     {
-        if (lx >= UPPER_CAP || lx <= LOWER_CAP)
-        {
-            selection = &lx;
-            _got_selection = true;
-            _selection_idx = 0;
-        }
-        else if (ly >= UPPER_CAP || ly <= LOWER_CAP)
-        {
-            selection = &(ly);
-            _got_selection = true;
-            _selection_idx = 1;
-        }
-        else if (rx >= UPPER_CAP || rx <= LOWER_CAP)
-        {
-            selection = &(rx);
-            _got_selection = true;
-            _selection_idx = 2;
-        }
-        else if (ry >= UPPER_CAP || ry <= LOWER_CAP)
-        {
-            selection = &(ry);
-            _got_selection = true;
-            _selection_idx = 3;
+        // Check triggers and set the index
+        for (int i = 0; i < 4; i++) {
+            if (vals[i] >= UPPER_CAP || vals[i] <= LOWER_CAP) {
+                _selection_idx = i;
+                _got_selection = true;
+                break;
+            }
         }
     }
     else if (_got_selection)
     {
-        if (*selection<UPPER_CAP && * selection> LOWER_CAP)
+        // Check for return to neutral to start capture
+        if (vals[_selection_idx] < UPPER_CAP && vals[_selection_idx] > LOWER_CAP)
         {
             _capturing = true;
         }
     }
-
 }
 
 void snapback_process(analog_data_s *input, analog_data_s *output)
