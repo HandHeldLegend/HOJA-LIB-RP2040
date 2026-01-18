@@ -318,7 +318,10 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
   (void)instance;
   (void)reqlen;
 
-  return handle_lamparray_get_report(report_id, report_type, buffer);
+  if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_SINPUT) {
+      return handle_lamparray_get_report(report_id, report_type, buffer);
+  }
+  return 0;
 }
 
 // Invoked when report complete
