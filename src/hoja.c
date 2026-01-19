@@ -40,6 +40,11 @@ __attribute__((weak)) void cb_hoja_init()
 
 }
 
+__attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
+{
+  return false;
+}
+
 __attribute__((weak)) uint16_t cb_hoja_read_battery()
 {
   return 0xFFFF;
@@ -227,6 +232,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   // debug
   // method = GAMEPAD_METHOD_BLUETOOTH;
+  // mode = GAMEPAD_MODE_SWPRO;
 
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_method = method;
@@ -315,7 +321,7 @@ void _hoja_task_1()
 
     // Idle manager
     idle_manager_task(c1_timestamp);
-
+    
     // IMU task
     imu_task(c1_timestamp);
   }

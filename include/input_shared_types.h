@@ -401,4 +401,11 @@ typedef struct
     uint64_t timestamp_ms; // Timestamp in ms 
 } quaternion_s;
 
+typedef struct 
+{
+    int8_t  gamepad_mode;
+    bool    pairing_mode;
+    bool    bootloader;
+} boot_input_s;
+
 #endif

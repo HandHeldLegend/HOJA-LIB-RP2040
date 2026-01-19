@@ -35,135 +35,167 @@ void boot_clear_memory()
 
 void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *pair)
 {
-    // Access boot time button state
-    mapper_input_s input = hover_access_boot();
+    boot_input_s boot_dat = {0};
 
     // Set default return states
     gamepad_method_t thisMethod = GAMEPAD_METHOD_USB;
     gamepad_mode_t   thisMode   = GAMEPAD_MODE_SWPRO;
     bool             thisPair   = false;
+    bool             thisBootloader = false;
+    bool             thisBTBootloader = false;
 
     switch(gamepad_config->gamepad_default_mode)
     {
         default: 
         case 0: 
             thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
         break;
 
         case 1:
             thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
         break;
 
         case 2:
             thisMode    = GAMEPAD_MODE_GCUSB; 
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
         break;
 
         case 3:
             thisMode    = GAMEPAD_MODE_GAMECUBE; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 4:
             thisMode    = GAMEPAD_MODE_N64; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 5:
             thisMode    = GAMEPAD_MODE_SNES; 
-            thisMethod  = GAMEPAD_METHOD_WIRED; 
         break;
 
         case 6:
             thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
         break;
     }
 
-    // Button overrides
+    if(cb_hoja_boot(&boot_dat))
     {
-        // Input modes in order
-        if(input.presses[INPUT_CODE_LEFT]) 
+        thisPair = boot_dat.pairing_mode;
+        
+        thisBootloader = boot_dat.bootloader;
+
+        if(boot_dat.gamepad_mode > -1)
+            thisMode = boot_dat.gamepad_mode;
+    }
+    else 
+    {
+        // Access boot time button state
+        mapper_input_s input = hover_access_boot();
+
+        if(input.presses[INPUT_CODE_RB] && input.presses[INPUT_CODE_START])
         {
-            thisMode    = GAMEPAD_MODE_SNES;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisBTBootloader = true;
         }
-        else if(input.presses[INPUT_CODE_DOWN])
+        else if(input.presses[INPUT_CODE_START])
         {
-            thisMode    = GAMEPAD_MODE_N64;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisPair = true;
         }
-        else if(input.presses[INPUT_CODE_RIGHT])
+
+        if(input.presses[INPUT_CODE_LB] && input.presses[INPUT_CODE_START])
         {
-            thisMode    = GAMEPAD_MODE_GAMECUBE;
-            thisMethod  = GAMEPAD_METHOD_WIRED;
+            thisBootloader = true;
         }
-#if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
-        else if(input.presses[INPUT_CODE_EAST])
+        else if (input.presses[INPUT_CODE_START])
         {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
+            thisPair = true;
         }
-        else if(input.presses[INPUT_CODE_SOUTH])
+
+        // Button overrides
         {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
+            // Input modes in order
+            if(input.presses[INPUT_CODE_LEFT]) 
+            {
+                thisMode    = GAMEPAD_MODE_SNES;
+            }
+            else if(input.presses[INPUT_CODE_DOWN])
+            {
+                thisMode    = GAMEPAD_MODE_N64;
+            }
+            else if(input.presses[INPUT_CODE_RIGHT])
+            {
+                thisMode    = GAMEPAD_MODE_GAMECUBE;
+            }
+    #if defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_BAYX)
+            else if(input.presses[INPUT_CODE_EAST])
+            {
+                thisMode            = GAMEPAD_MODE_SWPRO;
+            }
+            else if(input.presses[INPUT_CODE_SOUTH])
+            {
+                thisMode            = GAMEPAD_MODE_SINPUT;
+            }
+            else if(input.presses[INPUT_CODE_NORTH])
+            {
+                thisMode            = GAMEPAD_MODE_XINPUT;
+            }
+            else if(input.presses[INPUT_CODE_WEST])
+            {
+                thisMode    = GAMEPAD_MODE_GCUSB;
+            }
+    #elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
+            else if(input.presses[INPUT_CODE_SOUTH])
+            {
+                thisMode            = GAMEPAD_MODE_SWPRO;
+            }
+            else if(input.presses[INPUT_CODE_WEST])
+            {
+                thisMode            = GAMEPAD_MODE_SINPUT;
+            }
+            else if(input.presses[INPUT_CODE_EAST])
+            {
+                thisMode            = GAMEPAD_MODE_XINPUT;
+            }
+            else if(input.presses[INPUT_CODE_NORTH])
+            {
+                thisMode    = GAMEPAD_MODE_GCUSB;
+            }
+    #else 
+            else if(input.presses[INPUT_CODE_SOUTH])
+            {
+                thisMode            = GAMEPAD_MODE_SWPRO;
+            }
+            else if(input.presses[INPUT_CODE_EAST])
+            {
+                thisMode            = GAMEPAD_MODE_SINPUT;
+            }
+            else if(input.presses[INPUT_CODE_WEST])
+            {
+                thisMode            = GAMEPAD_MODE_XINPUT;
+            }
+            else if(input.presses[INPUT_CODE_NORTH])
+            {
+                thisMode    = GAMEPAD_MODE_GCUSB;
+            }
+    #endif 
         }
-        else if(input.presses[INPUT_CODE_NORTH])
-        {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
-        }
-        else if(input.presses[INPUT_CODE_WEST])
-        {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
-        }
-#elif defined(HOJA_SEWN_TYPE) && (HOJA_SEWN_TYPE == SEWN_LAYOUT_AXBY)
-        else if(input.presses[INPUT_CODE_SOUTH])
-        {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
-        }
-        else if(input.presses[INPUT_CODE_WEST])
-        {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
-        }
-        else if(input.presses[INPUT_CODE_EAST])
-        {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
-        }
-        else if(input.presses[INPUT_CODE_NORTH])
-        {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
-        }
-#else 
-        else if(input.presses[INPUT_CODE_SOUTH])
-        {
-            thisMode            = GAMEPAD_MODE_SWPRO;
-            thisMethod          = GAMEPAD_METHOD_AUTO;
-        }
-        else if(input.presses[INPUT_CODE_EAST])
-        {
-            thisMode            = GAMEPAD_MODE_SINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
-        }
-        else if(input.presses[INPUT_CODE_WEST])
-        {
-            thisMode            = GAMEPAD_MODE_XINPUT;
-            thisMethod          = GAMEPAD_METHOD_AUTO; 
-        }
-        else if(input.presses[INPUT_CODE_NORTH])
-        {
-            thisMode    = GAMEPAD_MODE_GCUSB;
-            thisMethod  = GAMEPAD_METHOD_USB; // Force USB for now
-        }
-#endif 
+    }
+
+    switch(thisMode)
+    {
+        default:
+        case GAMEPAD_MODE_SWPRO:
+        case GAMEPAD_MODE_SINPUT:
+        thisMethod = GAMEPAD_METHOD_AUTO; 
+        break;
+
+        case GAMEPAD_MODE_GCUSB:
+        case GAMEPAD_MODE_XINPUT:
+        thisMethod = GAMEPAD_METHOD_USB;
+        break;
+
+        case GAMEPAD_MODE_SNES:
+        case GAMEPAD_MODE_N64:
+        case GAMEPAD_MODE_GAMECUBE:
+        thisMethod  = GAMEPAD_METHOD_WIRED;
+        break;
     }
 
     // Check reboot memory for any overrides for buttons and whatnot
@@ -182,23 +214,20 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *
     }
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
     else 
-    {
-        // Choose gamepad boot mode here based on button inputs
-        if(input.presses[INPUT_CODE_RB] && input.presses[INPUT_CODE_START])
+    {   
+        #if(HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+        if(thisBTBootloader)
         {
             *mode = GAMEPAD_MODE_LOAD;
             *method = GAMEPAD_METHOD_BLUETOOTH;
             *pair = false;
             return;
         }
-        else if(input.presses[INPUT_CODE_START])
-        {
-            thisPair = true;
-        }
+        #endif
     }
     #endif
 
-    if(input.presses[INPUT_CODE_LB] && input.presses[INPUT_CODE_START])
+    if(thisBootloader)
     {
         sys_hal_bootloader();
         return;

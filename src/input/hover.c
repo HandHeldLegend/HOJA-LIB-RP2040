@@ -1,4 +1,5 @@
 #include "hoja.h"
+#include "board_config.h"
 #include "input/hover.h"
 #include "utilities/settings.h"
 #include "utilities/crosscore_snapshot.h"
@@ -13,6 +14,12 @@ uint8_t _hover_slot_reader_idx[36] = {0};
 uint32_t _hover_scalers[36] = {0};
 uint8_t _used_hover_slots = 0;
 uint8_t _calibration_ch_active = 0x00;
+
+#if defined(HOJA_HOVER_INVERTS)
+uint8_t _hover_inverts[36] = HOJA_HOVER_INVERTS;
+#else 
+uint8_t _hover_inverts[36] = {0};
+#endif
 
 mapper_input_s _boot_capture = {0};
 
@@ -69,7 +76,6 @@ void hover_calibrate_stop(void) {
 void _hover_set_ch_to_default(uint8_t ch)
 {
     hoverSlot_s *cfg = &hover_config->config[ch];
-    cfg->invert = 0;
     cfg->max = 0xFFF;
     cfg->min = 0x000;
 }
@@ -84,7 +90,7 @@ void hover_calibrate_start(uint8_t ch)
     // Perform a reading
     cb_hoja_read_input(&tmp);
     
-    const uint16_t half = (0xFFF>>1);
+    const uint16_t half = (3000);
 
     // 0xFF indicates calibrate ALL channels
     if(ch==0xFF)
@@ -96,15 +102,8 @@ void hover_calibrate_start(uint8_t ch)
             uint8_t slot = _hover_slot_reader_idx[i];
             cfg = &hover_config->config[slot];
 
-            // Reset values
-            cfg->invert = 0;
             cfg->max = 0x000;
             cfg->min = 0xFFF;
-
-            if(tmp.inputs[slot] >= half)
-            {
-                cfg->invert = 1;
-            }
         }
         _calibration_ch_active = 0xFF;
     }
@@ -113,16 +112,9 @@ void hover_calibrate_start(uint8_t ch)
     {
         cfg = &hover_config->config[ch];
 
-        // Reset values
-        cfg->invert = 0;
         cfg->max = 0x000;
         cfg->min = 0xFFF;
 
-        if(tmp.inputs[ch] >= half)
-        {
-            cfg->invert = 1;
-        }
-        // Channel active is ch+1
         _calibration_ch_active = ch + 1;
     }
 }
@@ -182,7 +174,10 @@ void hover_init(void)
     for(int i = 0; i < _used_hover_slots; i++)
     {
         uint8_t slot = _hover_slot_reader_idx[i];
-        const uint16_t half = (0xFFF>>1);
+        const uint16_t half = (1000);
+        if(_hover_inverts[slot]) {
+            _boot_capture.inputs[slot] = 0xFFF - _boot_capture.inputs[slot];
+        }
 
         _boot_capture.presses[slot] = (_boot_capture.inputs[slot] > half);
     }
@@ -244,7 +239,7 @@ void hover_task(uint64_t timestamp)
         uint8_t slot = _hover_slot_reader_idx[i];
         hoverSlot_s *cfg = &hover_config->config[slot];
         
-        if(cfg->invert) {
+        if(_hover_inverts[slot]) {
             input.inputs[slot] = 0xFFF - input.inputs[slot];
         }
     }
