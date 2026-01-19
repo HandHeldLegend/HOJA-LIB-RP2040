@@ -13,6 +13,7 @@
 SNAPSHOT_TYPE(battery, battery_status_s);
 snapshot_battery_t _battery_snap;
 bool _battery_init_done = false;
+volatile bool _shipping_lockout = false;
 
 void _battery_set_connected(bool connected)
 {
@@ -42,6 +43,8 @@ void _battery_set_plugged(bool plugged)
 // to obtain the latest status
 void battery_update_status(void)
 {
+    if(_shipping_lockout) return;
+
     battery_status_s status = {0};
 
     #if defined(HOJA_BATTERY_GET_STATUS)
@@ -94,8 +97,8 @@ bool battery_init(void)
 bool battery_set_charge_rate(uint16_t rate_ma)
 {
     battery_status_s tmp;
-    snapshot_battery_read(&_battery_snap, &tmp);
-    if(!tmp.connected) return false;
+    //snapshot_battery_read(&_battery_snap, &tmp);
+    //if(!tmp.connected) return false;
 
     #if defined(HOJA_BATTERY_SET_CHARGE_RATE)
     return HOJA_BATTERY_SET_CHARGE_RATE(rate_ma);
@@ -107,8 +110,10 @@ bool battery_set_charge_rate(uint16_t rate_ma)
 // Enable PMIC ship mode (power off with power conservation).
 void battery_set_ship_mode()
 {
-    battery_status_s tmp;
-    snapshot_battery_read(&_battery_snap, &tmp);
+    _shipping_lockout = true;
+
+    //battery_status_s tmp;
+    //snapshot_battery_read(&_battery_snap, &tmp);
 
     // Always try
     //if(!tmp.connected) return;

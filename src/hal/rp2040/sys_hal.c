@@ -50,7 +50,7 @@ void sys_hal_tick()
 
 bool sys_hal_init()
 {
-    watchdog_enable(16000, false);
+    watchdog_enable(5000, false);
     timer_hw->dbgpause = 0;
     // Test overclock
     set_sys_clock_khz(HOJA_BSP_CLOCK_SPEED_HZ / 1000, true);

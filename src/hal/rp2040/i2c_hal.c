@@ -358,7 +358,11 @@ int i2c_hal_write_blocking(uint8_t instance, uint8_t addr, const uint8_t *src, s
   int ret = 0;
 
   _i2c_safe_enter_blocking();
+  #if PICO_RP2350
+  ret = i2c_write_blocking(_i2c_instances[instance], addr, src, len, nostop);
+  #else
   ret = _oldi2c_write_blocking_internal(_i2c_instances[instance], addr, src, len, nostop, NULL, NULL);
+  #endif
   _i2c_safe_exit();
 
   return ret;

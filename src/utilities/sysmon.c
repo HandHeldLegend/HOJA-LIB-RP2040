@@ -22,6 +22,12 @@ int  _shutdown_timeout_reset = 0;
 bool _shutdown_lockout = false;
 void sysmon_set_critical_shutdown(void);
 
+void sysmon_init()
+{
+    battery_get_status(&_sysbattery);
+    fuelgauge_get_status(&_sysfuel);
+}
+
 typedef enum
 {
     SYSMON_EVT_UNPLUG,

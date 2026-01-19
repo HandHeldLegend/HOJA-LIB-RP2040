@@ -520,6 +520,7 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
 
 void bluetooth_hal_stop()
 {
+    cyw43_arch_deinit();
 }
 
 void bluetooth_hal_task(uint64_t timestamp)

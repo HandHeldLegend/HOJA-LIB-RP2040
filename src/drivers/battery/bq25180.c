@@ -179,7 +179,7 @@ bool bq25180_set_source(battery_source_t source)
 bool bq25180_set_ship_mode()
 {
     const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
-    int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
+    int ret = i2c_hal_write_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
 
     if(ret == PICO_ERROR_GENERIC)
     {
