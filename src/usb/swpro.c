@@ -3,6 +3,7 @@
 #include "switch/switch_commands.h"
 #include "utilities/callback.h"
 #include "input/mapper.h"
+#include "input/dpad.h"
 
 #include "tusb.h"
 
@@ -263,10 +264,15 @@ void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     mapper_input_s input = mapper_get_input();
 
-    data.d_down     = input.presses[SWITCH_CODE_DOWN];
-    data.d_right    = input.presses[SWITCH_CODE_RIGHT];
-    data.d_left     = input.presses[SWITCH_CODE_LEFT];
-    data.d_up       = input.presses[SWITCH_CODE_UP];
+    bool dpad[4] = {input.presses[SWITCH_CODE_DOWN], input.presses[SWITCH_CODE_RIGHT],
+                    input.presses[SWITCH_CODE_LEFT], input.presses[SWITCH_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+    data.d_down     = dpad[0];
+    data.d_right    = dpad[1];
+    data.d_left     = dpad[2];
+    data.d_up       = dpad[3];
 
     data.b_y = input.presses[SWITCH_CODE_Y];
     data.b_x = input.presses[SWITCH_CODE_X];

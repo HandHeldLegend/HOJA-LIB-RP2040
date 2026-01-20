@@ -161,6 +161,11 @@ void nesbus_hal_task(uint64_t timestamp)
 
             static uint32_t pack = 0;
 
+            bool dpad[4] = {input.presses[SNES_CODE_DOWN], input.presses[SNES_CODE_RIGHT],
+                    input.presses[SNES_CODE_LEFT], input.presses[SNES_CODE_UP]};
+
+            dpad_translate_input(dpad);
+
             if(_nspi_snesdetected)
             {
                 tmpsnes.a = !input.presses[SNES_CODE_A];
@@ -174,10 +179,10 @@ void nesbus_hal_task(uint64_t timestamp)
                 tmpsnes.start = !input.presses[SNES_CODE_START];
                 tmpsnes.select = !input.presses[SNES_CODE_SELECT];
 
-                tmpsnes.dup = !input.presses[SNES_CODE_UP];
-                tmpsnes.ddown = !input.presses[SNES_CODE_DOWN];
-                tmpsnes.dleft = !input.presses[SNES_CODE_LEFT];
-                tmpsnes.dright = !input.presses[SNES_CODE_RIGHT];
+                tmpsnes.ddown  = !dpad[0];
+                tmpsnes.dright = !dpad[1];
+                tmpsnes.dleft  = !dpad[2];
+                tmpsnes.dup    = !dpad[3];
 
                 pack = tmpsnes.value;
             }
@@ -189,10 +194,10 @@ void nesbus_hal_task(uint64_t timestamp)
                 tmpnes.start = !input.presses[SNES_CODE_START];
                 tmpnes.select = !input.presses[SNES_CODE_SELECT];
 
-                tmpnes.dup = !input.presses[SNES_CODE_UP];
-                tmpnes.ddown = !input.presses[SNES_CODE_DOWN];
-                tmpnes.dleft = !input.presses[SNES_CODE_LEFT];
-                tmpnes.dright = !input.presses[SNES_CODE_RIGHT];
+                tmpnes.ddown  = !dpad[0];
+                tmpnes.dright = !dpad[1];
+                tmpnes.dleft  = !dpad[2];
+                tmpnes.dup    = !dpad[3];
 
                 pack = tmpnes.value;
             }

@@ -96,6 +96,8 @@ void set_battconn()
 
   if (bstat.connected)
   {
+    s.charging = 0;
+    
     if (bstat.charging)
     {
       s.charging = 1;

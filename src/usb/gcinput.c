@@ -91,10 +91,16 @@ void gcinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     uint8_t lt8 = data.button_l ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4, 0, 255);
     uint8_t rt8 = data.button_r ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4, 0, 255);
 
-    data.dpad_down   = input.presses[GAMECUBE_CODE_DOWN];
-    data.dpad_left   = input.presses[GAMECUBE_CODE_LEFT];
-    data.dpad_right  = input.presses[GAMECUBE_CODE_RIGHT];
-    data.dpad_up     = input.presses[GAMECUBE_CODE_UP];
+    bool dpad[4] = {input.presses[GAMECUBE_CODE_DOWN], input.presses[GAMECUBE_CODE_RIGHT],
+                    input.presses[GAMECUBE_CODE_LEFT], input.presses[GAMECUBE_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+    data.dpad_down   = dpad[0];
+    data.dpad_right  = dpad[1];
+    data.dpad_left   = dpad[2];
+    data.dpad_up     = dpad[3];
+    
     data.button_z    = input.presses[GAMECUBE_CODE_Z];
 
     data.stick_x = lx8;

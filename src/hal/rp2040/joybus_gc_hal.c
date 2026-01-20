@@ -313,10 +313,15 @@ void joybus_gc_hal_task(uint64_t timestamp)
     _out_buffer.l = input.presses[GAMECUBE_CODE_L];
     _out_buffer.r = input.presses[GAMECUBE_CODE_R];
 
-    _out_buffer.dpad_down = input.presses[GAMECUBE_CODE_DOWN];
-    _out_buffer.dpad_left = input.presses[GAMECUBE_CODE_LEFT];
-    _out_buffer.dpad_right = input.presses[GAMECUBE_CODE_RIGHT];
-    _out_buffer.dpad_up = input.presses[GAMECUBE_CODE_UP];
+    bool dpad[4] = {input.presses[GAMECUBE_CODE_DOWN], input.presses[GAMECUBE_CODE_RIGHT],
+                    input.presses[GAMECUBE_CODE_LEFT], input.presses[GAMECUBE_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+    _out_buffer.dpad_down   = dpad[0];
+    _out_buffer.dpad_right  = dpad[1];
+    _out_buffer.dpad_left   = dpad[2];
+    _out_buffer.dpad_up     = dpad[3];
 
     _out_buffer.z = input.presses[GAMECUBE_CODE_Z];
 

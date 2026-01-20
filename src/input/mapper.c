@@ -5,6 +5,7 @@
 #include "input_shared_types.h"
 #include "utilities/static_config.h"
 #include "input/idle_manager.h"
+#include "input/dpad.h"
 
 #include "input/analog.h"
 
@@ -196,6 +197,33 @@ snapshot_mapper_t _mapper_snap_out;
 uint16_t _minimum_d2a_value = 0;
 
 mapper_input_s _all_inputs = {0};
+
+#define DPAD_DEADZONE 1000
+// Digital/Output follows DOWN RIGHT LEFT UP order
+void dpad_translate_input(bool digital[4])
+{   
+    // Combine analog and digital inputs (OR them together)
+    bool south = digital[0];
+    bool east  = digital[1];
+    bool west  = digital[2];
+    bool north = digital[3];
+    
+    // SOCD cleaning: Up+Down = Neutral, Left+Right = Neutral
+    if (north && south) {
+        north = false;
+        south = false;
+    }
+    if (east && west) {
+        east = false;
+        west = false;
+    }
+    
+    // SEWN order: South, East, West, North
+    digital[0] = south;
+    digital[1] = east;
+    digital[2] = west;
+    digital[3] = north;
+}
 
 void _handle_analog_compare(uint16_t *input_modifiable, uint16_t new_value)
 {
@@ -406,23 +434,13 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     default:
                     break;
 
+                    case MAPPER_OUTPUT_DPAD:
                     case MAPPER_OUTPUT_DIGITAL:
                     this_press = _handle_analog_to_digital(*input, output_mode, threshold_delta, 
                         &op->rapid_value[i], &op->rapid_press_state[i]) ? true : false;
 
                     // Forward the original analog state too
                     this_output = *input;
-                    break;
-
-                    // Output to our virtual analog dpad
-                    // which will be translated later
-                    case MAPPER_OUTPUT_DPAD:
-                    this_output = _handle_analog_to_analog(*input, 
-                        output_mode, MAPPER_ANALOG_MAX, threshold_delta,
-                        &op->rapid_value[i], &op->rapid_press_state[i]); 
-                    
-                    // Apply press mask if we have an input
-                    this_press = this_output>0 ? true : false;
                     break;
 
                     // Output to our triggers using the configured static output value
@@ -456,20 +474,13 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
                     default:
                     break;
 
+                    case MAPPER_OUTPUT_DPAD:
                     case MAPPER_OUTPUT_DIGITAL:
                     this_press |= _handle_analog_to_digital(*input << 1, output_mode, threshold_delta, 
                         &op->rapid_value[i], &op->rapid_press_state[i]) ? true : false;
 
                     // Forward the original analog state too
                     this_output = *input<<1;
-                    break;
-
-                    case MAPPER_OUTPUT_DPAD:
-                    this_output = _handle_analog_to_analog(*input << 1, 
-                        output_mode, MAPPER_ANALOG_MAX, threshold_delta,
-                        &op->rapid_value[i], &op->rapid_press_state[i]) >> 1; 
-
-                    this_press = this_output>0 ? true : false;
                     break;
 
                     case MAPPER_OUTPUT_HOVER:
@@ -520,6 +531,8 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         heartbeat |= this_output>0;
         heartbeat |= this_press;
     }
+
+
 
     // Heartbeat
     if(heartbeat) idle_manager_heartbeat();
@@ -576,6 +589,9 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
             switch(output_types[output_code])
             {
                 case MAPPER_OUTPUT_DPAD:
+                cfg_slots[i].output_mode = MAPPER_OUTPUT_MODE_THRESHOLD;
+                break;
+
                 case MAPPER_OUTPUT_HOVER:
                 case MAPPER_OUTPUT_JOYSTICK:
                 cfg_slots[i].output_mode = MAPPER_OUTPUT_MODE_PASSTHROUGH;
@@ -593,7 +609,7 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
         }
 
         cfg_slots[i].static_output = 0xFFF+1; // Max 
-        cfg_slots[i].threshold_delta = (0xFFF+1)/6;
+        cfg_slots[i].threshold_delta = 2048;
     }
 }
 

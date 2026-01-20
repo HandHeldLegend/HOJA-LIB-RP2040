@@ -40,6 +40,11 @@ __attribute__((weak)) void cb_hoja_init()
 
 }
 
+__attribute__((weak)) void cb_hoja_shutdown()
+{
+
+}
+
 __attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
 {
   return false;
@@ -60,20 +65,15 @@ __attribute__((weak)) void cb_hoja_read_input(mapper_input_s *input)
   (void)&input;
 }
 
+volatile bool _deinit_lockout = false;
 void hoja_deinit(callback_t cb)
 {
-  static bool deinit_lockout = false;
-
-  if (deinit_lockout)
+  if (_deinit_lockout)
     return;
-  deinit_lockout = true;
+  _deinit_lockout = true;
 
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
-
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
 
   haptics_stop();
 
@@ -90,6 +90,12 @@ void hoja_shutdown()
 {
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
+
+  cb_hoja_shutdown();
+
+  // Stop current mode if we have a functions
+  if (_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
 
   battery_set_ship_mode();
 
@@ -246,7 +252,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   {
   default:
   case GAMEPAD_METHOD_USB:
-    battery_set_charge_rate(225);
+    battery_set_charge_rate(200);
     _hoja_mode_task_cb = usb_mode_task;
     usb_mode_start(mode);
     break;
@@ -288,8 +294,8 @@ void _hoja_task_1()
     // Get current system timestamp
     sys_hal_time_us(&c1_timestamp);
 
-    // Flash task
-    flash_hal_task();
+    // RGB task
+    rgb_task(c1_timestamp);
 
     // Read inputs
     hover_task(c1_timestamp);
@@ -297,33 +303,36 @@ void _hoja_task_1()
     // Process any macros
     macros_task(c1_timestamp);
 
-    if (webusb_outputting_check())
+    if(!_deinit_lockout)
     {
-      // Optional web Input
-      webusb_send_rawinput(c1_timestamp);
+      // Flash task
+      flash_hal_task();
+
+      if (webusb_outputting_check())
+      {
+        // Optional web Input
+        webusb_send_rawinput(c1_timestamp);
+      }
+      else if (_hoja_mode_task_cb)
+      {
+        _hoja_mode_task_cb(c1_timestamp);
+      }
+
+      // Handle haptics
+      haptics_task(c1_timestamp);
+
+      // System Monitor task (battery/fuel gauge)
+      sysmon_task(c1_timestamp);
+
+      // Update sys tick
+      sys_hal_tick();
+
+      // Idle manager
+      idle_manager_task(c1_timestamp);
+      
+      // IMU task
+      imu_task(c1_timestamp);
     }
-    else if (_hoja_mode_task_cb)
-    {
-      _hoja_mode_task_cb(c1_timestamp);
-    }
-
-    // Handle haptics
-    haptics_task(c1_timestamp);
-
-    // RGB task
-    rgb_task(c1_timestamp);
-
-    // System Monitor task (battery/fuel gauge)
-    sysmon_task(c1_timestamp);
-
-    // Update sys tick
-    sys_hal_tick();
-
-    // Idle manager
-    idle_manager_task(c1_timestamp);
-    
-    // IMU task
-    imu_task(c1_timestamp);
   }
 }
 
@@ -339,9 +348,12 @@ void _hoja_task_0()
   {
     sys_hal_time_us(&c0_timestamp);
 
-    // Analog task
-    if(analog_static.axis_lx)
-      analog_task(c0_timestamp);
+    if(!_deinit_lockout)
+    {
+      // Analog task
+      if(analog_static.axis_lx)
+        analog_task(c0_timestamp);
+    }
   }
 }
 
@@ -393,6 +405,9 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 
   // Fuel gauge
   fuelgauge_init(1200);
+
+  // System Monitor
+  sysmon_init();
 
   // Haptics
   haptics_init();

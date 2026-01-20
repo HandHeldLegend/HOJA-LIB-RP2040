@@ -12,6 +12,7 @@
 #include "input/analog.h"
 #include "utilities/callback.h"
 
+void cb_hoja_shutdown();
 bool cb_hoja_boot(boot_input_s *boot);
 uint16_t cb_hoja_read_battery();
 // Accessible as a uint16_t array of size 4 only

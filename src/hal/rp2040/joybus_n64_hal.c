@@ -333,10 +333,15 @@ void joybus_n64_hal_task(uint64_t timestamp)
       _out_buffer.stick_x = lx8;
       _out_buffer.stick_y = ly8;
 
-      _out_buffer.dpad_down     = input.presses[N64_CODE_DOWN];
-      _out_buffer.dpad_left     = input.presses[N64_CODE_LEFT];
-      _out_buffer.dpad_right    = input.presses[N64_CODE_RIGHT];
-      _out_buffer.dpad_up       = input.presses[N64_CODE_UP];
+      bool dpad[4] = {input.presses[N64_CODE_DOWN], input.presses[N64_CODE_RIGHT],
+                    input.presses[N64_CODE_LEFT], input.presses[N64_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+      _out_buffer.dpad_down     = dpad[0];
+      _out_buffer.dpad_right    = dpad[1];
+      _out_buffer.dpad_left     = dpad[2];
+      _out_buffer.dpad_up       = dpad[3];
     }
 }
 

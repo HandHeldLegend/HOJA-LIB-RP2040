@@ -28,10 +28,15 @@ void xinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.analog_trigger_l = XINPUT_CLAMP(input.inputs[XINPUT_CODE_LT_ANALOG], 0, 4095) >> 4;
     data.analog_trigger_r = XINPUT_CLAMP(input.inputs[XINPUT_CODE_RT_ANALOG], 0, 4095) >> 4;
 
-    data.dpad_up      = input.presses[XINPUT_CODE_UP];
-    data.dpad_down    = input.presses[XINPUT_CODE_DOWN];
-    data.dpad_left    = input.presses[XINPUT_CODE_LEFT];
-    data.dpad_right   = input.presses[XINPUT_CODE_RIGHT];
+    bool dpad[4] = {input.presses[XINPUT_CODE_DOWN], input.presses[XINPUT_CODE_RIGHT],
+                    input.presses[XINPUT_CODE_LEFT], input.presses[XINPUT_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+    data.dpad_down  = dpad[0];
+    data.dpad_right = dpad[1];
+    data.dpad_left  = dpad[2];
+    data.dpad_up    = dpad[3];
 
     data.button_guide = input.presses[XINPUT_CODE_GUIDE];
     data.button_back = input.presses[XINPUT_CODE_BACK];

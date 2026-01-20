@@ -569,10 +569,15 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.button_west  = input.presses[SWITCH_CODE_Y];
                 input_data.button_north = input.presses[SWITCH_CODE_X];
 
-                input_data.dpad_down     = input.presses[SWITCH_CODE_DOWN];
-                input_data.dpad_right    = input.presses[SWITCH_CODE_RIGHT];
-                input_data.dpad_left     = input.presses[SWITCH_CODE_LEFT];
-                input_data.dpad_up       = input.presses[SWITCH_CODE_UP];
+                bool dpad[4] = {input.presses[SWITCH_CODE_DOWN], input.presses[SWITCH_CODE_RIGHT],
+                    input.presses[SWITCH_CODE_LEFT], input.presses[SWITCH_CODE_UP]};
+
+                dpad_translate_input(dpad);
+
+                input_data.dpad_down     = dpad[0];
+                input_data.dpad_right    = dpad[1];
+                input_data.dpad_left     = dpad[2];
+                input_data.dpad_up       = dpad[3];
 
                 input_data.button_minus    = input.presses[SWITCH_CODE_MINUS];
                 input_data.button_plus     = input.presses[SWITCH_CODE_PLUS];
@@ -609,10 +614,15 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.button_west  = input.presses[SINPUT_CODE_WEST];
                 input_data.button_north = input.presses[SINPUT_CODE_NORTH];
 
-                input_data.dpad_down     = input.presses[SINPUT_CODE_DOWN];
-                input_data.dpad_right    = input.presses[SINPUT_CODE_RIGHT];
-                input_data.dpad_left     = input.presses[SINPUT_CODE_LEFT];
-                input_data.dpad_up       = input.presses[SINPUT_CODE_UP];
+                bool sdpad[4] = {input.presses[SINPUT_CODE_DOWN], input.presses[SINPUT_CODE_RIGHT],
+                    input.presses[SINPUT_CODE_LEFT], input.presses[SINPUT_CODE_UP]};
+
+                dpad_translate_input(sdpad);
+
+                input_data.dpad_down     = sdpad[0];
+                input_data.dpad_right    = sdpad[1];
+                input_data.dpad_left     = sdpad[2];
+                input_data.dpad_up       = sdpad[3];
 
                 input_data.button_minus    = input.presses[SINPUT_CODE_SELECT];
                 input_data.button_plus     = input.presses[SINPUT_CODE_START];

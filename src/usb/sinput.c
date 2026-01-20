@@ -336,10 +336,10 @@ void _sinput_cmd_get_features(uint8_t *buffer)
         SDL_GAMEPAD_TYPE_PS3,
         SDL_GAMEPAD_TYPE_PS4,
         SDL_GAMEPAD_TYPE_PS5,
-        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO,
-        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT,
-        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT,
-        SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR,
+        SDL_GAMEPAD_TYPE_NINTENDO_SINPUT_PRO,
+        SDL_GAMEPAD_TYPE_NINTENDO_SINPUT_JOYCON_LEFT,
+        SDL_GAMEPAD_TYPE_NINTENDO_SINPUT_JOYCON_RIGHT,
+        SDL_GAMEPAD_TYPE_NINTENDO_SINPUT_JOYCON_PAIR,
         SDL_GAMEPAD_TYPE_GAMECUBE,
         SDL_GAMEPAD_TYPE_COUNT
     } SDL_GamepadType;
@@ -541,10 +541,15 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
     data.button_guide  = input.presses[SINPUT_CODE_GUIDE];
     data.button_share  = input.presses[SINPUT_CODE_SHARE];
 
-    data.dpad_down  = input.presses[SINPUT_CODE_DOWN];
-    data.dpad_up    = input.presses[SINPUT_CODE_UP];
-    data.dpad_left  = input.presses[SINPUT_CODE_LEFT];
-    data.dpad_right = input.presses[SINPUT_CODE_RIGHT];
+    bool dpad[4] = {input.presses[SINPUT_CODE_DOWN], input.presses[SINPUT_CODE_RIGHT],
+                    input.presses[SINPUT_CODE_LEFT], input.presses[SINPUT_CODE_UP]};
+
+    dpad_translate_input(dpad);
+
+    data.dpad_down  = dpad[0];
+    data.dpad_right = dpad[1];
+    data.dpad_left  = dpad[2];
+    data.dpad_up    = dpad[3];
 
     data.button_l_shoulder = input.presses[SINPUT_CODE_LB];
     data.button_r_shoulder = input.presses[SINPUT_CODE_RB];
