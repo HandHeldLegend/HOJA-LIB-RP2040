@@ -26,7 +26,9 @@
 #define PERF_1KHZ (0b10000000)  // 1.66KHz
 #define PERF_416HZ (0b01100000) // 416Hz
 
-#define XL_LOWPASS (0b10)
+#define XL_LOWPASS_ON (0b10)
+#define XL_LOWPASS_OFF (0b00)
+#define XL_LOWPASS 0b01
 
 // 2G
 #define XL_SENS_2G (0b00000000)
