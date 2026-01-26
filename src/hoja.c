@@ -333,7 +333,9 @@ void _hoja_task_1()
       // IMU task
       imu_task(c1_timestamp);
     }
+    else sys_hal_sleep_ms(2);
   }
+  
 }
 
 // Core 0 task loop entrypoint
