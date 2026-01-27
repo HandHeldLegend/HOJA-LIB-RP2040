@@ -28,6 +28,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/devices/wlan.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
@@ -79,17 +80,16 @@ target_include_directories(hoja_lib INTERFACE
 
 target_compile_definitions(hoja_lib
   INTERFACE
-  CYW43_LWIP=0
+  # Possible to add optional defs here
 )
 
 set(BLUETOOTH_DRIVERS 
-    pico_cyw43_arch_threadsafe_background 
+    pico_cyw43_arch_lwip_poll 
     pico_btstack_cyw43 
     pico_btstack_hci_transport_cyw43 
     pico_btstack_ble 
     pico_btstack_classic 
 )
-
 
 # Pull in pico libraries that we need
 target_link_libraries(hoja_lib INTERFACE

@@ -28,6 +28,8 @@
 #include "devices/battery.h"
 #include "devices/rgb.h"
 #include "devices/bluetooth.h"
+#include "devices/wlan.h"
+
 #include "wired/wired.h"
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
@@ -37,12 +39,10 @@ callback_t _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) void cb_hoja_init()
 {
-
 }
 
 __attribute__((weak)) void cb_hoja_shutdown()
 {
-
 }
 
 __attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
@@ -237,8 +237,8 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   }
 
   // debug
-  // method = GAMEPAD_METHOD_BLUETOOTH;
-  // mode = GAMEPAD_MODE_SWPRO;
+  // method = GAMEPAD_METHOD_WLAN;
+  // mode = GAMEPAD_MODE_SINPUT;
 
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_method = method;
@@ -246,7 +246,6 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
-  
 
   switch (method)
   {
@@ -268,6 +267,12 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
     _hoja_mode_task_cb = bluetooth_mode_task;
     _hoja_mode_stop_cb = bluetooth_mode_stop;
     bluetooth_mode_start(mode, pair);
+    break;
+
+  case GAMEPAD_METHOD_WLAN:
+    battery_set_charge_rate(100);
+    _hoja_mode_task_cb = wlan_mode_task;
+    wlan_mode_start(mode, pair);
     break;
   }
 
@@ -303,7 +308,7 @@ void _hoja_task_1()
     // Process any macros
     macros_task(c1_timestamp);
 
-    if(!_deinit_lockout)
+    if (!_deinit_lockout)
     {
       // Flash task
       flash_hal_task();
@@ -329,7 +334,7 @@ void _hoja_task_1()
 
       // Idle manager
       idle_manager_task(c1_timestamp);
-      
+
       // IMU task
       imu_task(c1_timestamp);
     }
@@ -348,10 +353,10 @@ void _hoja_task_0()
   {
     sys_hal_time_us(&c0_timestamp);
 
-    if(!_deinit_lockout)
+    if (!_deinit_lockout)
     {
       // Analog task
-      if(analog_static.axis_lx)
+      if (analog_static.axis_lx)
         analog_task(c0_timestamp);
     }
   }
@@ -400,7 +405,7 @@ bool _system_requirements_init()
 bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
 {
   // Battery
-  if(method!=GAMEPAD_METHOD_WIRED)
+  if (method != GAMEPAD_METHOD_WIRED)
     battery_init();
 
   // Fuel gauge

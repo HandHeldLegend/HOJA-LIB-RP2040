@@ -280,6 +280,9 @@ bool i2c_hal_init(uint8_t instance, uint32_t sda, uint32_t scl, uint32_t baudrat
   gpio_set_function(sda, GPIO_FUNC_I2C);
   gpio_set_function(scl, GPIO_FUNC_I2C);
 
+  //gpio_set_drive_strength(sda, GPIO_DRIVE_STRENGTH_12MA);
+  //gpio_set_drive_strength(scl, GPIO_DRIVE_STRENGTH_12MA);
+
   return true;
 }
 

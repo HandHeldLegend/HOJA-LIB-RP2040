@@ -61,6 +61,9 @@
     #define FUELGAUGE_DRIVER_ESP32 2
     #define FUELGAUGE_DRIVER_BQ27621G1 3
 
+    // WLAN Drivers
+    #define WLAN_DRIVER_HAL 1
+
     // Bluetooth Drivers 
     #define BLUETOOTH_DRIVER_HAL 1
     #define BLUETOOTH_DRIVER_ESP32HOJA 2

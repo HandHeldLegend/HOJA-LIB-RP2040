@@ -20,8 +20,6 @@
     #warning "HAL BT IN USE"
 #endif
 
-
-
 bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
 {
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)

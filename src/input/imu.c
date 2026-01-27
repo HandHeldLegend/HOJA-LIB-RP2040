@@ -154,7 +154,7 @@ void _imu_read_standard(uint64_t timestamp)
 
     #elif defined(HOJA_IMU_CHAN_A_INIT)
     HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-    HOJA_IMU_CHAN_A_READ(&this_imu[1]);
+    this_imu[1] = this_imu[0];
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
