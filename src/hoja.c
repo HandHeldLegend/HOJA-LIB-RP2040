@@ -28,11 +28,17 @@
 #include "devices/battery.h"
 #include "devices/rgb.h"
 #include "devices/bluetooth.h"
+#include "devices/wlan.h"
 #include "wired/wired.h"
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
 
-time_callback_t _hoja_mode_task_cb = NULL;
+bool _hoja_null_cb(uint64_t timestamp)
+{
+  return false;
+}
+
+sent_callback_t _hoja_mode_task_cb = _hoja_null_cb;
 callback_t _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) void cb_hoja_init()
@@ -75,6 +81,10 @@ void hoja_deinit(callback_t cb)
   // Stop our current loop function
   _hoja_mode_task_cb = NULL;
 
+  // Stop current mode if we have a functions
+  if (_hoja_mode_stop_cb)
+    _hoja_mode_stop_cb();
+
   haptics_stop();
 
   hoja_set_connected_status(CONN_STATUS_SHUTDOWN);
@@ -93,9 +103,7 @@ void hoja_shutdown()
 
   cb_hoja_shutdown();
 
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
+  
 
   battery_set_ship_mode();
 
@@ -254,6 +262,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   case GAMEPAD_METHOD_USB:
     battery_set_charge_rate(200);
     _hoja_mode_task_cb = usb_mode_task;
+    _hoja_mode_stop_cb = usb_mode_stop;
     usb_mode_start(mode);
     break;
 
@@ -268,6 +277,12 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
     _hoja_mode_task_cb = bluetooth_mode_task;
     _hoja_mode_stop_cb = bluetooth_mode_stop;
     bluetooth_mode_start(mode, pair);
+    break;
+
+  case GAMEPAD_METHOD_WLAN:
+    battery_set_charge_rate(100);
+    _hoja_mode_task_cb = wlan_mode_task;
+    wlan_mode_start(mode, pair);
     break;
   }
 
@@ -303,6 +318,8 @@ void _hoja_task_1()
     // Process any macros
     macros_task(c1_timestamp);
 
+    bool sent_clear = false;
+
     if(!_deinit_lockout)
     {
       // Flash task
@@ -312,10 +329,11 @@ void _hoja_task_1()
       {
         // Optional web Input
         webusb_send_rawinput(c1_timestamp);
+        sent_clear = true;
       }
       else if (_hoja_mode_task_cb)
       {
-        _hoja_mode_task_cb(c1_timestamp);
+        sent_clear = _hoja_mode_task_cb(c1_timestamp);
       }
 
       // Handle haptics
@@ -329,9 +347,13 @@ void _hoja_task_1()
 
       // Idle manager
       idle_manager_task(c1_timestamp);
-      
-      // IMU task
-      imu_task(c1_timestamp);
+
+      if(sent_clear)
+      { // Refresh some data
+        // IMU task
+        imu_task(c1_timestamp);
+        sent_clear = false;
+      }
     }
   }
 }

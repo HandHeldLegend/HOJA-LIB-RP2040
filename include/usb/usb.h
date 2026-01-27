@@ -13,8 +13,9 @@
 #include <stdbool.h>
 #include "hoja.h"
 
-void usb_mode_task(uint64_t timestamp);
-
+// Return value represents if we sent a packet
+bool usb_mode_task(uint64_t timestamp);
+void usb_mode_stop();
 bool usb_mode_start(gamepad_mode_t mode);
 
 #endif

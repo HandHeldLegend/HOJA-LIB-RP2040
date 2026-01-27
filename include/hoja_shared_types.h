@@ -42,10 +42,11 @@ typedef enum
 
 typedef enum
 {
-    GAMEPAD_METHOD_AUTO  = -1, // Automatically determine if we are plugged or wireless
-    GAMEPAD_METHOD_WIRED = 0, // Used for modes that should retain power even when unplugged
-    GAMEPAD_METHOD_USB   = 1, // Use for USB modes where we should power off when unplugged
-    GAMEPAD_METHOD_BLUETOOTH = 2, // Wireless Bluetooth modes
+    GAMEPAD_METHOD_AUTO  = -1,      // Automatically determine if we are plugged or wireless
+    GAMEPAD_METHOD_WIRED = 0,       // Used for modes that should retain power even when unplugged
+    GAMEPAD_METHOD_USB   = 1,       // Use for USB modes where we should power off when unplugged
+    GAMEPAD_METHOD_BLUETOOTH = 2,   // Wireless Bluetooth modes
+    GAMEPAD_METHOD_WLAN = 3,        // Wireless WLAN modes (dongle)
 } gamepad_method_t;
 
 typedef struct 
@@ -81,5 +82,10 @@ typedef struct __attribute__ ((packed)) {
 
     uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } ext_tusb_desc_device_t;
+
+typedef struct 
+{
+  uint64_t benchmark;
+} interval_task_s;
 
 #endif

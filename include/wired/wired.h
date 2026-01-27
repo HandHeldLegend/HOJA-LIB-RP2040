@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "hoja.h"
 
-void wired_mode_task(uint64_t timestamp);
+bool wired_mode_task(uint64_t timestamp);
 
 bool wired_mode_start(gamepad_mode_t mode);
 

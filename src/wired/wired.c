@@ -11,10 +11,12 @@
 
 time_callback_t _wired_task_cb = NULL;
 
-void wired_mode_task(uint64_t timestamp)
+bool wired_mode_task(uint64_t timestamp)
 {
     if(_wired_task_cb)
         _wired_task_cb(timestamp);
+
+    return true;
 }
 
 bool wired_mode_start(gamepad_mode_t mode)

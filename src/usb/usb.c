@@ -50,7 +50,7 @@ const char *global_string_descriptor[] = {
 hid_task_tunnel_cb _usb_task_cb = NULL;
 
 // Whether our last input was sent through or not
-volatile bool _usb_clear = false;
+volatile bool _usb_clear = true;
 // Whether USB is ready for another input
 volatile bool _usb_ready = false;
 
@@ -136,13 +136,15 @@ void _usb_set_interval(usb_rate_t rate)
   case USBRATE_1:
     _usb_frames = 1;
     break;
-  case USBRATE_4:
-    _usb_frames = 4;
-    break;
   case USBRATE_8:
     _usb_frames = 8;
     break;
   }
+}
+
+void usb_mode_stop()
+{
+  tud_disconnect();
 }
 
 bool usb_mode_start(gamepad_mode_t mode)
@@ -197,54 +199,66 @@ bool _usb_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
   tud_hid_report(report_id, report, len);
 }
 
-void usb_mode_task(uint64_t timestamp)
+volatile bool _usb_sendit = false;
+
+// Returns true each time we send
+// a successful packet
+bool usb_mode_task(uint64_t timestamp)
 {
-  static interval_s usb_interval = {0};
-  static uint32_t frame_storage = 0;
-
-  // This flag gets set when we check our frame data
-  static bool frame_requirement_met = false;
-  static bool usb_requirement_met = false;
-
+  static bool sofen = false;
   tud_task();
 
-  // Get our SOF frames counter
-  uint32_t sof_rd = usb_hal_sof();
-  // Handle looparound of the frame counter(11 bits, 2047 max)
-  uint32_t dif = (sof_rd > frame_storage) ? (sof_rd - frame_storage) : ((2047 - frame_storage) + sof_rd);
-
-  // Check that we are at the appropriate count of SOF frames
-  if (dif >= _usb_frames)
-  {
-    frame_requirement_met = true;
-  }
-
-  // Check that we hit our USB target interval
-  if (interval_run(timestamp, _usb_rate, &usb_interval))
-  {
-    usb_requirement_met = true;
-  }
-
-  // Ensure USB is ready
-  if (!_usb_ready)
+  if(!_usb_ready)
   {
     _usb_ready = _hoja_usb_ready();
   }
-  else if (_usb_get_usb_clear(timestamp) && frame_requirement_met && usb_requirement_met)
+
+  if(_usb_sendit && _usb_ready)
   {
-    frame_storage = sof_rd;
-    frame_requirement_met = false;
-    usb_requirement_met = false;
+    _usb_sendit = false;
     _usb_ready = false;
-
-    _usb_unset_usb_clear();
-
     _usb_task_cb(timestamp, _usb_hid_tunnel);
+    return true;
   }
+
+  return false;
 }
 
 /***********************************************/
 /********* TinyUSB HID callbacks ***************/
+
+volatile uint8_t sequence_step = 0;
+volatile uint8_t ms_counter = 0;
+
+void tud_mount_cb()
+{
+  tud_sof_cb_enable(false);
+  tud_sof_cb_enable(true);
+}
+
+void tud_sof_cb(uint32_t frame_count_ext) 
+{
+    switch (_usb_frames)
+    {
+        case 1:
+            _usb_sendit = true;
+            break;
+
+        case 8:
+            ms_counter++;
+
+            // To hit 8, 8, 9 intervals, we trigger at 7, 7, 8
+            uint8_t trigger_threshold = (sequence_step == 2) ? 8 : 7;
+
+            if (ms_counter >= trigger_threshold) {
+                // Reset counters
+                ms_counter = 0;
+                sequence_step = (sequence_step + 1) % 3;
+                _usb_sendit = true;
+            }
+            break;
+    }
+}
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor

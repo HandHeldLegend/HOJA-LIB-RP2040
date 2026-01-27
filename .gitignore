@@ -4,3 +4,7 @@ include/generated/joybus.pio.h
 include/generated/nserial.pio.h
 
 include/generated/ws2812.pio.h
+
+.vscode/
+
+build/
