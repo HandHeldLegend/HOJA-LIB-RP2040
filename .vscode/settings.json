@@ -1,0 +1,6 @@
+{
+    "cmake.automaticReconfigure": false,
+    "cmake.buildBeforeRun": false,
+    "cmake.configureOnEdit": false,
+    "cmake.configureOnOpen": false
+}
