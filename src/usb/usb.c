@@ -30,6 +30,7 @@
 #include "devices_shared_types.h"
 
 #include "devices/rgb.h"
+#include "devices/lamp_array.h"
 
 typedef enum
 {
@@ -315,10 +316,11 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen)
 {
   (void)instance;
-  (void)report_id;
   (void)reqlen;
-  (void)report_type;
 
+  if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_SINPUT) {
+      return handle_lamparray_get_report(report_id, report_type, buffer);
+  }
   return 0;
 }
 
@@ -378,6 +380,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
         sinput_hid_handle_command_future(&buffer[1]);
       }
     }
+    handle_lamparray_set_report(report_id, report_type, buffer, bufsize);
     break;
 
   case GAMEPAD_MODE_SWPRO:
