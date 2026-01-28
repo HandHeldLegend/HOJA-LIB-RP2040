@@ -364,9 +364,17 @@ void _sinput_cmd_get_features(uint8_t *buffer)
     buffer[5] = (face_style << 5) | sub_type;
 
     uint16_t polling_rate_us = 1000;
-    
-    if(hoja_get_status().gamepad_method==GAMEPAD_METHOD_BLUETOOTH)
+
+    switch(hoja_get_status().gamepad_method)
+    {
+        case GAMEPAD_METHOD_BLUETOOTH:
         polling_rate_us = 8000;
+        break;
+
+        case GAMEPAD_METHOD_WLAN:
+        polling_rate_us = 2000;
+        break;
+    }
         
     memcpy(&buffer[6], &polling_rate_us, sizeof(polling_rate_us));
 

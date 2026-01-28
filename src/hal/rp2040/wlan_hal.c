@@ -47,13 +47,19 @@ bool _wlan_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
     return true;
 }
 
+typedef struct
+{
+  uint8_t report_id;
+  uint8_t data[63];
+} sinputreport_s;
+
 void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
     if (p) {
-        uint8_t tmp[64] = {0};
-        memcpy(tmp, p->payload, p->len);
-        if(tmp[0] == REPORT_ID_SINPUT_OUTPUT_CMDDAT)
+        sinputreport_s tmp = {0};
+        memcpy(&tmp, p->payload, p->len);
+        if(tmp.report_id == REPORT_ID_SINPUT_OUTPUT_CMDDAT && p->len==64)
         {
-            sinput_hid_handle_command_future(&tmp[1]);
+            sinput_hid_handle_command_future(tmp.data);
         }
         pbuf_free(p);
     }
@@ -82,6 +88,12 @@ bool wlan_hal_init(int device_mode, bool pairing_mode)
     } else {
         // Connected
         watchdog_enable(5000, false);
+
+        // Start UDP listening
+        struct udp_pcb* pcb = udp_new();
+        udp_bind(pcb, IP_ANY_TYPE, UDP_PORT);
+        udp_recv(pcb, _wlan_receive_callback, NULL);
+
         _wlan_connected = true;
     }
 
