@@ -23,9 +23,15 @@ uint16_t _attr_report(uint8_t* buffer) {
 }
 
 uint16_t _attr_res_report(uint8_t* buffer) {
+    #ifdef HOJA_RGB_GROUP_POSITIONS
+        Position lamp_pos = lamp_positions[currentLampId];
+    #else
+        Position lamp_pos = {currentLampId, 0, 0};
+    #endif
+    
     LampAttributesResponseReport report = {
         currentLampId,                   // LampId
-        lamp_positions[currentLampId],   // Lamp position
+        lamp_pos,                        // Lamp position
         LAMPARRAY_UPDATE_INTERVAL,       // Lamp update interval
         LAMP_PURPOSE_CONTROL,            // Lamp purpose
         255,                             // Red level count
