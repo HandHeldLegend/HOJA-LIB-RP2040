@@ -417,12 +417,23 @@ uint32_t _external_sample_size_l = 0;
 uint32_t _external_sample_size_r = 0;
 
 #if defined(HOJA_HAPTICS_CHAN_SWAP) && (HOJA_HAPTICS_CHAN_SWAP==1)
-void pcm_play_bump(bool right, bool left)
-#else
 void pcm_play_bump(bool left, bool right)
+#else
+void pcm_play_bump(bool right, bool left)
 #endif
 {
     if(!haptic_config->haptic_triggers) return;
+
+#if !defined(HOJA_HAPTICS_CHAN_B_PIN)
+    if(left)
+    {
+        right=true;
+    }
+    else if(right)
+    {
+        left=true;
+    }
+#endif
 
     static bool left_on = false;
     static bool right_on = false;
