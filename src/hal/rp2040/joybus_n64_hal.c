@@ -283,7 +283,7 @@ void joybus_n64_hal_task(uint64_t timestamp)
     // Only go when we have init
     if (!_n64_running) return;
 
-    if(interval_resettable_run(timestamp, 100000, _n64_got_data, &interval_reset))
+    if(interval_resettable_run(timestamp, 1000000, _n64_got_data, &interval_reset))
     {
       hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
       _n64_reset_state();

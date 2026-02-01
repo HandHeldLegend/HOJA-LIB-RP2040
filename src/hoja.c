@@ -245,8 +245,8 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   }
 
   // debug
-  // method = GAMEPAD_METHOD_BLUETOOTH;
-  // mode = GAMEPAD_MODE_SWPRO;
+  //method = GAMEPAD_METHOD_WLAN;
+  //mode = GAMEPAD_MODE_SINPUT;
 
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_method = method;
@@ -318,6 +318,9 @@ void _hoja_task_1()
     // Process any macros
     macros_task(c1_timestamp);
 
+    // Handle haptics
+    haptics_task(c1_timestamp);
+
     bool sent_clear = false;
 
     if(!_deinit_lockout)
@@ -336,8 +339,7 @@ void _hoja_task_1()
         sent_clear = _hoja_mode_task_cb(c1_timestamp);
       }
 
-      // Handle haptics
-      haptics_task(c1_timestamp);
+      
 
       // System Monitor task (battery/fuel gauge)
       sysmon_task(c1_timestamp);

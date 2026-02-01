@@ -98,6 +98,42 @@ int _joy_get_closest_enabled_index(float in_angle, const joyConfigSlot_s config[
 }
 
 /**
+ * @brief Finds the index of the closest in_angle that is enabled within a threshold.
+ * @param in_angle The raw input angle.
+ * @param config The array of calibration slots.
+ * @param max_diff_degrees Maximum angular difference to consider (in degrees).
+ * @return The index of the closest enabled slot within threshold, or -1 if none qualify.
+ */
+int _joy_get_closest_enabled_index_within_range(float in_angle, const joyConfigSlot_s config[ADJUSTABLE_ANGLES], float max_diff_degrees)
+{
+    int closest_index = -1;
+    float min_diff = 360.0f; // Max possible difference
+
+    for (int i = 0; i < ADJUSTABLE_ANGLES; i++)
+    {
+        if (!config[i].enabled)
+            continue;
+
+        // Compute the shortest angular difference
+        float diff = fabsf(fmodf(in_angle - config[i].in_angle + 180.0f + 360.0f, 360.0f) - 180.0f);
+
+        if (diff < min_diff)
+        {
+            min_diff = diff;
+            closest_index = i;
+        }
+    }
+
+    // Only return the index if it's within the specified threshold
+    if (min_diff <= max_diff_degrees)
+    {
+        return closest_index;
+    }
+
+    return -1;
+}
+
+/**
  * @brief Finds the two closest enabled configuration indices that bracket the input angle.
  * * ASSUMPTION: The 'config' array has been partitioned and the enabled slots (0 to 'enabled_count - 1')
  * are sorted by their 'in_angle' in ascending order.
@@ -322,7 +358,7 @@ bool _calibrate_axis(int16_t *in, joyConfigSlot_s slots[ADJUSTABLE_ANGLES])
     float angle = stick_scaling_coordinates_to_angle(in[0], in[1]);
 
     // Get slot number
-    int idx = _joy_get_closest_enabled_index(angle, slots);
+    int idx = _joy_get_closest_enabled_index_within_range(angle, slots, 4.0f);
     if (idx < 0)
         return false;
 

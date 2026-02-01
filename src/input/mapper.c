@@ -573,14 +573,33 @@ typedef enum
     MAPPER_HAPTIC_MODE_ANALOG,
 } mapper_haptic_mode_t;
 
+#if defined(HOJA_MAPPER_OVERRIDE_SLOTS)
+const mapper_override_s _mapper_overrides[4] = HOJA_MAPPER_OVERRIDE_SLOTS;
+#else
+const mapper_override_s _mapper_overrides[4] = {0};
+#endif
+
 static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *output_codes, uint8_t *output_types)
 {
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
         int8_t output_code = output_codes[i];
+
+        if(output_code>=MAPPER_OVERRIDE_SLOT_0)
+        {
+            mapper_override_s or = _mapper_overrides[output_code-MAPPER_OVERRIDE_SLOT_0];
+            output_code = or.output_code;
+            cfg_slots[i].static_output = or.static_output;
+            cfg_slots[i].threshold_delta = or.threshold_delta;
+        }
+        else 
+        {
+            cfg_slots[i].static_output = 0xFFF+1; // Max 
+            cfg_slots[i].threshold_delta = 2048;
+        }
+
         cfg_slots[i].output_code = output_code;
         
-
         switch(input_static.input_info[i].input_type)
         {
             case MAPPER_INPUT_TYPE_HOVER:
@@ -607,9 +626,6 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
             cfg_slots[i].output_mode = 0; // Default
             break;
         }
-
-        cfg_slots[i].static_output = 0xFFF+1; // Max 
-        cfg_slots[i].threshold_delta = 2048;
     }
 }
 

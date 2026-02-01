@@ -171,6 +171,15 @@ typedef enum
 
 typedef enum 
 {
+    MAPPER_OVERRIDE_SLOT_0 = (127-10),
+    MAPPER_OVERRIDE_SLOT_1,
+    MAPPER_OVERRIDE_SLOT_2,
+    MAPPER_OVERRIDE_SLOT_3,
+    MAPPER_OVERRIDE_SLOT_4,
+} mapper_override_slots_t;
+
+typedef enum 
+{
     XINPUT_CODE_UNUSED = -1,
     XINPUT_CODE_A,
     XINPUT_CODE_B,

@@ -32,6 +32,12 @@
         bool initialized; // READ ONLY
     } mux_tmux1204_driver_s;
 
+    typedef struct {
+        int8_t output_code;
+        uint16_t static_output;
+        uint16_t threshold_delta;
+    } mapper_override_s;
+
     // ------------------------------
     // Helper macro: convert name to mask
     // ------------------------------

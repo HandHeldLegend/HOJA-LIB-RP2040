@@ -55,9 +55,18 @@ uint32_t _pwm_fall_amt_per_tick = 0;
 #define ERM_RISE_TIME_MS 32
 #define ERM_FALL_TIME_MS 128
 
+volatile bool _erm_shutdown = false;
+
 void erm_hal_stop()
 {
-
+    _erm_shutdown = true;
+    pwm_set_enabled(erm_slice_l, false);
+    gpio_hal_init(HOJA_HAPTICS_CHAN_A_PIN, false, false);
+    gpio_hal_write(HOJA_HAPTICS_CHAN_A_PIN, false);
+    #if defined(HOJA_HAPTICS_BRAKE_PIN)
+    gpio_hal_init(HOJA_HAPTICS_BRAKE_PIN, false, false);
+    gpio_hal_write(HOJA_HAPTICS_BRAKE_PIN, true);
+    #endif
 }
 
 bool erm_hal_init(uint8_t intensity)
@@ -114,6 +123,8 @@ void erm_hal_task(uint64_t timestamp)
     static interval_s interval = {0};
     static uint32_t this_level = 0;
 
+    if(_erm_shutdown) return;
+
     if(interval_run(timestamp, ERM_TICK_INTERVAL_US, &interval))
     {
         if(_max_set)
@@ -166,6 +177,8 @@ void erm_hal_task(uint64_t timestamp)
 
 void erm_hal_set_standard(uint8_t intensity, bool brake)
 {
+    if(_erm_shutdown) return;
+
     (void) brake;
     if(!intensity) 
     {
@@ -189,6 +202,8 @@ void erm_hal_set_standard(uint8_t intensity, bool brake)
 
 void erm_hal_push_amfm(haptic_packet_s *packet)
 {
+    if(_erm_shutdown) return;
+    
     // Use the first pair (or find max amplitude across all pairs)
     uint16_t working_amp = 0;
     for(int i = 0; i < packet->count && i < 3; i++)
