@@ -350,10 +350,12 @@ void _hoja_task_1()
       // Idle manager
       idle_manager_task(c1_timestamp);
 
+      imu_task(c1_timestamp);
+
       if(sent_clear)
       { // Refresh some data
         // IMU task
-        imu_task(c1_timestamp);
+        
         sent_clear = false;
       }
     }
