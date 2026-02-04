@@ -8,15 +8,12 @@
 #include "cores/core_sinput.h"
 #include "cores/core_xinput.h"
 
-#include "cores/c"
 #include "cores/core_n64.h"
-
-
 
 core_params_s _core_params = {
     .gamepad_mode = GAMEPAD_MODE_UNDEFINED,
     .gamepad_transport = GAMEPAD_TRANSPORT_UNDEFINED,
-    .report_format = CORE_FORMAT_UNDEFINED,
+    .report_format = CORE_REPORTFORMAT_UNDEFINED,
     .report_generator = NULL,
     .report_tunnel = NULL,
 };
@@ -24,13 +21,13 @@ core_params_s _core_params = {
 bool core_get_generated_report(core_report_s *out)
 {
     if(!_core_params.report_generator) return false;
-    return _gen_report_cb(out);
+    return _core_params.report_generator(out);
 }
 
 void core_report_tunnel_cb(uint8_t *data, uint16_t len)
 {
     if(!_core_params.report_tunnel) return;
-    _gen_tunnel_cb(data, len);
+    _core_params.report_tunnel(data, len);
 }
 
 bool core_init(gamepad_mode_t mode, gamepad_transport_t transport)

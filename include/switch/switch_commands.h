@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "usb/swpro.h"
+#include "cores/core_switch.h"
 #include "hoja_shared_types.h"
 
 #define SW_OUT_ID_RUMBLE_CMD 0x01

@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "cores/cores.h"
 #include "transport/transport.h"
@@ -13,6 +14,7 @@
 
 #include "input/mapper.h"
 #include "input/dpad.h"
+#include "input/imu.h"
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
@@ -212,7 +214,101 @@ typedef union
 } sinput_featureflags_2_u;
 #pragma pack(pop)
 
-void _sinput_generate_features(uint8_t *buffer)
+#define SINPUT_MASK_SEWN 0x0F
+#define SINPUT_MASK_DPAD 0xF0
+
+// Bumpers (L1, R1)
+#define SINPUT_MASK_BUMPERS 0x0C
+
+// Triggers (L2, R2)
+#define SINPUT_MASK_TRIGGERS 0x30
+
+// Start + Select
+#define SINPUT_MASK_STARTSELECT 0x03
+
+// Home
+#define SINPUT_MASK_HOME 0x04
+
+// Capture
+#define SINPUT_MASK_CAPTURE 0x08
+
+// Stick Click: L3
+#define SINPUT_MASK_LSTICK 0x01
+
+// Stick Click: R3
+#define SINPUT_MASK_RSTICK 0x02
+
+// Upper Grips (L4, R4)
+#define SINPUT_MASK_UPPERGRIPS 0xC0
+
+// Lower Grips (L5, R5)
+#define SINPUT_MASK_LOWERGRIPS 0x30
+
+// Power
+#define SINPUT_MASK_POWER 0x01
+
+#define SINPUT_MASK_0 ( SINPUT_MASK_SEWN | SINPUT_MASK_DPAD )
+#define SINPUT_MASK_1 ( SINPUT_MASK_LSTICK | SINPUT_MASK_RSTICK | SINPUT_MASK_TRIGGERS | SINPUT_MASK_BUMPERS | SINPUT_MASK_UPPERGRIPS )
+#define SINPUT_MASK_2 ( SINPUT_MASK_STARTSELECT | SINPUT_MASK_HOME | SINPUT_MASK_CAPTURE | SINPUT_MASK_LOWERGRIPS )
+#define SINPUT_MASK_3 ( SINPUT_MASK_POWER )
+
+bool _si_enabled(uint8_t code)
+{
+    return (input_static.input_info[code].input_type > 0);
+}
+
+void _si_generate_input_masks(uint8_t *masks)
+{
+    uint8_t mask_0 = 0;
+    uint8_t mask_1 = 0;
+    uint8_t mask_2 = 0;
+    uint8_t mask_3 = 0;
+    if(_si_enabled(INPUT_CODE_SOUTH) || _si_enabled(INPUT_CODE_EAST) || _si_enabled(INPUT_CODE_WEST) || _si_enabled(INPUT_CODE_NORTH))
+        mask_0 |= SINPUT_MASK_SEWN;
+
+    if(_si_enabled(INPUT_CODE_UP) || _si_enabled(INPUT_CODE_DOWN) || _si_enabled(INPUT_CODE_LEFT) || _si_enabled(INPUT_CODE_RIGHT))
+        mask_0 |= SINPUT_MASK_DPAD;
+
+    if(_si_enabled(INPUT_CODE_LB) || _si_enabled(INPUT_CODE_RB))
+        mask_1 |= SINPUT_MASK_BUMPERS;
+
+    if(_si_enabled(INPUT_CODE_LS))
+        mask_1 |= SINPUT_MASK_LSTICK;
+
+    if(_si_enabled(INPUT_CODE_RS))
+        mask_1 |= SINPUT_MASK_RSTICK;
+
+    if(_si_enabled(INPUT_CODE_LT) || _si_enabled(INPUT_CODE_RT))
+        mask_1 |= SINPUT_MASK_TRIGGERS;
+
+    if(_si_enabled(INPUT_CODE_LP1) || _si_enabled(INPUT_CODE_RP1))
+        mask_1 |= SINPUT_MASK_UPPERGRIPS;
+
+    if(_si_enabled(INPUT_CODE_START) || _si_enabled(INPUT_CODE_SELECT))
+        mask_2 |= SINPUT_MASK_STARTSELECT;
+        
+    if(_si_enabled(INPUT_CODE_HOME))
+        mask_2 |= SINPUT_MASK_HOME;
+
+    if(_si_enabled(INPUT_CODE_SHARE))
+        mask_2 |= SINPUT_MASK_CAPTURE;
+
+    if(_si_enabled(INPUT_CODE_LP2) || _si_enabled(INPUT_CODE_RP2))
+        mask_2 |= SINPUT_MASK_LOWERGRIPS;
+
+    if(_si_enabled(INPUT_CODE_MISC3))
+        mask_3 |= SINPUT_MASK_POWER;
+
+    masks[0] = mask_0;
+    masks[1] = mask_1;
+    masks[2] = mask_2;
+    masks[3] = mask_3;
+}
+
+
+uint16_t _sinput_report_interval_us = 1000;
+
+void _si_generate_features(uint8_t *buffer)
 {
     sinput_featureflags_1_u feature_flags = {0};
 
@@ -293,7 +389,7 @@ void _sinput_generate_features(uint8_t *buffer)
     memcpy(&buffer[8], &accel_g_range, sizeof(accel_g_range)); // Accelerometer G range
     memcpy(&buffer[10], &gyro_dps_range, sizeof(gyro_dps_range)); // Gyroscope DPS range
 
-    _sinput_generate_input_masks(&buffer[12]);
+    _si_generate_input_masks(&buffer[12]);
 
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count
@@ -306,7 +402,6 @@ void _sinput_generate_features(uint8_t *buffer)
     buffer[23] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
 }
 
-
 int16_t _sinput_scale_trigger(uint16_t val)
 {
     if (val > 4095) val = 4095; // Clamp just in case
@@ -316,14 +411,13 @@ int16_t _sinput_scale_trigger(uint16_t val)
     return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
 }
 
-
 int16_t _sinput_scale_axis(int16_t input_axis)
 {   
     return SINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
 }
 
-volatile uint8_t _sinput_current_command = 0;
-uint8_t _sinput_response_report[64] = {0};
+volatile uint8_t _si_current_command = 0;
+uint8_t _si_response_report[64] = {0};
 
 void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
 {
@@ -338,7 +432,7 @@ void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
         break;
 
         case SINPUT_COMMAND_FEATURES:
-        _sinput_current_command = SINPUT_COMMAND_FEATURES;
+        _si_current_command = SINPUT_COMMAND_FEATURES;
         break;
 
         case SINPUT_COMMAND_PLAYERLED:
@@ -347,27 +441,27 @@ void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
     }
 }
 
-void _core_sinput_get_generated_report(core_report_s *out)
+bool _core_sinput_get_generated_report(core_report_s *out)
 {
-    out->format=CORE_FORMAT_SINPUT;
+    out->reportformat=CORE_REPORTFORMAT_SINPUT;
     out->size=64; // 64 bytes including our report ID
 
     // Handle command reply
-    if(_sinput_current_command)
+    if(_si_current_command)
     {
-        switch(_sinput_current_command)
+        switch(_si_current_command)
         {
             case SINPUT_COMMAND_FEATURES:
             out->data[0] = REPORT_ID_SINPUT_INPUT_CMDDAT;
             out->data[1] = SINPUT_COMMAND_FEATURES;
-            _sinput_generate_features(&out->data[2]);
+            _si_generate_features(&out->data[2]);
         }
     }
     // Standard input
     else 
     {
         out->data[0] = REPORT_ID_SINPUT_INPUT;
-        sinput_input_s *data = &(out->data[1]);
+        sinput_input_s *data = (sinput_input_s*)&(out->data[1]);
 
         // Access all current data
         battery_status_s bstat = {0};
@@ -459,9 +553,10 @@ void _core_sinput_get_generated_report(core_report_s *out)
 
         data->button_power = input.presses[SINPUT_CODE_MISC_3];
 
-        data->trigger_l = sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
-        data->trigger_r = sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
+        data->trigger_l = _sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
+        data->trigger_r = _sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
     }
+    return true;
 }
 
 /*------------------------------------------------*/
@@ -472,12 +567,15 @@ bool core_sinput_init(core_params_s *params)
     switch(params->gamepad_transport)
     {
         case GAMEPAD_TRANSPORT_USB:
+        _sinput_report_interval_us = 1000;
         break;
 
         case GAMEPAD_TRANSPORT_BLUETOOTH:
+        _sinput_report_interval_us = 8000;
         break;
 
         case GAMEPAD_TRANSPORT_WLAN:
+        _sinput_report_interval_us = 2000;
         break;
 
         // Unsupported transport methods
@@ -488,7 +586,7 @@ bool core_sinput_init(core_params_s *params)
     params->report_generator = _core_sinput_get_generated_report;
     params->report_tunnel = _core_sinput_report_tunnel_cb;
 
-    return transport_init(params->gamepad_transport);
+    return transport_init(params);
 }
 
 void core_sinput_task(uint64_t timestamp)

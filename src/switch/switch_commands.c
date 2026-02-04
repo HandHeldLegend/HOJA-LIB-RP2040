@@ -45,26 +45,51 @@ void generate_ltk()
   // printf("\n");
 }
 
+// DEPRECIATED
 void clear_report()
 {
   memset(_switch_command_buffer, 0, sizeof(_switch_command_buffer));
 }
 
+void _swcmd_clear_report(uint8_t *target, uint16_t len)
+{
+  memset(target, 0, len);
+}
+
+// DEPRECIATED
 void set_report_id(uint8_t report_id)
 {
   _switch_command_report_id = report_id;
 }
 
+void _swcmd_set_report_id(uint8_t report_id, uint8_t *target)
+{
+  target[0] = report_id;
+}
+
+// DEPRECIATED
 void set_ack(uint8_t ack)
 {
   _switch_command_buffer[12] = ack;
 }
 
+void _swcmd_set_ack(uint8_t ack, uint8_t *target)
+{
+  target[13] = ack;
+}
+
+// DEPRECIATED
 void set_command(uint8_t command)
 {
   _switch_command_buffer[13] = command;
 }
 
+void _swcmd_set_command(uint8_t command, uint8_t *target)
+{
+  target[14] = command;
+}
+
+// DEPRECIATED
 void set_timer()
 {
   static uint64_t this_ms = 0;
@@ -81,6 +106,23 @@ void set_timer()
   }
 }
 
+void _swcmd_set_timer(uint8_t *target)
+{
+  static uint64_t this_ms = 0;
+
+  sys_hal_time_ms(&this_ms);
+
+  static uint64_t _switch_timer = 0;
+  target[1] = (uint8_t)_switch_timer;
+
+  _switch_timer += this_ms;
+  if (_switch_timer > 0xFF)
+  {
+    _switch_timer %= 0xFF; // or -= 0xFF depending on requirements
+  }
+}
+
+// DEPRECIATED
 void set_battconn()
 {
   fuelgauge_status_s fstat = {0};
@@ -145,6 +187,70 @@ void set_battconn()
   _switch_command_buffer[1] = s.val;
 }
 
+void _swcmd_set_battconn(uint8_t *target)
+{
+   fuelgauge_status_s fstat = {0};
+  fuelgauge_get_status(&fstat);
+
+  battery_status_s bstat = {0};
+  battery_get_status(&bstat);
+
+  bat_status_u s = {
+      .bat_lvl = 4,
+      .charging = 1,
+      .connection = 0};
+
+  if (bstat.connected)
+  {
+    s.charging = 0;
+    
+    if (bstat.charging)
+    {
+      s.charging = 1;
+      s.connection = 1;
+    }
+    else if (bstat.plugged)
+    {
+      s.charging = 0;
+      s.connection = 1;
+    }
+
+    if (fstat.connected)
+    {
+      switch (fstat.simple)
+      {
+      default:
+        s.bat_lvl = 1;
+        break;
+
+      case 1:
+        s.bat_lvl = 1;
+        break;
+
+      case 2:
+        s.bat_lvl = 2;
+        break;
+
+      case 3:
+        s.bat_lvl = 3;
+        break;
+
+      case 4:
+        s.bat_lvl = 4;
+        break;
+      }
+    }
+  }
+  else
+  {
+    s.charging = 0;
+    s.connection = 1;
+  }
+
+  // Always set to USB connected
+  target[2] = s.val;
+}
+
 void set_devinfo()
 {
   // New firmware causes issue with gyro needs more research
@@ -177,6 +283,39 @@ void set_devinfo()
   _switch_command_buffer[25] = 0x02; // It's 2 now? Ok.
 }
 
+void _swcmd_set_devinfo(uint8_t *target)
+{
+  // New firmware causes issue with gyro needs more research
+  target[15] = 0x04; // NS Firmware primary   (4.x)
+  target[16] = 0x33; // NS Firmware secondary (x.21)
+
+  //_switch_command_buffer[15] = 0x03; // NS Firmware primary   (3.x)
+  //_switch_command_buffer[16] = 72;   // NS Firmware secondary (x.72)
+
+  // Joycon R - 0x01, 0x02
+  // Joycon L - 0x02, 0x02
+  // Procon   - 0x03, 0x02
+  // N64      - 0x0C, 0x11
+  // SNES     - 0x0B, 0x02
+  // Famicom  - 0x07, 0x02
+  // NES      - 0x09, 0x02
+  // Genesis  - 0x0D, 0x02
+  _switch_command_buffer[17] = 0x03; // Controller ID primary (Pro Controller)
+  _switch_command_buffer[18] = 0x02; // Controller ID secondary
+
+  /*_switch_command_buffer[19-24] = MAC ADDRESS;*/
+  _switch_command_buffer[19] = gamepad_config->switch_mac_address[0];
+  _switch_command_buffer[20] = gamepad_config->switch_mac_address[1];
+  _switch_command_buffer[21] = gamepad_config->switch_mac_address[2];
+  _switch_command_buffer[22] = gamepad_config->switch_mac_address[3];
+  _switch_command_buffer[23] = gamepad_config->switch_mac_address[4];
+  _switch_command_buffer[24] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
+
+  _switch_command_buffer[25] = 0x00;
+  _switch_command_buffer[26] = 0x02; // It's 2 now? Ok.
+}
+
+// DEPRECIATED
 void set_sub_triggertime(uint16_t time_10_ms)
 {
   uint8_t upper_ms = 0xFF & time_10_ms;
@@ -195,6 +334,27 @@ void set_sub_triggertime(uint16_t time_10_ms)
   {
     _switch_command_buffer[14 + i] = upper_ms;
     _switch_command_buffer[15 + i] = lower_ms;
+  }
+}
+
+void _swcmd_set_subtriggertime(uint16_t time_10_ms, uint8_t *target)
+{
+  uint8_t upper_ms = 0xFF & time_10_ms;
+  uint8_t lower_ms = (0xFF00 & time_10_ms) >> 8;
+
+  // Set all button groups
+  // L - 15, 16
+  // R - 17, 18
+  // ZL - 19, 20
+  // ZR - 21, 22
+  // SL - 23, 24
+  // SR - 25, 26
+  // Home - 27, 28
+
+  for (uint8_t i = 0; i < 14; i += 2)
+  {
+    target[15 + i] = upper_ms;
+    target[16 + i] = lower_ms;
   }
 }
 
@@ -219,12 +379,33 @@ void info_set_mac()
   _switch_command_buffer[8] = gamepad_config->switch_mac_address[0];
 }
 
+void _swcmd_info_set_mac(uint8_t *target)
+{
+  target[1] = 0x01;
+  target[2] = 0x00;
+  target[3] = 0x03;
+
+  // Mac in LE
+  target[4] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
+  target[5] = gamepad_config->switch_mac_address[4];
+  target[6] = gamepad_config->switch_mac_address[3];
+  target[7] = gamepad_config->switch_mac_address[2];
+  target[8] = gamepad_config->switch_mac_address[1];
+  target[9] = gamepad_config->switch_mac_address[0];
+}
+
 // A second part to the initialization,
 // no idea what this does but it's needed
 // to get continued comms over USB.
+// DEPRECIATED
 void info_set_init()
 {
   _switch_command_buffer[0] = 0x02;
+}
+
+void _swcmd_info_set_init(uint8_t *target)
+{
+  target[1] = 0x02;
 }
 
 void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
@@ -254,6 +435,25 @@ void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
 
   case GAMEPAD_METHOD_BLUETOOTH:
     cb(_switch_command_report_id, _switch_command_buffer, SWPRO_REPORT_SIZE_BT);
+    break;
+  }
+}
+
+void _swcmd_info_handler(uint8_t info_code, uint8_t *target)
+{
+  _swcmd_clear_report(target, 64);
+  _swcmd_set_report_id(0x81, target);
+
+  switch (info_code)
+  {
+  case 0x01:
+    // printf("MAC Address requested.");
+    _swcmd_info_set_mac(target);
+    break;
+
+  default:
+    // printf("Unknown setup requested: %X", info_code);
+    target[1] = info_code;
     break;
   }
 }
@@ -487,7 +687,32 @@ void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_rep
   }
 }
 
+void _swcmd_report_handler(uint8_t report_id, const uint8_t *in_data, uint16_t in_len, uint8_t *out_data)
+{
+  switch (report_id)
+  {
+  // We have command data and possibly rumble
+  case SW_OUT_ID_RUMBLE_CMD:
+    switch_haptics_rumble_translate(&in_data[2]);
+    //command_handler(data[10], data, len, cb);
+    break;
+
+  case SW_OUT_ID_RUMBLE:
+    // Handled elsewhere for immediate servicing
+    break;
+
+  case SW_OUT_ID_INFO:
+    //info_handler(in_data[1], cb);
+    break;
+
+  default:
+    // printf("Unknown report: %X\n", report_id);
+    break;
+  }
+}
+
 // Handles an OUT report and responds accordingly.
+// WILL BE MIGRATED TO _switch_commands_report_handler
 void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   switch (report_id)
@@ -646,6 +871,8 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
     }
   }
 }
+
+// PUBLIC FUNCTIONS
 
 void switch_commands_future_handle(uint8_t report_id, const uint8_t *data, uint16_t len)
 {

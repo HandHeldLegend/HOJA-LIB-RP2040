@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "transport/transport_wlan.h"
+
 bool transport_wlan_init()
 {
 

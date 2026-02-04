@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "board_config.h"
 #include "devices/wlan.h"
 #include "devices_shared_types.h"
@@ -83,16 +85,6 @@ bool wlan_mode_start(gamepad_mode_t mode, bool pairing_mode)
         #endif
 
     #endif
-}
-
-void transport_wlan_task(uint64_t timestamp)
-{
-
-}
-
-void transport_wlan_init()
-{
-
 }
 
 bool wlan_mode_task(uint64_t timestamp)

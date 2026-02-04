@@ -5,11 +5,9 @@
 #include "devices/fuelgauge.h"
 #include "devices/rgb.h"
 
-#include "utilities/transport.h"
 #include "utilities/crosscore_snapshot.h"
 #include "hoja.h"
 
-transport_status_s _systransport = {.connected=false, .player_number=0, .polling_rate_us=8000, .wireless=false};
 battery_status_s _sysbattery = {.connected=false, .charging=false, .plugged=false};
 fuelgauge_status_s _sysfuel = {.connected=false, .percent=100};
 

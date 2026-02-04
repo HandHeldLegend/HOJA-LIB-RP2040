@@ -251,11 +251,6 @@ const uint8_t swpro_configuration_descriptor[] = {
 /**--------------------------**/
 /**--------------------------**/
 
-bool mac_sent = false;
-bool blank_sent = false;
-
-uint32_t _timeout = 0;
-
 #define SWITCH_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 void swpro_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)

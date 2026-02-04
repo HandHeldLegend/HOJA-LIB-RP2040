@@ -5,7 +5,9 @@
 #include <stdint.h>
 #include "hoja_shared_types.h"
 
-bool transport_init(gamepad_transport_t transport);
+#include "cores/cores.h"
+
+bool transport_init(core_params_s *params);
 void transport_task(uint64_t timestamp);
 
 #endif

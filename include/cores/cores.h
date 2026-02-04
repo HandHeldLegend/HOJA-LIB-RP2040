@@ -6,19 +6,19 @@
 
 typedef enum 
 {
-    CORE_FORMAT_UNDEFINED = -1,
-    CORE_FORMAT_SWPRO,
-    CORE_FORMAT_XINPUT,
-    CORE_FORMAT_SINPUT,
-    CORE_FORMAT_GCUSB,
-    CORE_FORMAT_SNES,
-    CORE_FORMAT_N64,
-    CORE_FORMAT_GAMECUBE
+    CORE_REPORTFORMAT_UNDEFINED = -1,
+    CORE_REPORTFORMAT_SWPRO,
+    CORE_REPORTFORMAT_XINPUT,
+    CORE_REPORTFORMAT_SINPUT,
+    CORE_REPORTFORMAT_SLIPPI,
+    CORE_REPORTFORMAT_SNES,
+    CORE_REPORTFORMAT_N64,
+    CORE_REPORTFORMAT_GAMECUBE
 } core_reportformat_t;
 
 typedef struct
 {
-    core_reportformat_t format;
+    core_reportformat_t reportformat;
     uint8_t size;
     uint8_t data[64];
 } core_report_s;
@@ -37,10 +37,10 @@ typedef struct
     core_report_tunnel_t    report_tunnel;    // Where incoming reports should be sent
 } core_params_s;
 
-void core_get_generated_report(core_report_s *out);
+bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(uint8_t *data, uint16_t len);
 
-void core_init();
+bool core_init(gamepad_mode_t mode, gamepad_transport_t transport);
 void core_task(uint64_t timestamp);
 
 #endif
