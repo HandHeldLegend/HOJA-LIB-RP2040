@@ -3,6 +3,8 @@
 #include "switch/switch_haptics.h"
 #include "switch/switch_motion.h"
 
+#include "cores/core_switch.h"
+
 #include "utilities/settings.h"
 
 #include "devices/haptics.h"
@@ -113,7 +115,7 @@ void _swcmd_set_timer(uint8_t *target)
   sys_hal_time_ms(&this_ms);
 
   static uint64_t _switch_timer = 0;
-  target[1] = (uint8_t)_switch_timer;
+  target[0] = (uint8_t)_switch_timer;
 
   _switch_timer += this_ms;
   if (_switch_timer > 0xFF)
@@ -408,6 +410,7 @@ void _swcmd_info_set_init(uint8_t *target)
   target[1] = 0x02;
 }
 
+// DEPRECIATED
 void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
 {
   clear_report();
@@ -441,7 +444,6 @@ void info_handler(uint8_t info_code, hid_report_tunnel_cb cb)
 
 void _swcmd_info_handler(uint8_t info_code, uint8_t *target)
 {
-  _swcmd_clear_report(target, 64);
   _swcmd_set_report_id(0x81, target);
 
   switch (info_code)
@@ -453,11 +455,12 @@ void _swcmd_info_handler(uint8_t info_code, uint8_t *target)
 
   default:
     // printf("Unknown setup requested: %X", info_code);
-    target[1] = info_code;
+    target[0] = info_code;
     break;
   }
 }
 
+// DEPRECIATED
 void pairing_set(uint8_t phase, const uint8_t *host_address)
 {
   // Respond with MAC address and "Pro Controller".
@@ -511,7 +514,61 @@ void pairing_set(uint8_t phase, const uint8_t *host_address)
   }
 }
 
-// Handles a command, always 0x21 as a response ID
+void _swcmd_pairing_set(uint8_t phase, const uint8_t *host_address, uint8_t *target)
+{
+  // Respond with MAC address and "Pro Controller".
+  const uint8_t pro_controller_string[24] = {0x00, 0x25, 0x08, 0x50, 0x72, 0x6F, 0x20, 0x43, 0x6F,
+                                             0x6E, 0x74, 0x72, 0x6F, 0x6C, 0x6C, 0x65, 0x72, 0x00,
+                                             0x00, 0x00, 0x00, 0x00, 0x00, 0x68};
+
+  bool diff_host = false;
+
+  switch (phase)
+  {
+  default:
+  case 1:
+
+    // Get host address and compare it.
+    // for (uint i = 0; i < 6; i++)
+    //{
+    //  if (global_loaded_settings.switch_host_address[i] != host_address[5 - i])
+    //  {
+    //    global_loaded_settings.switch_host_address[i] = host_address[5 - i];
+    //    diff_host = true;
+    //  }
+    //}
+
+    // Save if we have an updated host address.
+    // if (diff_host)
+    // settings_save_from_core0();
+
+    set_ack(0x81);
+    _swcmd_set_ack(0x81, target);
+    target[15] = 1;
+
+    // Mac in LE
+    target[16] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
+    target[17] = gamepad_config->switch_mac_address[4];
+    target[18] = gamepad_config->switch_mac_address[3];
+    target[19] = gamepad_config->switch_mac_address[2];
+    target[20] = gamepad_config->switch_mac_address[1];
+    target[21] = gamepad_config->switch_mac_address[0];
+
+    memcpy(&target[16 + 6], pro_controller_string, 24);
+    break;
+  case 2:
+    _swcmd_set_ack(0x81, target);
+    target[15] = 2;
+    memcpy(&target[16], _switch_ltk, 16);
+    break;
+  case 3:
+    _swcmd_set_ack(0x81, target);
+    target[15] = 3;
+    break;
+  }
+}
+
+// DEPRECIATED
 void command_handler(uint8_t command, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
 {
   // Clear report
@@ -750,8 +807,6 @@ uint8_t _unknown_thing()
   return out;
 }
 
-#define DEBUG_IMU_VAL 8
-
 // PUBLIC FUNCTIONS
 void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_report_tunnel_cb cb)
 {
@@ -873,6 +928,243 @@ void switch_commands_process(uint64_t timestamp, sw_input_s *input_data, hid_rep
 }
 
 // PUBLIC FUNCTIONS
+
+void swcmd_generate_inputreport(uint8_t *report_id, uint8_t *out)
+{
+  // Since some update, only report ID 30 seems to be used.
+  *report_id = 0x30;
+  _swcmd_set_timer(out);
+  _swcmd_set_battconn(out);
+
+  switch(_switch_imu_mode)
+  {
+    // IMU Mode 1 is raw sensor data
+    case 0x01:
+    {
+    imu_data_s imu = {0};
+
+    imu_access_safe(&imu);
+
+    // Group 1
+    out[12] = imu.ay_8l; // Y-axis
+    out[13] = imu.ay_8h;
+    out[14] = imu.ax_8l; // X-axis
+    out[15] = imu.ax_8h;
+    out[16] = imu.az_8l; // Z-axis
+    out[17] = imu.az_8h;
+    out[18] = imu.gy_8l;
+    out[19] = imu.gy_8h;
+    out[20] = imu.gx_8l;
+    out[21] = imu.gx_8h;
+    out[22] = imu.gz_8l;
+    out[23] = imu.gz_8h;
+
+    // Group 2
+    memcpy(&out[24], &out[12], 12);
+    /*
+    _switch_command_buffer[24] = imu[1].ay_8l; // Y-axis
+    _switch_command_buffer[25] = imu[1].ay_8h;
+    _switch_command_buffer[26] = imu[1].ax_8l; // X-axis
+    _switch_command_buffer[27] = imu[1].ax_8h;
+    _switch_command_buffer[28] = imu[1].az_8l; // Z-axis
+    _switch_command_buffer[29] = imu[1].az_8h;
+    _switch_command_buffer[30] = imu[1].gy_8l;
+    _switch_command_buffer[31] = imu[1].gy_8h;
+    _switch_command_buffer[32] = imu[1].gx_8l;
+    _switch_command_buffer[33] = imu[1].gx_8h;
+    _switch_command_buffer[34] = imu[1].gz_8l;
+    _switch_command_buffer[35] = imu[1].gz_8h;
+    */
+
+    // Group 3
+    memcpy(&out[36], &out[12], 12);
+    /*
+    _switch_command_buffer[36] = imu[2].ay_8l; // Y-axis
+    _switch_command_buffer[37] = imu[2].ay_8h;
+    _switch_command_buffer[38] = imu[2].ax_8l; // X-axis
+    _switch_command_buffer[39] = imu[2].ax_8h;
+    _switch_command_buffer[40] = imu[2].az_8l; // Z-axis
+    _switch_command_buffer[41] = imu[2].az_8h;
+    _switch_command_buffer[42] = imu[2].gy_8l;
+    _switch_command_buffer[43] = imu[2].gy_8h;
+    _switch_command_buffer[44] = imu[2].gx_8l;
+    _switch_command_buffer[45] = imu[2].gx_8h;
+    _switch_command_buffer[46] = imu[2].gz_8l;
+    _switch_command_buffer[47] = imu[2].gz_8h;
+    */
+    }
+    break;
+
+    // IMU Mode 2 uses a custom packed quaternion format
+    case 0x02:
+    {
+    static mode_2_s mode_2_data = {0};
+    static quaternion_s quat = {0};
+
+    imu_quaternion_access_safe(&quat);
+
+    switch_motion_pack_quat(&quat, &mode_2_data);
+    memcpy(&(out[12]), &mode_2_data, sizeof(mode_2_s));
+    }
+    break;
+
+    // Anything else is presumed to be NO gyro
+    default:
+    break;
+  }
+}
+
+void _swcmd_command_handler(uint8_t command, uint8_t *data, uint8_t *out)
+{
+  // Report ID is already set to 0x21, so 
+  // we are only concerned with setting the 
+  // actual response data
+  _swcmd_set_timer(out);
+  _swcmd_set_battconn(out);
+  _swcmd_set_command(command, out);
+
+  switch (command)
+  {
+  case SW_CMD_SET_NFC:
+    // printf("Set NFC MCU:\n");
+    _swcmd_set_ack(0x80, out);
+    break;
+
+  case SW_CMD_ENABLE_IMU:
+    // printf("Enable IMU: %d\n", data[11]);
+    // imu_set_enabled(data[11] > 0);
+    _switch_imu_mode = data[11];
+    _swcmd_set_ack(0x80, out);
+    break;
+
+  case SW_CMD_SET_PAIRING:
+    // printf("Set pairing.\n");
+    pairing_set(data[11], &data[12]);
+    break;
+
+  case SW_CMD_SET_INPUTMODE:
+    // printf("Input mode change: %X\n", data[11]);
+    _swcmd_set_ack(0x80, out);
+    _switch_reporting_mode = data[11];
+    break;
+
+  case SW_CMD_GET_DEVICEINFO:
+    // printf("Get device info.\n");
+    _swcmd_set_ack(0x82, out);
+    _swcmd_set_devinfo(out);
+    break;
+
+  case SW_CMD_SET_SHIPMODE:
+    // printf("Set ship mode: %X\n", data[11]);
+    _swcmd_set_ack(0x80, out);
+    break;
+
+  case SW_CMD_GET_SPI:
+    // printf("Read SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    _swcmd_set_ack(0x90, out);
+    sw_spi_get(data[12], data[11], data[15], out);
+    break;
+
+  case SW_CMD_SET_HCI:
+    // For now all options should shut down
+    hoja_deinit(hoja_shutdown);
+    break;
+
+  case SW_CMD_SET_SPI:
+    // printf("Write SPI. Address: %X, %X | Len: %d\n", data[12], data[11], data[15]);
+    _swcmd_set_ack(0x80, out);
+    // No additional actions needed here
+    // We do not save data from the switch console
+    break;
+
+  case SW_CMD_GET_TRIGGERET:
+    // printf("Get trigger ET.\n");
+    _swcmd_set_ack(0x83, out);
+    _swcmd_set_subtriggertime(100, out);
+    break;
+
+  case SW_CMD_ENABLE_VIBRATE:
+    // printf("Enable vibration.\n");
+    _swcmd_set_ack(0x80, out);
+    break;
+
+  case SW_CMD_SET_PLAYER:
+    // printf("Set player LED: ");
+    _swcmd_set_ack(0x80, out);
+
+    uint8_t player = data[11] & 0xF;
+    uint8_t set_num = 0;
+
+    switch (player)
+    {
+    default:
+      // Player 0 (No LEDs)
+      break;
+    case 0b1:
+      set_num = 1;
+      break;
+
+    case 0b11:
+      set_num = 2;
+      break;
+
+    case 0b111:
+      set_num = 3;
+      break;
+
+    case 0b1111:
+      set_num = 4;
+      break;
+
+    case 0b1001:
+      set_num = 5;
+      break;
+    case 0b1010:
+      set_num = 6;
+      break;
+
+    case 0b1011:
+      set_num = 7;
+      break;
+    case 0b0110:
+      set_num = 8;
+      break;
+    }
+    break;
+
+  default:
+    // printf("Unhandled: %X\n", command);
+    //for (uint16_t i = 0; i < len; i++)
+    //{
+    //  // printf("%X, ", data[i]);
+    //}
+    // printf("\n");
+    _swcmd_set_ack(0x80, out);
+    break;
+  }
+}
+
+void swcmd_generate_reply(ns_command_data_s *data, uint8_t *report_id, uint8_t *out)
+{
+  switch(data->cmd_report_id)
+  {
+  case SW_OUT_ID_RUMBLE_CMD:
+  // Haptics are already processed, just process command
+  *report_id = 0x21;
+  _swcmd_command_handler(data->cmd_data[10], data->cmd_data, out);
+  break; 
+
+  case SW_OUT_ID_INFO:
+  // Process info response packet
+  *report_id = 0x81;
+  _swcmd_info_handler(data->cmd_data[1], out);
+  break;
+
+  default:
+    // printf("Unknown report: %X\n", report_id);
+    break;
+  }
+}
 
 void switch_commands_future_handle(uint8_t report_id, const uint8_t *data, uint16_t len)
 {

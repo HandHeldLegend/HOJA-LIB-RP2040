@@ -63,15 +63,16 @@ typedef struct
         };
         uint8_t left_buttons;
     };
-
-    uint16_t ls_x;
-    uint16_t ls_y;
-    uint16_t rs_x;
-    uint16_t rs_y;
-
-    uint8_t data[36];
+    uint8_t data[45];
 } core_switch_report_s;
 #define CORE_SWITCH_REPORT_SIZE sizeof(core_switch_report_s)
+
+#define NS_CMD_DATA_LEN 64
+typedef struct 
+{
+    uint8_t cmd_report_id;
+    uint8_t cmd_data[NS_CMD_DATA_LEN];
+} ns_command_data_s;
 
 bool core_switch_init(core_params_s *params);
 

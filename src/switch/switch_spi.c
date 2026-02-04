@@ -3,12 +3,7 @@
 #include "switch/switch_analog.h"
 #include "utilities/settings.h"
 
-/**
- * @brief Reads a chunk of memory from SPI (emulated)
- * @param[in] offset_address The address segment to read from.
- * @param[in] address The actual memory address to read from the segment.
- * @param[in] length The amount of bytes to pull from SPI emulated
- */
+// DEPRECIATED
 void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t length)
 {
 
@@ -24,6 +19,23 @@ void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t len
 
   // Do a bulk set for the input report
   switch_commands_bulkset(SPI_READ_OUTPUT_IDX, output_spi_data, length);
+}
+
+/**
+ * @brief Reads a chunk of memory from SPI (emulated)
+ * @param[in] offset_address The address segment to read from.
+ * @param[in] address The actual memory address to read from the segment.
+ * @param[in] length The amount of bytes to pull from SPI emulated
+ */
+void sw_spi_get(uint8_t offset_address, uint8_t address, uint8_t length, uint8_t *out)
+{
+  uint8_t read_info[5] = {address, offset_address, 0x00, 0x00, length};
+  switch_commands_bulkset(14, read_info, 5);
+
+  for (int i = 0; i < length; i++)
+  {
+      out[SPI_READ_OUTPUT_IDX+i] = sw_spi_getaddressdata(offset_address, address+i);
+  }
 }
 
 /**

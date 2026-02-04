@@ -16,11 +16,13 @@ typedef enum
     CORE_REPORTFORMAT_GAMECUBE
 } core_reportformat_t;
 
+
+#define CORE_REPORT_DATA_LEN 64
 typedef struct
 {
     core_reportformat_t reportformat;
     uint8_t size;
-    uint8_t data[64];
+    uint8_t data[CORE_REPORT_DATA_LEN];
 } core_report_s;
 
 typedef bool (*core_generate_report_t)(core_report_s *out);

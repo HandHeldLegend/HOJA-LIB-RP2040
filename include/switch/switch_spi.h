@@ -42,8 +42,10 @@
  * some of these items break/change over time.
  */
 
-/* Internal functions for handling SPI read calls and the correct responses */
+// DEPRECIATED
 void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t length);
+
+void sw_spi_get(uint8_t offset_address, uint8_t address, uint8_t length, uint8_t *out);
 
 void sw_spi_writetoaddress(uint32_t address, uint8_t length);
 
