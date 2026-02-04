@@ -49,6 +49,16 @@ typedef enum
     GAMEPAD_METHOD_WLAN = 3,        // Wireless WLAN modes (dongle)
 } gamepad_method_t;
 
+typedef enum 
+{
+    GAMEPAD_TRANSPORT_UNDEFINED = -1,
+    GAMEPAD_TRANSPORT_JOYBUS64,
+    GAMEPAD_TRANSPORT_JOYBUSGC,
+    GAMEPAD_TRANSPORT_USB,
+    GAMEPAD_TRANSPORT_BLUETOOTH,
+    GAMEPAD_TRANSPORT_WLAN,
+} gamepad_transport_t;
+
 typedef struct 
 {
     int8_t connection_status;

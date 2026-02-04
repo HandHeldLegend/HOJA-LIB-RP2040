@@ -1,0 +1,1 @@
+#include "cores/core_gamecube.h"

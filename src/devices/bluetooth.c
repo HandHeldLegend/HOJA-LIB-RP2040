@@ -58,7 +58,15 @@ void bluetooth_mode_stop()
     #endif
 }
 
+void _bluetooth_send_packet(uint8_t *data, uint16_t len)
+{
 
+}
+
+void bluetooth_input_cb(uint8_t *data, uint16_t len)
+{
+    
+}
 
 bool bluetooth_mode_task(uint64_t timestamp)
 {

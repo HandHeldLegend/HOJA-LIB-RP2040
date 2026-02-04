@@ -5,6 +5,8 @@ file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
 file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
 file(GLOB_RECURSE MACROS_C "${CMAKE_CURRENT_LIST_DIR}/src/input/macros/*.c")
 file(GLOB_RECURSE SNAPBACK_C "${CMAKE_CURRENT_LIST_DIR}/src/input/snapback/*.c")
+file(GLOB_RECURSE CORES_C "${CMAKE_CURRENT_LIST_DIR}/src/cores/*.c")
+file(GLOB_RECURSE TRANSPORTS_C "${CMAKE_CURRENT_LIST_DIR}/src/transport/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
@@ -21,7 +23,6 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/sysmon.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/transport.c
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
@@ -70,6 +71,8 @@ target_sources(hoja_lib INTERFACE
   ${HAL_C}
   ${RGB_C}
   ${SNAPBACK_C}
+  ${CORES_C}
+  ${TRANSPORTS_C}
 )
 
 target_include_directories(hoja_lib INTERFACE

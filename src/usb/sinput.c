@@ -498,29 +498,15 @@ void sinput_hid_report(uint64_t timestamp, hid_report_tunnel_cb cb)
 
     mapper_input_s input = mapper_get_input();
 
-    //#define HOJA_ANALOG_POLLING_TEST
-    #if defined(HOJA_ANALOG_POLLING_TEST)
-    // For testing purposes, use the analog test values
-    static int16_t test = 0;
-    data.left_x = test;
-    data.left_y = test;
-
-    test+=100;
-    if(test > -8000 && test < 8000) test +=16000;
-    data.right_x = 0;
-    data.right_y = 0;
-    #else
-
     int lx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LX_LEFT],input.inputs[SINPUT_CODE_LX_RIGHT]); 
     int ly = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LY_UP]  ,input.inputs[SINPUT_CODE_LY_DOWN] ); 
     int rx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RX_LEFT],input.inputs[SINPUT_CODE_RX_RIGHT]);
     int ry = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RY_UP]  ,input.inputs[SINPUT_CODE_RY_DOWN] ); 
     
-    data.left_x = sinput_scale_axis(lx);
-    data.left_y = sinput_scale_axis(ly);
+    data.left_x  = sinput_scale_axis(lx);
+    data.left_y  = sinput_scale_axis(ly);
     data.right_x = sinput_scale_axis(rx);
     data.right_y = sinput_scale_axis(ry);
-    #endif
 
     static imu_data_s imu = {0};
     imu_access_safe(&imu);

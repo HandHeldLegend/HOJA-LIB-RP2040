@@ -285,10 +285,6 @@ uint8_t const *tud_descriptor_device_cb(void)
     hoja_set_connected_status(CONN_STATUS_PLAYER_1);
     return (uint8_t const *)&sinput_device_descriptor;
     break;
-
-    // case GAMEPAD_MODE_DS4:
-    //   return (uint8_t const *)&ds4_device_descriptor;
-    //   break;
   }
 }
 
@@ -316,10 +312,6 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
   case GAMEPAD_MODE_SINPUT:
     return (uint8_t const *)&sinput_configuration_descriptor;
     break;
-
-    // case GAMEPAD_MODE_DS4:
-    //   return (uint8_t const *)&ds4_configuration_descriptor;
-    //   break;
   }
 }
 
@@ -453,10 +445,6 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
   case GAMEPAD_MODE_SINPUT:
     return sinput_hid_report_descriptor;
     break;
-
-    // case GAMEPAD_MODE_DS4:
-    //   return ds4_hid_report_descriptor;
-    //   break;
   }
   return NULL;
 }
