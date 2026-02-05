@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "hoja_shared_types.h"
+#include <hoja_usb.h>
 
 typedef enum 
 {
@@ -22,7 +23,7 @@ typedef struct
     uint16_t hid_report_descriptor_len;
     uint8_t *config_descriptor;
     uint16_t config_descriptor_len;
-    ext_tusb_desc_device_t *device_descriptor;
+    usb_device_descriptor_t *device_descriptor;
 } core_hid_device_t;
 
 #define CORE_REPORT_DATA_LEN 64
@@ -42,6 +43,8 @@ typedef struct
 {
     uint8_t                 gamepad_mode;
     uint8_t                 gamepad_transport;
+    uint8_t                 gamepad_mac[6];
+    uint8_t                 host_mac[6];
     uint16_t                pollrate_us;
     core_transport_task_t   transport_task;
     core_reportformat_t     report_format;

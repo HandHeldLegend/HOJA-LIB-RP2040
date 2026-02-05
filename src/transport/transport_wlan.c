@@ -2,9 +2,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "cores/cores.h"
+
 #include "transport/transport_wlan.h"
 
-bool transport_wlan_init()
+bool transport_wlan_init(core_params_s *params)
 {
 
 }
