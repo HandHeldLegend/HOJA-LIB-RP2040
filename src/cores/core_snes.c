@@ -47,10 +47,10 @@ bool _core_snes_get_generated_report(core_report_s *out)
 // Public Functions
 bool core_snes_init(core_params_s *params)
 {
-    switch(params->gamepad_transport)
+    switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_NESBUS:
-        params->pollrate_us = 1000;
+        params->core_pollrate_us = 1000;
         break;
 
         // Unsupported transport methods
@@ -58,8 +58,9 @@ bool core_snes_init(core_params_s *params)
         return false;
     }
     
-    params->report_generator    = _core_snes_get_generated_report;
-    params->report_tunnel       = _core_snes_report_tunnel_cb;
+    params->core_report_format       = CORE_REPORTFORMAT_SNES;
+    params->core_report_generator    = _core_snes_get_generated_report;
+    params->core_report_tunnel       = _core_snes_report_tunnel_cb;
 
     return transport_init(params);
 }

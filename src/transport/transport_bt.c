@@ -1,10 +1,6 @@
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-
 #include "transport/transport_bt.h"
 
-__attribute__((weak))  bool transport_bt_init(core_params_s *params)
+__attribute__((weak)) bool transport_bt_init(core_params_s *params)
 {
     return false;
 }

@@ -1,14 +1,14 @@
 #include "transport/transport.h"
 #include "cores/cores.h"
 
+#include "board_config.h"
+
 #include "transport/transport_usb.h"
 #include "transport/transport_bt.h"
 #include "transport/transport_joybus64.h"
 #include "transport/transport_joybusgc.h"
 #include "transport/transport_nesbus.h"
 #include "transport/transport_wlan.h"
-
-
 
 void _transport_playerled(uint8_t led)
 {
@@ -72,7 +72,8 @@ void transport_evt_cb(tp_evt_s evt)
 bool transport_init(core_params_s *params)
 {
     switch(params->gamepad_transport)
-    {
+    {   
+        #if defined(HOJA_TRANSPORT_USB_DRIVER)
         case GAMEPAD_TRANSPORT_USB:
         if(transport_usb_init(params))
         {
@@ -81,42 +82,47 @@ bool transport_init(core_params_s *params)
         }
         else return false;
         break;
+        #endif
         
+        #if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER)
         case GAMEPAD_TRANSPORT_JOYBUS64:
-        if(transport_jb64_init())
+        if(transport_jb64_init(params))
         {
             params->transport_task = transport_jb64_task;
             return true;
         }
         else return false;
-        break;
+        #endif
 
+        #if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
         case GAMEPAD_TRANSPORT_JOYBUSGC:
-        if(transport_jbgc_init())
+        if(transport_jbgc_init(params))
         {
             params->transport_task = transport_jbgc_task;
             return true;
         }
         else return false;
-        break;
+        #endif
 
+        #if defined(HOJA_TRANSPORT_BT_DRIVER)
         case GAMEPAD_TRANSPORT_BLUETOOTH:
-        if(transport_bt_init())
+        if(transport_bt_init(params))
         {
             params->transport_task = transport_bt_task;
             return true;
         }
         else return false;
-        break;
+        #endif
 
+        #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
         case GAMEPAD_TRANSPORT_WLAN:
-        if(transport_wlan_init())
+        if(transport_wlan_init(params))
         {
             params->transport_task = transport_wlan_task;
             return true;
         }
         else return false;
-        break;
+        #endif
 
         default:
         return false;

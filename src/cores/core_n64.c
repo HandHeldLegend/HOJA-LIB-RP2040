@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "cores/core_n64.h"
 #include "transport/transport.h"
 
@@ -5,19 +7,16 @@
 #include "input/dpad.h"
 
 #include "hoja_shared_types.h"
-#include "utilities/crosscore_snapshot.h"
-
-SNAPSHOT_TYPE(n64report, core_report_s);
-
-snapshot_n64report_t _n64_snapshot;
 
 #define CORE_N64_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-// Obtain and remap our inputs
-void _core_n64_set_input()
+// Callback function for our transport to obtain the latest report
+bool _core_n64_get_generated_report(core_report_s *out)
 {
-    core_report_s report    = {.reportformat=CORE_REPORTFORMAT_N64, .size=CORE_N64_REPORT_SIZE};
-    core_n64_report_s *data = (core_n64_report_s*)report.data;
+    out->reportformat=CORE_REPORTFORMAT_N64;
+    out->size=CORE_N64_REPORT_SIZE;
+
+    core_n64_report_s *data = (core_n64_report_s*)out->data;
     mapper_input_s input = mapper_get_input();
 
     data->button_a = input.presses[N64_CODE_A];
@@ -56,13 +55,6 @@ void _core_n64_set_input()
     data->dpad_left = dpad[2];
     data->dpad_up = dpad[3];
 
-    snapshot_n64report_write(&_n64_snapshot, &report);
-}
-
-// Callback function for our transport to obtain the latest report
-bool _core_n64_get_generated_report(core_report_s *out)
-{
-    snapshot_n64report_read(&_n64_snapshot, out);
     return true;
 }
 
@@ -71,25 +63,25 @@ bool _core_n64_get_generated_report(core_report_s *out)
 // Public Functions
 bool core_n64_init(core_params_s *params)
 {
-    switch(params->gamepad_transport)
+    switch(params->transport_type)
     {
         // Supported transport methods
         case GAMEPAD_TRANSPORT_JOYBUS64:
+        params->core_pollrate_us = 1000;
+        break;
+
         case GAMEPAD_TRANSPORT_WLAN:
+        params->core_pollrate_us = 2000;
         break;
 
         // Unsupported transport methods
         default:
         return false;
     }
-
-    params->report_generator = _core_n64_get_generated_report;
-    params->report_tunnel = NULL;
+    
+    params->core_report_format      = CORE_REPORTFORMAT_N64;
+    params->core_report_generator   = _core_n64_get_generated_report;
+    params->core_report_tunnel      = NULL;
 
     return transport_init(params);
-}
-
-void core_n64_task(uint64_t timestamp)
-{
-    
 }

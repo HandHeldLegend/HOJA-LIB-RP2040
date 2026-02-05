@@ -433,26 +433,33 @@ bool _core_switch_get_generated_report(core_report_s *out)
 // Public Functions
 bool core_switch_init(core_params_s *params)
 {
-    switch(params->gamepad_transport)
+    switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
         _switch_report_size = 64;
         params->hid_device = &_switch_hid_device_usb;
+        params->core_pollrate_us = 8000;
         break;
 
         case GAMEPAD_TRANSPORT_BLUETOOTH:
         _switch_report_size = 49;
         params->hid_device = &_switch_hid_device_bt;
+        params->core_pollrate_us = 8000;
         break;
+
+        //case GAMEPAD_TRANSPORT_WLAN:
+        //_switch_report_size = 64;
+        //params->core_pollrate_us = 2000;
+        //break;
 
         // Unsupported transport methods
         default:
         return false;
     }
 
-    
-    params->report_generator    = _core_switch_get_generated_report;
-    params->report_tunnel       = _core_switch_report_tunnel_cb;
+    params->core_report_format       = CORE_REPORTFORMAT_SWPRO;
+    params->core_report_generator    = _core_switch_get_generated_report;
+    params->core_report_tunnel       = _core_switch_report_tunnel_cb;
 
     return transport_init(params);
 }

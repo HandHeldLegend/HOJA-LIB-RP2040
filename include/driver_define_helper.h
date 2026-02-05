@@ -94,13 +94,26 @@
     #define HAPTICS_DUPLEX_HALF 1
     #define HAPTICS_DUPLEX_FULL 2
 
+    // TRANSPORT DRIVERS
+
     // NESBus Drivers
     #define NESBUS_DRIVER_HAL 1
 
-    // Joybus Drivers
+    // Joybus64 Drivers
     #define JOYBUS_N64_DRIVER_HAL 1
 
+    // JoysbusGC Drivers
     #define JOYBUS_GC_DRIVER_HAL 1
+
+    // Bluetooth Drivers
+    #define BT_DRIVER_HAL 1
+    #define BT_DRIVER_ESP32HOJA 2
+
+    // USB Drivers
+    #define USB_DRIVER_HAL 1
+
+    // WLAN Drivers
+    #define WLAN_DRIVER_HAL 1
 
     // Button layout for SEWN types
     #define SEWN_LAYOUT_ABXY 0 // Xbox Style

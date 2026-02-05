@@ -41,15 +41,14 @@ typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
 typedef struct 
 {
-    uint8_t                 gamepad_mode;
-    uint8_t                 gamepad_transport;
-    uint8_t                 gamepad_mac[6];
-    uint8_t                 host_mac[6];
-    uint16_t                pollrate_us;
+    uint8_t                 transport_type;
+    uint8_t                 transport_dev_mac[6];
+    uint8_t                 transport_host_mac[6];
     core_transport_task_t   transport_task;
-    core_reportformat_t     report_format;
-    core_generate_report_t  report_generator; // Get generated report data from this
-    core_report_tunnel_t    report_tunnel;    // Where incoming reports should be sent
+    core_reportformat_t     core_report_format;
+    uint16_t                core_pollrate_us; // Transport methods may or may not respect this value
+    core_generate_report_t  core_report_generator; // Get generated report data from this
+    core_report_tunnel_t    core_report_tunnel;    // Where incoming reports should be sent
     core_hid_device_t*      hid_device; // HID device info
 } core_params_s;
 

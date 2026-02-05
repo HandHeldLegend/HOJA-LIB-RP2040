@@ -1,3 +1,7 @@
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER) && (HOJA_TRANSPORT_JOYBUSGC_DRIVER == JOYBUS_GC_DRIVER_HAL)
+
 #include "hal/joybus_gc_hal.h"
 #include "pico/stdlib.h"
 #include "hoja.h"
@@ -13,9 +17,9 @@
 
 #include <stdlib.h>
 
-#include "board_config.h"
+#include "cores/cores.h"
 
-#if defined(HOJA_JOYBUS_GC_DRIVER) && (HOJA_JOYBUS_GC_DRIVER == JOYBUS_GC_DRIVER_HAL)
+core_params_s *_gc_core_params = NULL;
 
 #if !defined(JOYBUS_GC_DRIVER_PIO_INSTANCE)
 #error "JOYBUS_GC_DRIVER_PIO_INSTANCE must be defined in board_config.h"
@@ -384,6 +388,18 @@ void joybus_gc_hal_task(uint64_t timestamp)
       break;
     }
   }
+}
+
+/***********************************************/
+/********* Transport Defines *******************/
+bool transport_jbgc_init(core_params_s *params)
+{
+    _gc_core_params = params;
+}
+
+void transport_jbgc_task(uint64_t timestamp)
+{
+
 }
 
 #endif

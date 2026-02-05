@@ -6,12 +6,12 @@
 
 #include "transport/transport_wlan.h"
 
-bool transport_wlan_init(core_params_s *params)
+__attribute__((weak)) bool transport_wlan_init(core_params_s *params)
 {
-
+    return false;
 }
 
-void transport_wlan_task(uint64_t timestamp)
+__attribute__((weak)) void transport_wlan_task(uint64_t timestamp)
 {
-    
+    (void) timestamp;
 }

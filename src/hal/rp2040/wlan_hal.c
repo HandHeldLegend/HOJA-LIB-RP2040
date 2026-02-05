@@ -1,13 +1,17 @@
-#include "hal/wlan_hal.h"
 #include "board_config.h"
 
-#if defined(HOJA_WLAN_DRIVER) && (HOJA_WLAN_DRIVER == WLAN_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER) && (HOJA_TRANSPORT_WLAN_DRIVER==WLAN_DRIVER_HAL)
+
+#include "hal/wlan_hal.h"
+#include "cores/cores.h"
+#include "transport/transport.h"
+#include "transport/transport_wlan.h"
 
 #include "pico/cyw43_arch.h"
 
 #include "lwip/pbuf.h"
 #include "lwip/udp.h"
-#include "usb/sinput.h"
+
 #include "hardware/watchdog.h"
 
 #include "utilities/interval.h"
@@ -24,6 +28,8 @@ volatile bool _wlan_connected = false;
 struct udp_pcb* global_pcb = NULL;
 
 size_t bufsize = PBUF_POOL_BUFSIZE;
+
+core_params_s *_wlan_core_params = NULL;
 
 
 bool _wlan_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
@@ -55,12 +61,17 @@ typedef struct
 
 void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
     if (p) {
-        sinputreport_s tmp = {0};
-        memcpy(&tmp, p->payload, p->len);
-        if(tmp.report_id == REPORT_ID_SINPUT_OUTPUT_CMDDAT && p->len==64)
+        uint8_t data[64] = {0};
+        memcpy(data, p->payload, p->len);
+
+        if(_wlan_core_params)
         {
-            sinput_hid_handle_command_future(tmp.data);
+            if(_wlan_core_params->report_tunnel)
+            {
+                _wlan_core_params->report_tunnel(data, p->len);
+            }
         }
+
         pbuf_free(p);
     }
 }
@@ -121,6 +132,18 @@ bool wlan_hal_task(uint64_t timestamp)
     //{
     //    cyw43_arch_poll();
     //}
+}
+
+/***********************************************/
+/********* Transport Defines *******************/
+bool transport_wlan_init(core_params_s *params)
+{
+    _wlan_core_params = params;
+}
+
+void transport_wlan_task(uint64_t timestamp)
+{
+
 }
 
 #endif

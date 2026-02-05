@@ -1,9 +1,17 @@
-#include "hal/usb_hal.h"
-
-#include "hardware/structs/usb.h"
 #include "board_config.h"
 
+#if defined(HOJA_TRANSPORT_USB_DRIVER) && (HOJA_TRANSPORT_USB_DRIVER == USB_DRIVER_HAL)
+
+#include <hoja_usb.h>
+
+#include "hal/usb_hal.h"
+
+#include "cores/cores.h"
+
+#include "hardware/structs/usb.h"
+
 #include "tusb.h"
+
 
 #if !defined(HOJA_MANUFACTURER)
 #define USB_MANUFACTURER "HOJA"
@@ -26,29 +34,12 @@ const char *global_string_descriptor[] = {
     "Hoja Gamepad"        // 4 Identifier for GC Mode
 };
 
-core_params_s *_usbhal_core_params = NULL;
+core_params_s *_usb_core_params = NULL;
 core_hid_device_t *_usbhal_hiddev = NULL;
 
 uint32_t usb_hal_sof()
 {
     return usb_hw->sof_rd;
-}
-
-bool usb_hal_init(core_params_s *params)
-{
-    _usbhal_core_params = params;
-
-    if (_usbhal_core_params)
-    {
-        if (_usbhal_core_params->hid_device != NULL)
-        {
-            _usbhal_hiddev = _usbhal_core_params->hid_device;
-        }
-    }
-}
-
-void usb_hal_task(uint64_t timestamp)
-{
 }
 
 /***********************************************/
@@ -125,9 +116,9 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 {
     if (!report_id && report_type == HID_REPORT_TYPE_OUTPUT)
     {
-        if (_usbhal_core_params->report_tunnel)
+        if (_usb_core_params->report_tunnel)
         {
-            _usbhal_core_params->report_tunnel(buffer, bufsize);
+            _usb_core_params->report_tunnel(buffer, bufsize);
         }
     }
 }
@@ -148,3 +139,25 @@ static const uint8_t MS_OS_Descriptor[] = {
 #define SIZE_UINT16_ARRAY (sizeof(MS_OS_Descriptor) / 2)
 
 static uint16_t MS_OS_Descriptor_LE_UINT16[SIZE_UINT16_ARRAY];
+
+/***********************************************/
+/********* Transport Defines *******************/
+bool transport_usb_init(core_params_s *params)
+{
+    _usb_core_params = params;
+
+    if (_usb_core_params)
+    {
+        if (_usb_core_params->hid_device != NULL)
+        {
+            _usbhal_hiddev = _usb_core_params->hid_device;
+        }
+    }
+}
+
+void transport_usb_task(uint64_t timestamp)
+{
+
+}
+
+#endif

@@ -1,11 +1,11 @@
 #include "transport/transport_usb.h"
 
-bool transport_usb_init(core_params_s *params)
+__attribute__((weak)) bool transport_usb_init(core_params_s *params)
 {
-
+    return false;
 }
 
-void transport_usb_task(uint64_t timestamp)
+__attribute__((weak)) void transport_usb_task(uint64_t timestamp)
 {
-    
+    (void) timestamp;
 }

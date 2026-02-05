@@ -1,13 +1,11 @@
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include "transport/transport_joybus64.h"
 
-bool transport_jb64_init()
+__attribute__((weak)) bool transport_jb64_init()
 {
-
+    return false;
 }
 
-void transport_jb64_task(uint64_t timestamp)
+__attribute__((weak)) void transport_jb64_task(uint64_t timestamp)
 {
-    
+    (void) timestamp;
 }
