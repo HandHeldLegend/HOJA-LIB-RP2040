@@ -6,6 +6,10 @@
 
 #include "transport/transport_wlan.h"
 
+__attribute__((weak)) void transport_wlan_stop()
+{
+}
+
 __attribute__((weak)) bool transport_wlan_init(core_params_s *params)
 {
     return false;

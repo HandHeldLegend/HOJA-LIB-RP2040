@@ -540,4 +540,21 @@ uint32_t bluetooth_hal_get_fwversion()
     return 1; // PASS
 }
 
+/***********************************************/
+/********* Transport Defines *******************/
+void transport_bt_stop()
+{
+
+}
+
+bool transport_bt_init(core_params_s *params)
+{
+
+}
+
+void transport_bt_task(uint64_t timestamp)
+{
+
+}
+
 #endif

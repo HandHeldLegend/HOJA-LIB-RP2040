@@ -136,6 +136,11 @@ bool wlan_hal_task(uint64_t timestamp)
 
 /***********************************************/
 /********* Transport Defines *******************/
+void transport_wlan_stop()
+{
+
+}
+
 bool transport_wlan_init(core_params_s *params)
 {
     _wlan_core_params = params;

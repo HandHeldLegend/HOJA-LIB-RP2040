@@ -1,5 +1,10 @@
 #include "transport/transport_bt.h"
 
+__attribute__((weak)) bool transport_bt_stop()
+{
+    
+}
+
 __attribute__((weak)) bool transport_bt_init(core_params_s *params)
 {
     return false;

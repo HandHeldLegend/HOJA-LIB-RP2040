@@ -16,6 +16,8 @@
 
 #include "utilities/settings.h"
 
+#include "usb/webusb.h"
+
 #if !defined(HOJA_MANUFACTURER)
 #define USB_MANUFACTURER "HOJA"
 #else
@@ -1136,6 +1138,12 @@ void tud_sof_cb(uint32_t frame_count_ext)
 // Whether USB is ready for another input
 volatile bool _usb_ready = false;
 volatile bool _usb_sendit = false;
+
+void transport_usb_stop()
+{
+    _usb_hal_report_cb = NULL;
+    tud_deinit(0);
+}
 
 bool transport_usb_init(core_params_s *params)
 {
