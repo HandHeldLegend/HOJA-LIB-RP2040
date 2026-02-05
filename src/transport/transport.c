@@ -94,7 +94,7 @@ bool transport_init(core_params_s *params)
     switch(params->gamepad_transport)
     {
         case GAMEPAD_TRANSPORT_USB:
-        if(transport_usb_init())
+        if(transport_usb_init(params))
         {
             params->transport_task = transport_usb_task;
             return true;

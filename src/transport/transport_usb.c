@@ -1,8 +1,6 @@
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include "transport/transport_usb.h"
 
-bool transport_usb_init()
+bool transport_usb_init(core_params_s *params)
 {
 
 }

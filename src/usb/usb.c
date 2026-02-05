@@ -38,14 +38,7 @@ typedef enum
   USBRATE_1 = 350,
 } usb_rate_t;
 
-const char *global_string_descriptor[] = {
-    // array of pointer to string descriptors
-    (char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
-    HOJA_MANUFACTURER,    // 1: Manufacturer
-    HOJA_PRODUCT,         // 2: Product
-    "000000",             // 3: Serials, should use chip ID
-    "Hoja Gamepad"        // 4 Identifier for GC Mode
-};
+
 
 hid_task_tunnel_cb _usb_task_cb = NULL;
 
@@ -54,59 +47,7 @@ volatile bool _usb_clear = true;
 // Whether USB is ready for another input
 volatile bool _usb_ready = false;
 
-MUTEX_HAL_INIT(_hoja_usb_mutex);
-void _usb_enter_blocking()
-{
-  MUTEX_HAL_ENTER_BLOCKING(&_hoja_usb_mutex);
-}
 
-bool _usb_enter_try()
-{
-  if (MUTEX_HAL_ENTER_TIMEOUT_US(&_hoja_usb_mutex, 10))
-  {
-    return true;
-  }
-  return false;
-}
-
-void _usb_exit()
-{
-  MUTEX_HAL_EXIT(&_hoja_usb_mutex);
-}
-
-void _usb_set_usb_clear()
-{
-  _usb_enter_blocking();
-  _usb_clear = true;
-  _usb_exit();
-}
-
-void _usb_unset_usb_clear()
-{
-  _usb_enter_blocking();
-  _usb_clear = false;
-  _usb_exit();
-}
-
-bool _usb_get_usb_clear(uint64_t timestamp)
-{
-  bool clear = false;
-
-  if (_usb_enter_try())
-  {
-    clear = _usb_clear;
-    _usb_exit();
-  }
-
-  static interval_s s = {0};
-  if (interval_resettable_run(timestamp, 100000, clear, &s))
-  {
-    _usb_set_usb_clear();
-    return true;
-  }
-
-  return clear;
-}
 
 // Default 8ms (8000us)
 // The rate at which we want to send inputs
