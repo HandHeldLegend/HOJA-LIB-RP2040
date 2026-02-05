@@ -111,9 +111,6 @@
 #define CFG_TUD_CDC_RX_BUFSIZE 64
 #define CFG_TUD_CDC_TX_BUFSIZE 64
 
-#define CFG_TUD_GC_TX_BUFSIZE 37
-#define CFG_TUD_GC_RX_BUFSIZE 6
-
 #ifdef __cplusplus
  }
 #endif
