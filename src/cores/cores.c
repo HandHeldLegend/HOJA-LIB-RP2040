@@ -44,6 +44,16 @@ core_params_s _core_params = {
     .hid_device = NULL,
 };
 
+bool core_is_mac_blank(uint8_t mac[6])
+{
+    for(int i=0; i<6; i++)
+    {
+        if(mac[i]>0) return false;
+    }
+    
+    return true;
+}
+
 bool core_get_generated_report(core_report_s *out)
 {
     if(!_core_params.core_report_generator) return false;

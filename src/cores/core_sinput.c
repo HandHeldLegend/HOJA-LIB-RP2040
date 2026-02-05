@@ -19,6 +19,155 @@
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
 
+#if defined(HOJA_USB_VID)
+#define SINPUT_VID  HOJA_USB_VID
+#else
+#define SINPUT_VID 0x2E8A // Raspberry Pi
+#endif
+
+#if defined(HOJA_USB_PID)
+#define SINPUT_PID  HOJA_USB_PID
+#else
+#define SINPUT_PID  0x10C6 // Hoja Gamepad
+#endif
+
+#if defined(HOJA_DEVICE_NAME)
+#define SINPUT_NAME HOJA_DEVICE_NAME
+#else
+#define SINPUT_NAME "SInput Gamepad"
+#endif
+
+const usb_device_descriptor_t _sinput_device_descriptor = {
+    .bLength = sizeof(usb_device_descriptor_t),
+    .bDescriptorType = USB_DESC_DEVICE,
+    .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
+    .bDeviceClass = 0x00,
+    .bDeviceSubClass = 0x00,
+    .bDeviceProtocol = 0x00,
+
+    .bMaxPacketSize0 = 64,
+
+    .idVendor = SINPUT_VID,
+    .idProduct = SINPUT_PID, // board_config PID
+
+    .bcdDevice = 0x0100,
+    .iManufacturer = 0x01,
+    .iProduct = 0x02,
+    .iSerialNumber = 0x03,
+    .bNumConfigurations = 0x01
+    };
+
+const uint8_t _sinput_hid_report_descriptor[139] = {
+    0x05, 0x01,                    // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,                    // Usage (Gamepad)
+    0xA1, 0x01,                    // Collection (Application)
+    
+    // INPUT REPORT ID 0x01 - Main gamepad data
+    0x85, 0x01,                    //   Report ID (1)
+    
+    // Padding bytes (bytes 2-3) - Plug status and Charge Percent (0-100)
+    0x06, 0x00, 0xFF,              //   Usage Page (Vendor Defined)
+    0x09, 0x01,                    //   Usage (Vendor Usage 1)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x25, 0xFF,                    //   Logical Maximum (255)
+    0x75, 0x08,                    //   Report Size (8)
+    0x95, 0x02,                    //   Report Count (2)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // --- 32 buttons ---
+    0x05, 0x09,        // Usage Page (Button)
+    0x19, 0x01,        //   Usage Minimum (Button 1)
+    0x29, 0x20,        //   Usage Maximum (Button 32)
+    0x15, 0x00,        //   Logical Min (0)
+    0x25, 0x01,        //   Logical Max (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x20,        //   Report Count (32)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
+    
+    // Analog Sticks and Triggers
+    0x05, 0x01,                    // Usage Page (Generic Desktop)
+    // Left Stick X (bytes 8-9)
+    0x09, 0x30,                    //   Usage (X)
+    // Left Stick Y (bytes 10-11)
+    0x09, 0x31,                    //   Usage (Y)
+    // Right Stick X (bytes 12-13)
+    0x09, 0x32,                    //   Usage (Z)
+    // Right Stick Y (bytes 14-15)
+    0x09, 0x35,                    //   Usage (Rz)
+    // Right Trigger (bytes 18-19)
+    0x09, 0x33,                    //   Usage (Rx)
+    // Left Trigger  (bytes 16-17)
+    0x09, 0x34,                     //  Usage (Ry)
+    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
+    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
+    0x75, 0x10,                    //   Report Size (16)
+    0x95, 0x06,                    //   Report Count (6)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    
+    // Padding/Reserved data (bytes 20-63) - 44 bytes
+    // This includes gyro/accel data and counter that apps can use if supported
+    0x06, 0x00, 0xFF,              // Usage Page (Vendor Defined)
+    
+    // Motion Input Timestamp (Microseconds)
+    0x09, 0x20,                    //   Usage (Vendor Usage 0x20)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0xFF,              //   Logical Maximum (655535)
+    0x75, 0x20,                    //   Report Size (32)
+    0x95, 0x01,                    //   Report Count (1)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // Motion Input Accelerometer XYZ (Gs) and Gyroscope XYZ (Degrees Per Second)
+    0x09, 0x21,                    //   Usage (Vendor Usage 0x21)
+    0x16, 0x00, 0x80,              //   Logical Minimum (-32768)
+    0x26, 0xFF, 0x7F,              //   Logical Maximum (32767)
+    0x75, 0x10,                    //   Report Size (16)
+    0x95, 0x06,                    //   Report Count (6)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // Reserved padding
+    0x09, 0x22,                    //   Usage (Vendor Usage 0x22)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x75, 0x08,                    //   Report Size (8)
+    0x95, 0x1D,                    //   Report Count (29)
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+    
+    // INPUT REPORT ID 0x02 - Vendor COMMAND data
+    0x85, 0x02,                    //   Report ID (2)
+    0x09, 0x23,                    //   Usage (Vendor Usage 0x23)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x75, 0x08,                    //   Report Size (8 bits)
+    0x95, 0x3F,                    //   Report Count (63) - 64 bytes minus report ID
+    0x81, 0x02,                    //   Input (Data,Var,Abs)
+
+    // OUTPUT REPORT ID 0x03 - Vendor COMMAND data
+    0x85, 0x03,                    //   Report ID (3)
+    0x09, 0x24,                    //   Usage (Vendor Usage 0x24)
+    0x15, 0x00,                    //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,              //   Logical Maximum (255)
+    0x75, 0x08,                    //   Report Size (8 bits)
+    0x95, 0x2F,                    //   Report Count (47) - 48 bytes minus report ID
+    0x91, 0x02,                    //   Output (Data,Var,Abs)
+
+    0xC0                           // End Collection 
+};
+
+#define SINPUT_CONFIG_DESCRIPTOR_LEN 41
+const uint8_t _sinput_configuration_descriptor[SINPUT_CONFIG_DESCRIPTOR_LEN] = {
+    // Configuration number, interface count, string index, total length, attribute, power in mA
+    HUSB_CONFIG_DESCRIPTOR(1, 1, 0, SINPUT_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 350),
+
+    // Interface
+    9, USB_DESC_INTERFACE, 0x00, 0x00, 0x02, USB_CLASS_HID, 0x00, 0x00, 0x00,
+    // HID Descriptor
+    9, HID_DESC_TYPE_HID, HUSB_U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, HUSB_U16_TO_U8S_LE(sizeof(_sinput_hid_report_descriptor)),
+    // Endpoint Descriptor
+    7, USB_DESC_ENDPOINT, 0x81, USB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 1,
+    // Endpoint Descriptor
+    7, USB_DESC_ENDPOINT, 0x01, USB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 4
+};
+
 #define SINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 #define REPORT_ID_SINPUT_INPUT  0x01 // Input Report ID, used for SINPUT input data
@@ -621,6 +770,17 @@ bool _core_sinput_get_generated_report(core_report_s *out)
     return true;
 }
 
+const core_hid_device_t _sinput_hid_device = {
+    .config_descriptor = _sinput_configuration_descriptor,
+    .config_descriptor_len = SINPUT_CONFIG_DESCRIPTOR_LEN,
+    .hid_report_descriptor = _sinput_hid_report_descriptor,
+    .hid_report_descriptor_len = sizeof(_sinput_hid_report_descriptor),
+    .device_descriptor = &_sinput_device_descriptor,
+    .name = SINPUT_NAME,
+    .pid = SINPUT_PID,
+    .vid = SINPUT_VID,
+};
+
 /*------------------------------------------------*/
 
 // Public Functions
@@ -644,6 +804,8 @@ bool core_sinput_init(core_params_s *params)
         default:
         return false;
     }
+
+    params->hid_device = &_sinput_hid_device;
 
     params->core_report_format    = CORE_REPORTFORMAT_SINPUT;
     params->core_report_generator = _core_sinput_get_generated_report;

@@ -23,6 +23,9 @@ typedef struct
     uint16_t hid_report_descriptor_len;
     uint8_t *config_descriptor;
     uint16_t config_descriptor_len;
+    uint16_t vid;
+    uint16_t pid;
+    char name[64];
     usb_device_descriptor_t *device_descriptor;
 } core_hid_device_t;
 
@@ -51,6 +54,8 @@ typedef struct
     core_report_tunnel_t    core_report_tunnel;    // Where incoming reports should be sent
     core_hid_device_t*      hid_device; // HID device info
 } core_params_s;
+
+bool core_is_mac_blank(uint8_t mac[6]);
 
 bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(uint8_t *data, uint16_t len);

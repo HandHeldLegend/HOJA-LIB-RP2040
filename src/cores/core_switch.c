@@ -239,7 +239,7 @@ const uint8_t swpro_hid_report_descriptor_bt[] = {
 };
 
 #define SWPRO_CONFIG_DESCRIPTOR_LEN 64
-const uint8_t _swpro_configuration_descriptor[] = {
+const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
     HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
@@ -303,12 +303,19 @@ const uint8_t _swpro_configuration_descriptor[] = {
     0,
 };
 
+#define SWITCH_HID_NAME "Pro Controller"
+const uint16_t _switch_hid_pid = 0x057E;
+const uint16_t _switch_hid_vid = 0x2009;
+
 const core_hid_device_t _switch_hid_device_usb = {
     .config_descriptor      = _swpro_configuration_descriptor,
     .config_descriptor_len  = SWPRO_CONFIG_DESCRIPTOR_LEN,
     .hid_report_descriptor  = _swpro_hid_report_descriptor_usb,
-    .hid_report_descriptor_len = 203,
+    .hid_report_descriptor_len = sizeof(_swpro_hid_report_descriptor_usb),
     .device_descriptor      = &_swpro_device_descriptor,
+    .name = SWITCH_HID_NAME,
+    .pid = _switch_hid_pid,
+    .vid = _switch_hid_vid,
 };
 
 const core_hid_device_t _switch_hid_device_bt = {
@@ -317,6 +324,9 @@ const core_hid_device_t _switch_hid_device_bt = {
     .hid_report_descriptor = swpro_hid_report_descriptor_bt,
     .hid_report_descriptor_len = 170,
     .device_descriptor = &_swpro_device_descriptor,
+    .name = SWITCH_HID_NAME,
+    .pid = _switch_hid_pid,
+    .vid = _switch_hid_vid,
 };
 
 void _core_switch_report_tunnel_cb(uint8_t *data, uint16_t len)
