@@ -41,10 +41,6 @@
  * and write commands and avoid having to re-write a ton of logic in the case
  * some of these items break/change over time.
  */
-
-// DEPRECIATED
-void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t length);
-
 void sw_spi_get(uint8_t offset_address, uint8_t address, uint8_t length, uint8_t *out);
 
 void sw_spi_writetoaddress(uint32_t address, uint8_t length);

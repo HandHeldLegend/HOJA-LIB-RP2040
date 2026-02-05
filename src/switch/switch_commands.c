@@ -36,6 +36,8 @@ uint8_t _switch_command_report_id = 0x00;
 
 uint8_t _switch_ltk[16] = {0};
 
+void _swcmd_command_handler(uint8_t command, uint8_t *data, uint8_t *out);
+
 void generate_ltk()
 {
   // printf("Generated LTK: ");
@@ -291,7 +293,7 @@ void _swcmd_report_handler(uint8_t report_id, const uint8_t *in_data, uint16_t i
 {
   switch (report_id)
   {
-  // We have command data and possibly rumble
+  // We have command data
   case SW_OUT_ID_RUMBLE_CMD:
     _swcmd_command_handler(in_data[10], in_data, out_data);
     break;
@@ -302,32 +304,6 @@ void _swcmd_report_handler(uint8_t report_id, const uint8_t *in_data, uint16_t i
 
   case SW_OUT_ID_INFO:
     _swcmd_info_handler(in_data[1], out_data);
-    break;
-
-  default:
-    // printf("Unknown report: %X\n", report_id);
-    break;
-  }
-}
-
-// Handles an OUT report and responds accordingly.
-// WILL BE MIGRATED TO _switch_commands_report_handler
-void report_handler(uint8_t report_id, const uint8_t *data, uint16_t len, hid_report_tunnel_cb cb)
-{
-  switch (report_id)
-  {
-  // We have command data and possibly rumble
-  case SW_OUT_ID_RUMBLE_CMD:
-    switch_haptics_rumble_translate(&data[2]);
-    command_handler(data[10], data, len, cb);
-    break;
-
-  case SW_OUT_ID_RUMBLE:
-    // switch_haptics_rumble_translate(&data[2]);
-    break;
-
-  case SW_OUT_ID_INFO:
-    info_handler(data[1], cb);
     break;
 
   default:
@@ -431,7 +407,7 @@ void _swcmd_command_handler(uint8_t command, uint8_t *data, uint8_t *out)
 
   case SW_CMD_SET_PAIRING:
     // printf("Set pairing.\n");
-    pairing_set(data[11], &data[12]);
+    _swcmd_pairing_set(data[11], &data[12], out);
     break;
 
   case SW_CMD_SET_INPUTMODE:

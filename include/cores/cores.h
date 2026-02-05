@@ -55,7 +55,8 @@ typedef struct
 bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(uint8_t *data, uint16_t len);
 
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport);
+void core_deinit();
+bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair);
 void core_task(uint64_t timestamp);
 
 #endif

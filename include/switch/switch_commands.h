@@ -2,7 +2,6 @@
 #define SWITCH_COMMANDS_H
 
 #include <stdint.h>
-#include "usb/swpro.h"
 #include "cores/core_switch.h"
 #include "hoja_shared_types.h"
 

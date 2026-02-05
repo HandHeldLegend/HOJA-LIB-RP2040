@@ -16,7 +16,6 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
-#include "usb/sinput.h"
 
 #include "switch/switch_haptics.h"
 

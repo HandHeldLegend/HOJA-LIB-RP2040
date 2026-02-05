@@ -68,6 +68,6 @@ typedef struct
 
 void transport_evt_cb(tp_evt_s evt);
 bool transport_init(core_params_s *params);
-void transport_task(uint64_t timestamp);
+void transport_stop();
 
 #endif

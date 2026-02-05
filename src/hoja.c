@@ -1,8 +1,5 @@
 #include "hoja.h"
-
-#include "usb/usb.h"
 #include "usb/webusb.h"
-#include "wired/wired.h"
 
 #include "hal/sys_hal.h"
 #include "hal/flash_hal.h"
@@ -10,6 +7,9 @@
 #include "hal/spi_hal.h"
 
 #include "board_config.h"
+
+#include "cores/cores.h"
+#include "transport/transport.h"
 
 #include "utilities/callback.h"
 #include "utilities/settings.h"
@@ -27,9 +27,7 @@
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
-#include "devices/bluetooth.h"
-#include "devices/wlan.h"
-#include "wired/wired.h"
+
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
 
@@ -37,9 +35,6 @@ bool _hoja_null_cb(uint64_t timestamp)
 {
   return false;
 }
-
-sent_callback_t _hoja_mode_task_cb = _hoja_null_cb;
-callback_t _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) void cb_hoja_init()
 {
@@ -79,11 +74,7 @@ void hoja_deinit(callback_t cb)
   _deinit_lockout = true;
 
   // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
-
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
+  core_deinit();
 
   haptics_stop();
 
@@ -98,12 +89,7 @@ void hoja_deinit(callback_t cb)
 
 void hoja_shutdown()
 {
-  // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
-
   cb_hoja_shutdown();
-
-  
 
   battery_set_ship_mode();
 
@@ -116,13 +102,7 @@ void hoja_shutdown()
 
 void hoja_restart()
 {
-  // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
-
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
-
+  core_deinit();
   sys_hal_reboot();
 }
 
@@ -210,6 +190,8 @@ bool thisPair = false;
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 {
+  gamepad_transport_t transport = GAMEPAD_TRANSPORT_USB;
+
   if (method == GAMEPAD_METHOD_AUTO)
   {
     battery_status_s status;
@@ -218,10 +200,11 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
     // PMIC unused
     if (!status.connected)
     {
-      method = GAMEPAD_METHOD_USB;
+      transport = GAMEPAD_TRANSPORT_USB;
     }
     else
     {
+      // Wireless
       if (!status.plugged)
       {
         switch (mode)
@@ -229,11 +212,16 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
         case GAMEPAD_MODE_SWPRO:
         case GAMEPAD_MODE_SINPUT:
         case GAMEPAD_MODE_XINPUT:
-          method = GAMEPAD_METHOD_BLUETOOTH;
+          transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+          break;
+
+        case GAMEPAD_MODE_N64:
+        case GAMEPAD_MODE_GAMECUBE:
+          transport = GAMEPAD_TRANSPORT_WLAN;
           break;
 
         default:
-          method = GAMEPAD_METHOD_USB;
+          transport = GAMEPAD_TRANSPORT_USB;
           break;
         }
       }
@@ -254,44 +242,15 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
-  
-
-  switch (method)
-  {
-  default:
-  case GAMEPAD_METHOD_USB:
-    battery_set_charge_rate(200);
-    _hoja_mode_task_cb = usb_mode_task;
-    _hoja_mode_stop_cb = usb_mode_stop;
-    usb_mode_start(mode);
-    break;
-
-  case GAMEPAD_METHOD_WIRED:
-    battery_set_charge_rate(0);
-    _hoja_mode_task_cb = wired_mode_task;
-    wired_mode_start(mode);
-    break;
-
-  case GAMEPAD_METHOD_BLUETOOTH:
-    battery_set_charge_rate(250);
-    _hoja_mode_task_cb = bluetooth_mode_task;
-    _hoja_mode_stop_cb = bluetooth_mode_stop;
-    bluetooth_mode_start(mode, pair);
-    break;
-
-  case GAMEPAD_METHOD_WLAN:
-    battery_set_charge_rate(100);
-    _hoja_mode_task_cb = wlan_mode_task;
-    wlan_mode_start(mode, pair);
-    break;
-  }
 
   // Reload our remap
   mapper_init();
 
   // Reload stick config
   stick_scaling_init();
-  return true;
+
+  // Do core init
+  return core_init(mode, transport, pair);
 }
 
 #include "hardware/sync.h"
@@ -321,8 +280,6 @@ void _hoja_task_1()
     // Handle haptics
     haptics_task(c1_timestamp);
 
-    bool sent_clear = false;
-
     if(!_deinit_lockout)
     {
       // Flash task
@@ -332,14 +289,8 @@ void _hoja_task_1()
       {
         // Optional web Input
         webusb_send_rawinput(c1_timestamp);
-        sent_clear = true;
       }
-      else if (_hoja_mode_task_cb)
-      {
-        sent_clear = _hoja_mode_task_cb(c1_timestamp);
-      }
-
-      
+      else core_task(c1_timestamp);
 
       // System Monitor task (battery/fuel gauge)
       sysmon_task(c1_timestamp);
@@ -351,13 +302,6 @@ void _hoja_task_1()
       idle_manager_task(c1_timestamp);
 
       imu_task(c1_timestamp);
-
-      if(sent_clear)
-      { // Refresh some data
-        // IMU task
-        
-        sent_clear = false;
-      }
     }
   }
 }

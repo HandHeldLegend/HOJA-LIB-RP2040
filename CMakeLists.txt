@@ -28,8 +28,6 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/wlan.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
@@ -48,22 +46,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/idle_manager.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/hover.c 
 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput_usbd.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_usbd.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/sinput.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
-
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/gamecube.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/n64.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/nesbus.c 
 
   ${MACROS_C} 
   ${DRIVERS_C}

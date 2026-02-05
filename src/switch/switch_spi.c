@@ -3,23 +3,25 @@
 #include "switch/switch_analog.h"
 #include "utilities/settings.h"
 
+#include <string.h>
+
 // DEPRECIATED
-void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t length)
-{
-
-  uint8_t read_info[5] = {address, offset_address, 0x00, 0x00, length};
-  switch_commands_bulkset(14, read_info, 5);
-
-  uint8_t output_spi_data[30] = {};
-
-  for (int i = 0; i < length; i++)
-  {
-      output_spi_data[i] = sw_spi_getaddressdata(offset_address, address+i);
-  }
-
-  // Do a bulk set for the input report
-  switch_commands_bulkset(SPI_READ_OUTPUT_IDX, output_spi_data, length);
-}
+//void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t length)
+//{
+//
+//  uint8_t read_info[5] = {address, offset_address, 0x00, 0x00, length};
+//  switch_commands_bulkset(14, read_info, 5);
+//
+//  uint8_t output_spi_data[30] = {};
+//
+//  for (int i = 0; i < length; i++)
+//  {
+//      output_spi_data[i] = sw_spi_getaddressdata(offset_address, address+i);
+//  }
+//
+//  // Do a bulk set for the input report
+//  switch_commands_bulkset(SPI_READ_OUTPUT_IDX, output_spi_data, length);
+//}
 
 /**
  * @brief Reads a chunk of memory from SPI (emulated)
@@ -30,7 +32,7 @@ void sw_spi_readfromaddress(uint8_t offset_address, uint8_t address, uint8_t len
 void sw_spi_get(uint8_t offset_address, uint8_t address, uint8_t length, uint8_t *out)
 {
   uint8_t read_info[5] = {address, offset_address, 0x00, 0x00, length};
-  switch_commands_bulkset(14, read_info, 5);
+  memcpy(&out[14], read_info, 5);
 
   for (int i = 0; i < length; i++)
   {

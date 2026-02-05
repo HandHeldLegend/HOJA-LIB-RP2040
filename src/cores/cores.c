@@ -3,65 +3,122 @@
 #include <stdbool.h>
 
 #include "cores/cores.h"
+#include "transport/transport.h"
 
 #include "cores/core_switch.h"
 #include "cores/core_sinput.h"
 #include "cores/core_xinput.h"
+#include "cores/core_slippi.h"
 
+#include "cores/core_snes.h"
 #include "cores/core_n64.h"
+#include "cores/core_gamecube.h"
+
+#include "devices/battery.h"
+
+const core_params_s _core_params_default = {
+    .core_report_format = CORE_REPORTFORMAT_UNDEFINED,
+    .core_pollrate_us = 8000,
+    .core_report_generator = NULL,
+    .core_report_tunnel = NULL,
+
+    .transport_type = GAMEPAD_TRANSPORT_UNDEFINED,
+    .transport_dev_mac = {0,0,0,0,0,0},
+    .transport_host_mac = {0,0,0,0,0,0},
+    .transport_task = NULL,
+
+    .hid_device = NULL,
+};
 
 core_params_s _core_params = {
-    .gamepad_mode = GAMEPAD_MODE_UNDEFINED,
-    .gamepad_transport = GAMEPAD_TRANSPORT_UNDEFINED,
-    .report_format = CORE_REPORTFORMAT_UNDEFINED,
-    .report_generator = NULL,
-    .report_tunnel = NULL,
+    .core_report_format = CORE_REPORTFORMAT_UNDEFINED,
+    .core_pollrate_us = 8000,
+    .core_report_generator = NULL,
+    .core_report_tunnel = NULL,
+
+    .transport_type = GAMEPAD_TRANSPORT_UNDEFINED,
+    .transport_dev_mac = {0,0,0,0,0,0},
+    .transport_host_mac = {0,0,0,0,0,0},
+    .transport_task = NULL,
+
+    .hid_device = NULL,
 };
 
 bool core_get_generated_report(core_report_s *out)
 {
-    if(!_core_params.report_generator) return false;
-    return _core_params.report_generator(out);
+    if(!_core_params.core_report_generator) return false;
+    return _core_params.core_report_generator(out);
 }
 
 void core_report_tunnel_cb(uint8_t *data, uint16_t len)
 {
-    if(!_core_params.report_tunnel) return;
-    _core_params.report_tunnel(data, len);
+    if(!_core_params.core_report_tunnel) return;
+    _core_params.core_report_tunnel(data, len);
 }
 
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport)
+bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 {
-    _core_params.gamepad_mode = mode;
-    _core_params.gamepad_transport = transport;
+    _core_params.transport_type = transport;
+
+    switch(transport)
+    {
+        case GAMEPAD_TRANSPORT_USB:
+        battery_set_charge_rate(200);
+        break;
+
+
+        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_BLUETOOTH:
+        battery_set_charge_rate(250);
+        break;
+
+        case GAMEPAD_TRANSPORT_NESBUS:
+        case GAMEPAD_TRANSPORT_JOYBUSGC:
+        case GAMEPAD_TRANSPORT_JOYBUS64:
+        battery_set_charge_rate(0);
+        break;
+
+        // Unsupported transport mode
+        default:
+        return false;
+    }
 
     switch(mode)
     {
         case GAMEPAD_MODE_SWPRO:
-        break;
+        _core_params.core_report_format = CORE_REPORTFORMAT_SWPRO;
+        return core_switch_init(&_core_params);
 
         case GAMEPAD_MODE_XINPUT:
-        break;
+        _core_params.core_report_format = CORE_REPORTFORMAT_XINPUT;
+        return core_xinput_init(&_core_params);
 
         case GAMEPAD_MODE_SINPUT:
+        _core_params.core_report_format = CORE_REPORTFORMAT_SINPUT;
         return core_sinput_init(&_core_params);
 
         case GAMEPAD_MODE_SNES:
-        break;
+        _core_params.core_report_format = CORE_REPORTFORMAT_SNES;
+        return core_snes_init(&_core_params);
 
         case GAMEPAD_MODE_N64:
         return core_n64_init(&_core_params);
-        break;
 
         case GAMEPAD_MODE_GAMECUBE:
-        break;
+        return core_gamecube_init(&_core_params);
 
         case GAMEPAD_MODE_GCUSB:
-        break;
+        return core_slippi_init(&_core_params);
 
         default:
         return false;
     }
+}
+
+void core_deinit()
+{
+    transport_stop();
+    _core_params = _core_params_default;
 }
 
 void core_task(uint64_t timestamp)
