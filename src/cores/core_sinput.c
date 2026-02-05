@@ -305,8 +305,58 @@ void _si_generate_input_masks(uint8_t *masks)
     masks[3] = mask_3;
 }
 
-
 uint16_t _sinput_report_interval_us = 1000;
+
+void _si_cmd_haptics(const uint8_t *data)
+{
+    haptic_packet_s packet = {0};
+
+    sinput_haptic_s haptic = {0};
+
+    memcpy(&haptic, data, sizeof(sinput_haptic_s));
+
+    switch (haptic.type)
+    {
+        default:
+        break;
+
+        case 1:
+            float a1_base = (float) (haptic.type_1.left.amplitude_1 > haptic.type_1.right.amplitude_1 ? haptic.type_1.left.amplitude_1 : haptic.type_1.right.amplitude_1);
+            float a2_base = (float) (haptic.type_1.left.amplitude_2 > haptic.type_1.right.amplitude_2 ? haptic.type_1.left.amplitude_2 : haptic.type_1.right.amplitude_2);
+
+            float amp_1 = a1_base > 0 ? (float) a1_base / (float) UINT16_MAX : 0;
+            float amp_2 = a2_base > 0 ? (float) a2_base / (float) UINT16_MAX : 0;
+
+            packet.count = 1;
+            packet.pairs[0].hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
+            packet.pairs[0].lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
+            packet.pairs[0].hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_1);
+            packet.pairs[0].lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptic.type_1.left.frequency_2);
+
+            pcm_amfm_push(&packet);
+        break;
+
+        case 2:
+            bool left_right = haptic.type_2.left.amplitude > haptic.type_2.right.amplitude ? false : true; 
+
+            uint8_t amp = 0;
+            bool brake = 0;
+
+            if(left_right)
+            {
+                amp = haptic.type_2.right.amplitude;
+                brake = haptic.type_2.right.brake;
+            }
+            else 
+            {
+                amp = haptic.type_2.left.amplitude;
+                brake = haptic.type_2.left.brake;
+            }
+
+            pcm_erm_set(amp, brake);
+        break;
+    } 
+}
 
 void _si_generate_features(uint8_t *buffer)
 {
@@ -429,6 +479,7 @@ void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
         return;
 
         case SINPUT_COMMAND_HAPTIC:
+        _si_cmd_haptics(&(data[1]));
         break;
 
         case SINPUT_COMMAND_FEATURES:
@@ -436,7 +487,11 @@ void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
         break;
 
         case SINPUT_COMMAND_PLAYERLED:
-        // Do transport set function here
+        tp_evt_s evt = {
+            .evt=TP_EVT_PLAYERLED,
+            .evt_playernumber = {.player_number=data[1]}
+        };
+        transport_evt_cb(evt);
         break;
     }
 }
@@ -455,7 +510,14 @@ bool _core_sinput_get_generated_report(core_report_s *out)
             out->data[0] = REPORT_ID_SINPUT_INPUT_CMDDAT;
             out->data[1] = SINPUT_COMMAND_FEATURES;
             _si_generate_features(&out->data[2]);
+            break;
+
+            default:
+            break;
         }
+
+        // Clear command
+        _si_current_command=0;
     }
     // Standard input
     else 
@@ -567,15 +629,15 @@ bool core_sinput_init(core_params_s *params)
     switch(params->gamepad_transport)
     {
         case GAMEPAD_TRANSPORT_USB:
-        _sinput_report_interval_us = 1000;
+        params->pollrate_us = 1000;
         break;
 
         case GAMEPAD_TRANSPORT_BLUETOOTH:
-        _sinput_report_interval_us = 8000;
+        params->pollrate_us = 8000;
         break;
 
         case GAMEPAD_TRANSPORT_WLAN:
-        _sinput_report_interval_us = 2000;
+        params->pollrate_us = 2000;
         break;
 
         // Unsupported transport methods
@@ -584,12 +646,7 @@ bool core_sinput_init(core_params_s *params)
     }
 
     params->report_generator = _core_sinput_get_generated_report;
-    params->report_tunnel = _core_sinput_report_tunnel_cb;
+    params->report_tunnel    = _core_sinput_report_tunnel_cb;
 
     return transport_init(params);
-}
-
-void core_sinput_task(uint64_t timestamp)
-{
-
 }

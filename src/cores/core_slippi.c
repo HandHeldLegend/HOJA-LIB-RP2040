@@ -233,6 +233,7 @@ bool core_slippi_init(core_params_s *params)
     switch(params->gamepad_transport)
     {
         case GAMEPAD_TRANSPORT_USB:
+        params->pollrate_us = 1000;
         params->hid_device = &_slippi_hid_device;
         break;
 
@@ -240,7 +241,6 @@ bool core_slippi_init(core_params_s *params)
         default:
         return false;
     }
-
     
     params->report_generator    = _core_slippi_get_generated_report;
     params->report_tunnel       = _core_slippi_report_tunnel_cb;

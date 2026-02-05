@@ -254,20 +254,6 @@ bool joybus_gc_hal_init()
 #define INPUT_POLL_RATE 1000 // 1ms
 #define GCWIRE_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-int16_t _gcwire_scale(int16_t value, int16_t max) {
-    // Get the magnitude and sign of the input value
-    int16_t magnitude = abs(value);
-    int16_t sign = (value >= 0) ? 1 : -1;
-    
-    // If magnitude is already at or above max, return max with appropriate sign
-    if (magnitude >= max) {
-        return sign * max;
-    }
-    
-    // Value is already within range, return as-is
-    return value;
-}
-
 void joybus_gc_hal_task(uint64_t timestamp)
 {
   static interval_s interval_reset = {0};
