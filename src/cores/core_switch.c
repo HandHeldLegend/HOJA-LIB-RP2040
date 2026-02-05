@@ -8,7 +8,7 @@
 #include "transport/transport.h"
 #include "hoja_shared_types.h"
 
-#include "tusb.h"
+#include "hoja_usb.h"
 
 #define REPORT_ID_SWITCH_INPUT 0x30
 #define REPORT_ID_SWITCH_CMD 0x21
@@ -26,9 +26,9 @@ uint8_t _switch_report_size = 64;
 // 3. Configuration Descriptor
 // 4. TinyUSB Config
 /**--------------------------**/
-const ext_tusb_desc_device_t swpro_device_descriptor = {
-    .bLength = 18,
-    .bDescriptorType = TUSB_DESC_DEVICE,
+const usb_device_descriptor_t _swpro_device_descriptor = {
+    .bLength = sizeof(usb_device_descriptor_t),
+    .bDescriptorType = USB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
     .bDeviceClass = 0x00,
     .bDeviceSubClass = 0x00,
@@ -45,7 +45,7 @@ const ext_tusb_desc_device_t swpro_device_descriptor = {
     .bNumConfigurations = 0x01
 };
 
-const uint8_t swpro_hid_report_descriptor_usb[203] = {
+const uint8_t _swpro_hid_report_descriptor_usb[203] = {
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
     0x15, 0x00, // Logical Minimum (0)
 
@@ -238,78 +238,77 @@ const uint8_t swpro_hid_report_descriptor_bt[] = {
     // 170 bytes
 };
 
+#define SWPRO_CONFIG_DESCRIPTOR_LEN 64
 const uint8_t _swpro_configuration_descriptor[] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, 2, 0, 64, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
     // Interface
     9,
-    TUSB_DESC_INTERFACE,
+    USB_DESC_INTERFACE,
     0x00,
     0x00,
     0x02,
-    TUSB_CLASS_HID,
+    USB_CLASS_HID,
     0x00,
     0x00,
     0x00,
     // HID Descriptor
     9,
     HID_DESC_TYPE_HID,
-    U16_TO_U8S_LE(0x0111),
+    HUSB_U16_TO_U8S_LE(0x0111),
     0,
     1,
     HID_DESC_TYPE_REPORT,
-    U16_TO_U8S_LE(sizeof(swpro_hid_report_descriptor_usb)),
+    HUSB_U16_TO_U8S_LE(sizeof(_swpro_hid_report_descriptor_usb)),
     // Endpoint Descriptor
     7,
-    TUSB_DESC_ENDPOINT,
+    USB_DESC_ENDPOINT,
     0x81,
-    TUSB_XFER_INTERRUPT,
-    U16_TO_U8S_LE(64),
+    USB_XFER_INTERRUPT,
+    HUSB_U16_TO_U8S_LE(64),
     4,
     // Endpoint Descriptor
     7,
-    TUSB_DESC_ENDPOINT,
+    USB_DESC_ENDPOINT,
     0x01,
-    TUSB_XFER_INTERRUPT,
-    U16_TO_U8S_LE(64),
+    USB_XFER_INTERRUPT,
+    HUSB_U16_TO_U8S_LE(64),
     8,
 
     // Alternate Interface for WebUSB
     // Interface
     9,
-    TUSB_DESC_INTERFACE,
+    USB_DESC_INTERFACE,
     0x01,
     0x00,
     0x02,
-    TUSB_CLASS_VENDOR_SPECIFIC,
+    USB_CLASS_VENDOR_SPECIFIC,
     0x00,
     0x00,
     0x00,
     // Endpoint Descriptor
     7,
-    TUSB_DESC_ENDPOINT,
+    USB_DESC_ENDPOINT,
     0x82,
-    TUSB_XFER_BULK,
-    U16_TO_U8S_LE(64),
+    USB_XFER_BULK,
+    HUSB_U16_TO_U8S_LE(64),
     0,
     // Endpoint Descriptor
     7,
-    TUSB_DESC_ENDPOINT,
+    USB_DESC_ENDPOINT,
     0x02,
-    TUSB_XFER_BULK,
-    U16_TO_U8S_LE(64),
+    USB_XFER_BULK,
+    HUSB_U16_TO_U8S_LE(64),
     0,
 };
 
-#define SWPRO_CONFIG_DESCRIPTOR_LEN sizeof(_swpro_configuration_descriptor)
-
 const core_hid_device_t _switch_hid_device_usb = {
-    .config_descriptor = _swpro_configuration_descriptor,
-    .config_descriptor_len = SWPRO_CONFIG_DESCRIPTOR_LEN,
-    .hid_report_descriptor = swpro_hid_report_descriptor_usb,
+    .config_descriptor      = _swpro_configuration_descriptor,
+    .config_descriptor_len  = SWPRO_CONFIG_DESCRIPTOR_LEN,
+    .hid_report_descriptor  = _swpro_hid_report_descriptor_usb,
     .hid_report_descriptor_len = 203,
-    .device_descriptor = &swpro_device_descriptor,
+    .device_descriptor      = &_swpro_device_descriptor,
 };
 
 const core_hid_device_t _switch_hid_device_bt = {
@@ -317,18 +316,8 @@ const core_hid_device_t _switch_hid_device_bt = {
     .config_descriptor_len = SWPRO_CONFIG_DESCRIPTOR_LEN,
     .hid_report_descriptor = swpro_hid_report_descriptor_bt,
     .hid_report_descriptor_len = 170,
-    .device_descriptor = &swpro_device_descriptor,
+    .device_descriptor = &_swpro_device_descriptor,
 };
-
-core_hid_device_t* _core_switch_get_hid_device_bt()
-{
-    return &_switch_hid_device_bt;
-}
-
-core_hid_device_t* _core_switch_get_hid_device_usb()
-{
-    return &_switch_hid_device_usb;
-}
 
 void _core_switch_report_tunnel_cb(uint8_t *data, uint16_t len)
 {
@@ -448,12 +437,12 @@ bool core_switch_init(core_params_s *params)
     {
         case GAMEPAD_TRANSPORT_USB:
         _switch_report_size = 64;
-        params->hid_device = _core_switch_get_hid_device_usb;
+        params->hid_device = &_switch_hid_device_usb;
         break;
 
         case GAMEPAD_TRANSPORT_BLUETOOTH:
         _switch_report_size = 49;
-        params->hid_device = _core_switch_get_hid_device_bt;
+        params->hid_device = &_switch_hid_device_bt;
         break;
 
         // Unsupported transport methods
@@ -462,8 +451,8 @@ bool core_switch_init(core_params_s *params)
     }
 
     
-    params->report_generator = _core_switch_get_generated_report;
-    params->report_tunnel = _core_switch_report_tunnel_cb;
+    params->report_generator    = _core_switch_get_generated_report;
+    params->report_tunnel       = _core_switch_report_tunnel_cb;
 
     return transport_init(params);
 }

@@ -72,27 +72,6 @@ typedef struct
     uint8_t debug_data;
 } hoja_status_s;
 
-/// USB Device Descriptor
-typedef struct __attribute__ ((packed)) {
-    uint8_t  bLength            ; ///< Size of this descriptor in bytes.
-    uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
-    uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H).
-
-    uint8_t  bDeviceClass       ; ///< Class code (assigned by the USB-IF).
-    uint8_t  bDeviceSubClass    ; ///< Subclass code (assigned by the USB-IF).
-    uint8_t  bDeviceProtocol    ; ///< Protocol code (assigned by the USB-IF).
-    uint8_t  bMaxPacketSize0    ; ///< Maximum packet size for endpoint zero (only 8, 16, 32, or 64 are valid). For HS devices is fixed to 64.
-
-    uint16_t idVendor           ; ///< Vendor ID (assigned by the USB-IF).
-    uint16_t idProduct          ; ///< Product ID (assigned by the manufacturer).
-    uint16_t bcdDevice          ; ///< Device release number in binary-coded decimal.
-    uint8_t  iManufacturer      ; ///< Index of string descriptor describing manufacturer.
-    uint8_t  iProduct           ; ///< Index of string descriptor describing product.
-    uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
-
-    uint8_t  bNumConfigurations ; ///< Number of possible configurations.
-} ext_tusb_desc_device_t;
-
 typedef struct 
 {
   uint64_t benchmark;

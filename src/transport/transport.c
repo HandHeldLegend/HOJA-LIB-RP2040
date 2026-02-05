@@ -8,31 +8,9 @@
 #include "transport/transport_nesbus.h"
 #include "transport/transport_wlan.h"
 
-typedef void (*transport_task_t)(uint64_t timestamp);
 
-typedef enum
-{
-    TP_EVT_PLAYERASSIGN,
-    TP_EVT_CONNECTIONCHANGE, 
-    TP_EVT_ERMRUMBLE,
-    TP_EVT_POWERCOMMAND,
-} tp_evt_t;
 
-typedef enum 
-{
-    TP_CONNECTION_NONE,
-    TP_CONNECTION_CONNECTING,
-    TP_CONNECTION_CONNECTED,
-    TP_CONNECTION_DISCONNECTED,
-} tp_connectionchange_t;
-
-typedef enum
-{
-    TP_POWERCOMMAND_SHUTDOWN,
-    TP_POWERCOMMAND_REBOOT,
-} tp_powercommand_t;
-
-void _transport_playerassign(uint8_t player)
+void _transport_playerled(uint8_t led)
 {
 
 }
@@ -55,7 +33,7 @@ void _transport_connectionchange(uint8_t status)
     }
 }
 
-void _transport_ermrumble(uint8_t left, uint8_t right)
+void _transport_ermrumble(uint8_t left, uint8_t right, uint8_t leftbrake, uint8_t rightbrake)
 {
 
 }
@@ -65,26 +43,28 @@ void _transport_powercommand(uint8_t command)
 
 }
 
-void transport_evt_cb(uint8_t *data, uint16_t len)
+void transport_evt_cb(tp_evt_s evt)
 {
-    tp_evt_t evt = (tp_evt_t)data[0];
+    tp_evt_t evt_name = evt.evt;
 
-    switch(evt)
+    switch(evt_name)
     {
-        case TP_EVT_PLAYERASSIGN:
-        _transport_playerassign(data[1]);
+        case TP_EVT_PLAYERLED:
+        _transport_playerled(evt.evt_playernumber.player_number);
         break;
 
         case TP_EVT_CONNECTIONCHANGE:
-        _transport_connectionchange(data[1]);
+        _transport_connectionchange(evt.evt_connectionchange.connection);
         break;
 
         case TP_EVT_ERMRUMBLE:
-        _transport_ermrumble(data[1], data[2]);
+        _transport_ermrumble(
+            evt.evt_ermrumble.left, evt.evt_ermrumble.right, 
+            evt.evt_ermrumble.leftbrake, evt.evt_ermrumble.rightbrake);
         break;
 
         case TP_EVT_POWERCOMMAND:
-        _transport_powercommand(data[1]);
+        _transport_powercommand(evt.evt_powercommand.power_command);
         break;
     }
 }

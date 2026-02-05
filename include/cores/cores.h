@@ -47,7 +47,7 @@ typedef struct
     core_reportformat_t     report_format;
     core_generate_report_t  report_generator; // Get generated report data from this
     core_report_tunnel_t    report_tunnel;    // Where incoming reports should be sent
-    core_get_hid_device_t   hid_device; // Obtain HID device info
+    core_hid_device_t*      hid_device; // HID device info
 } core_params_s;
 
 bool core_get_generated_report(core_report_s *out);

@@ -1,119 +1,4 @@
-/*
- * Copyright (c) [2023] [Mitch Cairns/Handheldlegend, LLC]
- * All rights reserved.
- *
- * This source code is licensed under the provisions of the license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
-#include "usb/ginput_usbd.h"
-#include "tusb.h"
-#include "hoja.h"
-
-bool gc_connected = false;
-
-/**** GameCube Adapter HID Report Descriptor ****/
-const uint8_t gc_hid_report_descriptor[] = {
-    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x05,        // Usage (Game Pad)
-    0xA1, 0x01,        // Collection (Application)
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x11,        //     Report ID (17)
-    0x19, 0x00,        //     Usage Minimum (Undefined)
-    0x2A, 0xFF, 0x00,  //     Usage Maximum (0xFF)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x05,        //     Report Count (5)
-    0x91, 0x00,        //     Output (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,              //   End Collection
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x21,        //     Report ID (33)
-    0x05, 0x00,        //     Usage Page (Undefined)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x25, 0xFF,        //     Logical Maximum (-1)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x01,        //     Report Count (1)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x09,        //     Usage Page (Button)
-    0x19, 0x01,        //     Usage Minimum (0x01)
-    0x29, 0x08,        //     Usage Maximum (0x08)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x25, 0x01,        //     Logical Maximum (1)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x02,        //     Report Count (2)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
-    0x09, 0x30,        //     Usage (X)
-    0x09, 0x31,        //     Usage (Y)
-    0x09, 0x32,        //     Usage (Z)
-    0x09, 0x33,        //     Usage (Rx)
-    0x09, 0x34,        //     Usage (Ry)
-    0x09, 0x35,        //     Usage (Rz)
-    0x15, 0x81,        //     Logical Minimum (-127)
-    0x25, 0x7F,        //     Logical Maximum (127)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x06,        //     Report Count (6)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0xC0,              //   End Collection
-    0xA1, 0x03,        //   Collection (Report)
-    0x85, 0x13,        //     Report ID (19)
-    0x19, 0x00,        //     Usage Minimum (Undefined)
-    0x2A, 0xFF, 0x00,  //     Usage Maximum (0xFF)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
-    0x75, 0x08,        //     Report Size (8)
-    0x95, 0x01,        //     Report Count (1)
-    0x91, 0x00,        //     Output (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,              //   End Collection
-    0xC0,              // End Collection
-};
-
-
-/**** GameCube Adapter Device Descriptor ****/
-const tusb_desc_device_t ginput_device_descriptor = {
-    .bLength = sizeof(tusb_desc_device_t),
-    .bDescriptorType = TUSB_DESC_DEVICE,
-    .bcdUSB = 0x0200,
-    .bDeviceClass = 0x00,
-    .bDeviceSubClass = 0x00,
-    .bDeviceProtocol = 0x00,
-
-    .bMaxPacketSize0 = 64,
-    .idVendor = 0x057E,
-    .idProduct = 0x0337,
-
-    .bcdDevice = 0x0100,
-    .iManufacturer = 0x01,
-    .iProduct = 0x02,
-    .iSerialNumber = 0x03,
-    .bNumConfigurations = 0x01};
-
-/**** GameCube Adapter Configuration Descriptor ****/
-const uint8_t ginput_configuration_descriptor[] = {
-    // Configuration number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, 41, TUSB_DESC_CONFIG_ATT_SELF_POWERED, 500),
-
-    // Interface
-    9, TUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, TUSB_CLASS_HID, 0x00, 0x00, 0x00,
-    // HID Descriptor
-    9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0110), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(sizeof(gc_hid_report_descriptor)),
-    // Endpoint Descriptor
-    7,
-    TUSB_DESC_ENDPOINT,
-    0x82,
-    TUSB_XFER_INTERRUPT,
-    U16_TO_U8S_LE(37),
-    1,
-
-    // Endpoint Descriptor
-    7,
-    TUSB_DESC_ENDPOINT,
-    0x01,
-    TUSB_XFER_INTERRUPT,
-    U16_TO_U8S_LE(6),
-    1,
-};
+#include <tusb.h>
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -135,16 +20,16 @@ typedef struct
   // TODO save hid descriptor since host can specifically request this after enumeration
   // Note: HID descriptor may be not available from application after enumeration
   tusb_hid_descriptor_hid_t const * hid_descriptor;
-} ginputd_interface_t;
+} slippid_interface_t;
 
-CFG_TUSB_MEM_SECTION static ginputd_interface_t _ginputd_itf[CFG_TUD_GC];
+CFG_TUSB_MEM_SECTION static slippid_interface_t _slippid_itf[CFG_TUD_GC];
 
 /*------------- Helpers -------------*/
 static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
 {
 	for (uint8_t i=0; i < CFG_TUD_GC; i++ )
 	{
-		if ( itf_num == _ginputd_itf[i].itf_num ) return i;
+		if ( itf_num == _slippid_itf[i].itf_num ) return i;
 	}
 
 	return 0xFF;
@@ -153,22 +38,22 @@ static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_ginput_n_ready(uint8_t instance)
+bool tud_slippi_n_ready(uint8_t instance)
 {
   uint8_t const rhport = 0;
-  uint8_t const ep_in = _ginputd_itf[instance].ep_in;
+  uint8_t const ep_in = _slippid_itf[instance].ep_in;
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(rhport, ep_in);
 }
 
-bool tud_ginput_ready()
+bool tud_slippi_ready()
 {
-  return tud_ginput_n_ready(0);
+  return tud_slippi_n_ready(0);
 }
 
-bool tud_ginput_n_report(uint8_t instance, uint8_t report_id, void const* report, uint16_t len)
+bool tud_slippi_n_report(uint8_t instance, uint8_t report_id, void const* report, uint16_t len)
 {
   uint8_t const rhport = 0;
-  ginputd_interface_t * p_hid = &_ginputd_itf[instance];
+  slippid_interface_t * p_hid = &_slippid_itf[instance];
 
   // claim endpoint
   TU_VERIFY( usbd_edpt_claim(rhport, p_hid->ep_in) );
@@ -191,36 +76,36 @@ bool tud_ginput_n_report(uint8_t instance, uint8_t report_id, void const* report
   return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
-bool tud_ginput_report(uint8_t report_id, void const* report, uint16_t len)
+bool tud_slippi_report(uint8_t report_id, void const* report, uint16_t len)
 {
-  return tud_ginput_n_report(0, report_id, report, len);
+  return tud_slippi_n_report(0, report_id, report, len);
 }
 
-uint8_t tud_ginput_n_interface_protocol(uint8_t instance)
+uint8_t tud_slippi_n_interface_protocol(uint8_t instance)
 {
-  return _ginputd_itf[instance].itf_protocol;
+  return _slippid_itf[instance].itf_protocol;
 }
 
-uint8_t tud_ginput_n_get_protocol(uint8_t instance)
+uint8_t tud_slippi_n_get_protocol(uint8_t instance)
 {
-  return _ginputd_itf[instance].protocol_mode;
+  return _slippid_itf[instance].protocol_mode;
 }
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void ginputd_init(void)
+void slippid_init(void)
 {
-  ginputd_reset(0);
+  slippid_reset(0);
 }
 
-void ginputd_reset(uint8_t rhport)
+void slippid_reset(uint8_t rhport)
 {
   (void) rhport;
-  tu_memclr(_ginputd_itf, sizeof(_ginputd_itf));
+  tu_memclr(_slippid_itf, sizeof(_slippid_itf));
 }
 
-uint16_t ginputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
+uint16_t slippid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
 {
   TU_VERIFY(hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB);
 
@@ -230,13 +115,13 @@ uint16_t ginputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
   TU_ASSERT(max_len >= drv_len, 0);
 
   // Find available interface
-  ginputd_interface_t * p_hid = NULL;
+  slippid_interface_t * p_hid = NULL;
   uint8_t hid_id;
   for(hid_id=0; hid_id<CFG_TUD_GC; hid_id++)
   {
-    if ( _ginputd_itf[hid_id].ep_in == 0 )
+    if ( _slippid_itf[hid_id].ep_in == 0 )
     {
-      p_hid = &_ginputd_itf[hid_id];
+      p_hid = &_slippid_itf[hid_id];
       break;
     }
   }
@@ -277,14 +162,14 @@ uint16_t ginputd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool ginputd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+bool slippid_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
   uint8_t const hid_itf = get_index_by_itfnum((uint8_t) request->wIndex);
   TU_VERIFY(hid_itf < CFG_TUD_GC);
 
-  ginputd_interface_t* p_hid = &_ginputd_itf[hid_itf];
+  slippid_interface_t* p_hid = &_slippid_itf[hid_itf];
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
@@ -421,17 +306,17 @@ bool ginputd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_reques
   return true;
 }
 
-bool ginputd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
+bool slippid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
 
   uint8_t instance = 0;
-  ginputd_interface_t * p_hid = _ginputd_itf;
+  slippid_interface_t * p_hid = _slippid_itf;
 
   // Identify which interface to use
   for (instance = 0; instance < CFG_TUD_GC; instance++)
   {
-    p_hid = &_ginputd_itf[instance];
+    p_hid = &_slippid_itf[instance];
     if ( (ep_addr == p_hid->ep_out) || (ep_addr == p_hid->ep_in) ) break;
   }
   TU_ASSERT(instance < CFG_TUD_GC);
@@ -454,16 +339,16 @@ bool ginputd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   return true;
 }
 
-const usbd_class_driver_t tud_ginput_driver =
+const usbd_class_driver_t tud_slippi_driver =
 {
     #if CFG_TUSB_DEBUG >= 2
-    .name = "GINPUT",
+    .name = "slippi",
     #endif
-    .init   = ginputd_init,
-    .reset  = ginputd_reset,
-    .open   = ginputd_open,
-    .control_xfer_cb = ginputd_control_xfer_cb,
-    .xfer_cb    = ginputd_xfer_cb,
+    .init   = slippid_init,
+    .reset  = slippid_reset,
+    .open   = slippid_open,
+    .control_xfer_cb = slippid_control_xfer_cb,
+    .xfer_cb    = slippid_xfer_cb,
     .sof = NULL,
 };
 

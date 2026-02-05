@@ -38,16 +38,12 @@ typedef enum
   USBRATE_1 = 350,
 } usb_rate_t;
 
-
-
 hid_task_tunnel_cb _usb_task_cb = NULL;
 
 // Whether our last input was sent through or not
 volatile bool _usb_clear = true;
 // Whether USB is ready for another input
 volatile bool _usb_ready = false;
-
-
 
 // Default 8ms (8000us)
 // The rate at which we want to send inputs
@@ -110,14 +106,7 @@ bool usb_mode_start(gamepad_mode_t mode)
     _usb_task_cb = sinput_hid_report;
     _usb_ready_cb = tud_hid_ready;
     break;
-
-    // case GAMEPAD_MODE_DS4:
-    //   imu_set_enabled(true);
-    //   _hoja_usb_set_interval(USBRATE_4);
-    //   _usb_task_cb = ds4_hid_report;
-    //   _usb_ready_cb = tud_hid_ready;
-    //   break;
-
+    
   case GAMEPAD_MODE_GCUSB:
     _usb_set_interval(USBRATE_1);
     _usb_task_cb = gcinput_hid_report;
