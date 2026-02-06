@@ -14,7 +14,6 @@
 #include "utilities/n64_crc.h"
 #include "utilities/interval.h"
 #include "utilities/crosscore_snapshot.h"
-#include "devices/haptics.h"
 
 #include "hoja_bsp.h"
 
@@ -341,6 +340,7 @@ bool transport_jb64__init(core_params_s *params)
   _n64_hal_params = params;
 
   _joybus_n64_hal_init();
+  return true;
 }
 
 void transport_jb64_task(uint64_t timestamp)

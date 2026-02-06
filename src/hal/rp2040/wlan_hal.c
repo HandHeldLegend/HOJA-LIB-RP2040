@@ -66,9 +66,9 @@ void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 
         if(_wlan_core_params)
         {
-            if(_wlan_core_params->report_tunnel)
+            if(_wlan_core_params->core_report_tunnel)
             {
-                _wlan_core_params->report_tunnel(data, p->len);
+                _wlan_core_params->core_report_tunnel(data, p->len);
             }
         }
 
@@ -121,7 +121,7 @@ bool wlan_hal_task(uint64_t timestamp)
 
     if(interval_run(timestamp, 2000, &interval))
     {
-        sinput_hid_report(timestamp, _wlan_hal_hid_tunnel);
+        //sinput_hid_report(timestamp, _wlan_hal_hid_tunnel);
         return true;
     }
 

@@ -4,7 +4,7 @@
 #include "input/mapper.h"
 #include "input/dpad.h"
 
-void _core_snes_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_snes_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     // Unused
 }

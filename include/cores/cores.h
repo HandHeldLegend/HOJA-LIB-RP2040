@@ -19,14 +19,14 @@ typedef enum
 
 typedef struct
 {
-    uint8_t *hid_report_descriptor;
+    const uint8_t *hid_report_descriptor;
     uint16_t hid_report_descriptor_len;
-    uint8_t *config_descriptor;
+    const uint8_t *config_descriptor;
     uint16_t config_descriptor_len;
     uint16_t vid;
     uint16_t pid;
     char name[64];
-    usb_device_descriptor_t *device_descriptor;
+    const hoja_usb_device_descriptor_t *device_descriptor;
 } core_hid_device_t;
 
 #define CORE_REPORT_DATA_LEN 64
@@ -38,7 +38,7 @@ typedef struct
 } core_report_s;
 
 typedef bool (*core_generate_report_t)(core_report_s *out);
-typedef void (*core_report_tunnel_t)(uint8_t *data, uint16_t len);
+typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
@@ -52,7 +52,7 @@ typedef struct
     uint16_t                core_pollrate_us; // Transport methods may or may not respect this value
     core_generate_report_t  core_report_generator; // Get generated report data from this
     core_report_tunnel_t    core_report_tunnel;    // Where incoming reports should be sent
-    core_hid_device_t*      hid_device; // HID device info
+    const core_hid_device_t*      hid_device; // HID device info
 } core_params_s;
 
 bool core_is_mac_blank(uint8_t mac[6]);

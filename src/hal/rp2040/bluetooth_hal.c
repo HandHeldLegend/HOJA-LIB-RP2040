@@ -270,7 +270,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 }
 
 core_params_s *_bt_hal_params = NULL;
-core_hid_device_t *_bt_hal_hid = NULL;
+const core_hid_device_t *_bt_hal_hid = NULL;
 
 /***********************************************/
 /********* Transport Defines *******************/

@@ -18,6 +18,7 @@
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
+#include "utilities/pcm.h"
 
 #if defined(HOJA_USB_VID)
 #define SINPUT_VID  HOJA_USB_VID
@@ -37,9 +38,9 @@
 #define SINPUT_NAME "SInput Gamepad"
 #endif
 
-const usb_device_descriptor_t _sinput_device_descriptor = {
-    .bLength = sizeof(usb_device_descriptor_t),
-    .bDescriptorType = USB_DESC_DEVICE,
+const hoja_usb_device_descriptor_t _sinput_device_descriptor = {
+    .bLength = sizeof(hoja_usb_device_descriptor_t),
+    .bDescriptorType = HUSB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
     .bDeviceClass = 0x00,
     .bDeviceSubClass = 0x00,
@@ -156,16 +157,16 @@ const uint8_t _sinput_hid_report_descriptor[139] = {
 #define SINPUT_CONFIG_DESCRIPTOR_LEN 41
 const uint8_t _sinput_configuration_descriptor[SINPUT_CONFIG_DESCRIPTOR_LEN] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
-    HUSB_CONFIG_DESCRIPTOR(1, 1, 0, SINPUT_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 350),
+    HUSB_CONFIG_DESCRIPTOR(1, 1, 0, SINPUT_CONFIG_DESCRIPTOR_LEN, HUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 350),
 
     // Interface
-    9, USB_DESC_INTERFACE, 0x00, 0x00, 0x02, USB_CLASS_HID, 0x00, 0x00, 0x00,
+    9, HUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, HUSB_CLASS_HID, 0x00, 0x00, 0x00,
     // HID Descriptor
-    9, HID_DESC_TYPE_HID, HUSB_U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, HUSB_U16_TO_U8S_LE(sizeof(_sinput_hid_report_descriptor)),
+    9, HHID_DESC_TYPE_HID, HUSB_U16_TO_U8S_LE(0x0111), 0, 1, HHID_DESC_TYPE_REPORT, HUSB_U16_TO_U8S_LE(sizeof(_sinput_hid_report_descriptor)),
     // Endpoint Descriptor
-    7, USB_DESC_ENDPOINT, 0x81, USB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 1,
+    7, HUSB_DESC_ENDPOINT, 0x81, HUSB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 1,
     // Endpoint Descriptor
-    7, USB_DESC_ENDPOINT, 0x01, USB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 4
+    7, HUSB_DESC_ENDPOINT, 0x01, HUSB_XFER_INTERRUPT, HUSB_U16_TO_U8S_LE(64), 4
 };
 
 #define SINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
@@ -618,7 +619,7 @@ int16_t _sinput_scale_axis(int16_t input_axis)
 volatile uint8_t _si_current_command = 0;
 uint8_t _si_response_report[64] = {0};
 
-void _core_sinput_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_sinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
 

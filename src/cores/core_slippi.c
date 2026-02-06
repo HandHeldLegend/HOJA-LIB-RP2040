@@ -4,6 +4,8 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 
+#define CORE_SLIPPI_CLAMP(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
+
 /**** GameCube Adapter HID Report Descriptor ****/
 const uint8_t _gc_hid_report_descriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
@@ -62,9 +64,9 @@ const uint8_t _gc_hid_report_descriptor[] = {
 };
 
 /**** GameCube Adapter Device Descriptor ****/
-const usb_device_descriptor_t _slippi_device_descriptor = {
-    .bLength = sizeof(usb_device_descriptor_t),
-    .bDescriptorType = USB_DESC_DEVICE,
+const hoja_usb_device_descriptor_t _slippi_device_descriptor = {
+    .bLength = sizeof(hoja_usb_device_descriptor_t),
+    .bDescriptorType = HUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
     .bDeviceClass = 0x00,
     .bDeviceSubClass = 0x00,
@@ -85,25 +87,25 @@ const usb_device_descriptor_t _slippi_device_descriptor = {
 #define SLIPPI_CONFIG_DESCRIPTOR_LEN 41
 const uint8_t _slippi_configuration_descriptor[] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
-    HUSB_CONFIG_DESCRIPTOR(1, 1, 0, SLIPPI_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_SELF_POWERED, 500),
+    HUSB_CONFIG_DESCRIPTOR(1, 1, 0, SLIPPI_CONFIG_DESCRIPTOR_LEN, HUSB_DESC_CONFIG_ATT_SELF_POWERED, 500),
 
     // Interface
-    9, USB_DESC_INTERFACE, 0x00, 0x00, 0x02, USB_CLASS_HID, 0x00, 0x00, 0x00,
+    9, HUSB_DESC_INTERFACE, 0x00, 0x00, 0x02, HUSB_CLASS_HID, 0x00, 0x00, 0x00,
     // HID Descriptor
-    9, HID_DESC_TYPE_HID, HUSB_U16_TO_U8S_LE(0x0110), 0, 1, HID_DESC_TYPE_REPORT, HUSB_U16_TO_U8S_LE(sizeof(_gc_hid_report_descriptor)),
+    9, HHID_DESC_TYPE_HID, HUSB_U16_TO_U8S_LE(0x0110), 0, 1, HHID_DESC_TYPE_REPORT, HUSB_U16_TO_U8S_LE(sizeof(_gc_hid_report_descriptor)),
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x82,
-    USB_XFER_INTERRUPT,
+    HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(37),
     1,
 
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x01,
-    USB_XFER_INTERRUPT,
+    HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(6),
     1,
 };
@@ -116,7 +118,7 @@ const core_hid_device_t _slippi_hid_device = {
     .device_descriptor      = &_slippi_device_descriptor,
 };
 
-void _core_slippi_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
 
@@ -177,7 +179,7 @@ bool _core_slippi_get_generated_report(core_report_s *out)
         return true;
     }
 
-    core_slippi_report_s *data = &out->data[2];
+    core_slippi_report_s *data = (core_slippi_report_s*)&out->data[2];
     mapper_input_s input = mapper_get_input();
 
     const float   target_max = 110.0f / 2048.0f;
@@ -186,10 +188,10 @@ bool _core_slippi_get_generated_report(core_report_s *out)
     float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
     float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
 
-    uint8_t lx8 = (uint8_t)GCUSB_CLAMP(lx + 128, 0, 255);
-    uint8_t ly8 = (uint8_t)GCUSB_CLAMP(ly + 128, 0, 255);
-    uint8_t rx8 = (uint8_t)GCUSB_CLAMP(rx + 128, 0, 255);
-    uint8_t ry8 = (uint8_t)GCUSB_CLAMP(ry + 128, 0, 255);
+    uint8_t lx8 = (uint8_t)CORE_SLIPPI_CLAMP(lx + 128);
+    uint8_t ly8 = (uint8_t)CORE_SLIPPI_CLAMP(ly + 128);
+    uint8_t rx8 = (uint8_t)CORE_SLIPPI_CLAMP(rx + 128);
+    uint8_t ry8 = (uint8_t)CORE_SLIPPI_CLAMP(ry + 128);
 
     data->button_a = input.presses[GAMECUBE_CODE_A];
     data->button_b = input.presses[GAMECUBE_CODE_B];
@@ -200,8 +202,8 @@ bool _core_slippi_get_generated_report(core_report_s *out)
     data->button_l       = input.presses[GAMECUBE_CODE_L];
     data->button_r       = input.presses[GAMECUBE_CODE_R];
 
-    uint8_t lt8 = data->button_l ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4, 0, 255);
-    uint8_t rt8 = data->button_r ? 255 : GCUSB_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4, 0, 255);
+    uint8_t lt8 = data->button_l ? 255 : CORE_SLIPPI_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4);
+    uint8_t rt8 = data->button_r ? 255 : CORE_SLIPPI_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4);
 
     bool dpad[4] = {input.presses[GAMECUBE_CODE_DOWN], input.presses[GAMECUBE_CODE_RIGHT],
                     input.presses[GAMECUBE_CODE_LEFT], input.presses[GAMECUBE_CODE_UP]};

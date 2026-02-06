@@ -1,11 +1,12 @@
 #include "cores/core_gamecube.h"
+#include "transport/transport.h"
 
 #include "input/mapper.h"
 #include "input/dpad.h"
 
 #define CORE_GC_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
-void _core_gamecube_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_gamecube_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     // Unused
 }
@@ -15,7 +16,7 @@ bool _core_gamecube_get_generated_report(core_report_s *out)
     out->reportformat=CORE_REPORTFORMAT_GAMECUBE;
     out->size=CORE_GAMECUBE_REPORT_SIZE;
 
-    core_gamecube_report_s *data = out->data;
+    core_gamecube_report_s *data = (core_gamecube_report_s*)out->data;
     mapper_input_s input = mapper_get_input();
 
     data->blank_2 = 1;

@@ -1,6 +1,12 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER) && (HOJA_TRANSPORT_JOYBUSGC_DRIVER == JOYBUS_GC_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) && (HOJA_TRANSPORT_JOYBUS64_DRIVER == JOYBUS_GC_DRIVER_HAL)
+
+#include <stdlib.h>
+
+#include "cores/core_gamecube.h"
+#include "transport/transport.h"
+#include "transport/transport_joybusgc.h"
 
 #include "hal/joybus_gc_hal.h"
 #include "pico/stdlib.h"
@@ -8,16 +14,20 @@
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"
 
-#include "wired/gamecube.h"
 #include "utilities/interval.h"
-#include "devices/haptics.h"
+#include "utilities/crosscore_snapshot.h"
 
-#include "input_shared_types.h"
-#include "input/mapper.h"
+typedef enum
+{
+  GCUBE_CMD_PROBE = 0x00,
+  GCUBE_CMD_POLL = 0x40,
+  GCUBE_CMD_ORIGIN = 0x41,
+  GCUBE_CMD_ORIGINEXT = 0x42,
+  GCUBE_CMD_SWISS = 0x1D,
+} gc_cmd_t;
 
-#include <stdlib.h>
-
-#include "cores/cores.h"
+SNAPSHOT_TYPE(gcinput, core_gamecube_report_s);
+snapshot_gcinput_t _gc_hal_snap;
 
 core_params_s *_gc_core_params = NULL;
 
@@ -53,10 +63,7 @@ bool _gc_running = false;
 bool _gc_rumble = false;
 bool _gc_brake = false;
 
-uint8_t _gamecube_out_buffer[8] = {0};
 volatile uint8_t _gamecube_in_buffer[8] = {0};
-static gamecube_input_s _out_buffer = {
-    .stick_left_x = 128, .stick_left_y = 128, .stick_right_x = 128, .stick_right_y = 128};
 
 void _gamecube_send_probe()
 {
@@ -82,14 +89,16 @@ void _gamecube_send_origin()
 
 void _gamecube_send_poll()
 {
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_1));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_2));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_x));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_left_y));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_x));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_right_y));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_l));
-  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.analog_trigger_r));
+  static core_gamecube_report_s out;
+  snapshot_gcinput_read(&_gc_hal_snap, &out);
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.buttons_1));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.buttons_2));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.stick_left_x));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.stick_left_y));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.stick_right_x));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.stick_right_y));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.analog_trigger_l));
+  pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.analog_trigger_r));
 }
 
 void _gamecube_reset_state()
@@ -123,38 +132,38 @@ void __time_critical_func(_gamecube_command_handler)()
   {
     _workingCmd = pio_sm_get(GC_PIO_IN_USE, PIO_SM);
 
-    if(_workingCmd==0)
+    if (_workingCmd == 0)
     {
       joybus_jump_output(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
       c = _gc_delay_cycles_probe;
-      while(c--)
+      while (c--)
         asm("nop");
       _gamecube_send_probe();
       _byteCounter = BYTECOUNT_UNKNOWN;
       ret = true;
     }
-    else if(_workingCmd==GCUBE_CMD_ORIGIN)
+    else if (_workingCmd == GCUBE_CMD_ORIGIN)
     {
       c = _gc_delay_cycles_origin;
-      while(c--)
+      while (c--)
         asm("nop");
       joybus_jump_output(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
       _gamecube_send_origin();
       _byteCounter = BYTECOUNT_UNKNOWN;
       ret = true;
     }
-    else if(_workingCmd==GCUBE_CMD_SWISS)
+    else if (_workingCmd == GCUBE_CMD_SWISS)
     {
       _byteCounter = BYTECOUNT_SWISS;
     }
-    else 
+    else
     {
       _byteCounter = BYTECOUNT_DEFAULT;
     }
   }
   else
   {
-    
+
     dat = pio_sm_get(GC_PIO_IN_USE, PIO_SM);
 
     switch (_workingCmd)
@@ -186,7 +195,7 @@ void __time_critical_func(_gamecube_command_handler)()
         _gc_brake = (dat & 2) ? true : false;
         _byteCounter = BYTECOUNT_UNKNOWN;
         c = _gc_delay_cycles_poll;
-        while(c--)
+        while (c--)
           asm("nop");
         joybus_jump_output(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
         _gamecube_send_poll();
@@ -201,7 +210,7 @@ void __time_critical_func(_gamecube_command_handler)()
       {
         _byteCounter = BYTECOUNT_UNKNOWN;
         c = _gc_delay_cycles_poll;
-        while(c--)
+        while (c--)
           asm("nop");
         joybus_jump_output(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
         _gamecube_send_origin();
@@ -231,11 +240,7 @@ static void __time_critical_func(_gamecube_isr_handler)(void)
   irq_set_enabled(_gamecube_irq, true);
 }
 
-void joybus_gc_hal_stop()
-{
-}
-
-bool joybus_gc_hal_init()
+bool _joybus_gc_hal_init()
 {
   _gamecube_offset = pio_add_program(GC_PIO_IN_USE, &joybus_program);
 
@@ -249,157 +254,166 @@ bool joybus_gc_hal_init()
   // irq_set_priority(PIO_IRQ_USE_1, 0);
 
   joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
-  irq_set_enabled(_gamecube_irq, true);\
+  irq_set_enabled(_gamecube_irq, true);
   _gc_running = true;
 
   return true;
 }
 
-#define INPUT_POLL_RATE 1000 // 1ms
-#define GCWIRE_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
+core_params_s *_gc_hal_params = NULL;
 
-void joybus_gc_hal_task(uint64_t timestamp)
+void _jbgc_translate_data(uint8_t mode, core_gamecube_report_s *in, core_gamecube_report_s *out)
 {
-  static interval_s interval_reset = {0};
-  static interval_s interval = {0};
+  out->blank_2 = 1;
+  *out = *in;
 
-  // Wait for init to complete
-  if (!_gc_running)
-    return;
-
-  // Reset if no new data for 150ms
-  if (interval_resettable_run(timestamp, 150000, _gc_got_data, &interval_reset))
+  switch (_workingMode)
   {
-    hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
+  // Default is mode 3
+  default:
+    // Leave as-is
+    break;
+
+  case 0:
+    out->mode0.stick_left_x   = in->stick_left_x;
+    out->mode0.stick_left_y   = in->stick_left_y;
+    out->mode0.stick_right_x  = in->stick_right_x;
+    out->mode0.stick_right_y  = in->stick_right_y;
+    out->mode0.analog_trigger_l = in->analog_trigger_l >> 4;
+    out->mode0.analog_trigger_r = in->analog_trigger_r >> 4;
+    out->mode0.analog_a = 0; // 4bits
+    out->mode0.analog_b = 0; // 4bits
+    break;
+
+  case 1:
+    out->mode1.stick_left_x     = in->stick_left_x;
+    out->mode1.stick_left_y     = in->stick_left_y;
+    out->mode1.stick_right_x    = in->stick_right_x >> 4;
+    out->mode1.stick_right_y    = in->stick_right_y >> 4;
+    out->mode1.analog_trigger_l = in->analog_trigger_l;
+    out->mode1.analog_trigger_r = in->analog_trigger_r;
+    out->mode1.analog_a = 0; // 4bits
+    out->mode1.analog_b = 0; // 4bits
+    break;
+
+  case 2:
+    out->mode2.stick_left_x = in->stick_left_x;
+    out->mode2.stick_left_y = in->stick_left_y;
+    out->mode2.stick_right_x = in->stick_right_x >> 4;
+    out->mode2.stick_right_y = in->stick_right_y >> 4;
+    out->mode2.analog_trigger_l = in->analog_trigger_l >> 4;
+    out->mode2.analog_trigger_r = in->analog_trigger_r >> 4;
+    out->mode2.analog_a = 0;
+    out->mode2.analog_b = 0;
+    break;
+
+  case 4:
+    out->mode4.stick_left_x = in->stick_left_x;
+    out->mode4.stick_left_y = in->stick_left_y;
+    out->mode4.stick_right_x = in->stick_right_x;
+    out->mode4.stick_right_y = in->stick_right_y;
+    out->mode4.analog_a = 0;
+    out->mode4.analog_b = 0;
+    break;
+  }
+}
+
+static inline void _jbgc_handle_rumble()
+{
+  // Handle rumble state if it changes
+  static bool rumblestate = false;
+  if (_gc_rumble != rumblestate)
+  {
+    rumblestate = _gc_rumble;
+
+    uint8_t rumble = rumblestate ? 255 : 0;
+
+    tp_evt_s evt = {.evt_ermrumble = {
+                        .left = rumble, .right = rumble, .left = 0, .right = 0}};
+
+    transport_evt_cb(evt);
+  }
+}
+
+void _jbgc_handle_connection(bool connected)
+{
+  // Handle connection state if it changes
+  static uint8_t connectstate = 0;
+  bool emit = false;
+  tp_connectionchange_t c = TP_CONNECTION_NONE;
+
+  if (!connectstate && connected)
+  {
+    c = TP_CONNECTION_CONNECTED;
+    connectstate = 1;
+    emit = true;
+  }
+  else if (connectstate && !connected)
+  {
+    c = TP_CONNECTION_DISCONNECTED;
+    connectstate = 0;
+    emit = true;
     _gamecube_reset_state();
+    sleep_ms(8);
   }
 
-  if (interval_run(timestamp, INPUT_POLL_RATE, &interval))
+  tp_evt_s evt = {.evt_connectionchange = {
+                      .connection = c}};
+
+  if (emit)
   {
-    if (_gc_got_data)
-    {
-      _gc_got_data = false;
-      hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-    }
-
-    mapper_input_s input = mapper_get_input();
-
-    static bool _rumblestate = false;
-    if (_gc_rumble != _rumblestate)
-    {
-      _rumblestate = _gc_rumble;
-      haptics_set_std(_rumblestate ? 255 : 0, _gc_brake);
-    }
-
-    // Our buttons are always the same formatting
-    _out_buffer.blank_2 = 1;
-
-    _out_buffer.a = input.presses[GAMECUBE_CODE_A];
-    _out_buffer.b = input.presses[GAMECUBE_CODE_B];
-    _out_buffer.x = input.presses[GAMECUBE_CODE_X];
-    _out_buffer.y = input.presses[GAMECUBE_CODE_Y];
-
-    _out_buffer.start = input.presses[GAMECUBE_CODE_START];
-    _out_buffer.l = input.presses[GAMECUBE_CODE_L];
-    _out_buffer.r = input.presses[GAMECUBE_CODE_R];
-
-    bool dpad[4] = {input.presses[GAMECUBE_CODE_DOWN], input.presses[GAMECUBE_CODE_RIGHT],
-                    input.presses[GAMECUBE_CODE_LEFT], input.presses[GAMECUBE_CODE_UP]};
-
-    dpad_translate_input(dpad);
-
-    _out_buffer.dpad_down   = dpad[0];
-    _out_buffer.dpad_right  = dpad[1];
-    _out_buffer.dpad_left   = dpad[2];
-    _out_buffer.dpad_up     = dpad[3];
-
-    _out_buffer.z = input.presses[GAMECUBE_CODE_Z];
-
-    // Analog stick data conversion
-    const float   target_max = 110.0f / 2048.0f;
-    float lx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LX_LEFT],input.inputs[GAMECUBE_CODE_LX_RIGHT] ) * target_max;
-    float ly = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_LY_DOWN],input.inputs[GAMECUBE_CODE_LY_UP]    ) * target_max;
-    float rx = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RX_LEFT],input.inputs[GAMECUBE_CODE_RX_RIGHT] ) * target_max;
-    float ry = mapper_joystick_concat(0,input.inputs[GAMECUBE_CODE_RY_DOWN],input.inputs[GAMECUBE_CODE_RY_UP]    ) * target_max;
-
-    uint8_t lx8 = GCWIRE_CLAMP(lx + 128, 0, 255);
-    uint8_t ly8 = GCWIRE_CLAMP(ly + 128, 0, 255);
-    uint8_t rx8 = GCWIRE_CLAMP(rx + 128, 0, 255);
-    uint8_t ry8 = GCWIRE_CLAMP(ry + 128, 0, 255);
-    // End analog stick conversion section
-
-    // Trigger with SP function conversion
-    uint8_t lt8 = _out_buffer.l ? 255 : GCWIRE_CLAMP(input.inputs[GAMECUBE_CODE_L_ANALOG] >> 4, 0, 255);
-    uint8_t rt8 = _out_buffer.r ? 255 : GCWIRE_CLAMP(input.inputs[GAMECUBE_CODE_R_ANALOG] >> 4, 0, 255);
-
-    // Handle reporting for differing modes
-    switch (_workingMode)
-    {
-    // Default is mode 3
-    default:
-      _out_buffer.stick_left_x = lx8;
-      _out_buffer.stick_left_y = ly8;
-      _out_buffer.stick_right_x = rx8;
-      _out_buffer.stick_right_y = ry8;
-      _out_buffer.analog_trigger_l = lt8;
-      _out_buffer.analog_trigger_r = rt8;
-      break;
-
-    case 0:
-      _out_buffer.mode0.stick_left_x = lx8;
-      _out_buffer.mode0.stick_left_y = ly8;
-      _out_buffer.mode0.stick_right_x = rx8;
-      _out_buffer.mode0.stick_right_y = ry8;
-      _out_buffer.mode0.analog_trigger_l = lt8 >> 4;
-      _out_buffer.mode0.analog_trigger_r = rt8 >> 4;
-      _out_buffer.mode0.analog_a = 0; // 4bits
-      _out_buffer.mode0.analog_b = 0; // 4bits
-      break;
-
-    case 1:
-      _out_buffer.mode1.stick_left_x = lx8;
-      _out_buffer.mode1.stick_left_y = ly8;
-      _out_buffer.mode1.stick_right_x = rx8 >> 4;
-      _out_buffer.mode1.stick_right_y = ry8 >> 4;
-      _out_buffer.mode1.analog_trigger_l = lt8;
-      _out_buffer.mode1.analog_trigger_r = rt8;
-      _out_buffer.mode1.analog_a = 0; // 4bits
-      _out_buffer.mode1.analog_b = 0; // 4bits
-      break;
-
-    case 2:
-      _out_buffer.mode2.stick_left_x = lx8;
-      _out_buffer.mode2.stick_left_y = ly8;
-      _out_buffer.mode2.stick_right_x = rx8 >> 4;
-      _out_buffer.mode2.stick_right_y = ry8 >> 4;
-      _out_buffer.mode2.analog_trigger_l = lt8 >> 4;
-      _out_buffer.mode2.analog_trigger_r = rt8 >> 4;
-      _out_buffer.mode2.analog_a = 0;
-      _out_buffer.mode2.analog_b = 0;
-      break;
-
-    case 4:
-      _out_buffer.mode4.stick_left_x = lx8;
-      _out_buffer.mode4.stick_left_y = ly8;
-      _out_buffer.mode4.stick_right_x = rx8;
-      _out_buffer.mode4.stick_right_y = ry8;
-      _out_buffer.mode4.analog_a = 0;
-      _out_buffer.mode4.analog_b = 0;
-      break;
-    }
+    transport_evt_cb(evt);
   }
 }
 
 /***********************************************/
 /********* Transport Defines *******************/
+void transport_jbgc_stop()
+{
+}
+
 bool transport_jbgc_init(core_params_s *params)
 {
-    _gc_core_params = params;
+  if (params->core_report_format != CORE_REPORTFORMAT_GAMECUBE)
+    return false;
+  _gc_hal_params = params;
+
+  _joybus_gc_hal_init();
+  return true;
 }
 
 void transport_jbgc_task(uint64_t timestamp)
 {
+  if (!_gc_hal_params)
+    return;
 
+  static interval_s interval = {0};
+  static interval_s interval_reset = {0};
+
+  if (interval_run(timestamp, _gc_hal_params->core_pollrate_us, &interval))
+  {
+    // Get input report here
+    core_report_s report;
+    if (core_get_generated_report(&report))
+    {
+
+      snapshot_gcinput_write(&_gc_hal_snap, (core_gamecube_report_s*)report.data);
+    }
+
+    // Rumblecore_gamecube_report_s
+    _jbgc_handle_rumble();
+  }
+
+  if (interval_resettable_run(timestamp, 1000000, _gc_got_data, &interval_reset))
+  {
+    _jbgc_handle_connection(false);
+  }
+
+  if (_gc_got_data)
+  {
+    _jbgc_handle_connection(true);
+    _gc_got_data = false;
+  }
 }
 
 #endif

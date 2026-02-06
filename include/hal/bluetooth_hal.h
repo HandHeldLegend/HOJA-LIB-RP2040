@@ -14,6 +14,6 @@
 void bluetooth_hal_stop();
 bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb);
 void bluetooth_hal_task(uint64_t timestamp);
-uint32_t bluetooth_hal_get_fwversion(void);
+uint32_t transport_bt_test(void);
 #endif
 #endif 

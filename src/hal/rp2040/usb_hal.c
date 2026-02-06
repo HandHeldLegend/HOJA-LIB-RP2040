@@ -15,6 +15,7 @@
 #include "device/usbd_pvt.h"
 
 #include "utilities/settings.h"
+#include "hal/sys_hal.h"
 
 #include "usb/webusb.h"
 
@@ -30,11 +31,22 @@
 #define USB_PRODUCT HOJA_PRODUCT
 #endif
 
-typedef void (*usb_hal_report_cb_t)(void const *report, uint16_t len);
+const char *global_string_descriptor[] = {
+    // array of pointer to string descriptors
+    (char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
+    USB_MANUFACTURER,     // 1: Manufacturer
+    USB_PRODUCT,          // 2: Product
+    "000000",             // 3: Serials, should use chip ID
+    "Hoja Gamepad"        // 4 Identifier for GC Mode
+};
+
+typedef bool (*usb_hal_report_cb_t)(uint8_t report_id, void const *report, uint16_t len);
+typedef bool (*usb_hal_ready_cb_t)(void);
 
 usb_hal_report_cb_t _usb_hal_report_cb = NULL;
+usb_hal_ready_cb_t _usb_hal_ready_cb = NULL;
 core_params_s *_usb_core_params = NULL;
-core_hid_device_t *_usbhal_hiddev = NULL;
+const core_hid_device_t *_usbhal_hiddev = NULL;
 
 //--------------------------------------------------------------------+
 // Slippi Types Pre-Defines
@@ -136,15 +148,15 @@ uint8_t tud_slippi_n_get_protocol(uint8_t instance)
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void slippid_init(void)
-{
-    slippid_reset(0);
-}
-
 void slippid_reset(uint8_t rhport)
 {
     (void)rhport;
     tu_memclr(_slippid_itf, sizeof(_slippid_itf));
+}
+
+void slippid_init(void)
+{
+    slippid_reset(0);
 }
 
 uint16_t slippid_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
@@ -426,15 +438,15 @@ typedef struct
 
 CFG_TUSB_MEM_SECTION static xinputd_interface_t _xinputd_itf;
 
-void xinputd_init(void)
-{
-    xinputd_reset(0);
-}
-
 void xinputd_reset(uint8_t rhport)
 {
     (void)rhport;
     tu_memclr(&_xinputd_itf, sizeof(_xinputd_itf));
+}
+
+void xinputd_init(void)
+{
+    xinputd_reset(0);
 }
 
 uint16_t xinputd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
@@ -563,18 +575,6 @@ const usbd_class_driver_t tud_xinput_driver =
         .sof = NULL,
 };
 
-// Descriptor callback functions
-uint8_t const *xinput_descriptor_device_cb(void)
-{
-    return (uint8_t const *)&xid_device_descriptor;
-}
-
-uint8_t const *xinput_descriptor_configuration_cb(uint8_t index)
-{
-    (void)index;
-    return xid_configuration_descriptor;
-}
-
 #pragma endregion
 
 //--------------------------------------------------------------------+
@@ -700,10 +700,18 @@ uint8_t const gc_desc_bos[] = {
 
 uint8_t const *tud_descriptor_bos_cb(void)
 {
-    if (hoja_get_status().gamepad_mode == GAMEPAD_MODE_GCUSB)
-        return gc_desc_bos;
+    if(_usb_core_params)
+    {
+        switch(_usb_core_params->core_report_format)
+        {
+            case CORE_REPORTFORMAT_SLIPPI:
+            return gc_desc_bos;
 
-    return desc_bos;
+            default:
+            return desc_bos;
+        }
+    }
+    return 0;
 }
 
 uint8_t const desc_ms_os_20[] =
@@ -1006,17 +1014,15 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 //--------------------------------------------------------------------+
 #pragma region TUSB CALLBACKS
 
-const char *global_string_descriptor[] = {
-    // array of pointer to string descriptors
-    (char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
-    USB_MANUFACTURER,     // 1: Manufacturer
-    USB_PRODUCT,          // 2: Product
-    "000000",             // 3: Serials, should use chip ID
-    "Hoja Gamepad"        // 4 Identifier for GC Mode
-};
-
 /***********************************************/
 /********* TinyUSB HID callbacks ***************/
+
+volatile uint8_t sequence_step = 0;
+volatile uint8_t ms_counter = 0;
+uint32_t _usb_frames = 8;
+// Whether USB is ready for another input
+volatile bool _usb_ready = false;
+volatile bool _usb_sendit = false;
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
@@ -1024,11 +1030,10 @@ uint8_t const *tud_descriptor_device_cb(void)
 {
     // TO DO set connected on transport layer
     // END TO DO
-
     if (_usbhal_hiddev)
     {
 
-        return _usbhal_hiddev->device_descriptor;
+        return (uint8_t const *)_usbhal_hiddev->device_descriptor;
     }
 
     return NULL;
@@ -1102,10 +1107,6 @@ void tud_mount_cb()
     tud_sof_cb_enable(true);
 }
 
-volatile uint8_t sequence_step = 0;
-volatile uint8_t ms_counter = 0;
-uint32_t _usb_frames = 8;
-
 void tud_sof_cb(uint32_t frame_count_ext) 
 {
     switch (_usb_frames)
@@ -1135,10 +1136,6 @@ void tud_sof_cb(uint32_t frame_count_ext)
 /***********************************************/
 /********* Transport Defines *******************/
 
-// Whether USB is ready for another input
-volatile bool _usb_ready = false;
-volatile bool _usb_sendit = false;
-
 void transport_usb_stop()
 {
     _usb_hal_report_cb = NULL;
@@ -1152,20 +1149,24 @@ bool transport_usb_init(core_params_s *params)
     // Supported report formats
     case CORE_REPORTFORMAT_SINPUT:
         _usb_frames = 1;
+        _usb_hal_ready_cb = tud_hid_ready;
         _usb_hal_report_cb = tud_hid_report;
         break;
     case CORE_REPORTFORMAT_SWPRO:
         _usb_frames = 8;
+        _usb_hal_ready_cb = tud_hid_ready;
         _usb_hal_report_cb = tud_hid_report;
         break;
 
     case CORE_REPORTFORMAT_XINPUT:
         _usb_frames = 1;
+        _usb_hal_ready_cb = tud_xinput_ready;
         _usb_hal_report_cb = tud_xinput_report;
         break;
 
     case CORE_REPORTFORMAT_SLIPPI:
         _usb_frames = 1;
+        _usb_hal_ready_cb = tud_slippi_ready;
         _usb_hal_report_cb = tud_slippi_report;
         break;
 
@@ -1190,9 +1191,9 @@ void transport_usb_task(uint64_t timestamp)
     static bool sofen = false;
     tud_task();
 
-    if (!_usb_ready)
+    if (!_usb_ready && (_usb_hal_ready_cb!=NULL))
     {
-        _usb_ready = _hoja_usb_ready();
+        _usb_ready = _usb_hal_ready_cb();
     }
 
     if (_usb_sendit && _usb_ready)
@@ -1205,14 +1206,10 @@ void transport_usb_task(uint64_t timestamp)
         {
             if(_usb_hal_report_cb)
             {
-                _usb_hal_report_cb(report.data, report.size);
+                _usb_hal_report_cb(report.data[0], &report.data[1], report.size-1);
             }
         }
-
-        return true;
     }
-
-    return false;
 }
 
 #endif

@@ -4,9 +4,9 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 
-const usb_device_descriptor_t _xinput_device_descriptor ={
-    .bLength = sizeof(usb_device_descriptor_t),
-    .bDescriptorType = USB_DESC_DEVICE,
+const hoja_usb_device_descriptor_t _xinput_device_descriptor ={
+    .bLength = sizeof(hoja_usb_device_descriptor_t),
+    .bDescriptorType = HUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
     .bDeviceClass = 0xFF,
     .bDeviceSubClass = 0xFF,
@@ -86,7 +86,7 @@ const core_hid_device_t _xinput_hid_device = {
 
 short _core_xinput_scale_axis(int16_t input_axis)
 {   
-    return XINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
+    return CORE_XINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
 }
 
 void _core_xinput_report_tunnel_cb(uint8_t *data, uint16_t len)

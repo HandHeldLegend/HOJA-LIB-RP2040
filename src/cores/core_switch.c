@@ -26,9 +26,9 @@ uint8_t _switch_report_size = 64;
 // 3. Configuration Descriptor
 // 4. TinyUSB Config
 /**--------------------------**/
-const usb_device_descriptor_t _swpro_device_descriptor = {
-    .bLength = sizeof(usb_device_descriptor_t),
-    .bDescriptorType = USB_DESC_DEVICE,
+const hoja_usb_device_descriptor_t _swpro_device_descriptor = {
+    .bLength = sizeof(hoja_usb_device_descriptor_t),
+    .bDescriptorType = HUSB_DESC_DEVICE,
     .bcdUSB = 0x0210, // Changed from 0x0200 to 2.1 for BOS & WebUSB
     .bDeviceClass = 0x00,
     .bDeviceSubClass = 0x00,
@@ -241,64 +241,64 @@ const uint8_t swpro_hid_report_descriptor_bt[] = {
 #define SWPRO_CONFIG_DESCRIPTOR_LEN 64
 const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
-    HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, USB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, HUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
     // Interface
     9,
-    USB_DESC_INTERFACE,
+    HUSB_DESC_INTERFACE,
     0x00,
     0x00,
     0x02,
-    USB_CLASS_HID,
+    HUSB_CLASS_HID,
     0x00,
     0x00,
     0x00,
     // HID Descriptor
     9,
-    HID_DESC_TYPE_HID,
+    HHID_DESC_TYPE_HID,
     HUSB_U16_TO_U8S_LE(0x0111),
     0,
     1,
-    HID_DESC_TYPE_REPORT,
+    HHID_DESC_TYPE_REPORT,
     HUSB_U16_TO_U8S_LE(sizeof(_swpro_hid_report_descriptor_usb)),
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x81,
-    USB_XFER_INTERRUPT,
+    HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(64),
     4,
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x01,
-    USB_XFER_INTERRUPT,
+    HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(64),
     8,
 
     // Alternate Interface for WebUSB
     // Interface
     9,
-    USB_DESC_INTERFACE,
+    HUSB_DESC_INTERFACE,
     0x01,
     0x00,
     0x02,
-    USB_CLASS_VENDOR_SPECIFIC,
+    HUSB_CLASS_VENDOR_SPECIFIC,
     0x00,
     0x00,
     0x00,
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x82,
-    USB_XFER_BULK,
+    HUSB_XFER_BULK,
     HUSB_U16_TO_U8S_LE(64),
     0,
     // Endpoint Descriptor
     7,
-    USB_DESC_ENDPOINT,
+    HUSB_DESC_ENDPOINT,
     0x02,
-    USB_XFER_BULK,
+    HUSB_XFER_BULK,
     HUSB_U16_TO_U8S_LE(64),
     0,
 };
@@ -329,7 +329,7 @@ const core_hid_device_t _switch_hid_device_bt = {
     .vid = _switch_hid_vid,
 };
 
-void _core_switch_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
 
@@ -367,7 +367,7 @@ bool _core_switch_get_generated_report(core_report_s *out)
     // that we must respond to
     if(_scmd[0])
     {
-        swcmd_generate_reply(&_scmd, &out->data[0] ,&out->data[1]);
+        swcmd_generate_reply(_scmd, &out->data[0], &out->data[1]);
         // Clear command data
         _scmd[0]=0;
         memset(_scmd, 0, NS_CMD_DATA_LEN);
@@ -414,10 +414,10 @@ bool _core_switch_get_generated_report(core_report_s *out)
         uint16_t rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]);
         uint16_t ry = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]);
 
-        lx = (uint16_t) SWITCH_CLAMP(lx, 0, 4095); 
-        ly = (uint16_t) SWITCH_CLAMP(ly, 0, 4095); 
-        rx = (uint16_t) SWITCH_CLAMP(rx, 0, 4095); 
-        ry = (uint16_t) SWITCH_CLAMP(ry, 0, 4095); 
+        lx = (uint16_t) CORE_SWITCH_CLAMP(lx, 0, 4095); 
+        ly = (uint16_t) CORE_SWITCH_CLAMP(ly, 0, 4095); 
+        rx = (uint16_t) CORE_SWITCH_CLAMP(rx, 0, 4095); 
+        ry = (uint16_t) CORE_SWITCH_CLAMP(ry, 0, 4095); 
         
         // Custom mapping of bits for output for joysticks/buttons
         out->data[2] =  data.right_buttons;

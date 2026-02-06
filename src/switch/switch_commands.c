@@ -36,7 +36,7 @@ uint8_t _switch_command_report_id = 0x00;
 
 uint8_t _switch_ltk[16] = {0};
 
-void _swcmd_command_handler(uint8_t command, uint8_t *data, uint8_t *out);
+void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out);
 
 void generate_ltk()
 {
@@ -382,7 +382,7 @@ void swcmd_generate_inputreport(uint8_t *report_id, uint8_t *out)
   }
 }
 
-void _swcmd_command_handler(uint8_t command, uint8_t *data, uint8_t *out)
+void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out)
 {
   // Report ID is already set to 0x21, so
   // we are only concerned with setting the

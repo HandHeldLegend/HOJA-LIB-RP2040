@@ -6,7 +6,7 @@
 
 #include "cores/cores.h"
 
-bool transport_bt_stop();
+void transport_bt_stop();
 bool transport_bt_init(core_params_s *params);
 void transport_bt_task(uint64_t timestamp);
 

@@ -424,11 +424,7 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
 
         case STATIC_BLOCK_BLUETOOTH:
             // Set our Bluetooth baseband version
-            #if defined(HOJA_BLUETOOTH_GET_FWVERSION)
-                bluetooth_static.external_version_number = HOJA_BLUETOOTH_GET_FWVERSION();
-            #else 
-                bluetooth_static.external_version_number = 0;
-            #endif
+            bluetooth_static.external_version_number = transport_bt_test();
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
