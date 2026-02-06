@@ -59,18 +59,18 @@ bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
     return true;
 }
 
-bool _bluetooth_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
+bool _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
 {
     uint8_t new_report[66] = {0};
     new_report[0] = 0xA1; // Type of input report
-    new_report[1] = report_id;
-    memcpy(&(new_report[2]), report, len);
+
+    // Byte 1 is the report ID
+    memcpy(&(new_report[1]), report, len);
 
     if (hid_cid)
     {
-        hid_device_send_interrupt_message(hid_cid, new_report, len + 2);
+        hid_device_send_interrupt_message(hid_cid, new_report, len + 1);
     }
-
     return true;
 }
 
@@ -83,33 +83,13 @@ static void _bt_hid_report_handler(uint16_t cid,
     {
         if (cid == hid_cid)
         {
-            printf("REPORT? %x, c: %d\n", report_id, hid_cid);
+            //printf("REPORT? %x, c: %d\n", report_id, hid_cid);
             uint8_t tmp[64] = {0};
 
             tmp[0] = report_id;
+            memcpy(&tmp[1], report, report_size);
 
-            switch (hoja_get_status().gamepad_mode)
-            {
-            default:
-                if (report_id == SW_OUT_ID_RUMBLE)
-                {
-                    switch_haptics_rumble_translate(&report[1]);
-                }
-                else if (report_id == SW_OUT_ID_RUMBLE_CMD)
-                {
-                    // switch_haptics_rumble_translate(&report[1]);
-                    memcpy(&tmp[1], report, report_size);
-                    switch_commands_future_handle(report_id, tmp, report_size + 1);
-                }
-                break;
-
-            case GAMEPAD_MODE_SINPUT:
-                if (report_id == REPORT_ID_SINPUT_OUTPUT_CMDDAT)
-                {
-                    sinput_hid_handle_command_future(report);
-                }
-                break;
-            }
+            core_report_tunnel_cb(tmp, report_size+1);
         }
     }
 }
@@ -242,14 +222,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                     if (time_elapsed >= _bt_hal_pollrate_ms)
                     {
-                        switch (hoja_get_status().gamepad_mode)
+                        core_report_s report = {0};
+                        
+                        if(core_get_generated_report(&report))
                         {
-                        default:
-                            swpro_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
-                            break;
-
-                        case GAMEPAD_MODE_SINPUT:
-                            sinput_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
+                            _bluetooth_hal_hid_tunnel(report.data, report.size);
                         }
 
                         last_hid_report_timestamp_ms = current_time_ms;

@@ -1,22 +1,34 @@
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) && (HOJA_TRANSPORT_JOYBUS64_DRIVER == JOYBUS_N64_DRIVER_HAL)
+
+#include "cores/core_n64.h"
+#include "transport/transport.h"
+#include "transport/transport_joybus64.h"
+
 #include "hal/joybus_n64_hal.h"
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"
 
-#include "hoja.h"
-
-#include "wired/n64.h"
-#include "wired/n64_crc.h"
+#include "utilities/n64_crc.h"
 #include "utilities/interval.h"
+#include "utilities/crosscore_snapshot.h"
 #include "devices/haptics.h"
 
-#include "input_shared_types.h"
-#include "input/mapper.h"
-
 #include "hoja_bsp.h"
-#include "board_config.h"
 
-#if defined(HOJA_JOYBUS_N64_DRIVER) && (HOJA_JOYBUS_N64_DRIVER == JOYBUS_N64_DRIVER_HAL)
+typedef enum
+{
+    N64_CMD_PROBE   = 0x00,
+    N64_CMD_POLL    = 0x01,
+    N64_CMD_READMEM = 0x02,
+    N64_CMD_WRITEMEM = 0x03,
+    N64_CMD_RESET = 0xFF
+} n64_cmd_t;
+
+SNAPSHOT_TYPE(n64input, core_n64_report_s);
+snapshot_n64input_t _n64_hal_snap;
 
 #if !defined(JOYBUS_N64_DRIVER_PIO_INSTANCE)
     #error "JOYBUS_N64_DRIVER_PIO_INSTANCE must be defined in board_config.h" 
@@ -47,9 +59,6 @@ uint _n64_irq;
 uint _n64_offset;
 pio_sm_config _n64_c;
 bool _n64_rumble = false;
-
-static n64_input_s _out_buffer = {.stick_x = 0, .stick_y = 0};
-static uint8_t _in_buffer[64] = {0};
 
 volatile static uint8_t _workingCmd = 0x00;
 volatile static uint8_t _byteCount = 0;
@@ -104,10 +113,12 @@ void _n64_send_pak_write()
 
 void _n64_send_poll()
 {
-    pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_1));
-    pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.buttons_2));
-    pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_x));
-    pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(_out_buffer.stick_y));
+  static core_n64_report_s out;
+  snapshot_n64input_read(&_n64_hal_snap, &out);
+  pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.buttons_1));
+  pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.buttons_2));
+  pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.stick_x));
+  pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.stick_y));
 }
 
 #define PAK_MSG_BYTES 33
@@ -122,6 +133,7 @@ const uint32_t _delay_cycles_memread = 120;
 const uint32_t _delay_cycles_memwrite = 100;
 const uint32_t _delay_cycles_probe = 100;
 const uint32_t _delay_cycles_poll = 120;
+uint8_t _n64_hal_in_buffer[64] = {0};
 
 void __time_critical_func(_n64_command_handler)()
 {
@@ -131,17 +143,17 @@ void __time_critical_func(_n64_command_handler)()
     if (_workingCmd == N64_CMD_WRITEMEM)
     {
       uint16_t writeaddr = 0;
-      _in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
+      _n64_hal_in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
 
       if(_byteCount>1) // Only 32 bytes after the address
-      _crc_reply = _n64_iterate_crc(_crc_reply, _in_buffer[_byteCount]);
+      _crc_reply = _n64_iterate_crc(_crc_reply, _n64_hal_in_buffer[_byteCount]);
       
       if (_byteCount >= PAK_MSG_BYTES)
       {
-        writeaddr = (_in_buffer[0] << 8) | (_in_buffer[1]&0xE0);
+        writeaddr = (_n64_hal_in_buffer[0] << 8) | (_n64_hal_in_buffer[1]&0xE0);
         if (writeaddr==0xC000)
         {
-          _n64_rumble = (_in_buffer[2] > 0) ? true : false;
+          _n64_rumble = (_n64_hal_in_buffer[2] > 0) ? true : false;
         }
         _workingCmd = 0;
         _byteCount = 0;
@@ -162,7 +174,7 @@ void __time_critical_func(_n64_command_handler)()
     else if (_workingCmd == N64_CMD_READMEM)
     {
       
-      _in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
+      _n64_hal_in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
 
       if (_byteCount >= 1)
       {
@@ -176,7 +188,7 @@ void __time_critical_func(_n64_command_handler)()
         while(c--)
           asm("nop");
         
-        uint16_t readaddr = (_in_buffer[0]<<8) | (_in_buffer[1]&0xE0);
+        uint16_t readaddr = (_n64_hal_in_buffer[0]<<8) | (_n64_hal_in_buffer[1]&0xE0);
         if(readaddr==0x8000)
         {
           _n64_send_rumble_identify();
@@ -272,9 +284,6 @@ bool joybus_n64_hal_init()
     return true;
 }
 
-#define INPUT_POLL_RATE 1000 // 1ms
-#define N64WIRE_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
-
 void joybus_n64_hal_task(uint64_t timestamp)
 {   
     static interval_s       interval_reset = {0};
@@ -305,44 +314,102 @@ void joybus_n64_hal_task(uint64_t timestamp)
           haptics_set_std(_rumblestate ? 255 : 0, false);
       }
 
-      mapper_input_s input = mapper_get_input();
-      
-      _out_buffer.button_a = input.presses[N64_CODE_A];
-      _out_buffer.button_b = input.presses[N64_CODE_B];
-
-      _out_buffer.cpad_up   = input.presses[N64_CODE_CUP];
-      _out_buffer.cpad_down = input.presses[N64_CODE_CDOWN];
-
-      _out_buffer.cpad_left     = input.presses[N64_CODE_CLEFT];
-      _out_buffer.cpad_right    = input.presses[N64_CODE_CRIGHT];
-
-      _out_buffer.button_start = input.presses[N64_CODE_START];
-
-      _out_buffer.button_l = input.presses[N64_CODE_L];
-
-      _out_buffer.button_z = input.presses[N64_CODE_Z];
-      _out_buffer.button_r = input.presses[N64_CODE_R];
-
-      const float   target_max = 85.0f / 2048.0f;
-      float lx = mapper_joystick_concat(0,input.inputs[N64_CODE_LX_LEFT],input.inputs[N64_CODE_LX_RIGHT] ) * target_max;
-      float ly = mapper_joystick_concat(0,input.inputs[N64_CODE_LY_DOWN],input.inputs[N64_CODE_LY_UP]    ) * target_max;
-
-      int8_t lx8 = N64WIRE_CLAMP(lx, -128, 127);
-      int8_t ly8 = N64WIRE_CLAMP(ly, -128, 127);
-
-      _out_buffer.stick_x = lx8;
-      _out_buffer.stick_y = ly8;
-
-      bool dpad[4] = {input.presses[N64_CODE_DOWN], input.presses[N64_CODE_RIGHT],
-                    input.presses[N64_CODE_LEFT], input.presses[N64_CODE_UP]};
-
-    dpad_translate_input(dpad);
-
-      _out_buffer.dpad_down     = dpad[0];
-      _out_buffer.dpad_right    = dpad[1];
-      _out_buffer.dpad_left     = dpad[2];
-      _out_buffer.dpad_up       = dpad[3];
     }
+}
+
+core_params_s *_n64_hal_params = NULL;
+
+static inline void _jb64_handle_rumble()
+{
+  // Handle rumble state if it changes
+  static bool rumblestate = false;
+  if(_n64_rumble != rumblestate)
+  {
+      rumblestate = _n64_rumble;
+
+      uint8_t rumble = rumblestate ? 255 : 0;
+
+      tp_evt_s evt = { .evt_ermrumble = {
+        .left = rumble, .right = rumble, .left = 0, .right = 0
+      }};
+      
+      transport_evt_cb(evt);
+  }
+}
+
+void _jb64_handle_connection(bool connected)
+{
+  // Handle connection state if it changes
+  static uint8_t connectstate = 0;
+  bool emit = false;
+  tp_connectionchange_t c = TP_CONNECTION_NONE;
+
+  if(!connectstate && connected)
+  {
+    c = TP_CONNECTION_CONNECTED;
+    connectstate = 1;
+    emit = true;
+  }
+  else if(connectstate && !connected)
+  {
+    c = TP_CONNECTION_DISCONNECTED;
+    connectstate = 0;
+    emit = true;
+    _n64_reset_state();
+    sleep_ms(8);
+  }
+
+  tp_evt_s evt = {.evt_connectionchange = {
+    .connection = c
+  }};
+
+  if(emit)
+  {
+    transport_evt_cb(evt);
+  }
+}
+
+/***********************************************/
+/********* Transport Defines *******************/
+void transport_jb64_stop()
+{
+}
+
+bool transport_jb64__init(core_params_s *params)
+{
+  if(params->core_report_format != CORE_REPORTFORMAT_N64) return false;
+}
+
+void transport_jb64_task(uint64_t timestamp)
+{
+  if(!_n64_hal_params) return;
+
+  static interval_s interval = {0};
+  static interval_s interval_reset = {0};
+
+  if(interval_run(timestamp, _n64_hal_params->core_pollrate_us, &interval))
+  {
+    // Get input report here
+    core_report_s report;
+    if(core_get_generated_report(&report))
+    {
+      snapshot_n64input_write(&_n64_hal_snap, (core_n64_report_s*)report.data);
+    }
+
+    // Rumble
+    _jb64_handle_rumble();
+  }
+
+  if(interval_resettable_run(timestamp, 1000000, _n64_got_data, &interval_reset))
+  {
+    _jb64_handle_connection(false);
+  }
+
+  if(_n64_got_data) 
+  {
+    _jb64_handle_connection(true);
+    _n64_got_data = false;
+  }
 }
 
 #endif
