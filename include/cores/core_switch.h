@@ -63,9 +63,7 @@ typedef struct
         };
         uint8_t left_buttons;
     };
-    uint8_t data[45];
 } core_switch_report_s;
-#define CORE_SWITCH_REPORT_SIZE sizeof(core_switch_report_s)
 
 bool core_switch_init(core_params_s *params);
 

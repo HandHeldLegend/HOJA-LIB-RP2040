@@ -3,8 +3,9 @@
 #if defined(HOJA_TRANSPORT_USB_DRIVER) && (HOJA_TRANSPORT_USB_DRIVER == USB_DRIVER_HAL)
 
 #include <hoja_usb.h>
+#include <tusb_config.h>
 
-#include "hal/usb_hal.h"
+#include "transport/transport_usb.h"
 
 #include "cores/cores.h"
 
@@ -548,6 +549,8 @@ bool tud_n_xinput_report(uint8_t report_id, void const *report, uint16_t len)
     usbd_edpt_release(0, _xinputd_itf.ep_in);
 
     tud_xinput_getout();
+
+    return out;
 }
 
 bool tud_xinput_report(uint8_t report_id, void const *report, uint16_t len)
@@ -1032,7 +1035,6 @@ uint8_t const *tud_descriptor_device_cb(void)
     // END TO DO
     if (_usbhal_hiddev)
     {
-
         return (uint8_t const *)_usbhal_hiddev->device_descriptor;
     }
 
@@ -1046,11 +1048,10 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 {
     if (_usbhal_hiddev)
     {
-
         return _usbhal_hiddev->config_descriptor;
     }
 
-    return NULL;
+    return 0;
 }
 
 // Invoked when received GET_REPORT control request
@@ -1074,9 +1075,11 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 
     if (_usbhal_hiddev)
     {
-
-        return _usbhal_hiddev->hid_report_descriptor;
+        if(_usbhal_hiddev->hid_report_descriptor)
+            return _usbhal_hiddev->hid_report_descriptor;
     }
+
+    return 0;
 }
 
 // Invoked when report complete
@@ -1141,10 +1144,15 @@ void transport_usb_stop()
     _usb_hal_report_cb = NULL;
     tud_deinit(0);
 }
+core_report_s _core_report = {0};
 
 bool transport_usb_init(core_params_s *params)
 {
-    switch (params->core_report_format)
+    // Copy pointer
+    _usb_core_params = params;
+    memset(_core_report.data, 0, 64);
+
+    switch (_usb_core_params->core_report_format)
     {
     // Supported report formats
     case CORE_REPORTFORMAT_SINPUT:
@@ -1175,7 +1183,7 @@ bool transport_usb_init(core_params_s *params)
         return false;
     }
 
-    if (_usb_core_params->hid_device != NULL)
+    if (_usb_core_params->hid_device)
     {
         _usbhal_hiddev = _usb_core_params->hid_device;
     }
@@ -1201,12 +1209,12 @@ void transport_usb_task(uint64_t timestamp)
         _usb_sendit = false;
         _usb_ready = false;
     
-        core_report_s report;
-        if(core_get_generated_report(&report))
+        
+        if(core_get_generated_report(&_core_report))
         {
             if(_usb_hal_report_cb)
             {
-                _usb_hal_report_cb(report.data[0], &report.data[1], report.size-1);
+                _usb_hal_report_cb(_core_report.data[0], &_core_report.data[1], _core_report.size-1);
             }
         }
     }

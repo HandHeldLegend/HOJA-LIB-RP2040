@@ -17,7 +17,8 @@
 #define CORE_SWITCH_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
 #define NS_CMD_DATA_LEN 64
-uint8_t _scmd[NS_CMD_DATA_LEN] = {0};
+volatile bool _scmd_ready = false;
+int8_t _scmd[NS_CMD_DATA_LEN] = {0};
 uint8_t _switch_report_size = 64;
 
 /** Switch PRO HID MODE **/
@@ -349,8 +350,10 @@ void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 
         // Fall through to default to process the command later
         default:
+        memset(_scmd, 0, 64);
         // Copy the full data buffer, preserving the report ID
         memcpy(_scmd, data, len);
+        _scmd_ready = true;
         break;
     }
 }
@@ -360,23 +363,19 @@ bool _core_switch_get_generated_report(core_report_s *out)
     out->reportformat=CORE_REPORTFORMAT_SWPRO;
     out->size=_switch_report_size; // Includes report ID
 
-    // Flush output buffer
-    memset(out->data, 0, CORE_REPORT_DATA_LEN);
-
     // Check if we have command data
     // that we must respond to
-    if(_scmd[0])
+    if(_scmd_ready)
     {
         swcmd_generate_reply(_scmd, &out->data[0], &out->data[1]);
         // Clear command data
-        _scmd[0]=0;
-        memset(_scmd, 0, NS_CMD_DATA_LEN);
+        _scmd_ready = false;
     }
     // Just generate input data and send
     else 
     {
         // Set the input data
-        core_switch_report_s data = {0};
+        static core_switch_report_s data = {0};
 
         mapper_input_s input = mapper_get_input();
 
@@ -420,17 +419,17 @@ bool _core_switch_get_generated_report(core_report_s *out)
         ry = (uint16_t) CORE_SWITCH_CLAMP(ry, 0, 4095); 
         
         // Custom mapping of bits for output for joysticks/buttons
-        out->data[2] =  data.right_buttons;
-        out->data[3] =  data.shared_buttons;
-        out->data[4] =  data.left_buttons;
-        out->data[5] =  (lx & 0xFF);
-        out->data[6] =  (lx & 0xF00) >> 8;
-        out->data[6] |= (ly & 0xF) << 4;
-        out->data[7] =  (ly & 0xFF0) >> 4;
-        out->data[8] =  (rx & 0xFF);
-        out->data[9] =  (rx & 0xF00) >> 8;
-        out->data[9] |= (ry & 0xF) << 4;
-        out->data[10] =  (ry & 0xFF0) >> 4;
+        out->data[3] =  data.right_buttons;
+        out->data[4] =  data.shared_buttons;
+        out->data[5] =  data.left_buttons;
+        out->data[6] =  (lx & 0xFF);
+        out->data[7] =  (lx & 0xF00) >> 8;
+        out->data[7] |= (ly & 0xF) << 4;
+        out->data[8] =  (ly & 0xFF0) >> 4;
+        out->data[9] =  (rx & 0xFF);
+        out->data[10] =  (rx & 0xF00) >> 8;
+        out->data[10] |= (ry & 0xF) << 4;
+        out->data[11] =  (ry & 0xFF0) >> 4;
 
         swcmd_generate_inputreport(&out->data[0], &out->data[1]);
     }

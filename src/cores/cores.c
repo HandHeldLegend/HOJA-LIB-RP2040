@@ -96,19 +96,15 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
     switch(mode)
     {
         case GAMEPAD_MODE_SWPRO:
-        _core_params.core_report_format = CORE_REPORTFORMAT_SWPRO;
         return core_switch_init(&_core_params);
 
         case GAMEPAD_MODE_XINPUT:
-        _core_params.core_report_format = CORE_REPORTFORMAT_XINPUT;
         return core_xinput_init(&_core_params);
 
         case GAMEPAD_MODE_SINPUT:
-        _core_params.core_report_format = CORE_REPORTFORMAT_SINPUT;
         return core_sinput_init(&_core_params);
 
         case GAMEPAD_MODE_SNES:
-        _core_params.core_report_format = CORE_REPORTFORMAT_SNES;
         return core_snes_init(&_core_params);
 
         case GAMEPAD_MODE_N64:

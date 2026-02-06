@@ -4,6 +4,11 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 
+#define XINPUT_HID_NAME "XInput Gamepad"
+#define XINPUT_VID 0x045E
+#define XINPUT_PID 0x028E
+
+
 const hoja_usb_device_descriptor_t _xinput_device_descriptor ={
     .bLength = sizeof(hoja_usb_device_descriptor_t),
     .bDescriptorType = HUSB_DESC_DEVICE,
@@ -14,8 +19,8 @@ const hoja_usb_device_descriptor_t _xinput_device_descriptor ={
     .bMaxPacketSize0 =
         64,
 
-    .idVendor = 0x045E,
-    .idProduct = 0x028E,
+    .idVendor = XINPUT_VID,
+    .idProduct = XINPUT_PID,
     .bcdDevice = 0x0572,
 
     .iManufacturer = 0x01,
@@ -25,7 +30,7 @@ const hoja_usb_device_descriptor_t _xinput_device_descriptor ={
     .bNumConfigurations = 0x01
 };
 
-#define XINPUT_CONFIG_DESCRIPTOR_LEN 41
+#define XINPUT_CONFIG_DESCRIPTOR_LEN 48
 const uint8_t _xinput_configuration_descriptor[48] = {
     0x09,       // bLength
     0x02,       // bDescriptorType (Configuration)
@@ -80,6 +85,9 @@ const core_hid_device_t _xinput_hid_device = {
     // .hid_report_descriptor  = ,
     // .hid_report_descriptor_len = ,
     .device_descriptor      = &_xinput_device_descriptor,
+    .name = XINPUT_HID_NAME,
+    .pid = XINPUT_PID,
+    .vid = XINPUT_VID,
 };
 
 #define CORE_XINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
@@ -89,7 +97,7 @@ short _core_xinput_scale_axis(int16_t input_axis)
     return CORE_XINPUT_CLAMP(input_axis * 16, INT16_MIN, INT16_MAX);
 }
 
-void _core_xinput_report_tunnel_cb(uint8_t *data, uint16_t len)
+void _core_xinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
 
@@ -145,5 +153,20 @@ bool _core_xinput_get_generated_report(core_report_s *out)
 
 bool core_xinput_init(core_params_s *params)
 {
+    switch(params->transport_type)
+    {
+        case GAMEPAD_TRANSPORT_USB:
+        params->hid_device = &_xinput_hid_device;
+        params->core_pollrate_us = 1000;
+        break;
+        
+        default:
+        return false;
+    }
 
+    params->core_report_format = CORE_REPORTFORMAT_XINPUT;
+    params->core_report_generator = _core_xinput_get_generated_report;
+    params->core_report_tunnel = _core_xinput_report_tunnel_cb;
+
+    return transport_init(params);
 }

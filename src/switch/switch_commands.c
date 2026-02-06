@@ -66,13 +66,14 @@ void _swcmd_set_timer(uint8_t *target)
   sys_hal_time_ms(&this_ms);
 
   static uint64_t _switch_timer = 0;
-  target[0] = (uint8_t)_switch_timer;
 
   _switch_timer += this_ms;
   if (_switch_timer > 0xFF)
   {
     _switch_timer %= 0xFF; // or -= 0xFF depending on requirements
   }
+
+  target[0] = (uint8_t)_switch_timer;
 }
 
 void _swcmd_set_battconn(uint8_t *target)

@@ -49,7 +49,7 @@ typedef struct
 	uint8_t reserved_1[6];
 } core_xinput_report_s;
 
-#define CORE_XINPUT_REPORT_SIZE sizeof(core_xinput_report_s)
+#define CORE_XINPUT_REPORT_SIZE 64 // Send 64 bytes...
 
 bool core_xinput_init(core_params_s *params);
 
