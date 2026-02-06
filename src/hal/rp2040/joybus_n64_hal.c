@@ -260,12 +260,7 @@ void _n64_reset_state()
   joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
 }
 
-void joybus_n64_hal_stop()
-{   
-
-}
-
-bool joybus_n64_hal_init()
+bool _joybus_n64_hal_init()
 {
     _n64_offset = pio_add_program(PIO_IN_USE_N64, &joybus_program);
 
@@ -279,42 +274,7 @@ bool joybus_n64_hal_init()
 
     joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
     irq_set_enabled(_n64_irq, true);
-    _n64_running = true;
-
     return true;
-}
-
-void joybus_n64_hal_task(uint64_t timestamp)
-{   
-    static interval_s       interval_reset = {0};
-    static interval_s       interval    = {0};
-
-    // Only go when we have init
-    if (!_n64_running) return;
-
-    if(interval_resettable_run(timestamp, 1000000, _n64_got_data, &interval_reset))
-    {
-      hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
-      _n64_reset_state();
-      sleep_ms(8); // Wait for reset
-    }
-    
-    if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
-    {
-      if(_n64_got_data) 
-      {
-        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-        _n64_got_data = false;
-      }
-
-      static bool _rumblestate = false;
-      if(_n64_rumble != _rumblestate)
-      {
-          _rumblestate = _n64_rumble;
-          haptics_set_std(_rumblestate ? 255 : 0, false);
-      }
-
-    }
 }
 
 core_params_s *_n64_hal_params = NULL;
@@ -378,6 +338,9 @@ void transport_jb64_stop()
 bool transport_jb64__init(core_params_s *params)
 {
   if(params->core_report_format != CORE_REPORTFORMAT_N64) return false;
+  _n64_hal_params = params;
+
+  _joybus_n64_hal_init();
 }
 
 void transport_jb64_task(uint64_t timestamp)
