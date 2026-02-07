@@ -594,12 +594,10 @@ void _si_generate_features(uint8_t *buffer)
     buffer[16] = 0; // Touchpad count
     buffer[17] = 0; // Touchpad finger count
 
-    buffer[18] = gamepad_config->switch_mac_address[0];
-    buffer[19] = gamepad_config->switch_mac_address[1];
-    buffer[20] = gamepad_config->switch_mac_address[2];
-    buffer[21] = gamepad_config->switch_mac_address[3];
-    buffer[22] = gamepad_config->switch_mac_address[4];
-    buffer[23] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
+    core_params_s *params = core_current_params();
+
+    // 18-23 is the MAC
+    memcpy(&buffer[18], params->transport_dev_mac, 6);
 }
 
 int16_t _sinput_scale_trigger(uint16_t val)
@@ -787,6 +785,8 @@ const core_hid_device_t _sinput_hid_device = {
 // Public Functions
 bool core_sinput_init(core_params_s *params)
 {
+    params->transport_dev_mac[5] += 2;
+    
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:

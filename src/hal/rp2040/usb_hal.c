@@ -1104,10 +1104,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     }
 }
 
+static bool sofen = false;
 void tud_mount_cb()
 {
     tud_sof_cb_enable(false);
     tud_sof_cb_enable(true);
+    sofen = true;
 }
 
 void tud_sof_cb(uint32_t frame_count_ext) 
@@ -1120,7 +1122,6 @@ void tud_sof_cb(uint32_t frame_count_ext)
 
         case 8:
             ms_counter++;
-
             // To hit 8, 8, 9 intervals, we trigger at 7, 7, 8
             uint8_t trigger_threshold = (sequence_step == 2) ? 8 : 7;
 
@@ -1131,6 +1132,16 @@ void tud_sof_cb(uint32_t frame_count_ext)
                 _usb_sendit = true;
             }
             break;
+        
+        default:
+            ms_counter++;
+            if (ms_counter >= _usb_frames) {
+                // Reset counters
+                ms_counter = 0;
+                _usb_sendit = true;
+            }
+            break;
+
     }
 }
 
@@ -1196,10 +1207,12 @@ bool transport_usb_init(core_params_s *params)
 
 void transport_usb_task(uint64_t timestamp)
 {
-    static bool sofen = false;
+    
     tud_task();
 
-    if (!_usb_ready && (_usb_hal_ready_cb!=NULL))
+    if(!sofen) return;
+
+    if (!_usb_ready && _usb_hal_ready_cb)
     {
         _usb_ready = _usb_hal_ready_cb();
     }

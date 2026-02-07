@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "cores/cores.h"
 #include "transport/transport.h"
@@ -15,6 +16,7 @@
 #include "cores/core_gamecube.h"
 
 #include "devices/battery.h"
+#include "utilities/settings.h"
 
 const core_params_s _core_params_default = {
     .core_report_format = CORE_REPORTFORMAT_UNDEFINED,
@@ -60,15 +62,24 @@ bool core_get_generated_report(core_report_s *out)
     return _core_params.core_report_generator(out);
 }
 
-void core_report_tunnel_cb(uint8_t *data, uint16_t len)
+void core_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(!_core_params.core_report_tunnel) return;
     _core_params.core_report_tunnel(data, len);
 }
 
+core_params_s* core_current_params()
+{
+    return &_core_params;
+}
+
 bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 {
     _core_params.transport_type = transport;
+    memcpy(_core_params.transport_dev_mac, gamepad_config->gamepad_mac_address, 6);
+
+    // Clear host mac just in case first
+    memset(_core_params.transport_host_mac, 0, 6);
 
     switch(transport)
     {
@@ -96,12 +107,20 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
     switch(mode)
     {
         case GAMEPAD_MODE_SWPRO:
+        if(!pair)
+        {
+            memcpy(_core_params.transport_host_mac, gamepad_config->host_mac_switch, 6);
+        }
         return core_switch_init(&_core_params);
 
         case GAMEPAD_MODE_XINPUT:
         return core_xinput_init(&_core_params);
 
         case GAMEPAD_MODE_SINPUT:
+        if(!pair)
+        {
+            memcpy(_core_params.transport_host_mac, gamepad_config->host_mac_sinput, 6);
+        }
         return core_sinput_init(&_core_params);
 
         case GAMEPAD_MODE_SNES:

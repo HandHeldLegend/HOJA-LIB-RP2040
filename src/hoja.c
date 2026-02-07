@@ -233,8 +233,9 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
   }
 
   // debug
-  //method = GAMEPAD_METHOD_WLAN;
-  //mode = GAMEPAD_MODE_SINPUT;
+  method = GAMEPAD_METHOD_BLUETOOTH;
+  mode = GAMEPAD_MODE_SWPRO;
+  transport = GAMEPAD_TRANSPORT_BLUETOOTH;
 
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_method = method;
@@ -301,7 +302,7 @@ void _hoja_task_1()
       // Idle manager
       idle_manager_task(c1_timestamp);
 
-      imu_task(c1_timestamp);
+      //imu_task(c1_timestamp);
     }
   }
 }

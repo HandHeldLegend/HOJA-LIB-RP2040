@@ -9,6 +9,7 @@
 #include "hoja_shared_types.h"
 
 #include "hoja_usb.h"
+#include "hoja.h"
 
 #define REPORT_ID_SWITCH_INPUT 0x30
 #define REPORT_ID_SWITCH_CMD 0x21
@@ -18,7 +19,7 @@
 
 #define NS_CMD_DATA_LEN 64
 volatile bool _scmd_ready = false;
-int8_t _scmd[NS_CMD_DATA_LEN] = {0};
+uint8_t _scmd[NS_CMD_DATA_LEN] = {0};
 uint8_t _switch_report_size = 64;
 
 /** Switch PRO HID MODE **/
@@ -153,36 +154,47 @@ const uint8_t _swpro_hid_report_descriptor_usb[203] = {
     // 203 bytes
 };
 
-const uint8_t swpro_hid_report_descriptor_bt[] = {
-    0x05, 0x01,                   // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x05,                   // Usage (Game Pad)
-    0xA1, 0x01,                   // Collection (Application)
-    0x06, 0x01, 0xFF,             //   Usage Page (Vendor Defined 0xFF01)
-    0x85, 0x21,                   //   Report ID (33)
-    0x09, 0x21,                   //   Usage (0x21)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x30,                   //   Report ID (48)
-    0x09, 0x30,                   //   Usage (0x30)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x31,                   //   Report ID (49)
-    0x09, 0x31,                   //   Usage (0x31)
-    0x75, 0x08,                   //   Report Size (8)
-    0x96, 0x69, 0x01,             //   Report Count (361)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x32,                   //   Report ID (50)
-    0x09, 0x32,                   //   Usage (0x32)
-    0x75, 0x08,                   //   Report Size (8)
-    0x96, 0x69, 0x01,             //   Report Count (361)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x33,                   //   Report ID (51)
-    0x09, 0x33,                   //   Usage (0x33)
-    0x75, 0x08,                   //   Report Size (8)
-    0x96, 0x69, 0x01,             //   Report Count (361)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+const const uint8_t _swpro_hid_report_descriptor_bt[170] = {
+    0x05, 0x01,       // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,       // Usage (Game Pad)
+    0xA1, 0x01,       // Collection (Application)
+    0x06, 0x01, 0xFF, //   Usage Page (Vendor Defined 0xFF01)
+
+    0x85, 0x21, //   Report ID (33)
+    0x09, 0x21, //   Usage (0x21)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x30, //   Report Count (48)
+    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                //   Position)
+
+    0x85, 0x30, //   Report ID (48)
+    0x09, 0x30, //   Usage (0x30)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x30, //   Report Count (48)
+    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                //   Position)
+
+    0x85, 0x31,       //   Report ID (49)
+    0x09, 0x31,       //   Usage (0x31)
+    0x75, 0x08,       //   Report Size (8)
+    0x96, 0x69, 0x01, //   Report Count (361)
+    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                      //   Position)
+
+    0x85, 0x32,       //   Report ID (50)
+    0x09, 0x32,       //   Usage (0x32)
+    0x75, 0x08,       //   Report Size (8)
+    0x96, 0x69, 0x01, //   Report Count (361)
+    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                      //   Position)
+
+    0x85, 0x33,       //   Report ID (51)
+    0x09, 0x33,       //   Usage (0x33)
+    0x75, 0x08,       //   Report Size (8)
+    0x96, 0x69, 0x01, //   Report Count (361)
+    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                      //   Position)
+
     0x85, 0x3F,                   //   Report ID (63)
     0x05, 0x09,                   //   Usage Page (Button)
     0x19, 0x01,                   //   Usage Minimum (0x01)
@@ -191,18 +203,21 @@ const uint8_t swpro_hid_report_descriptor_bt[] = {
     0x25, 0x01,                   //   Logical Maximum (1)
     0x75, 0x01,                   //   Report Size (1)
     0x95, 0x10,                   //   Report Count (16)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                                  //   Position)
     0x05, 0x01,                   //   Usage Page (Generic Desktop Ctrls)
     0x09, 0x39,                   //   Usage (Hat switch)
     0x15, 0x00,                   //   Logical Minimum (0)
     0x25, 0x07,                   //   Logical Maximum (7)
     0x75, 0x04,                   //   Report Size (4)
     0x95, 0x01,                   //   Report Count (1)
-    0x81, 0x42,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+    0x81, 0x42,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null
+                                  //   State)
     0x05, 0x09,                   //   Usage Page (Button)
     0x75, 0x04,                   //   Report Size (4)
     0x95, 0x01,                   //   Report Count (1)
-    0x81, 0x01,                   //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x01,                   //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No
+                                  //   Null Position)
     0x05, 0x01,                   //   Usage Page (Generic Desktop Ctrls)
     0x09, 0x30,                   //   Usage (X)
     0x09, 0x31,                   //   Usage (Y)
@@ -212,33 +227,39 @@ const uint8_t swpro_hid_report_descriptor_bt[] = {
     0x27, 0xFF, 0xFF, 0x00, 0x00, //   Logical Maximum (65534)
     0x75, 0x10,                   //   Report Size (16)
     0x95, 0x04,                   //   Report Count (4)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
+                                  //   Position)
     0x06, 0x01, 0xFF,             //   Usage Page (Vendor Defined 0xFF01)
-    0x85, 0x01,                   //   Report ID (1)
-    0x09, 0x01,                   //   Usage (0x01)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x91, 0x02,                   //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x10,                   //   Report ID (16)
-    0x09, 0x10,                   //   Usage (0x10)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x91, 0x02,                   //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x11,                   //   Report ID (17)
-    0x09, 0x11,                   //   Usage (0x11)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x91, 0x02,                   //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0x85, 0x12,                   //   Report ID (18)
-    0x09, 0x12,                   //   Usage (0x12)
-    0x75, 0x08,                   //   Report Size (8)
-    0x95, 0x30,                   //   Report Count (48)
-    0x91, 0x02,                   //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
-    0xC0,                         // End Collection
 
-    // 170 bytes
+    0x85, 0x01, //   Report ID (1)
+    0x09, 0x01, //   Usage (0x01)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x30, //   Report Count (48)
+    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
+                //   Null Position,Non-volatile)
+
+    0x85, 0x10, //   Report ID (16)
+    0x09, 0x10, //   Usage (0x10)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x09, //   Report Count (9)
+    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
+                //   Null Position,Non-volatile)
+
+    0x85, 0x11, //   Report ID (17)
+    0x09, 0x11, //   Usage (0x11)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x30, //   Report Count (48)
+    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
+                //   Null Position,Non-volatile)
+
+    0x85, 0x12, //   Report ID (18)
+    0x09, 0x12, //   Usage (0x12)
+    0x75, 0x08, //   Report Size (8)
+    0x95, 0x30, //   Report Count (48)
+    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
+                //   Null Position,Non-volatile)
+    0xC0,       // End Collection
 };
-
 #define SWPRO_CONFIG_DESCRIPTOR_LEN 64
 const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
@@ -322,7 +343,7 @@ const core_hid_device_t _switch_hid_device_usb = {
 const core_hid_device_t _switch_hid_device_bt = {
     .config_descriptor = _swpro_configuration_descriptor,
     .config_descriptor_len = SWPRO_CONFIG_DESCRIPTOR_LEN,
-    .hid_report_descriptor = swpro_hid_report_descriptor_bt,
+    .hid_report_descriptor = _swpro_hid_report_descriptor_bt,
     .hid_report_descriptor_len = 170,
     .device_descriptor = &_swpro_device_descriptor,
     .name = SWITCH_HID_NAME,
@@ -332,28 +353,34 @@ const core_hid_device_t _switch_hid_device_bt = {
 
 void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
-    if(len<2) return;
-
     uint8_t report_id = data[0];
 
     switch(report_id)
     {
         // If we only have rumble, we process and move on
         case SW_OUT_ID_RUMBLE:
+        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
+        hoja_set_notification_status(COLOR_GREEN);
         switch_haptics_rumble_translate(&data[2]);
         break;
 
         case SW_OUT_ID_RUMBLE_CMD:
         // Process rumble immediately, save data to process command
         // response on next packet generation
-        switch_haptics_rumble_translate(&data[2]);
+        //switch_haptics_rumble_translate(&data[2]);
+
+        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
+        hoja_set_notification_status(COLOR_RED);
 
         // Fall through to default to process the command later
-        default:
+        case SW_OUT_ID_INFO:
         memset(_scmd, 0, 64);
         // Copy the full data buffer, preserving the report ID
         memcpy(_scmd, data, len);
         _scmd_ready = true;
+        break;
+
+        default:
         break;
     }
 }
@@ -445,13 +472,14 @@ bool core_switch_init(core_params_s *params)
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
-        _switch_report_size = 64;
+        _switch_report_size = 64; // 63 + report ID
         params->hid_device = &_switch_hid_device_usb;
         params->core_pollrate_us = 8000;
+        params->transport_dev_mac[4] += 1;
         break;
 
         case GAMEPAD_TRANSPORT_BLUETOOTH:
-        _switch_report_size = 49;
+        _switch_report_size = 49; // 48 + report ID
         params->hid_device = &_switch_hid_device_bt;
         params->core_pollrate_us = 8000;
         break;

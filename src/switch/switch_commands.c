@@ -160,13 +160,10 @@ void _swcmd_set_devinfo(uint8_t *target)
   target[16] = 0x03; // Controller ID primary (Pro Controller)
   target[17] = 0x02; // Controller ID secondary
 
+  core_params_s *params = core_current_params();
+
   /*_switch_command_buffer[18-23] = MAC ADDRESS;*/
-  target[18] = gamepad_config->switch_mac_address[0];
-  target[19] = gamepad_config->switch_mac_address[1];
-  target[20] = gamepad_config->switch_mac_address[2];
-  target[21] = gamepad_config->switch_mac_address[3];
-  target[22] = gamepad_config->switch_mac_address[4];
-  target[23] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
+  memcpy(&target[18], params->transport_dev_mac, 6);
 
   target[24] = 0x00;
   target[25] = 0x02; // It's 2 now? Ok.
@@ -204,13 +201,15 @@ void _swcmd_info_set_mac(uint8_t *target)
   target[1] = 0x00;
   target[2] = 0x03;
 
+  core_params_s *params = core_current_params();
+
   // Mac in LE
-  target[3] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
-  target[4] = gamepad_config->switch_mac_address[4];
-  target[5] = gamepad_config->switch_mac_address[3];
-  target[6] = gamepad_config->switch_mac_address[2];
-  target[7] = gamepad_config->switch_mac_address[1];
-  target[8] = gamepad_config->switch_mac_address[0];
+  target[3] = params->transport_dev_mac[5];
+  target[4] = params->transport_dev_mac[4];
+  target[5] = params->transport_dev_mac[3];
+  target[6] = params->transport_dev_mac[2];
+  target[7] = params->transport_dev_mac[1];
+  target[8] = params->transport_dev_mac[0];
 }
 
 // A second part to the initialization,
@@ -268,13 +267,15 @@ void _swcmd_pairing_set(uint8_t phase, const uint8_t *host_address, uint8_t *tar
     _swcmd_set_ack(0x81, target);
     target[14] = 1;
 
+    core_params_s *params = core_current_params();
+
     // Mac in LE
-    target[15] = gamepad_config->switch_mac_address[5] + 255; // Add 255 to essentially subtract 1 from the last byte
-    target[16] = gamepad_config->switch_mac_address[4];
-    target[17] = gamepad_config->switch_mac_address[3];
-    target[18] = gamepad_config->switch_mac_address[2];
-    target[19] = gamepad_config->switch_mac_address[1];
-    target[20] = gamepad_config->switch_mac_address[0];
+    target[15] = params->transport_dev_mac[5];
+    target[16] = params->transport_dev_mac[4];
+    target[17] = params->transport_dev_mac[3];
+    target[18] = params->transport_dev_mac[2];
+    target[19] = params->transport_dev_mac[1];
+    target[20] = params->transport_dev_mac[0];
 
     memcpy(&target[15 + 6], pro_controller_string, 24);
     break;

@@ -14,3 +14,8 @@ __attribute__((weak)) void transport_bt_task(uint64_t timestamp)
 {
     (void) timestamp;
 }
+
+__attribute__((weak)) uint32_t transport_bt_test()
+{
+    return 0;
+}

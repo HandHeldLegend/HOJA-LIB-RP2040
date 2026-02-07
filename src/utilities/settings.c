@@ -67,13 +67,13 @@ void settings_init()
         {
             uint8_t rand = sys_hal_random() & 0xFF;
             if(!rand) rand++;
-            gamepad_config->switch_mac_address[i] = rand;
+            gamepad_config->gamepad_mac_address[i] = rand;
         }
 
         // Always unset the first bit in octet 0
-        if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+        if((gamepad_config->gamepad_mac_address[0] & 0x01) != 0)
         {
-            gamepad_config->switch_mac_address[0]-=1;
+            gamepad_config->gamepad_mac_address[0]-=1;
         }
 
         gamepad_config->gamepad_color_body = 0x2D2D2D;
@@ -88,9 +88,9 @@ void settings_init()
     if(gamepad_config->webusb_enable_popup==0xFF) gamepad_config->webusb_enable_popup = 0;
 
     // Always unset the first bit in octet 0
-    if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+    if((gamepad_config->gamepad_mac_address[0] & 0x01) != 0)
     {
-        gamepad_config->switch_mac_address[0]-=1;
+        gamepad_config->gamepad_mac_address[0]-=1;
         settings_commit_blocks();
     }
 

@@ -1,14 +1,13 @@
 #include "board_config.h"
 
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+#include "btstack_config.h"
 #include "hal/bluetooth_hal.h"
 #include "pico/stdlib.h"
 #include "pico/rand.h"
 #include "pico/multicore.h"
 #include "pico/cyw43_arch.h"
 #include "pico/btstack_chipset_cyw43.h"
-#include "btstack_config.h"
-
 #include "btstack.h"
 #include "btstack_run_loop.h"
 #include "btstack_event.h"
@@ -59,7 +58,7 @@ bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
     return true;
 }
 
-bool _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
+static inline void _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
 {
     uint8_t new_report[66] = {0};
     new_report[0] = 0xA1; // Type of input report
@@ -71,27 +70,33 @@ bool _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
     {
         hid_device_send_interrupt_message(hid_cid, new_report, len + 1);
     }
-    return true;
 }
+
+uint8_t _output_report_data[64] = {0};
+const uint8_t *_output_report = &_output_report_data[0];
 
 static void _bt_hid_report_handler(uint16_t cid,
                                    hid_report_type_t report_type,
                                    uint16_t report_id,
                                    int report_size, uint8_t *report)
 {
-    if (report_type == HID_REPORT_TYPE_OUTPUT)
-    {
-        if (cid == hid_cid)
-        {
-            //printf("REPORT? %x, c: %d\n", report_id, hid_cid);
-            uint8_t tmp[64] = {0};
+    if (report_type != HID_REPORT_TYPE_OUTPUT) return;
+    if (cid != hid_cid) return;
+    if (!report || report_size == 0) return;
 
-            tmp[0] = report_id;
-            memcpy(&tmp[1], report, report_size);
+    printf("REPORT? %x, c: %d\n", report_id, hid_cid);
 
-            core_report_tunnel_cb(tmp, report_size+1);
-        }
-    }
+    // 1. Set the Report ID as the first byte
+    _output_report_data[0] = (uint8_t)report_id;
+
+    if(report_size>63) report_size=63;
+
+    // 2. Copy the actual report data starting at index 1
+    // Use report_size, because 'report' points to the payload start
+    memcpy(&_output_report_data[1], report, report_size);
+
+    // 3. Total size is now (1 byte ID + report_size)
+    core_report_tunnel_cb(_output_report, report_size + 1);
 }
 
 volatile bool _pairing_mode = false;
@@ -271,13 +276,16 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
 core_params_s *_bt_hal_params = NULL;
 const core_hid_device_t *_bt_hal_hid = NULL;
+volatile bool _bt_init = false;
 
 /***********************************************/
 /********* Transport Defines *******************/
 void transport_bt_stop()
 {
-    cyw43_arch_deinit();
+    if(_bt_init)
+        cyw43_arch_deinit();
     _bt_hal_params = NULL;
+    _bt_init = false;
 }
 
 bool transport_bt_init(core_params_s *params)
@@ -303,6 +311,8 @@ bool transport_bt_init(core_params_s *params)
     {
         return false;
     }
+    
+    _bt_init = true;
 
     gap_set_bondable_mode(1);
 
@@ -351,7 +361,7 @@ bool transport_bt_init(core_params_s *params)
     memset(pnp_service_buffer, 0, sizeof(pnp_service_buffer));
 
     device_id_create_sdp_record(pnp_service_buffer, sdp_create_service_record_handle(), DEVICE_ID_VENDOR_ID_SOURCE_USB,
-                                _bt_hal_hid->vid, _bt_hal_hid->pid, 0x0100);
+                                _bt_hal_hid->pid, _bt_hal_hid->vid, 0x0100);
     //_create_sdp_pnp_record(pnp_service_buffer,
     //    DEVICE_ID_VENDOR_ID_SOURCE_BLUETOOTH, 0x057E, 0x2009, 0x0100);
     sdp_register_service(pnp_service_buffer);

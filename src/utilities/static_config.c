@@ -8,6 +8,7 @@
 
 // Bluetooth driver nonsense
 #include "devices/bluetooth.h"
+#include "transport/transport_bt.h"
 
 #include <string.h>
 
