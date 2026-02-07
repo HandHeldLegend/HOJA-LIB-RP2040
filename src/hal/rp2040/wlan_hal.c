@@ -153,11 +153,16 @@ void _wlan_hal_async_connect()
     cyw43_arch_wifi_connect_async(_wlan_get_formatted_ssid(gamepad_config->wlan_pairing_key), WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
 }
 
+volatile bool _wlan_running = false;
+
 /***********************************************/
 /********* Transport Defines *******************/
 void transport_wlan_stop()
 {
-
+    if(_wlan_running)
+        cyw43_arch_deinit();
+    _wlan_core_params = NULL;
+    _wlan_running = false;
 }
 
 bool transport_wlan_init(core_params_s *params)
@@ -168,6 +173,7 @@ bool transport_wlan_init(core_params_s *params)
     if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA)) {
         return false;
     }
+    _wlan_running = true;
 
     // Set power
     cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
