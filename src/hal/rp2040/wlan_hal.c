@@ -48,6 +48,7 @@ typedef enum
     HWLAN_REPORT_PASSTHROUGH = 0x01,
     HWLAN_REPORT_TRANSPORT = 0x02,
     HWLAN_REPORT_HELLO = 0x03,
+    HWLAN_REPORT_PING = 0x04,
 } hoja_wlan_report_t;
 
 core_params_s *_wlan_core_params = NULL;
@@ -219,54 +220,48 @@ void transport_wlan_task(uint64_t timestamp)
 
     cyw43_arch_poll();
 
-    if(interval_run(timestamp, 2000, &interval))
+    // Link status checks (every 500ms)
+    // Checking status every 2ms is too aggressive for the Wi-Fi driver.
+    static interval_s status_interval = {0};
+    static int down_counts = 0;
+    if(interval_run(timestamp, 500000, &status_interval)) // 500,000us = 500ms
     {
-        // Get status
-        static int status = -1;
-        int newstatus = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+        int new_status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+        static int last_status = -1;
 
-        switch(newstatus)
+        if (new_status != last_status)
         {
-            case CYW43_LINK_UP:
-            if(status == CYW43_LINK_DOWN)
+            switch(new_status)
             {
-                // Connected callback
-                status = newstatus;
-                _wlan_hal_handle_async_connected();
-            }
-            break;
-
-            case CYW43_LINK_DOWN:
-            if(status == CYW43_LINK_UP)
-            {
-                // Perform reconnection
-                status = newstatus;
-                _wlan_hal_handle_disconnect();
-                _wlan_hal_async_connect();
+                case CYW43_LINK_UP:
+                    _wlan_hal_handle_async_connected();
+                    break;
                 
+                case CYW43_LINK_NOIP:
+                case CYW43_LINK_DOWN:
+                case CYW43_LINK_BADAUTH:
+                case CYW43_LINK_NONET:
+                case CYW43_LINK_FAIL:
+                    _wlan_hal_handle_disconnect();
+                    _wlan_hal_async_connect();
+                    break;
             }
-            else if (status==-1) 
+            last_status = new_status;
+        }
+        else if(new_status!=CYW43_LINK_UP)
+        {
+            down_counts++;
+            if(down_counts>=4)
             {
-                // Uninitialized, do connect
-                status = newstatus;
-                _wlan_hal_async_connect();
-            }
-            break;
-
-            case CYW43_LINK_BADAUTH:
-            case CYW43_LINK_NONET:
-            case CYW43_LINK_FAIL:
-            if(status == CYW43_LINK_DOWN)
-            {
-                // Try reconnect
+                down_counts = 0;
                 _wlan_hal_handle_disconnect();
                 _wlan_hal_async_connect();
             }
-            break;
         }
+    }
 
-        if(!_wlan_connected) return;
-
+    if(_wlan_connected && interval_run(timestamp, 2000, &interval))
+    {
         core_report_s c_report = {0};
         if(core_get_generated_report(&c_report))
         {
