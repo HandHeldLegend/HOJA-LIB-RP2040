@@ -22,8 +22,6 @@
 volatile bool _wlan_connected = false;
 struct udp_pcb* global_pcb = NULL;
 
-size_t bufsize = PBUF_POOL_BUFSIZE;
-
 typedef struct 
 {
     uint8_t wlan_report_id;
@@ -31,6 +29,12 @@ typedef struct
     uint8_t data[64];
     uint16_t len;
 } hoja_wlan_report_s;
+
+typedef struct
+{
+    uint8_t device_mac[6];
+    char device_name[32];
+} hoja_wlan_hello_s;
 
 #define UDP_PORT 4444
 #define BEACON_MSG_LEN_MAX sizeof(hoja_wlan_report_s)
@@ -62,16 +66,36 @@ const char* _wlan_get_formatted_ssid(uint16_t value) {
     return ssid_buffer;
 }
 
-bool _wlan_hal_hid_tunnel(const void *report, uint16_t len)
+bool _wlan_hal_raw_tunnel(const void *report, uint16_t len)
 {
     if(!global_pcb) global_pcb = udp_new();
     ip_addr_t addr;
     ipaddr_aton(BEACON_TARGET, &addr);
     cyw43_arch_lwip_begin();
-    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, BEACON_MSG_LEN_MAX, PBUF_RAM);
-    uint8_t *req = (uint8_t *)p->payload;
-    //memset(req, 0, BEACON_MSG_LEN_MAX);
-    memcpy(&req[0], report, len);
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
+
+    memcpy(p->payload, report, len);
+
+    err_t er = udp_sendto(global_pcb, p, &addr, UDP_PORT);
+    pbuf_free(p);
+    cyw43_arch_lwip_end();
+    return true;
+}
+
+bool _wlan_hal_core_report_tunnel(core_report_s *report)
+{
+    if(!global_pcb) global_pcb = udp_new();
+    ip_addr_t addr;
+    ipaddr_aton(BEACON_TARGET, &addr);
+    cyw43_arch_lwip_begin();
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
+    hoja_wlan_report_s *r = (hoja_wlan_report_s *)p->payload;
+
+    memcpy(r->data, report->data, report->size);
+    r->len = report->size;
+    r->report_format = report->reportformat;
+    r->wlan_report_id = HWLAN_REPORT_PASSTHROUGH;
+
     err_t er = udp_sendto(global_pcb, p, &addr, UDP_PORT);
     pbuf_free(p);
     cyw43_arch_lwip_end();
@@ -114,10 +138,10 @@ void _wlan_hal_send_hello()
     if(_wlan_core_params)
     {
         hoja_wlan_report_s report = {.wlan_report_id=HWLAN_REPORT_HELLO};
-        report.data[0] = _wlan_core_params->core_report_format;
-        report.len = 1;
+        report.report_format = _wlan_core_params->core_report_format;
+        report.len = 0;
 
-        _wlan_hal_hid_tunnel(&report, sizeof(hoja_wlan_report_s));
+        _wlan_hal_raw_tunnel(&report, sizeof(hoja_wlan_report_s));
     }
 }
 
@@ -150,7 +174,10 @@ void _wlan_hal_handle_async_connected()
 
 void _wlan_hal_async_connect()
 {
-    cyw43_arch_wifi_connect_async(_wlan_get_formatted_ssid(gamepad_config->wlan_pairing_key), WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
+    //DEBUG
+    gamepad_config->wlan_pairing_key = 1234;
+    cyw43_arch_wifi_connect_async("HOJA_WLAN_1234", WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
+    //cyw43_arch_wifi_connect_async(_wlan_get_formatted_ssid(gamepad_config->wlan_pairing_key), WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
 }
 
 volatile bool _wlan_running = false;
@@ -173,18 +200,21 @@ bool transport_wlan_init(core_params_s *params)
     if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA)) {
         return false;
     }
-    _wlan_running = true;
 
     // Set power
     cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
 
     // Enable station mode
     cyw43_arch_enable_sta_mode();
+
+    _wlan_running = true;
     return true;
 }
 
 void transport_wlan_task(uint64_t timestamp)
 {
+    if(!_wlan_running) return;
+    
     static interval_s interval = {0};
 
     cyw43_arch_poll();
@@ -201,8 +231,8 @@ void transport_wlan_task(uint64_t timestamp)
             if(status == CYW43_LINK_DOWN)
             {
                 // Connected callback
-                _wlan_hal_handle_async_connected();
                 status = newstatus;
+                _wlan_hal_handle_async_connected();
             }
             break;
 
@@ -210,14 +240,16 @@ void transport_wlan_task(uint64_t timestamp)
             if(status == CYW43_LINK_UP)
             {
                 // Perform reconnection
+                status = newstatus;
                 _wlan_hal_handle_disconnect();
                 _wlan_hal_async_connect();
-                status = newstatus;
+                
             }
             else if (status==-1) 
             {
                 // Uninitialized, do connect
                 status = newstatus;
+                _wlan_hal_async_connect();
             }
             break;
 
@@ -236,12 +268,9 @@ void transport_wlan_task(uint64_t timestamp)
         if(!_wlan_connected) return;
 
         core_report_s c_report = {0};
-        hoja_wlan_report_s report = {.report_format = _wlan_core_params->core_report_format};
         if(core_get_generated_report(&c_report))
         {
-            memcpy(report.data, c_report.data, c_report.size);
-            report.len = c_report.size;
-            _wlan_hal_hid_tunnel(&report, sizeof(hoja_wlan_report_s));
+            _wlan_hal_core_report_tunnel(&c_report);
         }
     }
 }

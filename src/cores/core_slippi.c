@@ -239,6 +239,10 @@ bool core_slippi_init(core_params_s *params)
         params->hid_device = &_slippi_hid_device;
         break;
 
+        case GAMEPAD_TRANSPORT_WLAN:
+        params->core_pollrate_us = 2000;
+        break;
+
         // Unsupported transport methods
         default:
         return false;
