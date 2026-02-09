@@ -234,7 +234,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
 
   // debug
   method = GAMEPAD_METHOD_WLAN;
-  mode = GAMEPAD_MODE_GCUSB;
+  //mode = GAMEPAD_MODE_GCUSB;
   transport = GAMEPAD_TRANSPORT_WLAN;
 
   _hoja_status.gamepad_mode = mode;
