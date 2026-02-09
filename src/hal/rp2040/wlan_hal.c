@@ -289,6 +289,8 @@ void transport_wlan_task(uint64_t timestamp)
         if(core_get_generated_report(&c_report))
         {
             _wlan_hal_core_report_tunnel(&c_report);
+            if(_wlan_core_params->sys_gyro_task)
+                _wlan_core_params->sys_gyro_task();
         }
     }
 }

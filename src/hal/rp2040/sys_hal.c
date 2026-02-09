@@ -73,35 +73,20 @@ volatile uint64_t _time_global = 0;
 
 #define SYS_HAL_TIME_DEBUG 0
 
-MUTEX_HAL_INIT(_sys_hal_time_mutex);
+void sys_hal_time_us(uint64_t *out) {
+    uint64_t t = time_us_64();
+    
+    #if (SYS_HAL_TIME_DEBUG == 1)
+    t += (uint64_t)UINT32_MAX - 10000000;
+    #endif
 
-void sys_hal_time_us(uint64_t *out)
-{
-    static uint64_t time; 
-
-    if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
-    {
-        #if (SYS_HAL_TIME_DEBUG==1)
-        const uint64_t start_time = (uint64_t)UINT32_MAX - (uint64_t)10000000; // 10 seconds before overflow
-        time = time_us_64() + start_time;
-        #else
-        time = time_us_64();
-        #endif
-        _time_global = time;
-        *out = time;
-        MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
-    }
+    _time_global = t; // Assuming this is needed elsewhere
+    if (out) *out = t;
 }
 
-void sys_hal_time_ms(uint64_t *out)
-{
-    static uint64_t time_ms = 0;
-    if(MUTEX_HAL_ENTER_TRY(&_sys_hal_time_mutex, &_time_owner))
-    {
-        time_ms = _time_global/1000;
-        *out = time_ms;
-        MUTEX_HAL_EXIT(&_sys_hal_time_mutex);
-    }
+void sys_hal_time_ms(uint64_t *out) {
+    // Just divide the current US time; no mutex needed
+    if (out) *out = time_us_64() / 1000;
 }
 
 uint32_t sys_hal_random()

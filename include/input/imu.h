@@ -21,6 +21,7 @@ void imu_quaternion_access_safe(quaternion_s *out);
 bool imu_init();
 
 void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb);
+void imu_forced_task();
 void imu_task(uint64_t timestamp);
 
 #endif

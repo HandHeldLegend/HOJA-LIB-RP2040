@@ -40,6 +40,8 @@ typedef struct
 typedef bool (*core_generate_report_t)(core_report_s *out);
 typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);
+typedef void (*core_task_t)(uint64_t timestamp);
+typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
 typedef struct 
@@ -47,6 +49,8 @@ typedef struct
     uint8_t                 transport_type;
     uint8_t                 transport_dev_mac[6];
     uint8_t                 transport_host_mac[6];
+    core_task_t             core_task;
+    core_gyro_task_t        sys_gyro_task;
     core_transport_task_t   transport_task;
     core_reportformat_t     core_report_format;
     uint16_t                core_pollrate_us; // Transport methods may or may not respect this value

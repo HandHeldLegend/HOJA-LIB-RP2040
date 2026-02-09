@@ -303,6 +303,16 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
   }
 }
 
+// IMU forced task (for gated/syncronized reads)
+void imu_forced_task()
+{
+  #if defined(HOJA_IMU_CHAN_A_DRIVER)
+  static uint64_t t;
+  sys_hal_time_us(&t);
+  _imu_read_standard(t);
+  #endif
+}
+
 // IMU module operational task
 void imu_task(uint64_t timestamp)
 {

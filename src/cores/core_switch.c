@@ -7,6 +7,7 @@
 
 #include "transport/transport.h"
 #include "hoja_shared_types.h"
+#include "input/imu.h"
 
 #include "hoja_usb.h"
 #include "hoja.h"
@@ -493,6 +494,8 @@ bool core_switch_init(core_params_s *params)
         default:
         return false;
     }
+
+    params->sys_gyro_task = imu_forced_task;
 
     params->core_report_format       = CORE_REPORTFORMAT_SWPRO;
     params->core_report_generator    = _core_switch_get_generated_report;

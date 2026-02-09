@@ -129,9 +129,11 @@ void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
         // Rumble Event
         case 0x11:
         uint8_t strength = (data[1] & 0x1) ? 255 : 0;
-        uint8_t brake = (data[1] & 0x2) ? 255 : 0;
+        uint8_t brake = 0;
 
-        tp_evt_s rumble = {.evt_ermrumble = {
+        tp_evt_s rumble = {
+            .evt = TP_EVT_ERMRUMBLE,
+            .evt_ermrumble = {
             .left=strength, .right=strength,
             .leftbrake=brake, .rightbrake=brake
         }};

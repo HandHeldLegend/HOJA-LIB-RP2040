@@ -819,6 +819,8 @@ bool core_sinput_init(core_params_s *params)
 
     params->hid_device = &_sinput_hid_device;
 
+    params->sys_gyro_task = imu_forced_task;
+
     params->core_report_format    = CORE_REPORTFORMAT_SINPUT;
     params->core_report_generator = _core_sinput_get_generated_report;
     params->core_report_tunnel    = _core_sinput_report_tunnel_cb;

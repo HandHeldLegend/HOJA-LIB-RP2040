@@ -1141,8 +1141,10 @@ void tud_sof_cb(uint32_t frame_count_ext)
                 _usb_sendit = true;
             }
             break;
-
     }
+
+    if(_usb_core_params->sys_gyro_task)
+        _usb_core_params->sys_gyro_task();
 }
 
 #pragma endregion

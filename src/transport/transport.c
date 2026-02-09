@@ -12,6 +12,8 @@
 #include "transport/transport_nesbus.h"
 #include "transport/transport_wlan.h"
 
+#include "devices/haptics.h"
+
 void _transport_playerled(uint8_t led)
 {
 
@@ -37,7 +39,7 @@ void _transport_connectionchange(uint8_t status)
 
 void _transport_ermrumble(uint8_t left, uint8_t right, uint8_t leftbrake, uint8_t rightbrake)
 {
-
+    haptics_set_std(left>right?left:right, (!left&&!right)?true:false);
 }
 
 void _transport_powercommand(uint8_t command)

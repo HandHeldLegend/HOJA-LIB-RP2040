@@ -289,6 +289,7 @@ void _hoja_task_1()
       if (webusb_outputting_check())
       {
         // Optional web Input
+        imu_task(c1_timestamp);
         webusb_send_rawinput(c1_timestamp);
       }
       else core_task(c1_timestamp);
@@ -301,8 +302,6 @@ void _hoja_task_1()
 
       // Idle manager
       idle_manager_task(c1_timestamp);
-
-      //imu_task(c1_timestamp);
     }
   }
 }
