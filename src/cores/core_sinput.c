@@ -621,13 +621,13 @@ void _core_sinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
 
-    switch(data[0])
+    switch(data[1])
     {
         default:
         return;
 
         case SINPUT_COMMAND_HAPTIC:
-        _si_cmd_haptics(&(data[1]));
+        _si_cmd_haptics(&(data[2]));
         break;
 
         case SINPUT_COMMAND_FEATURES:
@@ -637,7 +637,7 @@ void _core_sinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
         case SINPUT_COMMAND_PLAYERLED:
         tp_evt_s evt = {
             .evt=TP_EVT_PLAYERLED,
-            .evt_playernumber = {.player_number=data[1]}
+            .evt_playernumber = {.player_number=data[2]}
         };
         transport_evt_cb(evt);
         break;
@@ -715,6 +715,16 @@ bool _core_sinput_get_generated_report(core_report_s *out)
             data->charge_percent = 100; // 100 Percent
         }
 
+        int lx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LX_LEFT],input.inputs[SINPUT_CODE_LX_RIGHT]); 
+        int ly = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LY_UP]  ,input.inputs[SINPUT_CODE_LY_DOWN] ); 
+        int rx = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RX_LEFT],input.inputs[SINPUT_CODE_RX_RIGHT]);
+        int ry = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_RY_UP]  ,input.inputs[SINPUT_CODE_RY_DOWN] ); 
+        
+        data->left_x = _sinput_scale_axis(lx);
+        data->left_y = _sinput_scale_axis(ly);
+        data->right_x = _sinput_scale_axis(rx);
+        data->right_y = _sinput_scale_axis(ry);
+
         data->accel_x = imu.ax; 
         data->accel_y = imu.ay;
         data->accel_z = imu.az;
@@ -766,6 +776,7 @@ bool _core_sinput_get_generated_report(core_report_s *out)
         data->trigger_l = _sinput_scale_trigger(input.inputs[SINPUT_CODE_LT_ANALOG]);
         data->trigger_r = _sinput_scale_trigger(input.inputs[SINPUT_CODE_RT_ANALOG]);
     }
+    
     return true;
 }
 

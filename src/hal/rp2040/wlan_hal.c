@@ -18,9 +18,8 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
-
-volatile bool _wlan_connected = false;
-struct udp_pcb* global_pcb = NULL;
+struct udp_pcb* _wlan_tx_pcb = NULL;
+struct udp_pcb* _wlan_rx_pcb = NULL;
 
 typedef struct 
 {
@@ -52,59 +51,30 @@ typedef enum
 } hoja_wlan_report_t;
 
 core_params_s *_wlan_core_params = NULL;
-struct udp_pcb* _wlan_pcb = NULL;
 
-// Returns a pointer to a static buffer containing the SSID.
-// Note: Not thread-safe, but perfect for a single-core Pico loop.
-const char* _wlan_get_formatted_ssid(uint16_t value) {
-    static char ssid_buffer[32];
-    
-    // %06u ensures it is exactly 6 digits (padded with 0s)
-    // The value is masked with 1000000 if you want to strictly "trim" 
-    // though a uint16_t max is 65535 (already < 6 digits).
-    snprintf(ssid_buffer, sizeof(ssid_buffer), "%s%06u", WIFI_SSID_BASE, value);
-    
-    return ssid_buffer;
-}
-
-bool _wlan_hal_raw_tunnel(const void *report, uint16_t len)
+// Define states for our connection tracker
+typedef enum
 {
-    if(!global_pcb) global_pcb = udp_new();
-    ip_addr_t addr;
-    ipaddr_aton(BEACON_TARGET, &addr);
-    cyw43_arch_lwip_begin();
-    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
+    WIFI_IDLE,
+    WIFI_CONNECTING,
+    WIFI_CONNECTED,
+    WIFI_FAILED
+} wifi_state_t;
 
-    memcpy(p->payload, report, len);
+static wifi_state_t _current_state = WIFI_IDLE;
+static absolute_time_t _timeout_time;
 
-    err_t er = udp_sendto(global_pcb, p, &addr, UDP_PORT);
-    pbuf_free(p);
-    cyw43_arch_lwip_end();
-    return true;
-}
+bool _wlan_hal_raw_tunnel(const void *report, uint16_t len);
 
-bool _wlan_hal_core_report_tunnel(core_report_s *report)
+bool _wlan_hal_is_wlan_connected(void)
 {
-    if(!global_pcb) global_pcb = udp_new();
-    ip_addr_t addr;
-    ipaddr_aton(BEACON_TARGET, &addr);
-    cyw43_arch_lwip_begin();
-    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
-    hoja_wlan_report_s *r = (hoja_wlan_report_s *)p->payload;
-
-    memcpy(r->data, report->data, report->size);
-    r->len = report->size;
-    r->report_format = report->reportformat;
-    r->wlan_report_id = HWLAN_REPORT_PASSTHROUGH;
-
-    err_t er = udp_sendto(global_pcb, p, &addr, UDP_PORT);
-    pbuf_free(p);
-    cyw43_arch_lwip_end();
-    return true;
+    return _current_state == WIFI_CONNECTED;
 }
 
 void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
     if (p) {
+        if(p->len != sizeof(hoja_wlan_report_s)) return;
+
         hoja_wlan_report_s report = {0};
         memcpy(&report, p->payload, p->len);
 
@@ -146,39 +116,140 @@ void _wlan_hal_send_hello()
     }
 }
 
-void _wlan_hal_handle_disconnect() {
-    if (_wlan_pcb != NULL) {
-        udp_remove(_wlan_pcb); // This unbinds and frees the memory
-        _wlan_pcb = NULL;
-    }
-    _wlan_connected = false;
-}
-
-void _wlan_hal_handle_async_connected()
+// This is called when the process finishes (Success or Failure)
+void _wlan_hal_on_connect_finish(bool success)
 {
-    if(_wlan_pcb != NULL)
+    if (success)
     {
-        udp_remove(_wlan_pcb);
-    }
+        printf("Callback: Connection Established!\n");
+        if (_wlan_rx_pcb)
+        {
+            udp_remove(_wlan_rx_pcb);
+            _wlan_rx_pcb = NULL;
+        }
 
-    // Start UDP listening
-    _wlan_pcb = udp_new();
+        // Start UDP listening
+        _wlan_rx_pcb = udp_new();
 
-    if(_wlan_pcb)
-    {
-        udp_bind(_wlan_pcb, IP_ANY_TYPE, UDP_PORT);
-        udp_recv(_wlan_pcb, _wlan_receive_callback, NULL);
-        _wlan_connected = true;
+        if (_wlan_rx_pcb)
+        {
+            udp_bind(_wlan_rx_pcb, IP_ANY_TYPE, UDP_PORT);
+            udp_recv(_wlan_rx_pcb, _wlan_receive_callback, NULL);
+        }
+
         _wlan_hal_send_hello();
     }
+    else
+    {
+        printf("Callback: Connection Timed Out or Failed.\n");
+        _current_state = WIFI_IDLE;
+    }
 }
 
-void _wlan_hal_async_connect()
+// Returns a pointer to a static buffer containing the SSID.
+// Note: Not thread-safe, but perfect for a single-core Pico loop.
+const char* _wlan_get_formatted_ssid(uint16_t value) {
+    static char ssid_buffer[32];
+    
+    // %06u ensures it is exactly 6 digits (padded with 0s)
+    // The value is masked with 1000000 if you want to strictly "trim" 
+    // though a uint16_t max is 65535 (already < 6 digits).
+    snprintf(ssid_buffer, sizeof(ssid_buffer), "%s%06u", WIFI_SSID_BASE, value);
+    
+    return ssid_buffer;
+}
+
+bool _wlan_hal_raw_tunnel(const void *report, uint16_t len)
 {
-    //DEBUG
-    gamepad_config->wlan_pairing_key = 1234;
+    if(!_wlan_tx_pcb) 
+        _wlan_tx_pcb = udp_new();
+
+    ip_addr_t addr;
+    ipaddr_aton(BEACON_TARGET, &addr);
+    cyw43_arch_lwip_begin();
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
+
+    memcpy(p->payload, report, len);
+
+    err_t er = udp_sendto(_wlan_tx_pcb, p, &addr, UDP_PORT);
+    pbuf_free(p);
+    cyw43_arch_lwip_end();
+    return true;
+}
+
+bool _wlan_hal_core_report_tunnel(core_report_s *report)
+{
+    if(!_wlan_tx_pcb) 
+        _wlan_tx_pcb = udp_new();
+    ip_addr_t addr;
+    ipaddr_aton(BEACON_TARGET, &addr);
+
+    cyw43_arch_lwip_begin();
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
+    hoja_wlan_report_s *r = (hoja_wlan_report_s *)p->payload;
+
+    memcpy(r->data, report->data, report->size);
+    r->len = report->size;
+    r->report_format = report->reportformat;
+    r->wlan_report_id = HWLAN_REPORT_PASSTHROUGH;
+
+    err_t er = udp_sendto(_wlan_tx_pcb, p, &addr, UDP_PORT);
+    pbuf_free(p);
+    cyw43_arch_lwip_end();
+    return true;
+}
+
+// --- Initializer ---
+void _wlan_hal_connect_async(int timeout_seconds)
+{
+    printf("Attempting Async Connect...\n");
+
+    _current_state = WIFI_CONNECTING;
+    _timeout_time = make_timeout_time_ms(timeout_seconds * 1000);
+
+    // Start the hardware-level async connect
     cyw43_arch_wifi_connect_async("HOJA_WLAN_1234", WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
-    //cyw43_arch_wifi_connect_async(_wlan_get_formatted_ssid(gamepad_config->wlan_pairing_key), WIFI_PASS, CYW43_AUTH_WPA2_AES_PSK);
+}
+
+void _wlan_hal_poll_connection(void)
+{
+    if (_current_state == WIFI_IDLE)
+        _wlan_hal_connect_async(10);
+
+    if (_current_state != WIFI_CONNECTING)
+        return;
+
+    // Check hardware status
+    int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+
+    if (status == CYW43_LINK_UP)
+    {
+        _current_state = WIFI_CONNECTED;
+        _wlan_hal_on_connect_finish(true);
+    }
+    else if (get_absolute_time() > _timeout_time || status < 0)
+    {
+        _current_state = WIFI_FAILED;
+        _wlan_hal_on_connect_finish(false);
+    }
+}
+
+void _wlan_hal_deinit()
+{
+    cyw43_arch_deinit();
+}
+
+void _wlan_hal_init()
+{
+    if (cyw43_arch_init())
+    {
+        printf("failed to initialise\n");
+        return;
+    }
+
+    cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
+
+    cyw43_arch_enable_sta_mode();
 }
 
 volatile bool _wlan_running = false;
@@ -187,8 +258,7 @@ volatile bool _wlan_running = false;
 /********* Transport Defines *******************/
 void transport_wlan_stop()
 {
-    if(_wlan_running)
-        cyw43_arch_deinit();
+    _wlan_hal_deinit();
     _wlan_core_params = NULL;
     _wlan_running = false;
 }
@@ -196,18 +266,7 @@ void transport_wlan_stop()
 bool transport_wlan_init(core_params_s *params)
 {
     _wlan_core_params = params;
-
-    // Init WLAN
-    if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA)) {
-        return false;
-    }
-
-    // Set power
-    cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
-
-    // Enable station mode
-    cyw43_arch_enable_sta_mode();
-
+    _wlan_hal_init();
     _wlan_running = true;
     return true;
 }
@@ -215,52 +274,16 @@ bool transport_wlan_init(core_params_s *params)
 void transport_wlan_task(uint64_t timestamp)
 {
     if(!_wlan_running) return;
-    
-    static interval_s interval = {0};
 
-    cyw43_arch_poll();
-
-    // Link status checks (every 500ms)
-    // Checking status every 2ms is too aggressive for the Wi-Fi driver.
-    static interval_s status_interval = {0};
-    static int down_counts = 0;
-    if(interval_run(timestamp, 500000, &status_interval)) // 500,000us = 500ms
-    {
-        int new_status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
-        static int last_status = -1;
-
-        if (new_status != last_status)
-        {
-            switch(new_status)
-            {
-                case CYW43_LINK_UP:
-                    _wlan_hal_handle_async_connected();
-                    break;
-                
-                case CYW43_LINK_NOIP:
-                case CYW43_LINK_DOWN:
-                case CYW43_LINK_BADAUTH:
-                case CYW43_LINK_NONET:
-                case CYW43_LINK_FAIL:
-                    _wlan_hal_handle_disconnect();
-                    _wlan_hal_async_connect();
-                    break;
-            }
-            last_status = new_status;
-        }
-        else if(new_status!=CYW43_LINK_UP)
-        {
-            down_counts++;
-            if(down_counts>=4)
-            {
-                down_counts = 0;
-                _wlan_hal_handle_disconnect();
-                _wlan_hal_async_connect();
-            }
-        }
+    static interval_s check_itv = {0};
+    if(interval_run(timestamp, 1000000, &check_itv))
+    {   
+        _wlan_hal_poll_connection();
     }
 
-    if(_wlan_connected && interval_run(timestamp, 2000, &interval))
+    static interval_s interval = {0};
+
+    if(_wlan_hal_is_wlan_connected() && interval_run(timestamp, 2000, &interval))
     {
         core_report_s c_report = {0};
         if(core_get_generated_report(&c_report))
