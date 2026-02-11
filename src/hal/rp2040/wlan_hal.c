@@ -3,6 +3,8 @@
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER) && (HOJA_TRANSPORT_WLAN_DRIVER == WLAN_DRIVER_HAL)
 
 #include <string.h>
+#include <hoja.h>
+
 #include "hal/wlan_hal.h"
 #include "cores/cores.h"
 #include "transport/transport.h"
@@ -67,7 +69,7 @@ static wifi_state_t _current_state = WIFI_IDLE;
 static absolute_time_t _timeout_time;
 volatile int _ping_misses = 0;
 
-bool _wlan_hal_raw_tunnel(const void *report, uint16_t len);
+bool _wlan_hal_raw_tunnel(hoja_wlan_report_s *report);
 
 bool _wlan_hal_is_wlan_connected(void)
 {
@@ -99,6 +101,7 @@ void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
         case HWLAN_REPORT_PING:
         {
             _ping_misses = 0;
+            hoja_set_connected_status(CONN_STATUS_PLAYER_1);
         }
         break;
 
@@ -124,7 +127,7 @@ void _wlan_hal_send_hello()
         report.report_format = _wlan_core_params->core_report_format;
         report.len = 0;
 
-        _wlan_hal_raw_tunnel(&report, sizeof(hoja_wlan_report_s));
+        _wlan_hal_raw_tunnel(&report);
     }
 }
 
@@ -172,43 +175,46 @@ const char *_wlan_get_formatted_ssid(uint16_t value)
     return ssid_buffer;
 }
 
-bool _wlan_hal_raw_tunnel(const void *report, uint16_t len)
+static hoja_wlan_report_s _wlan_hal_raw_tunnel_out;
+bool _wlan_hal_raw_tunnel(hoja_wlan_report_s *report)
 {
     if (!_wlan_tx_pcb)
         _wlan_tx_pcb = udp_new();
 
     ip_addr_t addr;
     ipaddr_aton(BEACON_TARGET, &addr);
-    cyw43_arch_lwip_begin();
-    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
 
-    memcpy(p->payload, report, len);
+    memcpy(&_wlan_hal_raw_tunnel_out, report, sizeof(hoja_wlan_report_s));
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_REF);
+    if (!p) return false;
+
+    p->payload = &_wlan_hal_raw_tunnel_out;
 
     err_t er = udp_sendto(_wlan_tx_pcb, p, &addr, UDP_PORT);
     pbuf_free(p);
-    cyw43_arch_lwip_end();
     return true;
 }
 
+static hoja_wlan_report_s _wlan_hal_core_report_tunnel_out;
 bool _wlan_hal_core_report_tunnel(core_report_s *report)
 {
     if (!_wlan_tx_pcb)
         _wlan_tx_pcb = udp_new();
+
     ip_addr_t addr;
     ipaddr_aton(BEACON_TARGET, &addr);
 
-    cyw43_arch_lwip_begin();
-    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_RAM);
-    hoja_wlan_report_s *r = (hoja_wlan_report_s *)p->payload;
+    memcpy(_wlan_hal_core_report_tunnel_out.data, report->data, 64);
+    _wlan_hal_core_report_tunnel_out.wlan_report_id = HWLAN_REPORT_PASSTHROUGH;
+    _wlan_hal_core_report_tunnel_out.report_format = report->reportformat;
+    _wlan_hal_core_report_tunnel_out.len = report->size;
+    struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(hoja_wlan_report_s), PBUF_REF);
+    if(!p) return false;
 
-    memcpy(r->data, report->data, report->size);
-    r->len = report->size;
-    r->report_format = report->reportformat;
-    r->wlan_report_id = HWLAN_REPORT_PASSTHROUGH;
+    p->payload = &_wlan_hal_core_report_tunnel_out;
 
     err_t er = udp_sendto(_wlan_tx_pcb, p, &addr, UDP_PORT);
     pbuf_free(p);
-    cyw43_arch_lwip_end();
     return true;
 }
 
@@ -249,20 +255,21 @@ void _wlan_hal_poll_connection(void)
 
 void _wlan_hal_deinit()
 {
+    hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
     cyw43_arch_deinit();
 }
 
 void _wlan_hal_init()
 {
-    if (cyw43_arch_init())
+    if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA))
     {
         printf("failed to initialise\n");
         return;
     }
 
-    cyw43_wifi_pm(&cyw43_state, CYW43_PERFORMANCE_PM);
-
     cyw43_arch_enable_sta_mode();
+    
+    cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
 }
 
 volatile bool _wlan_running = false;
