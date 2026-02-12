@@ -28,6 +28,6 @@ typedef struct
 void boot_clear_memory();
 void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_method_t *method, bool *pair);
+void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair);
 
 #endif // REBOOT_H

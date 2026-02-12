@@ -183,62 +183,14 @@ hoja_status_s hoja_get_status()
   return _hoja_status;
 }
 
-gamepad_mode_t thisMode = GAMEPAD_MODE_SWPRO;
-gamepad_method_t thisMethod = GAMEPAD_METHOD_AUTO;
+gamepad_mode_t thisMode = GAMEPAD_MODE_LOAD;
+gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
 bool thisPair = false;
 
 // Replace with proper boot function later TODO
-bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
+bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 {
-  gamepad_transport_t transport = GAMEPAD_TRANSPORT_USB;
-
-  if (method == GAMEPAD_METHOD_AUTO)
-  {
-    battery_status_s status;
-    battery_get_status(&status);
-
-    // PMIC unused
-    if (!status.connected)
-    {
-      transport = GAMEPAD_TRANSPORT_USB;
-    }
-    else
-    {
-      // Wireless
-      if (!status.plugged)
-      {
-        switch (mode)
-        {
-        case GAMEPAD_MODE_SWPRO:
-        case GAMEPAD_MODE_SINPUT:
-        case GAMEPAD_MODE_XINPUT:
-          transport = GAMEPAD_TRANSPORT_BLUETOOTH;
-          break;
-
-        case GAMEPAD_MODE_N64:
-        case GAMEPAD_MODE_GAMECUBE:
-          transport = GAMEPAD_TRANSPORT_WLAN;
-          break;
-
-        default:
-          transport = GAMEPAD_TRANSPORT_USB;
-          break;
-        }
-      }
-      else
-      {
-        method = GAMEPAD_METHOD_USB;
-      }
-    }
-  }
-
-  // debug
-  method = GAMEPAD_METHOD_WLAN;
-  //mode = GAMEPAD_MODE_GCUSB;
-  transport = GAMEPAD_TRANSPORT_WLAN;
-
   _hoja_status.gamepad_mode = mode;
-  _hoja_status.gamepad_method = method;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
 
   hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
@@ -262,7 +214,7 @@ void _hoja_task_1()
   static uint64_t c1_timestamp = 0;
 
   // init gamepad mode on core 1
-  _gamepad_mode_init(thisMode, thisMethod, thisPair);
+  _gamepad_mode_init(thisMode, thisTransport, thisPair);
 
   for (;;)
   {
@@ -413,9 +365,9 @@ void hoja_init()
   _system_requirements_init();
   _system_input_init();
 
-  boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
+  boot_get_mode_method(&thisMode, &thisTransport, &thisPair);
 
-  _system_devices_init(thisMethod, thisMode);
+  _system_devices_init(thisTransport, thisMode);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

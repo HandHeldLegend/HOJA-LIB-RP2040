@@ -413,6 +413,7 @@ typedef struct
 typedef struct 
 {
     int8_t  gamepad_mode;
+    int8_t  gamepad_transport;
     bool    pairing_mode;
     bool    bootloader;
 } boot_input_s;
