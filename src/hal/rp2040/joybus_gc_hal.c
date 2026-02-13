@@ -275,10 +275,10 @@ void _jbgc_translate_data(uint8_t mode, core_gamecube_report_s *in, core_gamecub
     break;
 
   case 0:
-    out->mode0.stick_left_x   = in->stick_left_x;
-    out->mode0.stick_left_y   = in->stick_left_y;
-    out->mode0.stick_right_x  = in->stick_right_x;
-    out->mode0.stick_right_y  = in->stick_right_y;
+    out->mode0.stick_left_x = in->stick_left_x;
+    out->mode0.stick_left_y = in->stick_left_y;
+    out->mode0.stick_right_x = in->stick_right_x;
+    out->mode0.stick_right_y = in->stick_right_y;
     out->mode0.analog_trigger_l = in->analog_trigger_l >> 4;
     out->mode0.analog_trigger_r = in->analog_trigger_r >> 4;
     out->mode0.analog_a = 0; // 4bits
@@ -286,10 +286,10 @@ void _jbgc_translate_data(uint8_t mode, core_gamecube_report_s *in, core_gamecub
     break;
 
   case 1:
-    out->mode1.stick_left_x     = in->stick_left_x;
-    out->mode1.stick_left_y     = in->stick_left_y;
-    out->mode1.stick_right_x    = in->stick_right_x >> 4;
-    out->mode1.stick_right_y    = in->stick_right_y >> 4;
+    out->mode1.stick_left_x = in->stick_left_x;
+    out->mode1.stick_left_y = in->stick_left_y;
+    out->mode1.stick_right_x = in->stick_right_x >> 4;
+    out->mode1.stick_right_y = in->stick_right_y >> 4;
     out->mode1.analog_trigger_l = in->analog_trigger_l;
     out->mode1.analog_trigger_r = in->analog_trigger_r;
     out->mode1.analog_a = 0; // 4bits
@@ -320,21 +320,6 @@ void _jbgc_translate_data(uint8_t mode, core_gamecube_report_s *in, core_gamecub
 
 void _jbgc_handle_rumble()
 {
-  // Handle rumble state if it changes
-  static bool rumblestate = false;
-  if (_gc_rumble != rumblestate)
-  {
-    rumblestate = _gc_rumble;
-
-    uint8_t rumble = rumblestate ? 255 : 0;
-
-    tp_evt_s evt = {
-      .evt = TP_EVT_ERMRUMBLE,
-      .evt_ermrumble = {
-                        .left = rumble, .right = rumble, .left = 0, .right = 0}};
-
-    transport_evt_cb(evt);
-  }
 }
 
 void _jbgc_handle_connection(bool connected)
@@ -399,11 +384,24 @@ void transport_jbgc_task(uint64_t timestamp)
     if (core_get_generated_report(&report))
     {
 
-      snapshot_gcinput_write(&_gc_hal_snap, (core_gamecube_report_s*)report.data);
+      snapshot_gcinput_write(&_gc_hal_snap, (core_gamecube_report_s *)report.data);
     }
 
-    // Rumblecore_gamecube_report_s
-    _jbgc_handle_rumble();
+    // Handle rumble state if it changes
+    static bool rumblestate = false;
+    if (_gc_rumble != rumblestate)
+    {
+      rumblestate = _gc_rumble;
+
+      uint8_t rumble = rumblestate ? 255 : 0;
+
+      tp_evt_s evt = {
+          .evt = TP_EVT_ERMRUMBLE,
+          .evt_ermrumble = {
+          .left = rumble, .right = rumble, .leftbrake=_gc_brake, .rightbrake=_gc_brake}};
+
+      transport_evt_cb(evt);
+    }
   }
 
   if (interval_resettable_run(timestamp, 1000000, _gc_got_data, &interval_reset))

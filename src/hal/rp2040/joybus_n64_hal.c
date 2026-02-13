@@ -278,24 +278,6 @@ bool _joybus_n64_hal_init()
 
 core_params_s *_n64_hal_params = NULL;
 
-static inline void _jb64_handle_rumble()
-{
-  // Handle rumble state if it changes
-  static bool rumblestate = false;
-  if(_n64_rumble != rumblestate)
-  {
-      rumblestate = _n64_rumble;
-
-      uint8_t rumble = rumblestate ? 255 : 0;
-
-      tp_evt_s evt = { .evt_ermrumble = {
-        .left = rumble, .right = rumble, .left = 0, .right = 0
-      }};
-      
-      transport_evt_cb(evt);
-  }
-}
-
 void _jb64_handle_connection(bool connected)
 {
   // Handle connection state if it changes
@@ -360,7 +342,22 @@ void transport_jb64_task(uint64_t timestamp)
     }
 
     // Rumble
-    _jb64_handle_rumble();
+    // Handle rumble state if it changes
+    static bool rumblestate = false;
+    if(_n64_rumble != rumblestate)
+    {
+        rumblestate = _n64_rumble;
+
+        uint8_t rumble = rumblestate ? 255 : 0;
+
+        tp_evt_s evt = { 
+          .evt = TP_EVT_ERMRUMBLE,
+          .evt_ermrumble = {
+          .left = rumble, .right = rumble, .leftbrake = 0, .rightbrake = 0
+        }};
+        
+        transport_evt_cb(evt);
+    }
   }
 
   if(interval_resettable_run(timestamp, 1000000, _n64_got_data, &interval_reset))

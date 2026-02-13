@@ -113,22 +113,11 @@ bool tud_slippi_n_report(uint8_t instance, uint8_t report_id, void const *report
     TU_VERIFY(usbd_edpt_claim(rhport, p_hid->ep_in));
 
     // prepare data
-    if (report_id)
-    {
-        len = tu_min16(len, CFG_TUD_GC_TX_BUFSIZE - 1);
+    p_hid->epin_buf[0] = report_id;
+    memcpy(p_hid->epin_buf + 1, report, CFG_TUD_GC_TX_BUFSIZE-1);
 
-        p_hid->epin_buf[0] = report_id;
-        memcpy(p_hid->epin_buf + 1, report, len);
-        len++;
-    }
-    else
-    {
-        // If report id = 0, skip ID field
-        len = tu_min16(len, CFG_TUD_GC_TX_BUFSIZE);
-        memcpy(p_hid->epin_buf, report, len);
-    }
 
-    return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
+    return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, CFG_TUD_GC_TX_BUFSIZE);
 }
 
 bool tud_slippi_report(uint8_t report_id, void const *report, uint16_t len)
@@ -165,7 +154,7 @@ uint16_t slippid_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uin
     // Do not open if we aren't in Slippi reporting mode
     if (_usb_core_params)
     {
-        if (_usb_core_params->core_report_format != CORE_REPORTFORMAT_SINPUT)
+        if (_usb_core_params->core_report_format != CORE_REPORTFORMAT_SLIPPI)
             return 0;
     }
 
@@ -396,7 +385,7 @@ bool slippid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     // Received report
     else if (ep_addr == p_hid->ep_out)
     {
-        tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, (uint16_t)xferred_bytes);
+        tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t)xferred_bytes);
         TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
     }
 
