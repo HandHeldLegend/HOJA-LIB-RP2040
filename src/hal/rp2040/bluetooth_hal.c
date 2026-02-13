@@ -23,6 +23,7 @@
 #include "devices/rgb.h"
 
 #include "hal/sys_hal.h"
+#include "transport/transport.h"
 
 #include "hoja.h"
 
@@ -85,6 +86,8 @@ static void _bt_hid_report_handler(uint16_t cid,
     if (!report || report_size == 0) return;
 
     printf("REPORT? %x, c: %d\n", report_id, hid_cid);
+
+    if(report_id==0x01) hoja_set_notification_status(COLOR_RED);
 
     // 1. Set the Report ID as the first byte
     _output_report_data[0] = (uint8_t)report_id;
@@ -214,7 +217,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _connected = false;
                 _hidreportclear = false;
                 hid_cid = 0;
-                sysmon_set_critical_shutdown();
+                tp_evt_s pevt = {
+                    .evt = TP_EVT_POWERCOMMAND,
+                    .evt_powercommand = {.power_command=TP_POWERCOMMAND_SHUTDOWN}
+                };
+                transport_evt_cb(pevt);
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid)
@@ -233,6 +240,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                         {
                             _bluetooth_hal_hid_tunnel(report.data, report.size);
                         }
+                        else break;
 
                         last_hid_report_timestamp_ms = current_time_ms;
                         hid_device_request_can_send_now_event(hid_cid);
@@ -278,14 +286,19 @@ core_params_s *_bt_hal_params = NULL;
 const core_hid_device_t *_bt_hal_hid = NULL;
 volatile bool _bt_init = false;
 
+// MODIFIED BTSTACK FUNCTION DEF
+int hid_report_size_valid(uint16_t cid, int report_id, hid_report_type_t report_type, int report_size){
+    if (!report_size) return 0;
+    return 1;
+}
+
 /***********************************************/
 /********* Transport Defines *******************/
 void transport_bt_stop()
 {
-    if(_bt_init)
-        cyw43_arch_deinit();
-    _bt_hal_params = NULL;
-    _bt_init = false;
+    //if(_bt_init)
+    //    cyw43_arch_deinit();
+    //_bt_init = false;
 }
 
 bool transport_bt_init(core_params_s *params)
@@ -361,7 +374,7 @@ bool transport_bt_init(core_params_s *params)
     memset(pnp_service_buffer, 0, sizeof(pnp_service_buffer));
 
     device_id_create_sdp_record(pnp_service_buffer, sdp_create_service_record_handle(), DEVICE_ID_VENDOR_ID_SOURCE_USB,
-                                _bt_hal_hid->pid, _bt_hal_hid->vid, 0x0100);
+                                _bt_hal_hid->vid, _bt_hal_hid->pid, 0x0100);
     //_create_sdp_pnp_record(pnp_service_buffer,
     //    DEVICE_ID_VENDOR_ID_SOURCE_BLUETOOTH, 0x057E, 0x2009, 0x0100);
     sdp_register_service(pnp_service_buffer);

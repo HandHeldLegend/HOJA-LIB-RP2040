@@ -73,12 +73,14 @@ void hoja_deinit(callback_t cb)
     return;
   _deinit_lockout = true;
 
+  sysmon_shutdown();
+
   // Stop our current loop function
   core_deinit();
 
   haptics_stop();
 
-  hoja_set_connected_status(CONN_STATUS_SHUTDOWN);
+  hoja_set_connected_status(CONNECTION_STATUS_DOWN);
 
 #if defined(HOJA_RGB_DRIVER)
   rgb_deinit(cb);
@@ -145,7 +147,7 @@ rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
 }
 
 volatile hoja_status_s _hoja_status = {
-    .connection_status = CONN_STATUS_INIT,
+    .connection_status = CONNECTION_STATUS_DOWN,
     .notification_color = 0,
     .gamepad_color = 0,
     .gamepad_method = 0,
@@ -155,6 +157,11 @@ volatile hoja_status_s _hoja_status = {
 void hoja_set_connected_status(connection_status_t status)
 {
   _hoja_status.connection_status = status;
+}
+
+void hoja_set_player_number(uint8_t number)
+{
+  _hoja_status.player_number = number;
 }
 
 void hoja_set_notification_status(rgb_s color)
@@ -193,7 +200,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
   _hoja_status.gamepad_mode = mode;
   _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
 
-  hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
+  hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
 
   // Reload our remap
@@ -255,6 +262,7 @@ void _hoja_task_1()
       // Idle manager
       idle_manager_task(c1_timestamp);
     }
+    else sys_hal_sleep_ms(1);
   }
 }
 

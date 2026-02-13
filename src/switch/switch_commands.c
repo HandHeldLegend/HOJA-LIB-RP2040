@@ -17,6 +17,7 @@
 #include "hoja.h"
 #include "hoja_shared_types.h"
 #include "devices_shared_types.h"
+#include "transport/transport.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -291,6 +292,7 @@ void _swcmd_pairing_set(uint8_t phase, const uint8_t *host_address, uint8_t *tar
   }
 }
 
+// This is called before reporting
 void _swcmd_report_handler(uint8_t report_id, const uint8_t *in_data, uint16_t in_len, uint8_t *out_data)
 {
   switch (report_id)
@@ -427,6 +429,7 @@ void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out)
   case SW_CMD_SET_SHIPMODE:
     // printf("Set ship mode: %X\n", data[11]);
     _swcmd_set_ack(0x80, out);
+    //transport_evt_cb(pevt);
     break;
 
   case SW_CMD_GET_SPI:
@@ -437,7 +440,7 @@ void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out)
 
   case SW_CMD_SET_HCI:
     // For now all options should shut down
-    hoja_deinit(hoja_shutdown);
+    // We handle this when we receive the report
     break;
 
   case SW_CMD_SET_SPI:
@@ -470,6 +473,7 @@ void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out)
     default:
       // Player 0 (No LEDs)
       break;
+    
     case 0b1:
       set_num = 1;
       break;
@@ -500,6 +504,18 @@ void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out)
       set_num = 8;
       break;
     }
+
+    tp_evt_s cevt = {
+      .evt = TP_EVT_CONNECTIONCHANGE,
+      .evt_connectionchange = {.connection=TP_CONNECTION_CONNECTED},
+    };
+    transport_evt_cb(cevt);
+
+    tp_evt_s evt = {
+      .evt = TP_EVT_PLAYERLED,
+      .evt_playernumber = {.player_number=set_num},
+    };
+    transport_evt_cb(evt);
     break;
 
   default:

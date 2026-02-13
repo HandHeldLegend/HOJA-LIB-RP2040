@@ -142,8 +142,8 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 
 void core_deinit()
 {
+    _core_params.transport_task = NULL;
     transport_stop();
-    _core_params = _core_params_default;
 }
 
 void core_task(uint64_t timestamp)

@@ -49,6 +49,11 @@ void _sysmon_event_handler(int evt)
     }
 }
 
+void sysmon_shutdown()
+{
+    _shutdown_lockout = true;
+}
+
 void sysmon_task(uint64_t timestamp)
 {
     if(_shutdown_lockout) return;

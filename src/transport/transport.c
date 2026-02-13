@@ -1,6 +1,7 @@
 #include "transport/transport.h"
 #include "cores/cores.h"
 
+#include <hoja.h>
 #include <stdlib.h>
 
 #include "board_config.h"
@@ -16,7 +17,7 @@
 
 void _transport_playerled(uint8_t led)
 {
-
+    hoja_set_player_number(led);
 }
 
 void _transport_connectionchange(uint8_t status)
@@ -24,15 +25,19 @@ void _transport_connectionchange(uint8_t status)
     switch(status)
     {
         case TP_CONNECTION_NONE:
+        hoja_set_connected_status(CONNECTION_STATUS_DOWN);
         break;
 
         case TP_CONNECTION_CONNECTING:
+        //hoja_set_connected_status(CONNECTION_STATUS_DOWN);
         break;
 
         case TP_CONNECTION_CONNECTED:
+        hoja_set_connected_status(CONNECTION_STATUS_CONNECTED);
         break;
 
         case TP_CONNECTION_DISCONNECTED:
+        hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED);
         break;
     }
 }
@@ -44,7 +49,15 @@ void _transport_ermrumble(uint8_t left, uint8_t right, uint8_t leftbrake, uint8_
 
 void _transport_powercommand(uint8_t command)
 {
+    switch(command)
+    {
+        case TP_POWERCOMMAND_REBOOT:
+        break;
 
+        case TP_POWERCOMMAND_SHUTDOWN:
+        hoja_deinit(hoja_shutdown);
+        break;
+    }
 }
 
 void transport_evt_cb(tp_evt_s evt)

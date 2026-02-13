@@ -154,9 +154,6 @@ void nesbus_hal_task(uint64_t timestamp)
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
-
-            hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-
             mapper_input_s input = mapper_get_input();
 
             static uint32_t pack = 0;

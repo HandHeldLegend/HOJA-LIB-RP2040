@@ -248,16 +248,8 @@ void _player_connection_manager(rgb_s *output)
 
     switch(status.connection_status)
     {
-        case CONN_STATUS_INIT:
-            // Clear all player LEDs
-            for(int i = 0; i < player_leds_count; i++)
-            {
-                player_leds[i].color = 0;
-            }
-        break;
-
-        case CONN_STATUS_DISCONNECTED:
-        case CONN_STATUS_CONNECTING:
+        case CONNECTION_STATUS_DISCONNECTED:
+        case CONNECTION_STATUS_DOWN:
             #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
             allow_update = ply_chase_handler(player_leds, status.gamepad_color);
             #else 
@@ -266,7 +258,7 @@ void _player_connection_manager(rgb_s *output)
         break;
 
         default:
-            allow_update = ply_idle_handler(player_leds, status.connection_status);
+            allow_update = ply_idle_handler(player_leds, status.player_number);
         break;
     }  
 

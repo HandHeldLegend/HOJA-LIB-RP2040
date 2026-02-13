@@ -22,6 +22,7 @@ void cb_hoja_init();
 
 void hoja_set_debug_data(uint8_t data);
 
+void hoja_set_player_number(uint8_t number);
 void hoja_set_connected_status(connection_status_t status);
 void hoja_set_notification_status(rgb_s color);
 void hoja_set_ss_notif(rgb_s color);

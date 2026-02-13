@@ -20,6 +20,8 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
+#include "hal/sys_hal.h"
+
 struct udp_pcb *_wlan_tx_pcb = NULL;
 struct udp_pcb *_wlan_rx_pcb = NULL;
 
@@ -40,7 +42,7 @@ typedef struct
 #define UDP_PORT 4444
 #define BEACON_MSG_LEN_MAX sizeof(hoja_wlan_report_s)
 #define BEACON_TARGET "255.255.255.255"
-#define PING_MISS_TIMEOUT 8
+#define PING_MISS_TIMEOUT 32
 #define PING_CHECK_TIME_MS 500
 
 #define WIFI_SSID_BASE "HOJA_WLAN_"
@@ -68,6 +70,7 @@ typedef enum
 static wifi_state_t _current_state = WIFI_IDLE;
 static absolute_time_t _timeout_time;
 volatile int _ping_misses = 0;
+uint32_t pm_mode = 0;
 
 bool _wlan_hal_raw_tunnel(hoja_wlan_report_s *report);
 
@@ -80,40 +83,44 @@ void _wlan_receive_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, cons
 {
     if (p)
     {
-        if (p->len != sizeof(hoja_wlan_report_s))
-            return;
-
-        hoja_wlan_report_s report = {0};
-        memcpy(&report, p->payload, p->len);
-
-        switch (report.wlan_report_id)
+        if (p->tot_len == sizeof(hoja_wlan_report_s))
         {
-        case HWLAN_REPORT_PASSTHROUGH:
-            if (_wlan_core_params)
+            hoja_wlan_report_s report = {0};
+            memcpy(&report, p->payload, p->len);
+
+            switch (report.wlan_report_id)
             {
-                if (_wlan_core_params->core_report_tunnel)
+            case HWLAN_REPORT_PASSTHROUGH:
+                if (_wlan_core_params) 
                 {
-                    _wlan_core_params->core_report_tunnel(report.data, report.len);
+                    if (_wlan_core_params->core_report_tunnel)
+                    {
+                        _wlan_core_params->core_report_tunnel(report.data, report.len);
+                    }
                 }
+                break;
+
+            case HWLAN_REPORT_PING:
+            {
+                _ping_misses = 0;
+                tp_evt_s evt = {
+                    .evt = TP_EVT_CONNECTIONCHANGE,
+                    .evt_connectionchange = {.connection=TP_CONNECTION_CONNECTED},
+                };
+                transport_evt_cb(evt);
             }
             break;
 
-        case HWLAN_REPORT_PING:
-        {
-            _ping_misses = 0;
-            hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-        }
-        break;
+            case HWLAN_REPORT_TRANSPORT:
+                tp_evt_s evt = {0};
+                memcpy(&evt, report.data, sizeof(tp_evt_s));
+                transport_evt_cb(evt);
+                break;
 
-        case HWLAN_REPORT_TRANSPORT:
-            tp_evt_s evt = {0};
-            memcpy(&evt, report.data, sizeof(tp_evt_s));
-            transport_evt_cb(evt);
-            break;
-
-        default:
-            // Unsupported
-            break;
+            default:
+                // Unsupported
+                break;
+            }
         }
         pbuf_free(p);
     }
@@ -136,7 +143,8 @@ void _wlan_hal_on_connect_finish(bool success)
 {
     if (success)
     {
-        printf("Callback: Connection Established!\n");
+        //printf("Callback: Connection Established!\n");
+        // Set PM
         if (_wlan_rx_pcb)
         {
             udp_remove(_wlan_rx_pcb);
@@ -156,7 +164,7 @@ void _wlan_hal_on_connect_finish(bool success)
     }
     else
     {
-        printf("Callback: Connection Timed Out or Failed.\n");
+        //printf("Callback: Connection Timed Out or Failed.\n");
         _current_state = WIFI_IDLE;
     }
 }
@@ -221,7 +229,7 @@ bool _wlan_hal_core_report_tunnel(core_report_s *report)
 // --- Initializer ---
 void _wlan_hal_connect_async(int timeout_seconds)
 {
-    printf("Attempting Async Connect...\n");
+    //printf("Attempting Async Connect...\n");
 
     _current_state = WIFI_CONNECTING;
     _timeout_time = make_timeout_time_ms(timeout_seconds * 1000);
@@ -255,7 +263,11 @@ void _wlan_hal_poll_connection(void)
 
 void _wlan_hal_deinit()
 {
-    hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
+    tp_evt_s evt = {
+        .evt = TP_EVT_CONNECTIONCHANGE,
+        .evt_connectionchange = {.connection=TP_CONNECTION_DISCONNECTED},
+    };
+    transport_evt_cb(evt);
     cyw43_arch_deinit();
 }
 
@@ -263,13 +275,14 @@ void _wlan_hal_init()
 {
     if (cyw43_arch_init_with_country(CYW43_COUNTRY_USA))
     {
-        printf("failed to initialise\n");
+        //printf("failed to initialise\n");
         return;
     }
 
     cyw43_arch_enable_sta_mode();
     
-    cyw43_wifi_pm(&cyw43_state, cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 20, 1, 1, 1));
+    pm_mode = cyw43_pm_value(CYW43_NO_POWERSAVE_MODE, 1, 1, 1, 1);
+    cyw43_wifi_pm(&cyw43_state, pm_mode);
 }
 
 volatile bool _wlan_running = false;
@@ -299,7 +312,7 @@ void transport_wlan_task(uint64_t timestamp)
     if (_wlan_hal_is_wlan_connected())
     {
         static interval_s poll_interval = {0};
-        if (interval_run(timestamp, 2000, &poll_interval))
+        if (interval_run(timestamp, 2500, &poll_interval))
         {
             core_report_s c_report = {0};
             if (core_get_generated_report(&c_report))
@@ -314,12 +327,10 @@ void transport_wlan_task(uint64_t timestamp)
         if(interval_run(timestamp, PING_CHECK_TIME_MS*1000, &ping_interval))
         {
             _ping_misses++;
-
             if(_ping_misses > PING_MISS_TIMEOUT)
             {
                 _wlan_hal_deinit();
                 _wlan_hal_init();
-
                 _current_state = WIFI_IDLE;
                 _ping_misses = 0;
             }

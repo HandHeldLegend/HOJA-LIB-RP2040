@@ -45,8 +45,7 @@ const hoja_usb_device_descriptor_t _swpro_device_descriptor = {
     .iManufacturer = 0x01,
     .iProduct = 0x02,
     .iSerialNumber = 0x03,
-    .bNumConfigurations = 0x01
-};
+    .bNumConfigurations = 0x01};
 
 const uint8_t _swpro_hid_report_descriptor_usb[203] = {
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
@@ -327,15 +326,15 @@ const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
 };
 
 #define SWITCH_HID_NAME "Pro Controller"
-const uint16_t _switch_hid_pid = 0x057E;
-const uint16_t _switch_hid_vid = 0x2009;
+const uint16_t _switch_hid_pid = 0x2009;
+const uint16_t _switch_hid_vid = 0x057E;
 
 const core_hid_device_t _switch_hid_device_usb = {
-    .config_descriptor      = _swpro_configuration_descriptor,
-    .config_descriptor_len  = SWPRO_CONFIG_DESCRIPTOR_LEN,
-    .hid_report_descriptor  = _swpro_hid_report_descriptor_usb,
+    .config_descriptor = _swpro_configuration_descriptor,
+    .config_descriptor_len = SWPRO_CONFIG_DESCRIPTOR_LEN,
+    .hid_report_descriptor = _swpro_hid_report_descriptor_usb,
     .hid_report_descriptor_len = sizeof(_swpro_hid_report_descriptor_usb),
-    .device_descriptor      = &_swpro_device_descriptor,
+    .device_descriptor = &_swpro_device_descriptor,
     .name = SWITCH_HID_NAME,
     .pid = _switch_hid_pid,
     .vid = _switch_hid_vid,
@@ -356,51 +355,60 @@ void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     uint8_t report_id = data[0];
 
-    switch(report_id)
+    switch (report_id)
     {
-        // If we only have rumble, we process and move on
-        case SW_OUT_ID_RUMBLE:
-        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-        hoja_set_notification_status(COLOR_GREEN);
+    // If we only have rumble, we process and move on
+    case SW_OUT_ID_RUMBLE:
         switch_haptics_rumble_translate(&data[2]);
         break;
 
-        case SW_OUT_ID_RUMBLE_CMD:
+    case SW_OUT_ID_RUMBLE_CMD:
+
+        // Check for shutdown case
+        tp_evt_s pevt = {
+            .evt = TP_EVT_POWERCOMMAND,
+            .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN}};
+        if (data[10] == SW_CMD_SET_HCI)
+        {
+            transport_evt_cb(pevt);
+            return;
+        }
+        // End shutdown case
+
         // Process rumble immediately, save data to process command
         // response on next packet generation
-        //switch_haptics_rumble_translate(&data[2]);
+        switch_haptics_rumble_translate(&data[2]);
 
-        hoja_set_connected_status(CONN_STATUS_PLAYER_1);
-        hoja_set_notification_status(COLOR_RED);
-
-        // Fall through to default to process the command later
-        case SW_OUT_ID_INFO:
+    // Fall through to default to process the command later
+    case SW_OUT_ID_INFO:
         memset(_scmd, 0, 64);
         // Copy the full data buffer, preserving the report ID
         memcpy(_scmd, data, len);
         _scmd_ready = true;
         break;
 
-        default:
+    default:
         break;
     }
 }
 
+core_params_s *_core_switch_params = NULL;
+
 bool _core_switch_get_generated_report(core_report_s *out)
 {
-    out->reportformat=CORE_REPORTFORMAT_SWPRO;
-    out->size=_switch_report_size; // Includes report ID
+    out->reportformat = CORE_REPORTFORMAT_SWPRO;
+    out->size = _switch_report_size; // Includes report ID
 
     // Check if we have command data
     // that we must respond to
-    if(_scmd_ready)
+    if (_scmd_ready)
     {
         swcmd_generate_reply(_scmd, &out->data[0], &out->data[1]);
         // Clear command data
         _scmd_ready = false;
     }
     // Just generate input data and send
-    else 
+    else
     {
         // Set the input data
         static core_switch_report_s data = {0};
@@ -409,30 +417,30 @@ bool _core_switch_get_generated_report(core_report_s *out)
 
         // Apply remapped data to our output buffer
         bool dpad[4] = {input.presses[SWITCH_CODE_DOWN], input.presses[SWITCH_CODE_RIGHT],
-                    input.presses[SWITCH_CODE_LEFT], input.presses[SWITCH_CODE_UP]};
+                        input.presses[SWITCH_CODE_LEFT], input.presses[SWITCH_CODE_UP]};
 
         dpad_translate_input(dpad);
 
-        data.d_down     = dpad[0];
-        data.d_right    = dpad[1];
-        data.d_left     = dpad[2];
-        data.d_up       = dpad[3];
+        data.d_down = dpad[0];
+        data.d_right = dpad[1];
+        data.d_left = dpad[2];
+        data.d_up = dpad[3];
 
         data.b_y = input.presses[SWITCH_CODE_Y];
         data.b_x = input.presses[SWITCH_CODE_X];
         data.b_a = input.presses[SWITCH_CODE_A];
         data.b_b = input.presses[SWITCH_CODE_B];
 
-        data.b_minus    = input.presses[SWITCH_CODE_MINUS];
-        data.b_plus     = input.presses[SWITCH_CODE_PLUS];
-        data.b_home     = input.presses[SWITCH_CODE_HOME];
-        data.b_capture  = input.presses[SWITCH_CODE_CAPTURE];
+        data.b_minus = input.presses[SWITCH_CODE_MINUS];
+        data.b_plus = input.presses[SWITCH_CODE_PLUS];
+        data.b_home = input.presses[SWITCH_CODE_HOME];
+        data.b_capture = input.presses[SWITCH_CODE_CAPTURE];
 
-        data.sb_left  = input.presses[SWITCH_CODE_LS];
+        data.sb_left = input.presses[SWITCH_CODE_LS];
         data.sb_right = input.presses[SWITCH_CODE_RS];
 
         data.t_r = input.presses[SWITCH_CODE_R];
-        data.t_l = input.presses[SWITCH_CODE_L];  
+        data.t_l = input.presses[SWITCH_CODE_L];
         data.t_zl = input.presses[SWITCH_CODE_ZL];
         data.t_zr = input.presses[SWITCH_CODE_ZR];
 
@@ -441,26 +449,27 @@ bool _core_switch_get_generated_report(core_report_s *out)
         uint16_t rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]);
         uint16_t ry = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]);
 
-        lx = (uint16_t) CORE_SWITCH_CLAMP(lx, 0, 4095); 
-        ly = (uint16_t) CORE_SWITCH_CLAMP(ly, 0, 4095); 
-        rx = (uint16_t) CORE_SWITCH_CLAMP(rx, 0, 4095); 
-        ry = (uint16_t) CORE_SWITCH_CLAMP(ry, 0, 4095); 
-        
+        lx = (uint16_t)CORE_SWITCH_CLAMP(lx, 0, 4095);
+        ly = (uint16_t)CORE_SWITCH_CLAMP(ly, 0, 4095);
+        rx = (uint16_t)CORE_SWITCH_CLAMP(rx, 0, 4095);
+        ry = (uint16_t)CORE_SWITCH_CLAMP(ry, 0, 4095);
+
         // Custom mapping of bits for output for joysticks/buttons
-        out->data[3] =  data.right_buttons;
-        out->data[4] =  data.shared_buttons;
-        out->data[5] =  data.left_buttons;
-        out->data[6] =  (lx & 0xFF);
-        out->data[7] =  (lx & 0xF00) >> 8;
+        out->data[3] = data.right_buttons;
+        out->data[4] = data.shared_buttons;
+        out->data[5] = data.left_buttons;
+        out->data[6] = (lx & 0xFF);
+        out->data[7] = (lx & 0xF00) >> 8;
         out->data[7] |= (ly & 0xF) << 4;
-        out->data[8] =  (ly & 0xFF0) >> 4;
-        out->data[9] =  (rx & 0xFF);
-        out->data[10] =  (rx & 0xF00) >> 8;
+        out->data[8] = (ly & 0xFF0) >> 4;
+        out->data[9] = (rx & 0xFF);
+        out->data[10] = (rx & 0xF00) >> 8;
         out->data[10] |= (ry & 0xF) << 4;
-        out->data[11] =  (ry & 0xFF0) >> 4;
+        out->data[11] = (ry & 0xFF0) >> 4;
 
         swcmd_generate_inputreport(&out->data[0], &out->data[1]);
     }
+
 
     return true;
 }
@@ -470,36 +479,38 @@ bool _core_switch_get_generated_report(core_report_s *out)
 // Public Functions
 bool core_switch_init(core_params_s *params)
 {
-    switch(params->transport_type)
+    _core_switch_params = params;
+
+    switch (params->transport_type)
     {
-        case GAMEPAD_TRANSPORT_USB:
+    case GAMEPAD_TRANSPORT_USB:
         _switch_report_size = 64; // 63 + report ID
         params->hid_device = &_switch_hid_device_usb;
         params->core_pollrate_us = 8000;
         params->transport_dev_mac[4] += 1;
         break;
 
-        case GAMEPAD_TRANSPORT_BLUETOOTH:
+    case GAMEPAD_TRANSPORT_BLUETOOTH:
         _switch_report_size = 49; // 48 + report ID
         params->hid_device = &_switch_hid_device_bt;
         params->core_pollrate_us = 8000;
         break;
 
-        //case GAMEPAD_TRANSPORT_WLAN:
-        //_switch_report_size = 64;
-        //params->core_pollrate_us = 2000;
-        //break;
+    // case GAMEPAD_TRANSPORT_WLAN:
+    //_switch_report_size = 64;
+    // params->core_pollrate_us = 2000;
+    // break;
 
-        // Unsupported transport methods
-        default:
+    // Unsupported transport methods
+    default:
         return false;
     }
 
     params->sys_gyro_task = imu_forced_task;
 
-    params->core_report_format       = CORE_REPORTFORMAT_SWPRO;
-    params->core_report_generator    = _core_switch_get_generated_report;
-    params->core_report_tunnel       = _core_switch_report_tunnel_cb;
+    params->core_report_format = CORE_REPORTFORMAT_SWPRO;
+    params->core_report_generator = _core_switch_get_generated_report;
+    params->core_report_tunnel = _core_switch_report_tunnel_cb;
 
     return transport_init(params);
 }

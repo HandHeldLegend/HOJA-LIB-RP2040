@@ -60,7 +60,7 @@ pio_sm_config _gamecube_c;
 
 volatile bool _gc_got_data = false;
 bool _gc_running = false;
-bool _gc_rumble = false;
+volatile bool _gc_rumble = false;
 bool _gc_brake = false;
 
 volatile uint8_t _gamecube_in_buffer[8] = {0};
@@ -318,7 +318,7 @@ void _jbgc_translate_data(uint8_t mode, core_gamecube_report_s *in, core_gamecub
   }
 }
 
-static inline void _jbgc_handle_rumble()
+void _jbgc_handle_rumble()
 {
   // Handle rumble state if it changes
   static bool rumblestate = false;
@@ -328,7 +328,9 @@ static inline void _jbgc_handle_rumble()
 
     uint8_t rumble = rumblestate ? 255 : 0;
 
-    tp_evt_s evt = {.evt_ermrumble = {
+    tp_evt_s evt = {
+      .evt = TP_EVT_ERMRUMBLE,
+      .evt_ermrumble = {
                         .left = rumble, .right = rumble, .left = 0, .right = 0}};
 
     transport_evt_cb(evt);

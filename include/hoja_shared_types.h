@@ -6,25 +6,10 @@
 
 typedef enum 
 {
-    CONN_STATUS_SHUTDOWN = -3,
-    CONN_STATUS_INIT = -2,
-    CONN_STATUS_DISCONNECTED  = -1,
-    CONN_STATUS_CONNECTING  = 0,
-    CONN_STATUS_PLAYER_1    = 1,
-    CONN_STATUS_PLAYER_2    = 2,
-    CONN_STATUS_PLAYER_3    = 3,
-    CONN_STATUS_PLAYER_4    = 4,
-    CONN_STATUS_PLAYER_5    = 5,
-    CONN_STATUS_PLAYER_6    = 6,
-    CONN_STATUS_PLAYER_7    = 7,
-    CONN_STATUS_PLAYER_8    = 8,
+    CONNECTION_STATUS_DOWN,
+    CONNECTION_STATUS_CONNECTED,
+    CONNECTION_STATUS_DISCONNECTED,
 } connection_status_t;
-
-typedef enum 
-{
-    PLAYER_NUMBER_INIT = -1,
-    
-} player_number_t;
 
 typedef enum
 {
@@ -64,6 +49,7 @@ typedef enum
 typedef struct 
 {
     int8_t connection_status;
+    uint8_t player_number;
     gamepad_mode_t gamepad_mode;
     gamepad_method_t gamepad_method;
     bool   init_status;
