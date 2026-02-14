@@ -316,7 +316,7 @@ void transport_jb64_stop()
 {
 }
 
-bool transport_jb64__init(core_params_s *params)
+bool transport_jb64_init(core_params_s *params)
 {
   if(params->core_report_format != CORE_REPORTFORMAT_N64) return false;
   _n64_hal_params = params;
