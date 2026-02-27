@@ -37,6 +37,7 @@ typedef struct
     uint8_t data[CORE_REPORT_DATA_LEN];
 } core_report_s;
 
+typedef gamepad_mode_t (*core_autodetect_result_t)(void);
 typedef bool (*core_generate_report_t)(core_report_s *out);
 typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);

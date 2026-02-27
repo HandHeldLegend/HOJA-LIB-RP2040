@@ -10,6 +10,7 @@
 
 #include "cores/cores.h"
 #include "transport/transport.h"
+#include "transport/transport_usb.h"
 
 #include "utilities/callback.h"
 #include "utilities/settings.h"
@@ -244,6 +245,8 @@ void _hoja_task_1()
     {
       // Flash task
       flash_hal_task();
+      // USB task
+      transport_usb_task(c1_timestamp);
 
       if (webusb_outputting_check())
       {

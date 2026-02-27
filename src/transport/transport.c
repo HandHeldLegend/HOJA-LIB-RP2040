@@ -90,6 +90,7 @@ typedef void (*transport_stop_cb_t)(void);
 
 transport_stop_cb_t _tp_stop_cb = NULL;
 
+
 void transport_stop()
 {
     if(_tp_stop_cb)
@@ -97,6 +98,23 @@ void transport_stop()
         _tp_stop_cb();
         _tp_stop_cb = NULL;
     }
+}
+
+// Forward declaration
+void _transport_autoinit_cb();
+transport_autoinit_sm_s _tp_autoinit_sm = {.result_ready_cb = _transport_autoinit_cb, .state = TP_AUTOINIT_IDLE};
+
+void _transport_autoinit_cb()
+{
+    switch(_tp_autoinit_sm.phase)
+    {
+        
+    }
+}
+
+void transport_autoinit(transport_autoinit_state_t *sm, core_params_s *params)
+{
+
 }
 
 bool transport_init(core_params_s *params)

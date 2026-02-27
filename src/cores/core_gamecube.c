@@ -71,6 +71,11 @@ bool _core_gamecube_get_generated_report(core_report_s *out)
 
 /*------------------------------------------------*/
 
+void core_gamecube_autoinit(core_params_s *params)
+{
+    
+}
+
 // Public Functions
 bool core_gamecube_init(core_params_s *params)
 {

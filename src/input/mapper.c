@@ -835,8 +835,8 @@ mapper_input_s mapper_get_translated_input()
 
 mapper_input_s mapper_get_input()
 {
-    analog_data_s joysticks;
-    mapper_input_s hovers;
+    static analog_data_s joysticks;
+    static mapper_input_s hovers;
 
     analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
     hover_access_safe(&hovers);

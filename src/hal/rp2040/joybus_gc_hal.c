@@ -359,6 +359,11 @@ void transport_jbgc_stop()
 {
 }
 
+//bool transport_jbgc_autoinit(transport_autoinit_result_t cb, core_params_s *params)
+//{
+//  
+//}
+
 bool transport_jbgc_init(core_params_s *params)
 {
   if (params->core_report_format != CORE_REPORTFORMAT_GAMECUBE)

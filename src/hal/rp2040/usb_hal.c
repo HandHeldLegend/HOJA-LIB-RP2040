@@ -499,7 +499,7 @@ bool xinputd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     // Received report
     else if (ep_addr == _xinputd_itf.ep_out)
     {
-        tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, _xinputd_itf.epout_buf, (uint16_t)xferred_bytes);
+        tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, _xinputd_itf.epout_buf, (uint16_t)xferred_bytes);
         TU_ASSERT(usbd_edpt_xfer(rhport, _xinputd_itf.ep_out, _xinputd_itf.epout_buf, sizeof(_xinputd_itf.epout_buf)));
     }
 
@@ -529,14 +529,17 @@ bool tud_n_xinput_report(uint8_t report_id, void const *report, uint16_t len)
         tud_remote_wakeup();
     }
 
-    // claim endpoint
-    TU_VERIFY(usbd_edpt_claim(rhport, 0x81));
+    // claim endpoint using the correct variable, not hardcoded 0x81
+    TU_VERIFY(usbd_edpt_claim(rhport, _xinputd_itf.ep_in));
 
     _xinputd_itf.epin_buf[0] = report_id;
-    memcpy(&_xinputd_itf.epin_buf[1], report, CFG_TUD_XINPUT_EP_BUFSIZE - 1);
-    bool out = usbd_edpt_xfer(rhport, _xinputd_itf.ep_in, _xinputd_itf.epin_buf, CFG_TUD_XINPUT_EP_BUFSIZE);
+    
+    // Use 'len' to avoid reading past the end of the 'report' struct
+    memcpy(&_xinputd_itf.epin_buf[1], report, len); 
+    
+    bool out = usbd_edpt_xfer(rhport, _xinputd_itf.ep_in, _xinputd_itf.epin_buf, len+1);
+    
     usbd_edpt_release(0, _xinputd_itf.ep_in);
-
     tud_xinput_getout();
 
     return out;
@@ -1016,6 +1019,8 @@ uint32_t _usb_frames = 8;
 volatile bool _usb_ready = false;
 volatile bool _usb_sendit = false;
 
+volatile uint8_t _usb_sent_id = 0xFF;
+
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb(void)
@@ -1077,6 +1082,8 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     (void)instance;
     (void)report;
     (void)len;
+
+    if(report[0]==_usb_sent_id) _usb_sent_id = 0xFF;
 }
 
 // Invoked when received SET_REPORT control request or
@@ -1212,7 +1219,6 @@ void transport_usb_task(uint64_t timestamp)
     {
         _usb_sendit = false;
         _usb_ready = false;
-    
         
         if(core_get_generated_report(&_core_report))
         {

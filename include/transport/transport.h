@@ -66,6 +66,23 @@ typedef struct
     };
 } tp_evt_s;
 
+typedef enum
+{
+    TP_AUTOINIT_IDLE,
+    TP_AUTOINIT_REQUESTED,
+    TP_AUTOINIT_SUCCESS,
+    TP_AUTOINIT_FAILURE,
+} transport_autoinit_state_t;
+
+typedef void (*transport_autoinit_result_t)(void);
+
+typedef struct 
+{
+    int phase;
+    transport_autoinit_state_t state;
+    transport_autoinit_result_t result_ready_cb;
+} transport_autoinit_sm_s;
+
 void transport_evt_cb(tp_evt_s evt);
 bool transport_init(core_params_s *params);
 void transport_stop();

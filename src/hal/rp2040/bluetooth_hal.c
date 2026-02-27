@@ -401,6 +401,12 @@ bool transport_bt_init(core_params_s *params)
 
 void transport_bt_task(uint64_t timestamp)
 {
+    static interval_s interval = {0};
+
+    if(interval_run(timestamp, 1000, &interval) && _bt_hal_params->sys_gyro_task)
+    {
+        _bt_hal_params->sys_gyro_task();
+    }
 }
 
 uint32_t transport_bt_test()

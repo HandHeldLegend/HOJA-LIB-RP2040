@@ -1,5 +1,10 @@
 #include "transport/transport_joybusgc.h"
 
+//__attribute__((weak)) bool transport_jbgc_autoinit(transport_autoinit_result_t cb, core_params_s *params)
+//{
+//    return false;
+//}
+
 __attribute__((weak)) bool transport_jbgc_init(core_params_s *params)
 {
     return false;

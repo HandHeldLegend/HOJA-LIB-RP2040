@@ -63,7 +63,7 @@ volatile static uint8_t _workingCmd = 0x00;
 volatile static uint8_t _byteCount = 0;
 volatile uint8_t _crc_reply = 0;
 
-volatile bool   _n64_got_data = false;
+volatile bool   _n64_sent_poll = false;
 bool            _n64_running = false;
 
 uint8_t _n64_calculate_crc(const uint8_t *data, size_t len, uint8_t init_value, bool pak_inserted) {
@@ -118,6 +118,7 @@ void _n64_send_poll()
   pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.buttons_2));
   pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.stick_x));
   pio_sm_put_blocking(PIO_IN_USE_N64, PIO_SM, ALIGNED_JOYBUS_8(out.stick_y));
+  _n64_sent_poll = true; // Set flag for auto-init
 }
 
 #define PAK_MSG_BYTES 33
@@ -249,7 +250,6 @@ static void __time_critical_func(_n64_isr_handler)(void)
   {
     pio_interrupt_clear(PIO_IN_USE_N64, 0);
     _n64_command_handler();
-    _n64_got_data=true;
   }
   irq_set_enabled(_n64_irq, true);
 }
@@ -277,6 +277,7 @@ bool _joybus_n64_hal_init()
 }
 
 core_params_s *_n64_hal_params = NULL;
+transport_autoinit_sm_s *_n64_hal_tpsm = NULL;
 
 void _jb64_handle_connection(bool connected)
 {
@@ -297,7 +298,7 @@ void _jb64_handle_connection(bool connected)
     connectstate = 0;
     emit = true;
     _n64_reset_state();
-    sleep_ms(8);
+    //sleep_ms(8);
   }
 
   tp_evt_s evt = {.evt_connectionchange = {
@@ -314,6 +315,29 @@ void _jb64_handle_connection(bool connected)
 /********* Transport Defines *******************/
 void transport_jb64_stop()
 {
+  if (!_n64_hal_params) return;
+
+  // Disable and clear the IRQ
+  irq_set_enabled(_n64_irq, false);
+  irq_remove_handler(_n64_irq, _n64_isr_handler);
+  pio_set_irq0_source_enabled(PIO_IN_USE_N64, pis_interrupt0, false);
+
+  // Stop and clean up the state machine
+  pio_sm_set_enabled(PIO_IN_USE_N64, PIO_SM, false);
+  pio_sm_unclaim(PIO_IN_USE_N64, PIO_SM);
+  pio_remove_program(PIO_IN_USE_N64, &joybus_program, _n64_offset);
+
+  // Notify transport about disconnection before clearing params
+  _jb64_handle_connection(false);
+
+  // Reset all internal state
+  _workingCmd     = 0x00;
+  _byteCount      = 0;
+  _crc_reply      = 0;
+  _n64_sent_poll  = false;
+  _n64_rumble     = false;
+  _n64_hal_params = NULL;
+  _n64_hal_tpsm   = NULL;
 }
 
 bool transport_jb64_init(core_params_s *params)
@@ -324,6 +348,22 @@ bool transport_jb64_init(core_params_s *params)
   _joybus_n64_hal_init();
   return true;
 }
+
+void _jbgc_autoinit_finalize(bool success)
+{
+  if(_n64_hal_tpsm)
+  {
+    _n64_hal_tpsm->state = success ? TP_AUTOINIT_SUCCESS : TP_AUTOINIT_FAILURE;
+    _n64_hal_tpsm->result_ready_cb();
+    _n64_hal_tpsm = NULL;
+  }
+}
+
+//bool transport_jbgc_autoinit(transport_autoinit_state_t *sm, core_params_s *params)
+//{
+//  _n64_hal_tpsm = sm;
+//  transport_jb64_init(params);
+//}
 
 void transport_jb64_task(uint64_t timestamp)
 {
@@ -360,15 +400,18 @@ void transport_jb64_task(uint64_t timestamp)
     }
   }
 
-  if(interval_resettable_run(timestamp, 1000000, _n64_got_data, &interval_reset))
+  // 1 second timeout
+  if(interval_resettable_run(timestamp, 1*1000*1000, _n64_sent_poll, &interval_reset))
   {
     _jb64_handle_connection(false);
+    _jbgc_autoinit_finalize(false);
   }
 
-  if(_n64_got_data) 
+  if(_n64_sent_poll) 
   {
     _jb64_handle_connection(true);
-    _n64_got_data = false;
+    _jbgc_autoinit_finalize(true);
+    _n64_sent_poll = false;
   }
 }
 

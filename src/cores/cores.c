@@ -46,6 +46,14 @@ core_params_s _core_params = {
     .hid_device = NULL,
 };
 
+// Runs auto-detect procedures
+// and will call the callback with the resulting gamepad
+// mode that is detected (or -1 if we didn't have a success)
+void core_detect_init(core_autodetect_result_t cb)
+{
+
+}
+
 bool core_is_mac_blank(uint8_t mac[6])
 {
     for(int i=0; i<6; i++)

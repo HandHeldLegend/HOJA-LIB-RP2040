@@ -12,7 +12,8 @@
 
 // BTstack configuration. buffers, sizes, ...
 #define HCI_OUTGOING_PRE_BUFFER_SIZE 4
-#define HCI_ACL_PAYLOAD_SIZE 256
+#define HCI_ACL_PAYLOAD_SIZE 128
+
 #define HCI_ACL_CHUNK_SIZE_ALIGNMENT 4
 #define MAX_NR_AVDTP_CONNECTIONS 0
 #define MAX_NR_AVDTP_STREAM_ENDPOINTS 1
@@ -37,16 +38,16 @@
 
 // Limit number of ACL/SCO Buffer to use by stack to avoid cyw43 shared bus
 // overrun
-#define MAX_NR_CONTROLLER_ACL_BUFFERS 2
-#define MAX_NR_CONTROLLER_SCO_PACKETS 3
+#define MAX_NR_CONTROLLER_ACL_BUFFERS 8
+#define MAX_NR_CONTROLLER_SCO_PACKETS 0
 
 // Enable and configure HCI Controller to Host Flow Control to avoid cyw43
 // shared bus overrun
 #define ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL
 #define HCI_HOST_ACL_PACKET_LEN 1024
 #define HCI_HOST_ACL_PACKET_NUM 2
-#define HCI_HOST_SCO_PACKET_LEN 120
-#define HCI_HOST_SCO_PACKET_NUM 3
+#define HCI_HOST_SCO_PACKET_LEN 0
+#define HCI_HOST_SCO_PACKET_NUM 0
 
 // Link Key DB and LE Device DB using TLV on top of Flash Sector interface
 #define NVM_NUM_DEVICE_DB_ENTRIES 16

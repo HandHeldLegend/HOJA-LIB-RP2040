@@ -312,7 +312,7 @@ void transport_wlan_task(uint64_t timestamp)
     if (_wlan_hal_is_wlan_connected())
     {
         static interval_s poll_interval = {0};
-        if (interval_run(timestamp, 2500, &poll_interval))
+        if (interval_run(timestamp, 3333, &poll_interval))
         {
             core_report_s c_report = {0};
             if (core_get_generated_report(&c_report))

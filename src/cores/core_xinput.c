@@ -102,19 +102,31 @@ void _core_xinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
     if(len<2) return;
 
     uint8_t report_id = data[0];
+
+    if(report_id==0x00 && data[1]==0x08)
+    {
+        tp_evt_s rumble = {
+            .evt = TP_EVT_ERMRUMBLE,
+            .evt_ermrumble = {
+            .left=data[3], .right=data[4],
+            .leftbrake=!data[3]?true:false, .rightbrake=!data[4]?true:false
+        }};
+
+        transport_evt_cb(rumble);
+    }
 }
 
 bool _core_xinput_get_generated_report(core_report_s *out)
 {
     out->reportformat = CORE_REPORTFORMAT_XINPUT;
-    out->size=CORE_XINPUT_REPORT_SIZE;
+    out->size=CORE_XINPUT_REPORT_LEN;
 
     core_xinput_report_s *data = (core_xinput_report_s*)out->data;
 
     mapper_input_s input = mapper_get_input();
 
     data->report_id   = CORE_XINPUT_REPORT_ID;
-    data->report_size = CORE_XINPUT_REPORT_SIZE;
+    data->report_size = CORE_XINPUT_REPORT_LEN;
 
     data->stick_left_x  = _core_xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LX_LEFT], input.inputs[XINPUT_CODE_LX_RIGHT]));
     data->stick_left_y  = _core_xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LY_DOWN], input.inputs[XINPUT_CODE_LY_UP]));

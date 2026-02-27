@@ -23,7 +23,7 @@
 #include "drivers/imu/lsm6dsr.h"
 
 #define IMU_CALIBRATE_CYCLES 2000
-#define IMU_READ_RATE 1000
+#define IMU_READ_RATE 3000
 
 // Access IMU config union members macro
 #define CH_A_GYRO_OFFSET(axis)    (imu_config->imu_a_gyro_offsets[axis])

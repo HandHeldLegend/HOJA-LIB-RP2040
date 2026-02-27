@@ -23,6 +23,10 @@ volatile bool _scmd_ready = false;
 uint8_t _scmd[NS_CMD_DATA_LEN] = {0};
 uint8_t _switch_report_size = 64;
 
+#define SWITCH_HID_NAME "Pro Controller"
+const uint16_t _switch_hid_pid = 0x2009;
+const uint16_t _switch_hid_vid = 0x057E;
+
 /** Switch PRO HID MODE **/
 // 1. Device Descriptor
 // 2. HID Report Descriptor
@@ -38,8 +42,8 @@ const hoja_usb_device_descriptor_t _swpro_device_descriptor = {
     .bDeviceProtocol = 0x00,
 
     .bMaxPacketSize0 = 64,
-    .idVendor = 0x057E,
-    .idProduct = 0x2009,
+    .idVendor = _switch_hid_vid,
+    .idProduct = _switch_hid_pid,
 
     .bcdDevice = 0x0100,
     .iManufacturer = 0x01,
@@ -325,10 +329,6 @@ const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     0,
 };
 
-#define SWITCH_HID_NAME "Pro Controller"
-const uint16_t _switch_hid_pid = 0x2009;
-const uint16_t _switch_hid_vid = 0x057E;
-
 const core_hid_device_t _switch_hid_device_usb = {
     .config_descriptor = _swpro_configuration_descriptor,
     .config_descriptor_len = SWPRO_CONFIG_DESCRIPTOR_LEN,
@@ -453,6 +453,17 @@ bool _core_switch_get_generated_report(core_report_s *out)
         ly = (uint16_t)CORE_SWITCH_CLAMP(ly, 0, 4095);
         rx = (uint16_t)CORE_SWITCH_CLAMP(rx, 0, 4095);
         ry = (uint16_t)CORE_SWITCH_CLAMP(ry, 0, 4095);
+
+        //#define SWDEBUG
+        #ifdef SWDEBUG
+        static bool flip = false;
+        if(flip)
+        {
+            lx = 100;
+        }
+        else lx = 4000;
+        flip = !flip;
+        #endif
 
         // Custom mapping of bits for output for joysticks/buttons
         out->data[3] = data.right_buttons;
