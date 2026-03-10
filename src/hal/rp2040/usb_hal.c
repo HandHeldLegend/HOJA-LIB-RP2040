@@ -1082,8 +1082,6 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
     (void)instance;
     (void)report;
     (void)len;
-
-    if(report[0]==_usb_sent_id) _usb_sent_id = 0xFF;
 }
 
 // Invoked when received SET_REPORT control request or
@@ -1138,9 +1136,6 @@ void tud_sof_cb(uint32_t frame_count_ext)
             }
             break;
     }
-
-    if(_usb_core_params->sys_gyro_task)
-        _usb_core_params->sys_gyro_task();
 }
 
 #pragma endregion
@@ -1225,6 +1220,9 @@ void transport_usb_task(uint64_t timestamp)
             if(_usb_hal_report_cb)
             {
                 _usb_hal_report_cb(_core_report.data[0], &_core_report.data[1], _core_report.size-1);
+                tud_task();
+                if(_usb_core_params->sys_gyro_task)
+                    _usb_core_params->sys_gyro_task();
             }
         }
     }

@@ -28,9 +28,9 @@ void _transport_connectionchange(uint8_t status)
         hoja_set_connected_status(CONNECTION_STATUS_DOWN);
         break;
 
-        case TP_CONNECTION_CONNECTING:
-        //hoja_set_connected_status(CONNECTION_STATUS_DOWN);
-        break;
+        //case TP_CONNECTION_CONNECTING:
+        ////hoja_set_connected_status(CONNECTION_STATUS_DOWN);
+        //break;
 
         case TP_CONNECTION_CONNECTED:
         hoja_set_connected_status(CONNECTION_STATUS_CONNECTED);

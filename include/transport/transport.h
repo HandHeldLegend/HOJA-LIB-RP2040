@@ -20,7 +20,6 @@ typedef enum
 typedef enum 
 {
     TP_CONNECTION_NONE,
-    TP_CONNECTION_CONNECTING,
     TP_CONNECTION_CONNECTED,
     TP_CONNECTION_DISCONNECTED,
 } tp_connectionchange_t;

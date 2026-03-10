@@ -383,6 +383,8 @@ bool transport_bt_init(core_params_s *params)
     hid_device_init(0, _bt_hal_hid->hid_report_descriptor_len,
                     _bt_hal_hid->hid_report_descriptor);
 
+    hid_device_accept_truncated_hid_reports(true);
+
     hci_event_callback_registration.callback = &_bt_hal_packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
