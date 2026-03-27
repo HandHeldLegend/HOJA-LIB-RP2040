@@ -401,7 +401,7 @@ void transport_jb64_task(uint64_t timestamp)
   }
 
   // 1 second timeout
-  if(interval_resettable_run(timestamp, 1*1000*1000, _n64_sent_poll, &interval_reset))
+  if(interval_resettable_run(timestamp, 5*1000*1000, _n64_sent_poll, &interval_reset))
   {
     _jb64_handle_connection(false);
     _jbgc_autoinit_finalize(false);

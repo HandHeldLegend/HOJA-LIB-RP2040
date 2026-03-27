@@ -28,9 +28,9 @@ typedef struct
 
 typedef void (*bluetooth_cb_t)(bluetooth_cb_msg_s *msg);
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_HAL)
     #include "hal/bluetooth_hal.h"
-#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
 #endif
 

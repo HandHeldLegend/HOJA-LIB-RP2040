@@ -1,4 +1,9 @@
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
 #include "drivers/bluetooth/esp32_hojabaseband.h"
+
+#include "transport/transport.h"
 
 #include <string.h>
 #include <stddef.h>
@@ -19,8 +24,6 @@
 
 #include "switch/switch_haptics.h"
 
-#include "board_config.h"
-
 #include "input/mapper.h"
 #include "input/imu.h"
 
@@ -28,15 +31,12 @@
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
-#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #error "HOJA_USB_MUX_DRIVER must be defined for the ESP32 bluetooth driver" 
 #endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
-    #include "drivers/bluetooth/esp32_hojabaseband.h"
-#endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+    #include "drivers/bluetooth/esp32_hojabaseband.h"
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
@@ -48,6 +48,8 @@
 #define BT_FLASH_BRIGHTNESS 20
 
 #define BT_HOJABB_I2CINPUT_ADDRESS 0x76
+
+core_params_s *_bt_esp32_params = NULL;
 
 typedef struct
 {
@@ -332,7 +334,7 @@ void _btinput_message_parse(uint8_t *data)
             else
             {
                 // Disconnected
-                hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
+                //hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
             }
         }
     }
@@ -387,7 +389,7 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SINPUT:
     {
-        sinput_cmd_haptics(&(status.data[0]));
+        //sinput_cmd_haptics(&(status.data[0]));
     }
     break;
     }
@@ -408,15 +410,71 @@ void esp32hoja_init_load()
 
 bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+    
+}
+
+void esp32hoja_stop()
+{
+    _esp32hoja_enable_uart(false);
+    _esp32hoja_enable_chip(false);
+}
+
+void esp32hoja_task(uint64_t timestamp)
+{
+    
+}
+
+int esp32hoja_hwtest()
+{
+
+}
+
+uint32_t esp32hoja_get_fwversion()
+{
+    
+}
+
+void transport_bt_stop()
+{
+
+}
+
+bool transport_bt_init(core_params_s *params)
+{
+    _bt_esp32_params = params;
+
+    if (!_bt_esp32_params)
+        return false;
+
     #if defined(HOJA_USB_MUX_INIT)
     HOJA_USB_MUX_INIT();
     #endif
 
-    if(evt_cb)
-        _bluetooth_cb = evt_cb;
+    uint8_t gamepad_mode = 0;
 
-    uint8_t pair_flag = (pairing_mode ? 0b10000000 : 0);
-    uint8_t out_mode = pair_flag | (uint8_t) device_mode;
+    if(params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+    {
+        esp32hoja_init_load();
+        return;
+    }
+
+    // Use legacy gamepad modes
+    switch(params->core_report_format)
+    {
+        case CORE_REPORTFORMAT_SWPRO:
+        gamepad_mode = 0;
+        break;
+
+        case CORE_REPORTFORMAT_SINPUT:
+        gamepad_mode = 6;
+        break;
+
+        default:
+        return false;
+    }
+
+    uint8_t pair_flag = ((params->core_boot_flags & COREBOOT_FLAG_PAIR) ? 0b10000000 : 0);
+    uint8_t out_mode = pair_flag | (uint8_t) gamepad_mode;
 
     #if defined(HOJA_BT_LOGGING_DEBUG) && (HOJA_BT_LOGGING_DEBUG==1)
     _esp32hoja_enable_uart(true);
@@ -500,12 +558,7 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     #endif
 
     // Local MAC
-    data_out[22] = gamepad_config->switch_mac_address[0];
-    data_out[23] = gamepad_config->switch_mac_address[1];
-    data_out[24] = gamepad_config->switch_mac_address[2];
-    data_out[25] = gamepad_config->switch_mac_address[3];
-    data_out[26] = gamepad_config->switch_mac_address[4];
-    data_out[27] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
+    memcpy(&data_out[22], _bt_esp32_params->transport_dev_mac, 6);
 
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
@@ -520,16 +573,12 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     else return true;
 }
 
-void esp32hoja_stop()
-{
-    _esp32hoja_enable_uart(false);
-    _esp32hoja_enable_chip(false);
-}
-
-void esp32hoja_task(uint64_t timestamp)
+void transport_bt_task(uint64_t timestamp)
 {
     static interval_s       interval    = {0};
     static i2cinput_input_s input_data  = {0};
+
+    if(!_bt_esp32_params) return;
     
     static bool read_write = true;
 
@@ -548,10 +597,10 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.buttons_all      = 0;//buttons.buttons_all;
             input_data.buttons_system   = 0;//buttons.buttons_system;
 
-            switch(hoja_get_status().gamepad_mode)
+            switch(_bt_esp32_params->core_report_format)
             {
                 default:
-                case GAMEPAD_MODE_SWPRO:
+                case CORE_REPORTFORMAT_SWPRO:
                 int lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]); 
                 int ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);   
                 int rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]); 
@@ -596,7 +645,7 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.rt = 0;
                 break;
 
-                case GAMEPAD_MODE_SINPUT:
+                case CORE_REPORTFORMAT_SINPUT:
                 int slx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LX_LEFT], input.inputs[SINPUT_CODE_LX_RIGHT]);
                 int sly = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LY_DOWN], input.inputs[SINPUT_CODE_LY_UP]);   
                 int srx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RX_LEFT], input.inputs[SINPUT_CODE_RX_RIGHT]);
@@ -728,14 +777,10 @@ void esp32hoja_task(uint64_t timestamp)
     }
 }
 
-int esp32hoja_hwtest()
-{
-
-}
-
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
-uint32_t esp32hoja_get_fwversion()
+// In this context we return the firmware version
+uint32_t transport_bt_test()
 {
     uint32_t ret_info = 0x00;
 

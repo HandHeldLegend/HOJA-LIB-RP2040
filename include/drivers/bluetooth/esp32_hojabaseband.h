@@ -17,7 +17,7 @@
     #error "ESP32 Hoja Baseband driver requires I2C!" 
 #endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #if !defined(BLUETOOTH_DRIVER_I2C_INSTANCE)
         #error "BLUETOOTH_DRIVER_I2C_INSTANCE is undefined in board_config.h"
     #endif

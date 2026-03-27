@@ -1165,7 +1165,7 @@ bool transport_usb_init(core_params_s *params)
         _usb_hal_report_cb = tud_hid_report;
         break;
     case CORE_REPORTFORMAT_SWPRO:
-        _usb_frames = 8;
+        _usb_frames = 1; //DBG
         _usb_hal_ready_cb = tud_hid_ready;
         _usb_hal_report_cb = tud_hid_report;
         break;

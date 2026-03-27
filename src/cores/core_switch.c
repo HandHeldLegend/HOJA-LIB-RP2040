@@ -267,7 +267,7 @@ const const uint8_t _swpro_hid_report_descriptor_bt[170] = {
 #define SWPRO_CONFIG_DESCRIPTOR_LEN 64
 const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     // Configuration number, interface count, string index, total length, attribute, power in mA
-    HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, HUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    HUSB_CONFIG_DESCRIPTOR(1, 2, 0, SWPRO_CONFIG_DESCRIPTOR_LEN, HUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 250),
 
     // Interface
     9,
@@ -293,14 +293,14 @@ const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     0x81,
     HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(64),
-    4,
+    1, // interval
     // Endpoint Descriptor
     7,
     HUSB_DESC_ENDPOINT,
     0x01,
     HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(64),
-    8,
+    1, // report interval 
 
     // Alternate Interface for WebUSB
     // Interface

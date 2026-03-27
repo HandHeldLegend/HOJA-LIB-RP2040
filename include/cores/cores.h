@@ -45,6 +45,9 @@ typedef void (*core_task_t)(uint64_t timestamp);
 typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
+#define COREBOOT_FLAG_PAIR (0b1)
+#define COREBOOT_FLAG_ALTFLASH (0b10000000)
+
 typedef struct 
 {
     uint8_t                 transport_type;
@@ -58,6 +61,7 @@ typedef struct
     core_generate_report_t  core_report_generator; // Get generated report data from this
     core_report_tunnel_t    core_report_tunnel;    // Where incoming reports should be sent
     const core_hid_device_t*      hid_device; // HID device info
+    uint16_t                core_boot_flags; // See COREBOOT_FLAG_ types
 } core_params_s;
 
 core_params_s* core_current_params();
