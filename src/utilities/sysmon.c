@@ -55,6 +55,8 @@ void sysmon_task(uint64_t timestamp)
 {
     if(_shutdown_lockout) return;
 
+    if(!_sysbattery.connected) return;
+
     if(_shutdown_timeout_initiated)
     {
         static interval_s critical_interval = {0};

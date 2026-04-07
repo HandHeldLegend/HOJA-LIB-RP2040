@@ -3,6 +3,8 @@
 #include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
 
+#include "hoja.h"
+
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
 
 #define BQ25180_SLAVE_ADDRESS 0x6A
@@ -12,6 +14,7 @@
 #define BQ25180_REG_SHIP_RST    0x9
 #define BQ25180_REG_SYS_REG     0xA
 #define BQ25180_REG_ICHG_CTRL   0x4
+#define BQ25180_REG_FLAG_0      0x2
 #define BQ25180_REG_MASK_ID     0xC
 
 typedef struct
@@ -50,17 +53,44 @@ typedef struct
     };
 } bq25180_status_1_s;
 
+typedef struct 
+{
+    union 
+    {
+        struct
+        {
+            uint8_t bat_ocp_fault : 1;
+            uint8_t buvlo_fault_flag : 1;
+            uint8_t vin_ovp_fault_flag : 1;
+            uint8_t thermreg_active_flag : 1;
+            uint8_t vindpm_active_flag: 1;
+            uint8_t vdppm_active_flag : 1;
+            uint8_t ilim_active_flag : 1;
+            uint8_t ts_fault_flag;
+        };
+        uint8_t flags;
+    };
+} bq25180_flags_0_s;
+
 bool _charge_disabled = false;
 
 bool bq25180_is_present(void)
 {
 
-    uint8_t _getstatus[1] = {BQ25180_REG_MASK_ID};
+    uint8_t _getstatus[1] = {BQ25180_REG_FLAG_0};
     uint8_t _readstatus[1] = {0x00};
     int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
 
     if(ret==1)
     {
+        bq25180_flags_0_s s = {.flags = _readstatus[0]};
+        
+        if(s.buvlo_fault_flag)
+        {
+            // Battery is too low or not detected
+            return false;
+        }
+        
         return true;
     }
     // Communication failure with PMIC
