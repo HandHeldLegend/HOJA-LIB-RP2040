@@ -328,13 +328,17 @@ void _btinput_message_parse(uint8_t *data)
             _current_connected = (int8_t) status.data[0];
             if (_current_connected > 0)
             {
-                // Connected OK
-                hoja_set_connected_status(_current_connected);
+                tp_evt_s evt_conn = {.evt = TP_EVT_CONNECTIONCHANGE, .evt_connectionchange = {.connection = TP_CONNECTION_CONNECTED}};
+                transport_evt_cb(evt_conn);
+
+                tp_evt_s player_conn = {.evt = TP_EVT_PLAYERLED, .evt_playernumber = {.player_number = _current_connected}};
+                transport_evt_cb(player_conn);
             }
             else
             {
                 // Disconnected
-                //hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
+                tp_evt_s evt_conn = {.evt = TP_EVT_CONNECTIONCHANGE, .evt_connectionchange = {.connection = TP_CONNECTION_DISCONNECTED}};
+                transport_evt_cb(evt_conn);
             }
         }
     }
@@ -348,27 +352,18 @@ void _btinput_message_parse(uint8_t *data)
 
         if (power_code == POWER_CODE_OFF)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 0;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s shutdown_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN}};
+            transport_evt_cb(shutdown_evt);
         }
         else if (power_code == POWER_CODE_RESET)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 1;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s reboot_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_REBOOT}};
+            transport_evt_cb(reboot_evt);
         }
         else if(power_code == POWER_CODE_CRITICAL)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 2;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s crit_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_LOWPOWER}};
+            transport_evt_cb(crit_evt);
         }
     }
     break;
@@ -383,7 +378,15 @@ void _btinput_message_parse(uint8_t *data)
     {
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
-        haptics_set_std(l>r? l : r, false);
+        
+        tp_evt_s rumble = {
+            .evt = TP_EVT_ERMRUMBLE,
+            .evt_ermrumble = {
+            .left=l, .right=r,
+            .leftbrake=!l?true:false, .rightbrake=!r?true:false
+        }};
+
+        transport_evt_cb(rumble);
     }
     break;
 
@@ -455,7 +458,7 @@ bool transport_bt_init(core_params_s *params)
     if(params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
     {
         esp32hoja_init_load();
-        return;
+        return true;
     }
 
     // Use legacy gamepad modes

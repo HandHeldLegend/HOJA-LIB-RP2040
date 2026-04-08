@@ -28,6 +28,7 @@ typedef enum
 {
     TP_POWERCOMMAND_SHUTDOWN,
     TP_POWERCOMMAND_REBOOT,
+    TP_POWERCOMMAND_LOWPOWER,
 } tp_powercommand_t;
 
 typedef struct

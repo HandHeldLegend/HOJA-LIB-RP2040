@@ -3,6 +3,7 @@
 
 #include <hoja.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "board_config.h"
 
@@ -14,6 +15,7 @@
 #include "transport/transport_wlan.h"
 
 #include "devices/haptics.h"
+#include "utilities/settings.h"
 
 void _transport_playerled(uint8_t led)
 {
@@ -56,6 +58,9 @@ void _transport_powercommand(uint8_t command)
 
         case TP_POWERCOMMAND_SHUTDOWN:
         hoja_deinit(hoja_shutdown);
+
+        case TP_POWERCOMMAND_LOWPOWER:
+        // TODO
         break;
     }
 }
@@ -117,8 +122,27 @@ void transport_autoinit(transport_autoinit_state_t *sm, core_params_s *params)
 
 }
 
+void _transport_set_mac(uint8_t *out, core_reportformat_t reportformat)
+{
+    memcpy(out, gamepad_config->gamepad_mac_address, 6);
+    out[5] += reportformat;
+}
+
 bool transport_init(core_params_s *params)
 {
+    switch(params->core_report_format)
+    {
+        case CORE_REPORTFORMAT_SWPRO:
+        memcpy(params->transport_host_mac, gamepad_config->host_mac_switch, 6);
+        break;
+
+        case CORE_REPORTFORMAT_SINPUT:
+        memcpy(params->transport_host_mac, gamepad_config->host_mac_sinput, 6);
+        break;
+    }
+
+    _transport_set_mac(params->transport_dev_mac, params->core_report_format);
+
     switch(params->transport_type)
     {   
         #if defined(HOJA_TRANSPORT_USB_DRIVER)

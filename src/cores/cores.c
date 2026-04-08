@@ -84,7 +84,8 @@ core_params_s* core_current_params()
 bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 {
     _core_params.transport_type = transport;
-    memcpy(_core_params.transport_dev_mac, gamepad_config->gamepad_mac_address, 6);
+
+    _core_params.core_boot_flags |= COREBOOT_FLAG_PAIR;
 
     // Clear host mac just in case first
     memset(_core_params.transport_host_mac, 0, 6);
@@ -115,20 +116,12 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
     switch(mode)
     {
         case GAMEPAD_MODE_SWPRO:
-        if(!pair)
-        {
-            memcpy(_core_params.transport_host_mac, gamepad_config->host_mac_switch, 6);
-        }
         return core_switch_init(&_core_params);
 
         case GAMEPAD_MODE_XINPUT:
         return core_xinput_init(&_core_params);
 
         case GAMEPAD_MODE_SINPUT:
-        if(!pair)
-        {
-            memcpy(_core_params.transport_host_mac, gamepad_config->host_mac_sinput, 6);
-        }
         return core_sinput_init(&_core_params);
 
         case GAMEPAD_MODE_SNES:
