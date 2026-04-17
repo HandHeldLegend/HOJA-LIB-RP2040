@@ -114,6 +114,52 @@ void _core_xinput_report_tunnel_cb(const uint8_t *data, uint16_t len)
 
         transport_evt_cb(rumble);
     }
+    else if (report_id==0x01 && data[1]==0x03)
+    {
+        tp_evt_s cevt = {
+            .evt = TP_EVT_CONNECTIONCHANGE,
+            .evt_connectionchange = {.connection=TP_CONNECTION_CONNECTED},
+        };
+
+        tp_evt_s evt = {
+            .evt = TP_EVT_PLAYERLED,
+            .evt_playernumber = {.player_number=0},
+        };
+        
+        switch(data[2])
+        {
+            // Off
+            case 0x00:
+            evt.evt_playernumber.player_number = 0;
+            break;
+
+            // Blink
+            case 0x01:
+            
+            // Rotating
+            case 0x0A:
+            // Blinking
+            case 0x0B:
+            // Slow Blinking
+            case 0x0C:
+            //Alternating
+            case 0x0D:
+
+            // 1-4 Flashes // On
+            case 0x02 ... 0x05:
+            cevt.evt_connectionchange.connection=TP_CONNECTION_DISCONNECTED;
+            transport_evt_cb(cevt);
+            break;
+
+            // P1 - P4
+            case 0x06 ... 0x09:
+            evt.evt_playernumber.player_number = data[2]-0x05;
+            transport_evt_cb(cevt);
+            transport_evt_cb(evt);
+            break;
+            
+        }
+    }
 }
 
 bool _core_xinput_get_generated_report(core_report_s *out)
@@ -137,7 +183,8 @@ bool _core_xinput_get_generated_report(core_report_s *out)
     data->analog_trigger_r = CORE_XINPUT_CLAMP(input.inputs[XINPUT_CODE_RT_ANALOG], 0, 4095) >> 4;
 
     bool dpad[4] = {input.presses[XINPUT_CODE_DOWN], input.presses[XINPUT_CODE_RIGHT],
-                    input.presses[XINPUT_CODE_LEFT], input.presses[XINPUT_CODE_UP]};
+                
+        input.presses[XINPUT_CODE_LEFT], input.presses[XINPUT_CODE_UP]};
 
     dpad_translate_input(dpad);
 

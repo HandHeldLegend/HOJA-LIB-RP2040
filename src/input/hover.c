@@ -223,6 +223,7 @@ void hover_task(uint64_t timestamp)
     // Perform a reading
     cb_hoja_read_input(&input);
 
+    // Tournament mode
     if(macro_tourney_check())
     {
         const uint8_t codes[] = {INPUT_CODE_UP, INPUT_CODE_DOWN, INPUT_CODE_LEFT, INPUT_CODE_RIGHT,
