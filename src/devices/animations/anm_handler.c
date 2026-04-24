@@ -226,8 +226,7 @@ void _notification_manager(rgb_s *output)
 void _player_connection_manager(rgb_s *output) 
 {
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX) || defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    static bool allow_update = true;
-    static hoja_status_s status = {0};
+    hoja_status_s status = hoja_get_status();
 
     #if defined(HOJA_RGB_PLAYER_GROUP_IDX) 
     rgb_s player_leds[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
@@ -251,21 +250,23 @@ void _player_connection_manager(rgb_s *output)
         case CONNECTION_STATUS_DISCONNECTED:
         case CONNECTION_STATUS_DOWN:
             #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-            allow_update = ply_chase_handler(player_leds, status.gamepad_color);
+            ply_chase_handler(player_leds, status.gamepad_color);
             #else 
-            allow_update = ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
+            ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
             #endif
         break;
 
         default:
-            allow_update = ply_idle_handler(player_leds, status.player_number);
+            // Reactive mode can leave player LEDs black if the player group
+            // is not actively driven by input. Seed player LEDs with the
+            // configured player-group color before applying the player mask.
+            for(int i = 0; i < player_leds_count; i++)
+            {
+                player_leds[i] = rgb_colors_safe[player_group_idx];
+            }
+            ply_idle_handler(player_leds, status.player_number);
         break;
     }  
-
-    if(allow_update)
-    {
-        status = hoja_get_status();
-    }
 
     // Write the player LED colors to the output
     for(int i = 0; i < player_leds_count; i++)
