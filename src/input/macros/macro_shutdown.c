@@ -4,10 +4,10 @@
 #include "hoja.h"
 
 #define SHUTDOWN_HOLD_TIME 3 // Seconds
-#define SHUTDOWN_MACRO_INTERVAL_US 3000
+#define SHUTDOWN_MACRO_INTERVAL_US 100000
 #define SHUTDOWN_HOLD_LOOPS ( (SHUTDOWN_HOLD_TIME*1000*1000) / SHUTDOWN_MACRO_INTERVAL_US )
 
-bool _shutdown_ready = false;
+volatile bool _shutdown_ready = false;
 
 void _shutdown_finalize()
 {
@@ -41,19 +41,19 @@ void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
         return;
     }
 
-    if(lockout)
-    {
-        // Only shut down when we release button
-        if(_shutdown_ready && !input->button_shipping)
-        {
-            _shutdown_ready = false;
-            hoja_shutdown();
-        }
-        return;
-    }
-
     if(interval_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, &interval))
     {
+        if(lockout)
+        {
+            // Only shut down when we release button
+            if(_shutdown_ready && !input->button_shipping)
+            {
+                _shutdown_ready = false;
+                hoja_shutdown();
+            }
+            return;
+        }
+
         if(!holding && input->button_shipping)
         {
             holding = true;
