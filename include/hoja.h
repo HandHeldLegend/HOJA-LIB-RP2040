@@ -14,6 +14,9 @@
 
 void cb_hoja_shutdown();
 bool cb_hoja_boot(boot_input_s *boot);
+// Optional: if true, *mode_out is applied for face-button mode selection (use GAMEPAD_MODE_LOAD
+// to defer to stored default). If false, the library uses digital and/or built-in analog face logic.
+bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, gamepad_mode_t *mode_out);
 uint16_t cb_hoja_read_battery();
 // Accessible as a uint16_t array of size 4 only
 void cb_hoja_read_joystick(uint16_t *input);

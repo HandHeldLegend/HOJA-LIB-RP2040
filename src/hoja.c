@@ -52,6 +52,13 @@ __attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
   return false;
 }
 
+__attribute__((weak)) bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, gamepad_mode_t *mode_out)
+{
+  (void)in;
+  (void)mode_out;
+  return false;
+}
+
 __attribute__((weak)) uint16_t cb_hoja_read_battery()
 {
   return 0xFFFF;

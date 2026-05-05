@@ -30,4 +30,9 @@ void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
 void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair);
 
+// Compare four 12-bit (0..4095) analog samples. Returns a single-bit mask (1<<index) for the
+// clear winner, or 0 if ambiguous or below min_activation. The winner must beat the
+// second-highest channel by at least min_delta.
+uint8_t boot_pick_strongest_analog4(const uint16_t raw[4], uint16_t min_delta, uint16_t min_activation);
+
 #endif // REBOOT_H

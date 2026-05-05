@@ -120,4 +120,18 @@
     #define SEWN_LAYOUT_BAYX 1 // Nintendo Style
     #define SEWN_LAYOUT_AXBY 2 // GameCube Style
 
+    // Boot: set to 1 on boards with hover/analog face buttons so mode select uses
+    // relative analog strength (see boot_pick_strongest_analog4) instead of digital presses.
+    #ifndef HOJA_BOOT_ANALOG_FACE_MODE
+    #define HOJA_BOOT_ANALOG_FACE_MODE 0
+    #endif
+    // Winner must exceed the second-highest face reading by at least this much (12-bit raw).
+    #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
+    #define HOJA_BOOT_ANALOG_FACE_DELTA 200
+    #endif
+    // Winner must reach at least this raw value to count as intentional (noise floor).
+    #ifndef HOJA_BOOT_ANALOG_FACE_MIN
+    #define HOJA_BOOT_ANALOG_FACE_MIN 350
+    #endif
+
 #endif
