@@ -208,20 +208,25 @@ bool bq25180_set_source(battery_source_t source)
 
 bool bq25180_set_ship_mode()
 {
-    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
-    int ret = i2c_hal_write_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false, 100000);
+    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000011}; // Ship mode with wake on button press/adapter insert
+    uint8_t attempts = 0;
+    while(attempts++ < 100)
+    {
+        int ret = i2c_hal_write_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false, 8000);
 
-    if(ret == PICO_ERROR_GENERIC)
-    {
-        //hoja_shutdown_instant();
+        if(ret == PICO_ERROR_GENERIC)
+        {
+            //hoja_shutdown_instant();
+        }
+        else if (ret== PICO_ERROR_TIMEOUT)
+        {
+            //hoja_shutdown_instant();
+        }
+        else if (ret==2)
+        {
+        }
     }
-    else if (ret== PICO_ERROR_TIMEOUT)
-    {
-        //hoja_shutdown_instant();
-    }
-    else if (ret==2)
-    {
-    }
+    
 }
 
 bool bq25180_set_charge_rate(uint16_t rate_ma)
