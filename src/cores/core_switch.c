@@ -49,7 +49,8 @@ const hoja_usb_device_descriptor_t _swpro_device_descriptor = {
     .iManufacturer = 0x01,
     .iProduct = 0x02,
     .iSerialNumber = 0x03,
-    .bNumConfigurations = 0x01};
+    .bNumConfigurations = 0x01
+};
 
 const uint8_t _swpro_hid_report_descriptor_usb[203] = {
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
@@ -300,7 +301,7 @@ const uint8_t _swpro_configuration_descriptor[SWPRO_CONFIG_DESCRIPTOR_LEN] = {
     0x01,
     HUSB_XFER_INTERRUPT,
     HUSB_U16_TO_U8S_LE(64),
-    1, // report interval 
+    1, // report interval
 
     // Alternate Interface for WebUSB
     // Interface
@@ -454,16 +455,17 @@ bool _core_switch_get_generated_report(core_report_s *out)
         rx = (uint16_t)CORE_SWITCH_CLAMP(rx, 0, 4095);
         ry = (uint16_t)CORE_SWITCH_CLAMP(ry, 0, 4095);
 
-        //#define SWDEBUG
-        #ifdef SWDEBUG
+// #define SWDEBUG
+#ifdef SWDEBUG
         static bool flip = false;
-        if(flip)
+        if (flip)
         {
             lx = 100;
         }
-        else lx = 4000;
+        else
+            lx = 4000;
         flip = !flip;
-        #endif
+#endif
 
         // Custom mapping of bits for output for joysticks/buttons
         out->data[3] = data.right_buttons;
@@ -480,7 +482,6 @@ bool _core_switch_get_generated_report(core_report_s *out)
 
         swcmd_generate_inputreport(&out->data[0], &out->data[1]);
     }
-
 
     return true;
 }

@@ -58,6 +58,14 @@ uint8_t boot_pick_strongest_analog4(const uint16_t raw[4], uint16_t min_delta, u
 #define BOOT_SEWN_LAYOUT SEWN_LAYOUT_ABXY
 #endif
 
+static uint8_t boot_sewn_layout_clamp(void)
+{
+    uint8_t l = (uint8_t)BOOT_SEWN_LAYOUT;
+    if (l > (uint8_t)SEWN_LAYOUT_AXBY)
+        l = (uint8_t)SEWN_LAYOUT_ABXY;
+    return l;
+}
+
 // Face button order: South, East, West, North (indices 0..3)
 static const gamepad_mode_t k_sewn_face_modes[3][4] = {
     [SEWN_LAYOUT_ABXY] = {GAMEPAD_MODE_SWPRO, GAMEPAD_MODE_SINPUT, GAMEPAD_MODE_XINPUT, GAMEPAD_MODE_GCUSB},
@@ -108,40 +116,60 @@ static bool boot_try_builtin_analog_face(const mapper_input_s *in, gamepad_mode_
     }
 
     uint8_t idx = (uint8_t)__builtin_ctz((unsigned)bit);
-    *mode_out = k_sewn_face_modes[BOOT_SEWN_LAYOUT][idx];
+    *mode_out = k_sewn_face_modes[boot_sewn_layout_clamp()][idx];
     return true;
 }
 #endif
 
 static void boot_apply_dpad_face_digital(const mapper_input_s *input, gamepad_mode_t *mode, bool skip_digital_face)
 {
-    if (input->presses[INPUT_CODE_LEFT])
+    const bool d_l = input->presses[INPUT_CODE_LEFT];
+    const bool d_d = input->presses[INPUT_CODE_DOWN];
+    const bool d_r = input->presses[INPUT_CODE_RIGHT];
+    const unsigned d_cnt = (unsigned)d_l + (unsigned)d_d + (unsigned)d_r;
+
+    if (d_cnt > 1u)
     {
-        *mode = GAMEPAD_MODE_SNES;
+        *mode = GAMEPAD_MODE_LOAD;
         return;
     }
-    if (input->presses[INPUT_CODE_DOWN])
+    if (d_cnt == 1u)
     {
-        *mode = GAMEPAD_MODE_N64;
-        return;
-    }
-    if (input->presses[INPUT_CODE_RIGHT])
-    {
-        *mode = GAMEPAD_MODE_GAMECUBE;
+        if (d_l)
+            *mode = GAMEPAD_MODE_SNES;
+        else if (d_d)
+            *mode = GAMEPAD_MODE_N64;
+        else
+            *mode = GAMEPAD_MODE_GAMECUBE;
         return;
     }
 
     if (skip_digital_face)
         return;
 
-    if (input->presses[INPUT_CODE_SOUTH])
-        *mode = k_sewn_face_modes[BOOT_SEWN_LAYOUT][0];
-    else if (input->presses[INPUT_CODE_EAST])
-        *mode = k_sewn_face_modes[BOOT_SEWN_LAYOUT][1];
-    else if (input->presses[INPUT_CODE_WEST])
-        *mode = k_sewn_face_modes[BOOT_SEWN_LAYOUT][2];
-    else if (input->presses[INPUT_CODE_NORTH])
-        *mode = k_sewn_face_modes[BOOT_SEWN_LAYOUT][3];
+    const bool f_s = input->presses[INPUT_CODE_SOUTH];
+    const bool f_e = input->presses[INPUT_CODE_EAST];
+    const bool f_w = input->presses[INPUT_CODE_WEST];
+    const bool f_n = input->presses[INPUT_CODE_NORTH];
+    const unsigned f_cnt = (unsigned)f_s + (unsigned)f_e + (unsigned)f_w + (unsigned)f_n;
+
+    if (f_cnt > 1u)
+    {
+        *mode = GAMEPAD_MODE_LOAD;
+        return;
+    }
+    if (f_cnt == 0u)
+        return;
+
+    uint8_t layout = boot_sewn_layout_clamp();
+    if (f_s)
+        *mode = k_sewn_face_modes[layout][0];
+    else if (f_e)
+        *mode = k_sewn_face_modes[layout][1];
+    else if (f_w)
+        *mode = k_sewn_face_modes[layout][2];
+    else
+        *mode = k_sewn_face_modes[layout][3];
 }
 
 static void boot_apply_start_combos(const mapper_input_s *input, bool *pair_out, bool *bootloader_out, bool *bt_bootloader_out)
@@ -183,7 +211,8 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, 
     boot_input_s boot_dat = {.bootloader = false, .gamepad_mode = GAMEPAD_MODE_LOAD, .gamepad_transport = GAMEPAD_TRANSPORT_AUTO, .pairing_mode = false};
 
     gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
-    gamepad_mode_t thisMode = GAMEPAD_MODE_SWPRO;
+    // LOAD until a boot combo / face / d-pad selects a mode; otherwise gamepad_default_mode applies.
+    gamepad_mode_t thisMode = GAMEPAD_MODE_LOAD;
     bool thisPair = false;
     bool thisBootloader = false;
     bool thisBTBootloader = false;
@@ -367,6 +396,10 @@ doTransportParse:
         }
     }
 skipTransportParse:
+
+    // DEBUG
+    thisPair = true;
+    //thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
 
     *mode = thisMode;
     *transport = thisTransport;

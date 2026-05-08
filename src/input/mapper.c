@@ -177,8 +177,6 @@ mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // MISC6
 };
 
-const inputInfoSlot_s _infoslots[MAPPER_INPUT_COUNT] = HOJA_INPUT_SLOTS;
-
 typedef enum 
 {
     MAPPER_OUTPUT_MODE_RAPID,

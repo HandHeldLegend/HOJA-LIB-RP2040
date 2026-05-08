@@ -169,10 +169,10 @@ const hapticInfoStatic_s    haptic_static = {
 #if !defined(HOJA_INPUT_SLOTS)
     #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
     #define HOJA_INPUT_SLOTS { \
-        (inputInfoSlot_s) {/*South*/.input_name="South", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={0}}, \
-        (inputInfoSlot_s) {/*East*/.input_name="East", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={1}}, \
-        (inputInfoSlot_s) {/*West*/.input_name="West", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={2}}, \
-        (inputInfoSlot_s) {/*North*/.input_name="North", .input_type=INPUT_TYPE_DIGITAL, .rgb_assignments={3}}, \
+        (inputInfoSlot_s) {/*South*/.input_name="South", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=1}, \
+        (inputInfoSlot_s) {/*East*/.input_name="East", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=2}, \
+        (inputInfoSlot_s) {/*West*/.input_name="West", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=3}, \
+        (inputInfoSlot_s) {/*North*/.input_name="North", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=4}, \
         (inputInfoSlot_s) {/*Up*/.input_name="Up", .input_type=INPUT_TYPE_DIGITAL}, \
         (inputInfoSlot_s) {/*Down*/.input_name="Down", .input_type=INPUT_TYPE_DIGITAL}, \
         (inputInfoSlot_s) {/*Left*/.input_name="Left", .input_type=INPUT_TYPE_DIGITAL}, \

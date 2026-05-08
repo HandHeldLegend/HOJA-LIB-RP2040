@@ -39,7 +39,7 @@ uint8_t _switch_ltk[16] = {0};
 
 void _swcmd_command_handler(uint8_t command, const uint8_t *data, uint8_t *out);
 
-void generate_ltk()
+void _generate_ltk()
 {
   // printf("Generated LTK: ");
   for (uint8_t i = 0; i < 16; i++)
@@ -283,7 +283,11 @@ void _swcmd_pairing_set(uint8_t phase, const uint8_t *host_address, uint8_t *tar
   case 2:
     _swcmd_set_ack(0x81, target);
     target[14] = 2;
-    memcpy(&target[15], _switch_ltk, 16);
+
+    for(int i = 0; i < 16; i++)
+    {
+      target[15+i] = _switch_ltk[i] ^ 0xAA;
+    }
     break;
   case 3:
     _swcmd_set_ack(0x81, target);
