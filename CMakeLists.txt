@@ -1,5 +1,7 @@
 add_library(hoja_lib INTERFACE)
 
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NS-LIB-HID")
+
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
 file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
@@ -28,12 +30,6 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_spi.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_motion.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
@@ -107,6 +103,8 @@ target_link_libraries(hoja_lib INTERFACE
 
   tinyusb_device
   tinyusb_board
+
+  ns_lib_hid
 )
 
 if(HOJA_USE_BT_HAL)

@@ -1,13 +1,14 @@
 #include <string.h>
+#include <ns_lib.h>
 
 #include "cores/core_switch.h"
 
-#include "switch/switch_commands.h"
-#include "switch/switch_haptics.h"
 
 #include "transport/transport.h"
 #include "hoja_shared_types.h"
 #include "input/imu.h"
+
+#include "utilities/settings.h"
 
 #include "hoja_usb.h"
 #include "hoja.h"
@@ -484,6 +485,86 @@ bool _core_switch_get_generated_report(core_report_s *out)
     }
 
     return true;
+}
+
+// NS LIB WEAK DEFS
+void ns_haptic_set_cb(uint8_t *data)
+{
+
+}
+
+void ns_led_set_cb(uint8_t player_number)
+{
+
+}
+
+void ns_power_set_cb(uint8_t shutdown)
+{
+
+}
+
+
+
+void ns_pairing_set_cb()
+{
+
+}
+
+
+
+void ns_powerstatus_get_cb(ns_powerstatus_s *out)
+{
+
+}
+
+
+
+void ns_gyrodata_get_cb(ns_gyrodata_s *out)
+{
+
+}
+
+
+
+void ns_inputdata_get_cb(ns_inputdata_s *out)
+{
+
+}
+
+
+
+void ns_colordata_get_cb(ns_colordata_s *out)
+{
+    out->body_r = (gamepad_config->gamepad_color_body & 0xFF0000) >> 16; // Red
+    out->body_g = (gamepad_config->gamepad_color_body & 0xFF00) >> 8; // Green
+    out->body_b = (gamepad_config->gamepad_color_body & 0xFF); // Blue
+
+    out->l_grip_r = (gamepad_config->gamepad_color_grip_left & 0xFF0000) >> 16; // Red
+    out->l_grip_g = (gamepad_config->gamepad_color_grip_left & 0xFF00) >> 8; // Green
+    out->l_grip_b = (gamepad_config->gamepad_color_grip_left & 0xFF); // Blue
+
+    out->r_grip_r = (gamepad_config->gamepad_color_grip_right & 0xFF0000) >> 16; // Red
+    out->r_grip_g = (gamepad_config->gamepad_color_grip_right & 0xFF00) >> 8; // Green
+    out->r_grip_b = (gamepad_config->gamepad_color_grip_right & 0xFF); // Blue
+
+    out->buttons_r = (gamepad_config->gamepad_color_buttons & 0xFF0000) >> 16; // Red
+    out->buttons_g = (gamepad_config->gamepad_color_buttons & 0xFF00) >> 8; // Green
+    out->buttons_b = (gamepad_config->gamepad_color_buttons & 0xFF); // Blue
+}
+
+void ns_linkkey_get_cb(uint8_t *out)
+{
+
+}
+
+void ns_devmac_get_cb(uint8_t *out)
+{
+    // Use HOJA modified MAC here
+}
+
+void ns_hostmac_get_cb(uint8_t *out)
+{
+    memcpy(out, gamepad_config->host_mac_switch, 6);
 }
 
 /*------------------------------------------------*/
