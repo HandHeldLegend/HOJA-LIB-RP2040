@@ -9,6 +9,7 @@ For licensing inquiries (including commercial licensing), contact:
 **support@handheldlegend.com**
 
 Project intent: using this codebase as a reference, learning from it, and even borrowing
-small portions is not something we are looking to police. Our concern is people taking the entirety of the code as-is and selling it as a product.
+large portions is not something we will police or care about. 
+Our concern is people taking the entirety of the code as-is and selling it as a product.
 
 This is a summary for convenience; file headers and the linked license texts control.
