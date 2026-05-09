@@ -252,7 +252,7 @@ void ns_protocol_generate_inputreport(uint8_t *report_id, uint8_t *out)
         if ((out_id == NS_LIB_PROTOCOL_OUT_ID_RUMBLE || out_id == NS_LIB_PROTOCOL_OUT_ID_RUMBLE_CMD)
             && pending.len >= 6u)
         {
-            ns_lib_haptics_rumble_translate(&pending.data[2]);
+            ns_haptics_rumble_translate(&pending.data[2]);
         }
         if (out_id == NS_LIB_PROTOCOL_OUT_ID_RUMBLE_CMD || out_id == NS_LIB_PROTOCOL_OUT_ID_INFO)
         {

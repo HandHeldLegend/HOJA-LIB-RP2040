@@ -16,12 +16,11 @@
  * related marks are trademarks of their respective owners.
  */
 
+#include "ns_lib.h"
 #include "ns_lib_haptics.h"
 
 #include <math.h>
 #include <string.h>
-
-void ns_set_haptic_indices_cb(const ns_lib_haptic_raw_sample_s *pairs, uint8_t pair_count);
 
 typedef struct
 {
@@ -48,7 +47,7 @@ static ns_haptic_defaults_s _ns_haptic_defaults = {
 #define AMPLITUDE_INTERVAL       0.03125f
 #define STARTING_AMPLITUDE_FLOAT -7.9375f
 
-void ns_lib_haptics_build_raw_tables(ns_lib_haptics_tables_s *out)
+void _ns_haptics_build_raw_tables(ns_lib_haptics_tables_s *out)
 {
     if (out == NULL)
     {
@@ -69,29 +68,14 @@ void ns_lib_haptics_build_raw_tables(ns_lib_haptics_tables_s *out)
     }
 }
 
-float ns_lib_haptics_freq_index_to_hz_hi(uint8_t freq_idx)
-{
-    unsigned i = freq_idx;
-    if (i >= NS_LIB_HAPTICS_FREQ_LUT_LEN)
-    {
-        i = NS_LIB_HAPTICS_FREQ_LUT_LEN - 1u;
-    }
-    double linear = 0.03125 * (double)i - 2.0;
-    return (float)(320.0 * exp2(linear));
-}
+/** Zero until @ref _ns_haptics_install_builtin_tables (via @ref ns_haptics_init); lookup helpers read these LUTs as-is. */
+static ns_lib_haptics_tables_s _ns_tables = {0};
+static uint8_t _ns_amp_index[128] = {0};
+static uint64_t _ns_haptic_packet_counter;
 
-float ns_lib_haptics_freq_index_to_hz_lo(uint8_t freq_idx)
-{
-    unsigned i = freq_idx;
-    if (i >= NS_LIB_HAPTICS_FREQ_LUT_LEN)
-    {
-        i = NS_LIB_HAPTICS_FREQ_LUT_LEN - 1u;
-    }
-    double linear = 0.03125 * (double)i - 2.0;
-    return (float)(160.0 * exp2(linear));
-}
+static void _ns_haptics_install_builtin_tables(void);
 
-uint8_t ns_lib_haptics_host_amp_index_to_exp_lut_index(uint8_t host_amp_idx)
+uint8_t _ns_haptics_host_amp_index_to_exp_lut_index(uint8_t host_amp_idx)
 {
     unsigned i = host_amp_idx & 127u;
     float tmp;
@@ -131,97 +115,61 @@ uint8_t ns_lib_haptics_host_amp_index_to_exp_lut_index(uint8_t host_amp_idx)
     return (uint8_t)idx;
 }
 
-float ns_lib_haptics_exp_lut_index_to_amplitude_linear(uint16_t exp_lut_idx)
+static void _ns_haptics_install_builtin_tables(void)
+{
+    _ns_haptics_build_raw_tables(&_ns_tables);
+    for (unsigned i = 0; i < 128u; i++)
+    {
+        _ns_amp_index[i] = _ns_haptics_host_amp_index_to_exp_lut_index((uint8_t)i);
+    }
+}
+
+float _ns_haptics_freq_index_to_hz_hi(uint8_t freq_idx)
+{
+    unsigned i = freq_idx;
+    if (i >= NS_LIB_HAPTICS_FREQ_LUT_LEN)
+    {
+        i = NS_LIB_HAPTICS_FREQ_LUT_LEN - 1u;
+    }
+    return _ns_tables.frequency_hz_hi[i];
+}
+
+float _ns_haptics_freq_index_to_hz_lo(uint8_t freq_idx)
+{
+    unsigned i = freq_idx;
+    if (i >= NS_LIB_HAPTICS_FREQ_LUT_LEN)
+    {
+        i = NS_LIB_HAPTICS_FREQ_LUT_LEN - 1u;
+    }
+    return _ns_tables.frequency_hz_lo[i];
+}
+
+float _ns_haptics_exp_lut_index_to_amplitude_linear(uint16_t exp_lut_idx)
 {
     if (exp_lut_idx >= NS_LIB_HAPTICS_AMP_LUT_LEN)
     {
         return 0.f;
     }
-    float f = AMPLITUDE_RANGE_START + (float)exp_lut_idx * AMPLITUDE_INTERVAL;
-    if (f < STARTING_AMPLITUDE_FLOAT)
-    {
-        return 0.f;
-    }
-    return exp2f(f);
+    return _ns_tables.amplitude_linear[exp_lut_idx];
 }
 
-float ns_lib_haptics_host_amp_index_to_amplitude_linear(uint8_t host_amp_idx)
+float _ns_haptics_host_amp_index_to_amplitude_linear(uint8_t host_amp_idx)
 {
-    uint8_t row = ns_lib_haptics_host_amp_index_to_exp_lut_index(host_amp_idx);
-    return ns_lib_haptics_exp_lut_index_to_amplitude_linear(row);
+    uint8_t row = _ns_haptics_host_amp_index_to_exp_lut_index(host_amp_idx);
+    return _ns_haptics_exp_lut_index_to_amplitude_linear(row);
 }
 
-uint16_t ns_lib_haptics_hz_to_phase_increment_fp(float frequency_hz)
-{
-    float increment =
-        (frequency_hz * (float)NS_LIB_HAPTICS_SINE_LUT_SIZE) / (float)NS_LIB_HAPTICS_PCM_RATE_HZ;
-    return (uint16_t)(increment * (float)NS_LIB_HAPTICS_FREQ_FP_SCALE + 0.5f);
-}
-
-uint16_t ns_lib_haptics_amplitude_linear_to_q15(float linear)
-{
-    const float scale = (float)(1u << NS_LIB_HAPTICS_AMP_FP_SHIFT);
-    uint16_t tmp = (uint16_t)(linear * scale);
-    if (linear > 0.0f && !tmp)
-    {
-        tmp = 1;
-    }
-    return tmp;
-}
-
-float ns_lib_haptics_frequency_increment_to_hz(uint16_t phase_increment_fp)
-{
-    if (phase_increment_fp == 0)
-    {
-        return 0.f;
-    }
-    float inc = (float)phase_increment_fp / (float)NS_LIB_HAPTICS_FREQ_FP_SCALE;
-    return inc * (float)NS_LIB_HAPTICS_PCM_RATE_HZ / (float)NS_LIB_HAPTICS_SINE_LUT_SIZE;
-}
-
-float ns_lib_haptics_amplitude_fixed_to_gain(uint16_t amplitude_fixed)
-{
-    return (float)amplitude_fixed / (float)(1u << NS_LIB_HAPTICS_AMP_FP_SHIFT);
-}
-
-static ns_lib_haptics_tables_s _ns_tables;
-static uint8_t _ns_amp_index[128];
-static uint64_t _ns_haptic_packet_counter;
-
-static void ns_lib_haptics_install_builtin_tables(void)
-{
-    ns_lib_haptics_build_raw_tables(&_ns_tables);
-    for (unsigned i = 0; i < 128u; i++)
-    {
-        _ns_amp_index[i] = ns_lib_haptics_host_amp_index_to_exp_lut_index((uint8_t)i);
-    }
-}
-
-static unsigned ns_haptics_clamp_amp_row(uint16_t idx)
+static unsigned _ns_haptics_clamp_amp_row(uint16_t idx)
 {
     return (unsigned)idx >= NS_LIB_HAPTICS_AMP_LUT_LEN ? NS_LIB_HAPTICS_AMP_LUT_LEN - 1u : (unsigned)idx;
 }
 
-static unsigned ns_haptics_clamp_freq_row(uint8_t idx)
+static unsigned _ns_haptics_clamp_freq_row(uint8_t idx)
 {
     return (unsigned)idx >= NS_LIB_HAPTICS_FREQ_LUT_LEN ? NS_LIB_HAPTICS_FREQ_LUT_LEN - 1u : (unsigned)idx;
 }
 
-void ns_lib_haptics_get_basic(uint8_t exp_lut_row, uint8_t freq_idx, float *out_amplitude_linear, float *out_freq_hz_lo)
-{
-    unsigned er = ns_haptics_clamp_amp_row(exp_lut_row);
-    unsigned fr = ns_haptics_clamp_freq_row(freq_idx);
-    if (out_amplitude_linear != NULL)
-    {
-        *out_amplitude_linear = _ns_tables.amplitude_linear[er];
-    }
-    if (out_freq_hz_lo != NULL)
-    {
-        *out_freq_hz_lo = _ns_tables.frequency_hz_lo[fr];
-    }
-}
-
-void ns_lib_haptics_packet_pair_physical(const ns_haptic_packet_s *packet, unsigned pair_index, float *out_hi_hz,
+void ns_haptics_packet_pair_physical(const ns_haptic_packet_s *packet, unsigned pair_index, float *out_hi_hz,
                                          float *out_lo_hz, float *out_hi_amplitude, float *out_lo_amplitude)
 {
     if (packet == NULL || pair_index >= 3u || pair_index >= (unsigned)packet->count)
@@ -538,9 +486,9 @@ static void _haptics_decode_samples_apply(const ns_lib_haptic_wire_u *encoded, n
     }
 }
 
-void ns_lib_haptics_init(void)
+void ns_haptics_init(void)
 {
-    ns_lib_haptics_install_builtin_tables();
+    _ns_haptics_install_builtin_tables();
 
     _ns_raw_state.state.hi_amplitude_idx = (uint8_t)_ns_haptic_defaults.starting_amplitude;
     _ns_raw_state.state.lo_amplitude_idx = (uint8_t)_ns_haptic_defaults.starting_amplitude;
@@ -556,71 +504,7 @@ void ns_lib_haptics_init(void)
     }
 }
 
-void ns_lib_haptics_arbitrary_playback(uint8_t intensity)
-{
-    uint8_t scale = intensity >> 3;
-
-    uint8_t translated_intensity = scale;
-    uint8_t translated_intensity_lo = scale + 2;
-
-    if (translated_intensity_lo > 127)
-    {
-        translated_intensity_lo = 127;
-    }
-
-    uint8_t target_freq = 64;
-
-    if (translated_intensity == 36)
-    {
-        /* center */
-    }
-    else if (translated_intensity < 36)
-    {
-        uint8_t remainder = (uint8_t)(36 - translated_intensity);
-        uint8_t freq_offset = remainder > 36 ? 36 : remainder;
-        target_freq = (uint8_t)(target_freq - freq_offset);
-    }
-    else
-    {
-        uint8_t remainder = (uint8_t)(translated_intensity - 36);
-        uint8_t freq_offset = remainder > 36 ? 36 : remainder;
-        target_freq = (uint8_t)(target_freq + freq_offset);
-    }
-
-    uint8_t dbg_ahi = _ns_amp_index[translated_intensity];
-    uint8_t dbg_alo = _ns_amp_index[translated_intensity_lo];
-    uint8_t dbg_hi = target_freq;
-    uint8_t dbg_lo = target_freq;
-
-    ns_haptic_packet_s packet = {0};
-    packet.count = 1;
-    packet.counter = ++_ns_haptic_packet_counter;
-
-    if (!intensity)
-    {
-        packet.pairs[0].hi_amplitude = 0.f;
-        packet.pairs[0].lo_amplitude = 0.f;
-        packet.pairs[0].hi_frequency_hz = 0.f;
-        packet.pairs[0].lo_frequency_hz = 0.f;
-        ns_lib_haptics_dispatch_hd(&packet);
-        return;
-    }
-
-    {
-        unsigned ahi = ns_haptics_clamp_amp_row(dbg_ahi);
-        unsigned alo = ns_haptics_clamp_amp_row(dbg_alo);
-        unsigned fhi = ns_haptics_clamp_freq_row(dbg_hi);
-        unsigned flo = ns_haptics_clamp_freq_row(dbg_lo);
-        packet.pairs[0].hi_amplitude = _ns_tables.amplitude_linear[ahi];
-        packet.pairs[0].lo_amplitude = _ns_tables.amplitude_linear[alo];
-        packet.pairs[0].hi_frequency_hz = _ns_tables.frequency_hz_hi[fhi];
-        packet.pairs[0].lo_frequency_hz = _ns_tables.frequency_hz_lo[flo];
-    }
-
-    ns_lib_haptics_dispatch_hd(&packet);
-}
-
-void ns_lib_haptics_rumble_translate(const uint8_t *data)
+void ns_haptics_rumble_translate(const uint8_t *data)
 {
     /*
      * Main integration path:
@@ -634,10 +518,6 @@ void ns_lib_haptics_rumble_translate(const uint8_t *data)
      * These are table indices (not physical amplitudes/frequencies). The firmware
      * using this library maps those indices to whatever representation it prefers.
      */
-    if (ns_lib_haptics_webusb_blocks_rumble())
-    {
-        return;
-    }
 
     const ns_lib_haptic_wire_u *encoded = (const ns_lib_haptic_wire_u *)data;
     static uint32_t last_wire_data = 0;
@@ -652,15 +532,7 @@ void ns_lib_haptics_rumble_translate(const uint8_t *data)
     {
         n = 3u;
     }
+
+    // Calls user space function to set haptic samples
     ns_set_haptic_indices_cb(_ns_raw_state.samples, n);
-}
-
-__attribute__((weak)) void ns_lib_haptics_dispatch_hd(ns_haptic_packet_s *packet)
-{
-    (void)packet;
-}
-
-__attribute__((weak)) int ns_lib_haptics_webusb_blocks_rumble(void)
-{
-    return 0;
 }
