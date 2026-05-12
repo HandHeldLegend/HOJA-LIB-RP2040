@@ -356,6 +356,7 @@ const core_hid_device_t _switch_hid_device_bt = {
 void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     uint8_t report_id = data[0];
+    /*
 
     switch (report_id)
     {
@@ -391,7 +392,7 @@ void _core_switch_report_tunnel_cb(const uint8_t *data, uint16_t len)
 
     default:
         break;
-    }
+    }*/
 }
 
 core_params_s *_core_switch_params = NULL;
@@ -405,7 +406,7 @@ bool _core_switch_get_generated_report(core_report_s *out)
     // that we must respond to
     if (_scmd_ready)
     {
-        swcmd_generate_reply(_scmd, &out->data[0], &out->data[1]);
+        //swcmd_generate_reply(_scmd, &out->data[0], &out->data[1]);
         // Clear command data
         _scmd_ready = false;
     }
@@ -481,7 +482,7 @@ bool _core_switch_get_generated_report(core_report_s *out)
         out->data[10] |= (ry & 0xF) << 4;
         out->data[11] = (ry & 0xFF0) >> 4;
 
-        swcmd_generate_inputreport(&out->data[0], &out->data[1]);
+        //swcmd_generate_inputreport(&out->data[0], &out->data[1]);
     }
 
     return true;

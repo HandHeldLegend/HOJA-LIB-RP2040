@@ -57,7 +57,7 @@ bool haptics_init()
     }
 
     // Initialize the haptics
-    switch_haptics_init();
+    //switch_haptics_init();
 
     #if defined(HOJA_HAPTICS_INIT)
     return HOJA_HAPTICS_INIT(haptic_config->haptic_strength);

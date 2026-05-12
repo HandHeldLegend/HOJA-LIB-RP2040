@@ -18,7 +18,7 @@ typedef enum
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
-#define CFG_BLOCK_GAMEPAD_VERSION   0x12
+#define CFG_BLOCK_GAMEPAD_VERSION   0x13
 
 // Remap config is replaced by hover cfg
 //#define CFG_BLOCK_REMAP_VERSION     0x13
@@ -205,8 +205,9 @@ typedef struct
     uint8_t  host_mac_switch[6];    // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
-    uint16_t wlan_pairing_key;      // 4 digit number
-    uint8_t  reserved[25];
+    uint8_t  link_key_switch[16];   // Nintendo Switch link key storage for BT Classic
+    uint16_t wlan_dongle_key;       // 4 digit value for WLAN dongle pairing
+    uint8_t  reserved[9];
 } gamepadConfig_s;
 
 // Calibration data used for analog inputs (non-joystick)

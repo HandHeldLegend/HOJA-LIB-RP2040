@@ -81,11 +81,20 @@ void settings_init()
         gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
         gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
 
+        // Unset paired device addresses and Switch link key
+        memset(gamepad_config->host_mac_switch, 0, 6);
+        memset(gamepad_config->host_mac_sinput, 0, 6);
+        memset(gamepad_config->link_key_switch, 0, 16);
+
+        // Reset wlan key
+        gamepad_config->wlan_dongle_key = 0;
+
+        // Reset WebUSB popup Setting
+        gamepad_config->webusb_enable_popup = 0;
+
         // Commit changes
         settings_commit_blocks();
     }
-
-    if(gamepad_config->webusb_enable_popup==0xFF) gamepad_config->webusb_enable_popup = 0;
 
     // Always unset the first bit in octet 0
     if((gamepad_config->gamepad_mac_address[0] & 0x01) != 0)
