@@ -19,7 +19,6 @@
 #include "hardware/dma.h"
 
 #include "devices/haptics.h"
-#include "switch/switch_haptics.h"
 
 #if defined(HOJA_HAPTICS_CHAN_A_PIN)
 

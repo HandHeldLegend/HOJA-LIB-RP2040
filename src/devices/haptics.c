@@ -6,7 +6,6 @@
 #include "devices_shared_types.h"
 #include "board_config.h"
 #include "utilities/settings.h"
-#include "switch/switch_haptics.h"
 
 #if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER==HAPTICS_DRIVER_LRA_HAL)
 #include "hal/lra_hal.h"

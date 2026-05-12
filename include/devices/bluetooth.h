@@ -6,8 +6,6 @@
 
 #include "devices/haptics.h"
 
-#include "switch/switch_haptics.h"
-#include <stdbool.h>
 #include "hoja_shared_types.h"
 #include "devices/devices.h"
 #include "board_config.h"

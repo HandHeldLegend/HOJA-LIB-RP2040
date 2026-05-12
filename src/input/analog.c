@@ -23,8 +23,6 @@
 
 #include "utilities/interval.h"
 
-#include "switch/switch_analog.h"
-
 #include "utilities/settings.h"
 #include "utilities/crosscore_snapshot.h"
 

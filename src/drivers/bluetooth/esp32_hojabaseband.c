@@ -21,8 +21,7 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
-
-#include "switch/switch_haptics.h"
+#include "cores/core_switch.h"
 
 #include "input/mapper.h"
 #include "input/imu.h"
@@ -370,7 +369,7 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SWITCH:
     {
-        switch_haptics_rumble_translate(&(status.data[0]));
+        core_switch_ns_feed_hd_rumble_wire4(&(status.data[0]));
     }
     break;
 

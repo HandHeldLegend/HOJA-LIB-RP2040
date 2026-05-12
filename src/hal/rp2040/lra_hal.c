@@ -17,7 +17,6 @@
 #include "hardware/dma.h"
 
 #include "devices/haptics.h"
-#include "switch/switch_haptics.h"
 
 #include "utilities/pcm.h"
 #include "utilities/erm_simulator.h"

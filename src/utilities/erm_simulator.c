@@ -2,7 +2,7 @@
 #include "utilities/interval.h"
 #include "utilities/pcm.h"
 
-#include "switch/switch_haptics.h"
+#include "cores/core_switch.h"
 
 #include <stdbool.h>
 #include <math.h>    
@@ -71,6 +71,6 @@ void erm_simulator_task(uint64_t timestamp)
     {
         bool update = _motor_sim_update();
 
-        if(update) switch_haptics_arbitrary_playback(_current_intensity >> ERM_SHIFT_VAL);
+        if(update) core_switch_ns_arbitrary_playback(_current_intensity >> ERM_SHIFT_VAL);
     }
 }

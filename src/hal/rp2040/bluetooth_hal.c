@@ -15,7 +15,6 @@
 
 #include <string.h>
 
-#include "switch/switch_commands.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "utilities/interval.h"

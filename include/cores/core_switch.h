@@ -1,6 +1,8 @@
 #ifndef CORES_SWITCH_H
 #define CORES_SWITCH_H
 
+#include <stdint.h>
+
 #include "cores/cores.h"
 
 typedef struct
@@ -66,5 +68,21 @@ typedef struct
 } core_switch_report_s;
 
 bool core_switch_init(core_params_s *params);
+
+/** NS-LIB: feed decoded 4-byte HD rumble wire word (ESP32 / coprocessor path). */
+void core_switch_ns_feed_hd_rumble_wire4(const uint8_t *data);
+
+/** NS-LIB: forward raw host OUT bytes into the protocol engine (ESP32 full OUT path). */
+void core_switch_ns_output_tunnel(const uint8_t *data, uint16_t len);
+
+/** NS-LIB: mutable SPI analog calibration blob (18 bytes). */
+uint8_t *core_switch_ns_analog_calibration_blob(void);
+void core_switch_ns_analog_calibration_reset_defaults(void);
+
+/** Optional hook: reserved for future NS quaternion fusion on IMU cadence. */
+void core_switch_ns_motion_quat_step(void);
+
+/** Legacy ERM-simulator / test path mapped onto NS-LIB fixed-point haptics tables. */
+void core_switch_ns_arbitrary_playback(uint8_t intensity);
 
 #endif

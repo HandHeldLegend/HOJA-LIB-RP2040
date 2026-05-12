@@ -6,7 +6,6 @@
 #include <string.h>
 #include <math.h>
 
-#include "switch/switch_haptics.h"
 #include "utilities/pcm_samples.h"
 #include "utilities/settings.h"
 #include "utilities/crosscore_snapshot.h"
