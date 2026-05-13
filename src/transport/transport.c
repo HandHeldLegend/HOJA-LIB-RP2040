@@ -65,6 +65,11 @@ void _transport_powercommand(uint8_t command)
     }
 }
 
+void _transport_imucommand(uint8_t command)
+{
+
+}
+
 void transport_evt_cb(tp_evt_s evt)
 {
     tp_evt_t evt_name = evt.evt;
@@ -87,6 +92,10 @@ void transport_evt_cb(tp_evt_s evt)
 
         case TP_EVT_POWERCOMMAND:
         _transport_powercommand(evt.evt_powercommand.power_command);
+        break;
+
+        case TP_EVT_IMUCOMMAND:
+        _transport_imucommand(evt.evt_imucommand.imu_command);
         break;
     }
 }

@@ -59,7 +59,7 @@ typedef struct
     core_reportformat_t     core_report_format;
     uint16_t                core_pollrate_us; // Transport methods may or may not respect this value
     core_generate_report_t  core_report_generator; // Get generated report data from this
-    core_report_tunnel_t    core_report_tunnel;    // Where incoming reports should be sent
+    core_report_tunnel_t    core_report_tunnel;    // Where incoming OUTPUT reports should be sent
     const core_hid_device_t*      hid_device; // HID device info
     uint16_t                core_boot_flags; // See COREBOOT_FLAG_ types
 } core_params_s;

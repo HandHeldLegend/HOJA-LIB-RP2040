@@ -15,6 +15,7 @@ typedef enum
     TP_EVT_CONNECTIONCHANGE, 
     TP_EVT_ERMRUMBLE,
     TP_EVT_POWERCOMMAND,
+    TP_EVT_IMUCOMMAND,
 } tp_evt_t;
 
 typedef enum 
@@ -30,6 +31,13 @@ typedef enum
     TP_POWERCOMMAND_REBOOT,
     TP_POWERCOMMAND_LOWPOWER,
 } tp_powercommand_t;
+
+typedef enum
+{
+    TP_IMUCOMMAND_SET_MODE_OFF,
+    TP_IMUCOMMAND_SET_MODE_RAW,
+    TP_IMUCOMMAND_SET_MODE_QUATERNION,
+} tp_imucommand_t;
 
 typedef struct
 {
@@ -54,6 +62,11 @@ typedef struct
     tp_powercommand_t power_command;
 } tp_evt_powercommand_s;
 
+typedef struct 
+{
+    tp_imucommand_t imu_command;
+} tp_evt_imucommand_s;
+
 typedef struct
 {
     tp_evt_t evt;
@@ -63,6 +76,7 @@ typedef struct
         tp_evt_connectionchange_s   evt_connectionchange;
         tp_evt_ermrumble_s          evt_ermrumble;
         tp_evt_powercommand_s       evt_powercommand;
+        tp_evt_imucommand_s         evt_imucommand;
     };
 } tp_evt_s;
 
