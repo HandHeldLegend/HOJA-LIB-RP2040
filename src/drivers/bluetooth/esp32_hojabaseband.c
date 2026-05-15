@@ -369,7 +369,7 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SWITCH:
     {
-        core_switch_ns_feed_hd_rumble_wire4(&(status.data[0]));
+        //core_switch_ns_feed_hd_rumble_wire4(&(status.data[0]));
     }
     break;
 

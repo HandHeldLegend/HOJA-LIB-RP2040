@@ -33,7 +33,14 @@ volatile uint32_t _external_sample_scaler = 0;
 volatile float _pcm_param_min_lo = PCM_LO_FREQUENCY_MIN; // Minimum low frequency parameter
 volatile float _pcm_param_min_hi = PCM_HI_FREQUENCY_MIN; // Minimum high frequency parameter
 
+#define PCM_LO_FREQUENCY_LPF_HZ 400
+#define PCM_HI_FREQUENCY_LPF_HZ 1000
+
 #define TWO_PI 2.0f * M_PI
+
+uint16_t _pcm_fp_amplitude_multiplier_table[256] = {0};
+uint16_t _pcm_fp_hi_frequency_table[128] = {0};
+uint16_t _pcm_fp_lo_frequency_table[128] = {0};
 
 // DC offset ramp rate per sample (higher = faster attack/decay)
 // At 8000 Hz sample rate: rate of 1 = 256ms, rate of 8 = 32ms
@@ -71,7 +78,7 @@ uint16_t pcm_amplitude_to_fixedpoint(float input) {
  }
 
 // Initialize the sine table
-void _generate_sine_table(float scaler)
+void _pcm_generate_sine_table(float scaler)
 {
     // Ensure scaler is within bounds
     scaler = (scaler > 1.0f) ? 1.0f : (scaler < 0.0f) ? 0.0f : scaler;
@@ -90,6 +97,13 @@ void _generate_sine_table(float scaler)
         fi += inc;
         fi = fmodf(fi, TWO_PI);  
     }
+}
+
+void _pcm_generate_all_tables(void)
+{
+    ns_api_generate_fp_amplitude_multiplier_table(PCM_AMPLITUDE_SHIFT_FIXED, _pcm_fp_amplitude_multiplier_table);
+    ns_api_generate_fp_haptic_frequency_tables(PCM_FREQUENCY_SHIFT_FIXED, PCM_SINE_TABLE_SIZE, PCM_SAMPLE_RATE, 
+        _pcm_fp_hi_frequency_table, _pcm_fp_lo_frequency_table);
 }
 
 typedef struct 
@@ -151,7 +165,6 @@ bool pcm_raw_queue_pop(int16_t *out)
 
 #define PCM_AMFM_QUEUE_SIZE 128 // Adjust size as needed
 
-
 typedef struct
 {
     haptic_processed_s buffer[PCM_AMFM_QUEUE_SIZE];
@@ -176,6 +189,20 @@ void pcm_amfm_queue_init()
 
 #define DEFAULT_HI (uint16_t)(((75.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
 #define DEFAULT_LO (uint16_t)(((35.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
+
+void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
+{
+    for(int i = 0; i < in->sample_count; i++)
+    {
+        out->pairs[i].hi_amplitude_fixed = _pcm_fp_amplitude_multiplier_table[in->samples[i].hi_amplitude_idx];
+        out->pairs[i].lo_amplitude_fixed = _pcm_fp_amplitude_multiplier_table[in->samples[i].lo_amplitude_idx];
+
+        out->pairs[i].hi_frequency_increment = _pcm_fp_hi_frequency_table[in->samples[i].hi_frequency_idx];
+        out->pairs[i].lo_frequency_increment = _pcm_fp_lo_frequency_table[in->samples[i].lo_frequency_idx];
+    }
+
+    out->count = in->sample_count;
+}
 
 // Push new packet with all pairs to snapshot
 // Returns true if successful
@@ -389,23 +416,12 @@ void pcm_init(int intensity)
     _lo_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminloscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
     _hi_amp_scaler_fixed_min  = (uint32_t) ((float) tmpminhiscaler * (float) PCM_AMPLITUDE_SHIFT_FIXED);
 
-    _generate_sine_table(scaler);
+    _pcm_generate_sine_table(scaler);
+    _pcm_generate_all_tables();
 
     if(_pcm_init_done) return;
     _pcm_init_done = true;
     pcm_amfm_queue_init();
-}
-
-static inline int16_t lerp_fixed_signed(int16_t start, int16_t end, uint8_t t)
-{
-    int32_t diff = (int32_t)end - (int32_t)start;  // Promote to int32_t to handle full range
-    return (int16_t)(start + ((diff * t) >> 8));
-}
-
-static inline uint16_t lerp_fixed_unsigned(uint16_t start, uint16_t end, uint8_t t)
-{
-    int32_t diff = (int32_t)end - (int32_t)start;  // Use int32_t for diff to handle underflow
-    return (uint16_t)(start + ((diff * t) >> 8));
 }
 
 uint8_t *_external_sample_l;

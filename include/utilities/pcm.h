@@ -7,6 +7,7 @@
 #include "devices_shared_types.h"
 
 #include "board_config.h"
+#include "ns_lib.h"
 
 #define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
 
@@ -59,6 +60,8 @@ typedef enum
 } pcm_adjust_t;
 
 void pcm_debug_adjust_param(uint8_t param_type, float amount);
+
+void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out);
 
 int16_t pcm_raw_queue_count();
 int16_t pcm_raw_queue_push(int16_t *data, uint16_t len);

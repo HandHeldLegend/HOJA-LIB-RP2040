@@ -491,7 +491,7 @@ void ns_api_hook_get_powerstatus(ns_powerstatus_s *out)
         s.connection = 1;
     }
 
-    out->val = s.val;
+    //out->val = s.val;
 }
 
 void ns_api_hook_set_led(int player_leds)
@@ -561,7 +561,7 @@ void ns_api_hook_get_quaternion(ns_quaternion_s *out)
 
 void ns_api_hook_set_haptic_packet_raw(ns_haptics_packet_raw_s *packet)
 {
-    // TBD
+    haptics_set_ns_hd(packet);
 }
 
 bool core_switch_init(core_params_s *params)
