@@ -12,8 +12,8 @@ extern "C" {
 
 sinput_config_status_t sinput_api_init(sinput_device_cfg_s *cfg);
 
-void sinput_api_hook_set_rumble(sinput_stereo_rumble_s *rumble);
-void sinput_api_hook_set_haptics(sinput_stereo_haptics_s *haptics);
+void sinput_api_hook_set_rumble(sinput_stereo_rumble_s rumble);
+void sinput_api_hook_set_haptics(sinput_stereo_haptics_s haptics);
 void sinput_api_hook_set_player_leds(uint8_t player_number);
 void sinput_api_hook_set_joystick_rgb(uint32_t rgb_value);
 

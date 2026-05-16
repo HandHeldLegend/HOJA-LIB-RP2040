@@ -600,14 +600,7 @@ void _si_generate_features(uint8_t *buffer)
     memcpy(&buffer[18], params->transport_dev_mac, 6);
 }
 
-int16_t _sinput_scale_trigger(uint16_t val)
-{
-    if (val > 4095) val = 4095; // Clamp just in case
 
-    // Scale: map [0, 4095] → [INT16_MIN, INT16_MAX]
-    // The range of INT16 is 65535, so multiply first to preserve precision
-    return (int16_t)(((int32_t)val * 65535) / 4095 + INT16_MIN);
-}
 
 int16_t _sinput_scale_axis(int16_t input_axis)
 {   
