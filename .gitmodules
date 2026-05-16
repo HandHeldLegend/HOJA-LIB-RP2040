@@ -1,3 +1,6 @@
 [submodule "external/NS-LIB-HID"]
 	path = external/NS-LIB-HID
 	url = https://github.com/HandHeldLegend/NS-LIB-HID
+[submodule "external/SINPUT-LIB-HID"]
+	path = external/SINPUT-LIB-HID
+	url = https://github.com/HandHeldLegend/SINPUT-LIB-HID
