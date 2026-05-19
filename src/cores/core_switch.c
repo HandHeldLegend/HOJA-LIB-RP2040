@@ -3,6 +3,8 @@
 
 #include "cores/core_switch.h"
 
+#include "ns_lib.h"
+
 #include "transport/transport.h"
 #include "hoja_shared_types.h"
 #include "input/imu.h"
@@ -606,6 +608,9 @@ bool core_switch_init(core_params_s *params)
     {
         return false;
     }
+
+    // Re-init PCM
+    pcm_init(-1);
 
     params->sys_gyro_task = imu_forced_task;
 

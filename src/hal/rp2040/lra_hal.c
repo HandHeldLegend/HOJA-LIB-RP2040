@@ -19,7 +19,6 @@
 #include "devices/haptics.h"
 
 #include "utilities/pcm.h"
-#include "utilities/erm_simulator.h"
 
 // Helper driver is specific to this HAL
 #if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
@@ -105,9 +104,6 @@ bool lra_hal_init(uint8_t intensity)
 
     // Initialize the PCM
     pcm_init(intensity);
-
-    // Initialize ERM simulator
-    erm_simulator_init();
 
     if(hal_init) return true;
     hal_init = true;

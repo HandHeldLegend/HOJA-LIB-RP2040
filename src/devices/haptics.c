@@ -35,7 +35,7 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
 
 void haptics_set_ns_hd(ns_haptics_packet_raw_s *in)
 {
-    haptic_packet_s translated;
+    haptic_packet_s translated = {0};
 
     pcm_ns_to_fp(in, &translated);
 
