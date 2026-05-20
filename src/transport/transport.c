@@ -30,10 +30,6 @@ void _transport_connectionchange(uint8_t status)
         hoja_set_connected_status(CONNECTION_STATUS_DOWN);
         break;
 
-        //case TP_CONNECTION_CONNECTING:
-        ////hoja_set_connected_status(CONNECTION_STATUS_DOWN);
-        //break;
-
         case TP_CONNECTION_CONNECTED:
         hoja_set_connected_status(CONNECTION_STATUS_CONNECTED);
         break;
@@ -136,6 +132,22 @@ void _transport_set_mac(uint8_t *out, core_reportformat_t reportformat)
     memcpy(out, gamepad_config->gamepad_mac_address, 6);
     out[5] += reportformat;
 }
+
+typedef enum
+{
+    IMU_MODE_OFF = 0,
+    IMU_MODE_RAW = 1,
+    IMU_MODE_QUATERNION = 2,
+} imu_mode_t;
+
+typedef struct 
+{
+    int player_number;
+    int connection_status;
+    imu_mode_t imu_mode;
+    core_gyro_task_t imu_task;
+    uint16_t boot_flags;
+} core_sm_s;
 
 bool transport_init(core_params_s *params)
 {

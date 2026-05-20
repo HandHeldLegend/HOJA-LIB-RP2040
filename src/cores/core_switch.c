@@ -531,24 +531,24 @@ void ns_api_hook_set_usbpair(ns_usbpair_s pairing_data)
 
 void ns_api_hook_set_imu_mode(ns_imu_mode_t imu_mode)
 {
-    tp_imucommand_t cmd;
+    //tp_imucommand_t cmd;
     switch(imu_mode)
     {
         default:
         case NS_IMU_OFF:
-        cmd = TP_IMUCOMMAND_SET_MODE_OFF;
+        _core_switch_params->sys_gyro_task = NULL;
         break;
 
         case NS_IMU_RAW:
-        cmd = TP_IMUCOMMAND_SET_MODE_RAW;
+        _core_switch_params->sys_gyro_task = imu_forced_task_standard;
         break;
 
         case NS_IMU_QUAT:
-        cmd = TP_IMUCOMMAND_SET_MODE_QUATERNION;
+        _core_switch_params->sys_gyro_task = imu_forced_task_quaternion;
         break;
     }
-    tp_evt_s evt = {.evt = TP_EVT_IMUCOMMAND, .evt_imucommand = {.imu_command=cmd}};
-    transport_evt_cb(evt);
+    //tp_evt_s evt = {.evt = TP_EVT_IMUCOMMAND, .evt_imucommand = {.imu_command=cmd}};
+    //transport_evt_cb(evt);
 }
 
 void ns_api_hook_get_imu(ns_gyrodata_s *out)
@@ -558,7 +558,7 @@ void ns_api_hook_get_imu(ns_gyrodata_s *out)
 
 void ns_api_hook_get_quaternion(ns_quaternion_s *out)
 {
-    imu_quaternion_access_safe((quaternion_s *) out);
+    imu_quaternion_access_safe(out);
 }
 
 void ns_api_hook_set_haptic_packet_raw(ns_haptics_packet_raw_s *packet)
@@ -612,7 +612,7 @@ bool core_switch_init(core_params_s *params)
     // Re-init PCM
     pcm_init(-1);
 
-    params->sys_gyro_task = imu_forced_task;
+    params->sys_gyro_task = imu_forced_task_standard;
 
     params->core_report_format = CORE_REPORTFORMAT_SWPRO;
     params->core_report_generator = _core_switch_get_generated_report;

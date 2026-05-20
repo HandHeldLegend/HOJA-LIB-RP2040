@@ -1099,6 +1099,8 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
 }
 
 static bool sofen = false;
+volatile bool _gyro_gate = false;
+
 void tud_mount_cb()
 {
     tud_sof_cb_enable(false);
@@ -1108,6 +1110,18 @@ void tud_mount_cb()
 
 void tud_sof_cb(uint32_t frame_count_ext) 
 {
+    if (_usb_frames == 1)
+    {
+        _gyro_gate = true;
+    }
+    else
+    {
+        if (frame_count_ext % 2 == 0)
+        {
+            _gyro_gate = true;
+        }
+    }
+
     switch (_usb_frames)
     {
         case 1:
@@ -1165,7 +1179,7 @@ bool transport_usb_init(core_params_s *params)
         _usb_hal_report_cb = tud_hid_report;
         break;
     case CORE_REPORTFORMAT_SWPRO:
-        _usb_frames = 1; //DBG
+        _usb_frames = 8;
         _usb_hal_ready_cb = tud_hid_ready;
         _usb_hal_report_cb = tud_hid_report;
         break;
@@ -1205,6 +1219,12 @@ void transport_usb_task(uint64_t timestamp)
 
     if(!sofen) return;
 
+    if (_usb_core_params->sys_gyro_task && _gyro_gate)
+    {
+        _gyro_gate = false;
+        _usb_core_params->sys_gyro_task();
+    }
+
     if (!_usb_ready && _usb_hal_ready_cb)
     {
         _usb_ready = _usb_hal_ready_cb();
@@ -1221,8 +1241,6 @@ void transport_usb_task(uint64_t timestamp)
             {
                 _usb_hal_report_cb(_core_report.data[0], &_core_report.data[1], _core_report.size-1);
                 tud_task();
-                if(_usb_core_params->sys_gyro_task)
-                    _usb_core_params->sys_gyro_task();
             }
         }
     }

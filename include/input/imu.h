@@ -9,6 +9,8 @@
 #include "settings_shared_types.h"
 #include "input_shared_types.h"
 
+#include "ns_lib_motion.h"
+
 #ifdef HOJA_IMU_CHAN_A_READ
     #define HOJA_IMU_DRIVER_ENABLED 1
 #else
@@ -16,12 +18,14 @@
 #endif
 
 void imu_access_safe(imu_data_s *out);
-void imu_quaternion_access_safe(quaternion_s *out);
+void imu_quaternion_access_safe(ns_quaternion_s *out);
 
-bool imu_init();
+bool imu_init(void);
 
 void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb);
-void imu_forced_task();
+
+void imu_forced_task_quaternion(void);
+void imu_forced_task_standard(void);
 void imu_task(uint64_t timestamp);
 
 #endif
