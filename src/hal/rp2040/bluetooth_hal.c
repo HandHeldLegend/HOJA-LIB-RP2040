@@ -33,6 +33,9 @@ volatile uint32_t _bt_hal_pollrate_ms = BT_HAL_TARGET_POLLING_RATE_MS;
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
 
+volatile bool _pairing_mode = false;
+volatile bool _interval_reset = false;
+
 static const char hid_device_name[] = "Wireless Gamepad";
 static const char service_name[] = "Wireless Gamepad";
 static uint8_t hid_service_buffer[700] = {0};
@@ -45,12 +48,38 @@ static interval_s hid_report_interval = {0};
 // Timer structure for scheduling delayed HID report requests
 static btstack_timer_source_t hid_timer;
 
+bool _bluetooth_hal_host_mac_valid(uint8_t addr[6])
+{
+    if(addr[0]==0xFF && addr[1]==0xFF) return false;
+    if(!addr[0]&&!addr[1]) return false;
+    return true;
+}
+
+static inline void _bluetooth_hal_reverse_bytes(const uint8_t *in, uint8_t *out, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        out[i] = in[len - 1 - i];
+    }
+}
+
 // Compare addresses and return true if they are the same
-bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
+bool _bluetooth_hal_is_mac_addr_same(const bd_addr_t addr1, const bd_addr_t addr2)
 {
     for (int i = 0; i < 6; i++)
     {
         if (addr1[i] != addr2[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool _bluetooth_hal_is_lk_addr_same(uint8_t lk1[16], uint8_t lk2[16])
+{
+    for (int i = 0; i < 16; i++)
+    {
+        if (lk1[i] != lk2[i])
         {
             return false;
         }
@@ -86,8 +115,6 @@ static void _bt_hid_report_handler(uint16_t cid,
 
     printf("REPORT? %x, c: %d\n", report_id, hid_cid);
 
-    if(report_id==0x01) hoja_set_notification_status(COLOR_RED);
-
     // 1. Set the Report ID as the first byte
     _output_report_data[0] = (uint8_t)report_id;
 
@@ -101,8 +128,7 @@ static void _bt_hid_report_handler(uint16_t cid,
     core_report_tunnel_cb(_output_report, report_size + 1);
 }
 
-volatile bool _pairing_mode = false;
-volatile bool _interval_reset = false;
+
 
 // Timer handler to request can send now event after delay
 static void hid_timer_handler(btstack_timer_source_t *ts)
@@ -127,34 +153,89 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING)
                 return;
 
-            if (!hid_cid)
+            if(hid_cid) return;
+
+
+            if (_pairing_mode)
             {
-                if (_pairing_mode)
+                gap_discoverable_control(1);
+                return;
+            }
+            else
+            {
+                switch (hoja_get_status().gamepad_mode)
                 {
-                    gap_delete_all_link_keys();
-                    gap_discoverable_control(1);
-                }
-                else
-                {
-                    switch (hoja_get_status().gamepad_mode)
+                default:
+                case GAMEPAD_MODE_SWPRO:
+                    link_key_type_t read_type;
+                    link_key_t read_key;
+
+                    bool overwrite_key = false;
+
+                    if(!_bluetooth_hal_host_mac_valid(switchpair_config->link_key))
                     {
-                    default:
-                    case GAMEPAD_MODE_SWPRO:
-                        if (gamepad_config->host_mac_switch[0] != 0xFF && gamepad_config->host_mac_switch[1] != 0xFF)
-                        {
-                            hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
-                        }
-
-                        break;
-
-                    case GAMEPAD_MODE_SINPUT:
-                        if (gamepad_config->host_mac_sinput[0] != 0xFF && gamepad_config->host_mac_sinput[1] != 0xFF)
-                        {
-                            hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
-                        }
-                        break;
+                        gap_discoverable_control(1);
+                        return;
                     }
+
+                    if (gap_get_link_key_for_bd_addr(gamepad_config->host_mac_switch, read_key, &read_type))
+                    {
+                        //printf("BTStack Stored Link Key:\n");
+                        link_key_t read_key_be;
+                        _bluetooth_hal_reverse_bytes(read_key, read_key_be, 16);
+
+                        if (!_bluetooth_hal_is_lk_addr_same(read_key_be, switchpair_config->link_key))
+                        {
+                            overwrite_key = true;
+                        }
+                    }
+                    else
+                    {
+                        overwrite_key = true;
+                    }
+
+                    if(overwrite_key)
+                    {
+                        link_key_t link_key_le;
+                        _bluetooth_hal_reverse_bytes(switchpair_config->link_key, link_key_le, 16);
+                        gap_store_link_key_for_bd_addr(gamepad_config->host_mac_switch, link_key_le,
+                                          UNAUTHENTICATED_COMBINATION_KEY_GENERATED_FROM_P192);
+                    }
+
+                    hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
+
+                    break;
+
+                case GAMEPAD_MODE_SINPUT:
+                    if (_bluetooth_hal_host_mac_valid(gamepad_config->host_mac_sinput))
+                    {
+                        hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
+                    }
+                    break;
                 }
+            }
+            break;
+
+        case HCI_EVENT_LINK_KEY_NOTIFICATION:
+            if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_SWPRO)
+            {
+                bd_addr_t addr;
+                hci_event_link_key_request_get_bd_addr(packet, addr);
+
+                link_key_t link_key_be;
+                link_key_t link_key_le;
+                link_key_type_t link_key_type = (link_key_type_t)packet[24];
+
+                /* BTstack reports link keys in little-endian format for legacy reasons. */
+                memcpy(link_key_le, &packet[8], 16);
+
+                /* Store a big-endian copy so the flash contents and debug logs stay human-readable. */
+                _bluetooth_hal_reverse_bytes(link_key_le, link_key_be, 16);
+
+                ns_usbpair_s usbpair = {0};
+                memcpy(usbpair.host_mac, addr, 6);
+                memcpy(usbpair.link_key, link_key_be, 16);
+                ns_api_hook_set_usbpair(usbpair);
             }
             break;
 
@@ -196,7 +277,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     break;
                 }
 
-                bool comp = _compare_mac_addr(addr, addr_location);
+                bool comp = _bluetooth_hal_is_mac_addr_same(addr, addr_location);
                 if (!comp)
                 {
                     // New address, save

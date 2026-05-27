@@ -22,13 +22,7 @@
 
 #include "hal/sys_hal.h"
 
-typedef enum 
-{
-    HWLAN_REPORT_CORE_UNRELIABLE = 0x01, 
-    HWLAN_REPORT_CORE_RELIABLE = 0x02, 
-    HWLAN_REPORT_STATUS_UNRELIABLE = 0x03, 
-    HWLAN_REPORT_HELLO = 0x04,
-} hoja_wlan_report_t;
+
 
 typedef enum
 {
@@ -54,11 +48,17 @@ typedef struct
     uint8_t transport_status;
 } hoja_wlan_status_s;
 
+typedef enum 
+{
+    HWLAN_REPORT_HELLO = 0x01, 
+    HWLAN_REPORT_STATUS_REQUEST, 
+    HWLAN_REPORT_TRANSPORT_EVT,
+    HWLAN_REPORT_CONFIG_PACKET,
+} hoja_wlan_report_t;
+
 typedef struct __attribute__((packed))
 {
     uint16_t session_sig; // RNG for the current gamepad/dongle session
-    uint16_t gamepad_sig; // RNG for the last gamepad message
-    uint16_t dongle_sig; // RNG for the last dongle message
     uint8_t wlan_report_id;
     uint8_t report_format;
     uint8_t data[64];

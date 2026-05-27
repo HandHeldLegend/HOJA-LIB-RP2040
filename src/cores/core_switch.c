@@ -448,21 +448,23 @@ void ns_api_hook_get_powerstatus(ns_powerstatus_s *out)
     battery_status_s bstat = {0};
     battery_get_status(&bstat);
 
-    bat_status_u s = {.bat_lvl = 4, .charging = 1, .connection = 0};
+    out->battery_level = NS_BATLVL_FULL;
+    out->charging_status = NS_CHARGING_IDLE;
+    out->power_source = NS_POWERSRC_EXTERNAL;
 
     if (bstat.connected)
     {
-        s.charging = 0;
+        out->charging_status = NS_CHARGING_IDLE;
 
         if (bstat.charging)
         {
-            s.charging = 1;
-            s.connection = 1;
+            out->charging_status = NS_CHARGING_ACTIVE;
+            out->power_source = NS_POWERSRC_EXTERNAL;
         }
         else if (bstat.plugged)
         {
-            s.charging = 0;
-            s.connection = 1;
+            out->charging_status = NS_CHARGING_IDLE;
+            out->power_source = NS_POWERSRC_EXTERNAL;
         }
 
         if (fstat.connected)
@@ -470,30 +472,28 @@ void ns_api_hook_get_powerstatus(ns_powerstatus_s *out)
             switch (fstat.simple)
             {
             default:
-                s.bat_lvl = 1;
+                out->battery_level = NS_BATLVL_CRITICAL;
                 break;
             case 1:
-                s.bat_lvl = 1;
+                out->battery_level = NS_BATLVL_CRITICAL;
                 break;
             case 2:
-                s.bat_lvl = 2;
+                out->battery_level = NS_BATLVL_LOW;
                 break;
             case 3:
-                s.bat_lvl = 3;
+                out->battery_level = NS_BATLVL_MED;
                 break;
             case 4:
-                s.bat_lvl = 4;
+                out->battery_level = NS_BATLVL_FULL;
                 break;
             }
         }
     }
     else
     {
-        s.charging = 0;
-        s.connection = 1;
+        out->charging_status = NS_CHARGING_IDLE;
+        out->power_source = NS_POWERSRC_EXTERNAL;
     }
-
-    //out->val = s.val;
 }
 
 void ns_api_hook_set_led(int player_leds)
@@ -525,7 +525,7 @@ void ns_api_hook_set_power(uint8_t shutdown)
 void ns_api_hook_set_usbpair(ns_usbpair_s pairing_data)
 {
     memcpy(gamepad_config->host_mac_switch, pairing_data.host_mac, 6);
-    memcpy(gamepad_config->link_key_switch, pairing_data.link_key, 16);
+    memcpy(switchpair_config->link_key, pairing_data.link_key, 16);
     settings_commit_blocks();
 }
 
@@ -573,6 +573,12 @@ bool core_switch_init(core_params_s *params)
     ns_device_config_s cfg = {0};
     cfg.type = NS_DEVTYPE_PROCON;
 
+    if(switchpair_config->switchpair_config_version != CFG_BLOCK_SWITCHPAIR_VERSION)
+    {
+        switchpair_config->switchpair_config_version = CFG_BLOCK_SWITCHPAIR_VERSION;
+        memset(switchpair_config->link_key, 0, sizeof(switchpair_config->link_key));
+    }
+
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
@@ -602,6 +608,9 @@ bool core_switch_init(core_params_s *params)
     cfg.gyro_rad_per_lsb = 0.0f;
 
     memcpy(cfg.device_mac, params->transport_dev_mac, 6);
+    // Load persisted host MAC before NS-LIB init. transport_init also copies this
+    // into params later, but ns_api_init must see the saved MAC for USB pairing.
+    memcpy(params->transport_host_mac, gamepad_config->host_mac_switch, 6);
     memcpy(cfg.host_mac, params->transport_host_mac, 6);
 
     if (ns_api_init(&cfg) != NS_CONFIG_OK)

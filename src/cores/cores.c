@@ -90,6 +90,9 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
     // Clear host mac just in case first
     memset(_core_params.transport_host_mac, 0, 6);
 
+    // Copy in device MAC
+    memcpy(_core_params.transport_dev_mac, gamepad_config->gamepad_mac_address, 6);
+
     switch(transport)
     {
         case GAMEPAD_TRANSPORT_USB:

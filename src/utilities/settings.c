@@ -42,20 +42,22 @@ imuConfig_s         *imu_config        = NULL;
 hapticConfig_s      *haptic_config     = NULL;
 userConfig_s        *user_config       = NULL;
 inputConfig_s       *input_config      = NULL;
+switchpairConfig_s  *switchpair_config = NULL;
 
 void settings_init()
 {
     flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
 
-    gamepad_config     = (gamepadConfig_s *)  &live_settings.gamepad_configuration_block;
-    hover_config       = (hoverConfig_s *)    &live_settings.hover_configuration_block;
-    rgb_config         = (rgbConfig_s *)      &live_settings.rgb_configuration_block;
-    analog_config      = (analogConfig_s *)   &live_settings.analog_configuration_block;
-    trigger_config     = (triggerConfig_s *)  &live_settings.trigger_configuration_block;
-    imu_config         = (imuConfig_s *)      &live_settings.imu_configuration_block;
-    haptic_config      = (hapticConfig_s *)   &live_settings.haptic_configuration_block;
-    user_config        = (userConfig_s *)     &live_settings.user_configuration_block;
-    input_config       = (inputConfig_s *)    &live_settings.input_configuration_block;
+    gamepad_config     = (gamepadConfig_s *)    &live_settings.gamepad_configuration_block;
+    hover_config       = (hoverConfig_s *)      &live_settings.hover_configuration_block;
+    rgb_config         = (rgbConfig_s *)        &live_settings.rgb_configuration_block;
+    analog_config      = (analogConfig_s *)     &live_settings.analog_configuration_block;
+    trigger_config     = (triggerConfig_s *)    &live_settings.trigger_configuration_block;
+    imu_config         = (imuConfig_s *)        &live_settings.imu_configuration_block;
+    haptic_config      = (hapticConfig_s *)     &live_settings.haptic_configuration_block;
+    user_config        = (userConfig_s *)       &live_settings.user_configuration_block;
+    input_config       = (inputConfig_s *)      &live_settings.input_configuration_block;
+    switchpair_config  = (switchpairConfig_s *) &live_settings.switchpair_configuration_block;
 
     // Debug mac address if zero
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
@@ -84,7 +86,6 @@ void settings_init()
         // Unset paired device addresses and Switch link key
         memset(gamepad_config->host_mac_switch, 0, 6);
         memset(gamepad_config->host_mac_sinput, 0, 6);
-        memset(gamepad_config->link_key_switch, 0, 16);
 
         // Reset wlan key
         gamepad_config->wlan_dongle_key = 0;

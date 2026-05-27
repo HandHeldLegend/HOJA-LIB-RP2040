@@ -18,7 +18,7 @@ typedef enum
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
-#define CFG_BLOCK_GAMEPAD_VERSION   0x13
+#define CFG_BLOCK_GAMEPAD_VERSION   0x14
 
 // Remap config is replaced by hover cfg
 //#define CFG_BLOCK_REMAP_VERSION     0x13
@@ -37,6 +37,8 @@ typedef enum
 // Battery cfg is removed
 //#define CFG_BLOCK_BATTERY_VERSION   0x12
 #define CFG_BLOCK_INPUT_VERSION     0x13
+
+#define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 
 typedef enum 
 {
@@ -205,9 +207,8 @@ typedef struct
     uint8_t  host_mac_switch[6];    // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
-    uint8_t  link_key_switch[16];   // Nintendo Switch link key storage for BT Classic
     uint16_t wlan_dongle_key;       // 4 digit value for WLAN dongle pairing
-    uint8_t  reserved[9];
+    uint8_t  reserved[25];
 } gamepadConfig_s;
 
 // Calibration data used for analog inputs (non-joystick)
@@ -254,6 +255,15 @@ typedef struct
     uint8_t reserved[787];
 } inputConfig_s;
 
+typedef struct
+{
+    uint8_t switchpair_config_version;
+    uint8_t link_key[16];
+    uint8_t reserved[47];
+} switchpairConfig_s;
+
+
+
 #pragma pack(pop)
 
 // Byte sizes of our various blocks
@@ -275,10 +285,12 @@ typedef struct
 // #define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) // 16
 #define INPUT_CFB_SIZE      sizeof(inputConfig_s) // 2048
 
+#define SWITCHPAIR_CFB_SIZE sizeof(switchpairConfig_s) // 64
+
 // Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+HOVER_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE+INPUT_CFB_SIZE)
+                        USER_CFB_SIZE+INPUT_CFB_SIZE+SWITCHPAIR_CFB_SIZE)
 
                         
 

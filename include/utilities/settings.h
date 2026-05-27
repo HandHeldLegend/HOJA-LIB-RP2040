@@ -46,6 +46,8 @@ typedef struct
     // Input data configuration block
     uint8_t input_configuration_block[INPUT_CFB_SIZE];
 
+    uint8_t switchpair_configuration_block[SWITCHPAIR_CFB_SIZE];
+
     // REMAINING bytes
     uint8_t reserved[4096-TOTAL_CFB_SIZE]; 
 } settings_flash_s;
@@ -82,6 +84,9 @@ typedef struct
 
     // Input data configuration block
     uint8_t input_configuration_block[INPUT_CFB_SIZE];
+
+    // Switch Pair data configuration block
+    uint8_t switchpair_configuration_block[SWITCHPAIR_CFB_SIZE];
 } settings_live_s;
 #pragma pack(pop)
 
@@ -95,6 +100,7 @@ extern imuConfig_s         *imu_config;
 extern hapticConfig_s      *haptic_config;
 extern userConfig_s        *user_config;
 extern inputConfig_s       *input_config;
+extern switchpairConfig_s  *switchpair_config;
 
 void settings_init();
 void settings_commit_blocks();
