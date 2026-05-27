@@ -48,10 +48,17 @@ static interval_s hid_report_interval = {0};
 // Timer structure for scheduling delayed HID report requests
 static btstack_timer_source_t hid_timer;
 
-bool _bluetooth_hal_host_mac_valid(uint8_t addr[6])
+/** True when persisted pairing bytes are not blank (0x0000) or erased (0xFFFF…) sentinel. */
+static bool _bluetooth_hal_is_stored_identity_valid(const uint8_t *bytes)
 {
-    if(addr[0]==0xFF && addr[1]==0xFF) return false;
-    if(!addr[0]&&!addr[1]) return false;
+    if (bytes[0] == 0xFF && bytes[1] == 0xFF)
+    {
+        return false;
+    }
+    if (!bytes[0] && !bytes[1])
+    {
+        return false;
+    }
     return true;
 }
 
@@ -104,28 +111,69 @@ static inline void _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
 uint8_t _output_report_data[64] = {0};
 const uint8_t *_output_report = &_output_report_data[0];
 
+static void _bt_hid_output_tunnel(const uint8_t *report, uint16_t len)
+{
+    if (!report || len == 0)
+    {
+        return;
+    }
+    if (len > sizeof(_output_report_data))
+    {
+        len = sizeof(_output_report_data);
+    }
+    core_report_tunnel_cb(report, len);
+}
+
+/** Interrupt-channel DATA output (report id separate from payload). */
 static void _bt_hid_report_handler(uint16_t cid,
                                    hid_report_type_t report_type,
                                    uint16_t report_id,
                                    int report_size, uint8_t *report)
 {
-    if (report_type != HID_REPORT_TYPE_OUTPUT) return;
-    if (cid != hid_cid) return;
-    if (!report || report_size == 0) return;
+    if (report_type != HID_REPORT_TYPE_OUTPUT)
+    {
+        return;
+    }
+    if (cid != hid_cid)
+    {
+        return;
+    }
+    if (!report || report_size == 0)
+    {
+        return;
+    }
 
-    printf("REPORT? %x, c: %d\n", report_id, hid_cid);
-
-    // 1. Set the Report ID as the first byte
     _output_report_data[0] = (uint8_t)report_id;
 
-    if(report_size>63) report_size=63;
+    if (report_size > 63)
+    {
+        report_size = 63;
+    }
 
-    // 2. Copy the actual report data starting at index 1
-    // Use report_size, because 'report' points to the payload start
-    memcpy(&_output_report_data[1], report, report_size);
+    memcpy(&_output_report_data[1], report, (size_t)report_size);
+    _bt_hid_output_tunnel(_output_report, (uint16_t)(report_size + 1));
+}
 
-    // 3. Total size is now (1 byte ID + report_size)
-    core_report_tunnel_cb(_output_report, report_size + 1);
+/** Control-channel SET_REPORT output (report id is report[0]). Used by Switch. */
+static void _bt_hid_set_report_handler(uint16_t cid,
+                                       hid_report_type_t report_type,
+                                       int report_size,
+                                       uint8_t *report)
+{
+    if (report_type != HID_REPORT_TYPE_OUTPUT)
+    {
+        return;
+    }
+    if (cid != hid_cid)
+    {
+        return;
+    }
+    if (!report || report_size <= 0)
+    {
+        return;
+    }
+
+    _bt_hid_output_tunnel(report, (uint16_t)report_size);
 }
 
 
@@ -172,7 +220,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                     bool overwrite_key = false;
 
-                    if(!_bluetooth_hal_host_mac_valid(switchpair_config->link_key))
+                    if (!_bluetooth_hal_is_stored_identity_valid(switchpair_config->link_key))
                     {
                         gap_discoverable_control(1);
                         return;
@@ -207,7 +255,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     break;
 
                 case GAMEPAD_MODE_SINPUT:
-                    if (_bluetooth_hal_host_mac_valid(gamepad_config->host_mac_sinput))
+                    if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
                     {
                         hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
                     }
@@ -224,7 +272,6 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 link_key_t link_key_be;
                 link_key_t link_key_le;
-                link_key_type_t link_key_type = (link_key_type_t)packet[24];
 
                 /* BTstack reports link keys in little-endian format for legacy reasons. */
                 memcpy(link_key_le, &packet[8], 16);
@@ -316,13 +363,12 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     {
                         core_report_s report = {0};
                         
-                        if(core_get_generated_report(&report))
+                        if (core_get_generated_report(&report))
                         {
                             _bluetooth_hal_hid_tunnel(report.data, report.size);
+                            last_hid_report_timestamp_ms = current_time_ms;
                         }
-                        else break;
 
-                        last_hid_report_timestamp_ms = current_time_ms;
                         hid_device_request_can_send_now_event(hid_cid);
                     }
                     else
@@ -470,6 +516,7 @@ bool transport_bt_init(core_params_s *params)
 
     hid_device_register_packet_handler(&_bt_hal_packet_handler);
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
+    hid_device_register_set_report_callback(&_bt_hid_set_report_handler);
 
     _pairing_mode = core_is_mac_blank(_bt_hal_params->transport_host_mac);
 
