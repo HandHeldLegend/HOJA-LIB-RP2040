@@ -518,7 +518,7 @@ bool transport_bt_init(core_params_s *params)
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
     hid_device_register_set_report_callback(&_bt_hid_set_report_handler);
 
-    _pairing_mode = core_is_mac_blank(_bt_hal_params->transport_host_mac);
+    _pairing_mode = params->core_boot_flags & COREBOOT_FLAG_PAIR;
 
     hci_power_control(HCI_POWER_ON);
 
