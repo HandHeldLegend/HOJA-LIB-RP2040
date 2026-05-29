@@ -2,6 +2,7 @@ add_library(hoja_lib INTERFACE)
 
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NS-LIB-HID")
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/SINPUT-LIB-HID")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HOJA-LIB-DONGLE")
 
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
@@ -106,6 +107,7 @@ target_link_libraries(hoja_lib INTERFACE
 
   ns_lib_hid
   sinput_lib_hid
+  hoja_lib_dongle
 )
 
 if(HOJA_USE_BT_HAL)
