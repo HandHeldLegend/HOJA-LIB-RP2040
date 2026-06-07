@@ -425,7 +425,14 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
 
         case STATIC_BLOCK_BLUETOOTH:
             // Set our Bluetooth baseband version
-            bluetooth_static.external_version_number = transport_bt_test();
+            bool test = transport_bt_test() > 0;
+            bluetooth_static.external_version_number = 1;
+            const char* error = "ERROR ";
+            if(!test)
+            {
+                memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
+                memcpy(bluetooth_static.part_number, error, sizeof(error+1));
+            }
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
