@@ -201,6 +201,7 @@ hoja_status_s hoja_get_status()
 gamepad_mode_t thisMode = GAMEPAD_MODE_LOAD;
 gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
 bool thisPair = false;
+uint16_t thisBootFlags = 0;
 
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
@@ -218,7 +219,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
   stick_scaling_init();
 
   // Do core init
-  return core_init(mode, transport, pair);
+  return core_init(mode, transport, pair, thisBootFlags);
 }
 
 #include "hardware/sync.h"
@@ -383,7 +384,7 @@ void hoja_init()
   _system_requirements_init();
   _system_input_init();
 
-  boot_get_mode_method(&thisMode, &thisTransport, &thisPair);
+  boot_get_mode_method(&thisMode, &thisTransport, &thisPair, &thisBootFlags);
 
   _system_devices_init(thisTransport, thisMode);
 

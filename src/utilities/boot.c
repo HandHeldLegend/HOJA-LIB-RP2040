@@ -9,6 +9,7 @@
 #include "utilities/static_config.h"
 #include "input/hover.h"
 #include "input_shared_types.h"
+#include "cores/cores.h"
 
 #include "hoja.h"
 
@@ -182,6 +183,23 @@ static void boot_apply_start_combos(const mapper_input_s *input, bool *pair_out,
         *pair_out = true;
 }
 
+static void boot_apply_wlan_combo(const mapper_input_s *input, gamepad_transport_t *transport_out,
+                                  uint16_t *boot_flags_out)
+{
+    if (boot_flags_out == NULL || transport_out == NULL)
+        return;
+
+    // RB+START is the BT bootloader combo; do not treat it as a WLAN boot.
+    if (input->presses[INPUT_CODE_RB] && input->presses[INPUT_CODE_START])
+        return;
+
+    if (input->presses[INPUT_CODE_RB])
+    {
+        *boot_flags_out |= COREBOOT_FLAG_WLAN;
+        *transport_out = GAMEPAD_TRANSPORT_WLAN;
+    }
+}
+
 void boot_get_memory(boot_memory_s *out)
 {
     boot_memory_s tmp = {0};
@@ -206,8 +224,11 @@ void boot_clear_memory()
     sys_hal_set_bootmemory(0);
 }
 
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair)
+void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair, uint16_t *boot_flags)
 {
+    if (boot_flags != NULL)
+        *boot_flags = 0;
+
     boot_input_s boot_dat = {.bootloader = false, .gamepad_mode = GAMEPAD_MODE_LOAD, .gamepad_transport = GAMEPAD_TRANSPORT_AUTO, .pairing_mode = false};
 
     gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
@@ -216,6 +237,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, 
     bool thisPair = false;
     bool thisBootloader = false;
     bool thisBTBootloader = false;
+    uint16_t thisBootFlags = 0;
 
     if (cb_hoja_boot(&boot_dat))
     {
@@ -229,6 +251,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, 
         mapper_input_s input = hover_access_boot();
 
         boot_apply_start_combos(&input, &thisPair, &thisBootloader, &thisBTBootloader);
+        boot_apply_wlan_combo(&input, &thisTransport, &thisBootFlags);
 
         bool skip_digital_face = false;
         gamepad_mode_t face_mode = thisMode;
@@ -321,6 +344,12 @@ skipAutoTransport:
     {
         thisMode = boot_memory.gamepad_mode;
         thisPair = boot_memory.gamepad_pair ? true : false;
+
+        if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
+        {
+            thisTransport = GAMEPAD_TRANSPORT_WLAN;
+            thisBootFlags |= COREBOOT_FLAG_WLAN;
+        }
     }
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER > 0)
     else
@@ -397,11 +426,9 @@ doTransportParse:
     }
 skipTransportParse:
 
-    // DEBUG
-    thisPair = true;
-    //thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
-
     *mode = thisMode;
     *transport = thisTransport;
     *pair = thisPair;
+    if (boot_flags != NULL)
+        *boot_flags = thisBootFlags;
 }

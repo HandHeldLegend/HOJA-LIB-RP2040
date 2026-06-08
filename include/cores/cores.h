@@ -25,7 +25,7 @@ typedef struct
     uint16_t config_descriptor_len;
     uint16_t vid;
     uint16_t pid;
-    char name[64];
+    char name[32];
     const hoja_usb_device_descriptor_t *device_descriptor;
 } core_hid_device_t;
 
@@ -33,6 +33,7 @@ typedef struct
 typedef struct
 {
     core_reportformat_t reportformat;
+    bool reliable;
     uint8_t size;
     uint8_t data[CORE_REPORT_DATA_LEN];
 } core_report_s;
@@ -46,6 +47,7 @@ typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
 #define COREBOOT_FLAG_PAIR (0b1)
+#define COREBOOT_FLAG_WLAN (0b10) // R bumper held at boot — boot into WLAN dongle mode
 #define COREBOOT_FLAG_ALTFLASH (0b10000000)
 
 typedef struct 
@@ -71,7 +73,7 @@ bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair);
+bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
 void core_task(uint64_t timestamp);
 
 #endif

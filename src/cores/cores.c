@@ -81,11 +81,13 @@ core_params_s* core_current_params()
     return &_core_params;
 }
 
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
+bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags)
 {
     _core_params.transport_type = transport;
+    _core_params.core_boot_flags = boot_flags;
 
-    _core_params.core_boot_flags |= COREBOOT_FLAG_PAIR;
+    if (pair)
+        _core_params.core_boot_flags |= COREBOOT_FLAG_PAIR;
 
     // Clear host mac just in case first
     memset(_core_params.transport_host_mac, 0, 6);

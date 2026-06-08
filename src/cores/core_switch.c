@@ -364,13 +364,15 @@ static uint8_t _core_switch_report_size = 64;
 
 bool _core_switch_get_generated_report(core_report_s *out)
 {
-    if (!ns_api_generate_inputreport(out->data))
+    if (ns_api_generate_inputreport(out->data))
     {
-        return false;
+        out->reportformat = CORE_REPORTFORMAT_SWPRO;
+        out->size = _core_switch_report_size;
+
+        out->reliable = out->data != NS_INPUT_REPORT_ID_FULL;
+        return true;
     }
-    out->reportformat = CORE_REPORTFORMAT_SWPRO;
-    out->size = _core_switch_report_size;
-    return true;
+    return false;
 }
 
 void ns_api_hook_get_time_ms(uint64_t *ms)
@@ -592,6 +594,18 @@ bool core_switch_init(core_params_s *params)
         _core_switch_report_size = 49; // 48 data + 1 report ID
         cfg.transport = NS_TRANSPORT_BTC;
         params->hid_device = &_core_switch_hid_device_bt;
+        params->core_pollrate_us = 8000;
+        break;
+
+        /*
+         * HOJA WLAN dongle mode: the dongle owns USB to the console. NS-LIB is
+         * configured as USB (same as Pico-W-NS-Example ns_wlan.c); transport_wlan
+         * tunnels the 64-byte Switch reports over Wi-Fi.
+         */
+        case GAMEPAD_TRANSPORT_WLAN:
+        _core_switch_report_size = 64;
+        cfg.transport = NS_TRANSPORT_USB;
+        params->hid_device = &_core_switch_hid_device_usb;
         params->core_pollrate_us = 8000;
         break;
 

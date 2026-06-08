@@ -28,7 +28,7 @@ typedef struct
 void boot_clear_memory();
 void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair);
+void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair, uint16_t *boot_flags);
 
 // Compare four 12-bit (0..4095) analog samples. Returns a single-bit mask (1<<index) for the
 // clear winner, or 0 if ambiguous or below min_activation. The winner must beat the

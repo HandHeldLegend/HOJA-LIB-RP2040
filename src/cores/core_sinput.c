@@ -217,10 +217,15 @@ bool sinput_api_hook_get_motion(sinput_motion_s *out)
 
 bool _core_sinput_get_generated_report(core_report_s *out)
 {
-    out->reportformat=CORE_REPORTFORMAT_SINPUT;
-    out->size=64; // 64 bytes including our report ID
+    if(sinput_api_generate_inputreport(out->data))
+    {
+        out->reportformat=CORE_REPORTFORMAT_SINPUT;
+        out->size=64; // 64 bytes including our report ID
 
-    return sinput_api_generate_inputreport(out->data);
+        out->reliable = out->data[0] != SINPUT_INPUT_ID_INPUT;
+        return true;
+    }
+    return false;
 }
 
 static core_hid_device_t _sinput_hid_device = {
@@ -252,7 +257,7 @@ bool core_sinput_init(core_params_s *params)
         break;
 
         case GAMEPAD_TRANSPORT_WLAN:
-        params->core_pollrate_us = 2000;
+        params->core_pollrate_us = 4000;
         break;
 
         // Unsupported transport methods
@@ -267,11 +272,6 @@ bool core_sinput_init(core_params_s *params)
     params->core_report_format    = CORE_REPORTFORMAT_SINPUT;
     params->core_report_generator = _core_sinput_get_generated_report;
     params->core_report_tunnel    = sinput_api_output_tunnel;
-
-    uint8_t *hid_descriptor;
-    uint16_t hid_descriptor_len;
-    uint8_t *config_descriptor;
-    uint16_t config_descriptor_len;
 
     sinput_hid_get_descriptor_params(
         &_sinput_hid_device.hid_report_descriptor, &_sinput_hid_device.hid_report_descriptor_len,
