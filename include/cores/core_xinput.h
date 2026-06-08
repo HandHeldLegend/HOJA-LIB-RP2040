@@ -6,6 +6,7 @@
 #define CORE_XINPUT_REPORT_LEN 20
 #define CORE_XINPUT_REPORT_ID  0x00
 
+#pragma pack(push, 1)
 typedef struct
 {
     uint8_t report_id;
@@ -48,8 +49,9 @@ typedef struct
 	short stick_right_y;
 	uint8_t reserved_1[6];
 } core_xinput_report_s;
+#pragma pack(pop)
 
-#define CORE_XINPUT_REPORT_SIZE 64 // Send 64 bytes...
+#define CORE_XINPUT_REPORT_SIZE sizeof(core_xinput_report_s)
 
 bool core_xinput_init(core_params_s *params);
 

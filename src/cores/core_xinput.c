@@ -172,7 +172,7 @@ bool _core_xinput_get_generated_report(core_report_s *out)
     mapper_input_s input = mapper_get_input();
 
     data->report_id   = CORE_XINPUT_REPORT_ID;
-    data->report_size = CORE_XINPUT_REPORT_LEN;
+    data->report_size = CORE_XINPUT_REPORT_SIZE;
 
     data->stick_left_x  = _core_xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LX_LEFT], input.inputs[XINPUT_CODE_LX_RIGHT]));
     data->stick_left_y  = _core_xinput_scale_axis((int16_t) mapper_joystick_concat(0, input.inputs[XINPUT_CODE_LY_DOWN], input.inputs[XINPUT_CODE_LY_UP]));
