@@ -7,3 +7,6 @@
 [submodule "external/HOJA-LIB-DONGLE"]
 	path = external/HOJA-LIB-DONGLE
 	url = https://github.com/HandHeldLegend/HOJA-LIB-DONGLE
+[submodule "external/HHL-TINYUSB-DRIVERS"]
+	path = external/HHL-TINYUSB-DRIVERS
+	url = https://github.com/HandHeldLegend/HHL-TINYUSB-DRIVERS

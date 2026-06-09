@@ -3,7 +3,6 @@
 #include "input_shared_types.h"
 
 #include "utilities/settings.h"
-#include "hal/sys_hal.h"
 
 #include "input/analog.h"
 #include "input/imu.h"
@@ -13,10 +12,7 @@
 
 #include "hoja.h"
 
-#include "bsp/board.h"
-#include "tusb.h"
-
-#define WEBUSB_ITF 0
+#include "hhl_tusb.h"
 
 uint8_t _webusb_focused_hover = 0;
 uint8_t _webusb_report_mode = WEBUSB_INPUT_RAW;
@@ -32,46 +28,18 @@ bool webusb_outputting_check()
 // Set timeout to value greater than zero.
 bool webusb_ready_blocking(int timeout)
 {
-    if (timeout > 0)
-    {
-        int internal = timeout;
-        while (!tud_vendor_n_write_available(WEBUSB_ITF) && (internal > 0))
-        {
-            sys_hal_sleep_ms(1);
-            tud_task();
-            internal--;
-        }
-
-        if (!internal)
-        {
-            return false;
-        }
-
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
+    return hhl_tusb_webusb_report_ready_blocking(timeout);
 }
 
 
-uint8_t _webusb_out_buffer[64] = {0x00};
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {
-    if(!_ready_to_go) return;
-
-    memset(_webusb_out_buffer, 0, 64);
-    memcpy(_webusb_out_buffer, data, size);
-
-    if(webusb_ready_blocking(256))
+    if (!_ready_to_go)
     {
-        tud_vendor_n_write(0, _webusb_out_buffer, 64);
-        tud_vendor_n_flush(0);
+        return;
     }
-    else 
+
+    if (!hhl_tusb_webusb_report_send(data, size))
     {
         _ready_to_go = false;
     }
@@ -179,8 +147,10 @@ void webusb_send_rawinput(uint64_t timestamp)
             break;
         }
 
-        tud_vendor_n_write(0, webusb_input_report, 64);
-        tud_vendor_n_flush(0);
+        if (!hhl_tusb_webusb_report_send(webusb_input_report, 64))
+        {
+            _ready_to_go = false;
+        }
 
         ready = false;
     }

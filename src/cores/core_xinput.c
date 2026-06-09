@@ -4,90 +4,19 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 
-#define XINPUT_HID_NAME "XInput Gamepad"
-#define XINPUT_VID 0x045E
-#define XINPUT_PID 0x028E
+// USB device/config descriptors are owned by the HHL-TINYUSB-DRIVERS library
+#include "hhl_tusb_xinput.h"
 
-
-const hoja_usb_device_descriptor_t _xinput_device_descriptor ={
-    .bLength = sizeof(hoja_usb_device_descriptor_t),
-    .bDescriptorType = HUSB_DESC_DEVICE,
-    .bcdUSB = 0x0200,
-    .bDeviceClass = 0xFF,
-    .bDeviceSubClass = 0xFF,
-    .bDeviceProtocol = 0xFF,
-    .bMaxPacketSize0 =
-        64,
-
-    .idVendor = XINPUT_VID,
-    .idProduct = XINPUT_PID,
-    .bcdDevice = 0x0572,
-
-    .iManufacturer = 0x01,
-    .iProduct = 0x02,
-    .iSerialNumber = 0x03,
-
-    .bNumConfigurations = 0x01
-};
-
-#define XINPUT_CONFIG_DESCRIPTOR_LEN 48
-const uint8_t _xinput_configuration_descriptor[48] = {
-    0x09,       // bLength
-    0x02,       // bDescriptorType (Configuration)
-    0x30, 0x00, // wTotalLength 48
-    0x01,       // bNumInterfaces 1
-    0x01,       // bConfigurationValue
-    0x00,       // iConfiguration (String Index)
-    0x80,       // bmAttributes
-    0xFA,       // bMaxPower 500mA
-
-    0x09, // bLength
-    0x04, // bDescriptorType (Interface)
-    0x00, // bInterfaceNumber 0
-    0x00, // bAlternateSetting
-    0x02, // bNumEndpoints 2
-    0xFF, // bInterfaceClass
-    0x5D, // bInterfaceSubClass
-    0x01, // bInterfaceProtocol
-    0x00, // iInterface (String Index)
-
-    0x10,       // bLength
-    0x21,       // bDescriptorType (HID)
-    0x10, 0x01, // bcdHID 1.10
-    0x01,       // bCountryCode
-    0x24,       // bNumDescriptors
-    0x81,       // bDescriptorType[0] (Unknown 0x81)
-    0x14, 0x03, // wDescriptorLength[0] 788
-    0x00,       // bDescriptorType[1] (Unknown 0x00)
-    0x03, 0x13, // wDescriptorLength[1] 4867
-    0x02,       // bDescriptorType[2] (Unknown 0x02)
-    0x00, 0x03, // wDescriptorLength[2] 768
-    0x00,       // bDescriptorType[3] (Unknown 0x00)
-
-    0x07,       // bLength
-    0x05,       // bDescriptorType (Endpoint)
-    0x81,       // bEndpointAddress (IN/D2H)
-    0x03,       // bmAttributes (Interrupt)
-    0x20, 0x00, // wMaxPacketSize 32
-    0x01,       // bInterval 4 (unit depends on device speed)
-
-    0x07,       // bLength
-    0x05,       // bDescriptorType (Endpoint)
-    0x02,       // bEndpointAddress (OUT/H2D)
-    0x03,       // bmAttributes (Interrupt)
-    0x20, 0x00, // wMaxPacketSize 32
-    0x01,       // bInterval 8 (unit depends on device speed)
-};
-
-const core_hid_device_t _xinput_hid_device = {
-    .config_descriptor      = _xinput_configuration_descriptor,
-    .config_descriptor_len  = XINPUT_CONFIG_DESCRIPTOR_LEN,
-    // .hid_report_descriptor  = ,
-    // .hid_report_descriptor_len = ,
-    .device_descriptor      = &_xinput_device_descriptor,
-    .name = XINPUT_HID_NAME,
-    .pid = XINPUT_PID,
-    .vid = XINPUT_VID,
+// Descriptor pointers are populated from the driver library at init time.
+static core_hid_device_t _xinput_hid_device = {
+    .config_descriptor          = NULL,
+    .config_descriptor_len      = 0,
+    .hid_report_descriptor      = NULL,
+    .hid_report_descriptor_len  = 0,
+    .device_descriptor          = NULL,
+    .name = HHL_TUSB_XINPUT_NAME,
+    .pid  = HHL_TUSB_XINPUT_PID,
+    .vid  = HHL_TUSB_XINPUT_VID,
 };
 
 #define CORE_XINPUT_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
@@ -215,6 +144,9 @@ bool core_xinput_init(core_params_s *params)
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
+        _xinput_hid_device.device_descriptor     = (const hoja_usb_device_descriptor_t *)hhl_tusb_xinput_device_descriptor();
+        _xinput_hid_device.config_descriptor     = hhl_tusb_xinput_configuration_descriptor();
+        _xinput_hid_device.config_descriptor_len = hhl_tusb_xinput_configuration_descriptor_len();
         params->hid_device = &_xinput_hid_device;
         params->core_pollrate_us = 1000;
         break;

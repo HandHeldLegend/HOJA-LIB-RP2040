@@ -27,6 +27,9 @@ typedef struct
     uint16_t pid;
     char name[32];
     const hoja_usb_device_descriptor_t *device_descriptor;
+    // Optional: override the configuration descriptor's bMaxPower (in mA).
+    // 0 keeps whatever the config descriptor already specifies.
+    uint16_t max_power_ma;
 } core_hid_device_t;
 
 #define CORE_REPORT_DATA_LEN 64

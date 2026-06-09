@@ -79,6 +79,12 @@ static dongle_mode_t _wlan_mode_from_format(core_reportformat_t fmt)
     }
 }
 
+#if !defined(HOJA_DEVICE_MAKER)
+#define WLAN_DGP_MAKER "HHL"
+#else
+#define WLAN_DGP_MAKER HOJA_DEVICE_MAKER
+#endif
+
 static void _wlan_fill_dgp_cfg(core_params_s *params)
 {
     memset(&_wlan_dgp_cfg, 0, sizeof(_wlan_dgp_cfg));
@@ -88,11 +94,13 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
     _wlan_dgp_cfg.evt.player_number = true;
     _wlan_dgp_cfg.evt.transport_status = true;
 
+    dongle_wake_strcopy(_wlan_dgp_cfg.manufacturer, DONGLE_WAKE_MANUFACTURER_LEN, WLAN_DGP_MAKER);
+
     if (params->hid_device != NULL)
     {
         _wlan_dgp_cfg.vid = params->hid_device->vid;
         _wlan_dgp_cfg.pid = params->hid_device->pid;
-        memcpy(_wlan_dgp_cfg.name, params->hid_device->name, sizeof(params->hid_device->name));
+        dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, params->hid_device->name);
     }
 }
 

@@ -100,8 +100,10 @@
 #define CFG_TUD_MSC               0
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            2
-#define CFG_TUD_GC                1
-#define CFG_TUD_XINPUT            1
+
+// Custom class driver counts / endpoint buffer sizes owned by HHL-TINYUSB-DRIVERS
+// (CFG_TUD_GC, CFG_TUD_XINPUT and their *_BUFSIZE values).
+#include "hhl_tusb_config.h"
 
 // HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_EP_BUFSIZE    64
