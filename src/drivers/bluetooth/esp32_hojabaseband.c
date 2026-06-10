@@ -21,6 +21,8 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
+#include "transport/transport_bt.h"
+
 #include "cores/core_switch.h"
 
 #include "input/mapper.h"
@@ -781,8 +783,9 @@ void transport_bt_task(uint64_t timestamp)
 
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
-// In this context we return the firmware version
-uint32_t transport_bt_test()
+static uint16_t _esp32_static_cached_version = 0;
+
+static uint32_t _esp32_bt_probe_version(void)
 {
     uint32_t ret_info = 0x00;
 
@@ -798,13 +801,14 @@ uint32_t transport_bt_test()
         data_out[0] = I2C_CMD_FIRMWARE_VERSION;
 
         int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 10000);
+        (void)stat;
         sys_hal_sleep_ms(4);
         int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
 
         if (read == HOJA_I2C_MSG_SIZE_IN)
         {
-            uint16_t version = (data_in[1] << 8) | (data_in[2]);
-            ret_info |= version;
+            uint16_t version = (uint16_t)((data_in[1] << 8) | data_in[2]);
+            ret_info = version;
 
             _esp32hoja_enable_chip(false);
             return ret_info;
@@ -813,6 +817,30 @@ uint32_t transport_bt_test()
 
     _esp32hoja_enable_chip(false);
     return 0x00;
+}
+
+void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
+{
+    if (caps == NULL)
+    {
+        return;
+    }
+
+    caps->bdr_supported = 1;
+    caps->ble_supported = 0;
+    caps->external_update_supported = 1;
+}
+
+uint8_t transport_bt_static_part_status(void)
+{
+    uint32_t version = _esp32_bt_probe_version();
+    _esp32_static_cached_version = (uint16_t)version;
+    return version > 0u ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
+}
+
+uint16_t transport_bt_static_external_version(void)
+{
+    return _esp32_static_cached_version;
 }
 
 #endif

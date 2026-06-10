@@ -404,13 +404,13 @@ doTransportParse:
             {
             case GAMEPAD_MODE_SWPRO:
             case GAMEPAD_MODE_SINPUT:
-            case GAMEPAD_MODE_XINPUT:
                 thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
                 break;
 
             case GAMEPAD_MODE_GCUSB:
             case GAMEPAD_MODE_N64:
             case GAMEPAD_MODE_GAMECUBE:
+            case GAMEPAD_MODE_XINPUT:
                 thisTransport = GAMEPAD_TRANSPORT_WLAN;
                 break;
 

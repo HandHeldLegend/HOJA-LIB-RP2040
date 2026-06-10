@@ -15,6 +15,7 @@
 
 #include <string.h>
 
+#include "transport/transport_bt.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "utilities/interval.h"
@@ -538,16 +539,38 @@ void transport_bt_task(uint64_t timestamp)
     }
 }
 
-uint32_t transport_bt_test()
+static uint32_t _bt_hal_probe_wireless(void)
 {
     // If the init fails it returns true lol
     if (cyw43_arch_init())
     {
-        return 0x00; // Return 0 for nothing
+        return 0x00;
     }
 
     cyw43_arch_deinit();
-    return 1; // PASS
+    return 1;
+}
+
+void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
+{
+    if (caps == NULL)
+    {
+        return;
+    }
+
+    caps->bdr_supported = 1;
+    caps->ble_supported = 0;
+    caps->external_update_supported = 0;
+}
+
+uint8_t transport_bt_static_part_status(void)
+{
+    return _bt_hal_probe_wireless() > 0u ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
+}
+
+uint16_t transport_bt_static_external_version(void)
+{
+    return 0;
 }
 
 #endif

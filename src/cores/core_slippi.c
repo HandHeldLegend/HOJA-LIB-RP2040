@@ -18,6 +18,7 @@ static core_hid_device_t _slippi_hid_device = {
     .device_descriptor          = NULL,
     .pid = HHL_TUSB_SLIPPI_PID,
     .vid = HHL_TUSB_SLIPPI_VID,
+    .name = "GameCube Adapter",
 };
 
 void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
@@ -133,6 +134,16 @@ bool _core_slippi_get_generated_report(core_report_s *out)
 
 /*------------------------------------------------*/
 
+static void _core_slippi_populate_hid_device(void)
+{
+    _slippi_hid_device.device_descriptor         =
+        (const hoja_usb_device_descriptor_t *)hhl_tusb_slippi_device_descriptor();
+    _slippi_hid_device.config_descriptor         = hhl_tusb_slippi_configuration_descriptor();
+    _slippi_hid_device.config_descriptor_len     = hhl_tusb_slippi_configuration_descriptor_len();
+    _slippi_hid_device.hid_report_descriptor     = hhl_tusb_slippi_hid_report_descriptor();
+    _slippi_hid_device.hid_report_descriptor_len = hhl_tusb_slippi_hid_report_descriptor_len();
+}
+
 // Public Functions
 bool core_slippi_init(core_params_s *params)
 {
@@ -140,12 +151,6 @@ bool core_slippi_init(core_params_s *params)
     {
         case GAMEPAD_TRANSPORT_USB:
         params->core_pollrate_us = 1000;
-        _slippi_hid_device.device_descriptor         = (const hoja_usb_device_descriptor_t *)hhl_tusb_slippi_device_descriptor();
-        _slippi_hid_device.config_descriptor         = hhl_tusb_slippi_configuration_descriptor();
-        _slippi_hid_device.config_descriptor_len     = hhl_tusb_slippi_configuration_descriptor_len();
-        _slippi_hid_device.hid_report_descriptor     = hhl_tusb_slippi_hid_report_descriptor();
-        _slippi_hid_device.hid_report_descriptor_len = hhl_tusb_slippi_hid_report_descriptor_len();
-        params->hid_device = &_slippi_hid_device;
         break;
 
         case GAMEPAD_TRANSPORT_WLAN:
@@ -156,6 +161,9 @@ bool core_slippi_init(core_params_s *params)
         default:
         return false;
     }
+
+    _core_slippi_populate_hid_device();
+    params->hid_device = &_slippi_hid_device;
     
     params->core_report_format       = CORE_REPORTFORMAT_SLIPPI;
     params->core_report_generator    = _core_slippi_get_generated_report;

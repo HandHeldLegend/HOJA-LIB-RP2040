@@ -213,6 +213,11 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_GAMEPAD:
             write_to_ptr = live_settings.gamepad_configuration_block;
+            if (completed)
+            {
+                gamepad_config->wlan_dongle_key =
+                    (uint16_t)(gamepad_config->wlan_dongle_key % 10000u);
+            }
         break;
 
         case CFG_BLOCK_HOVER:

@@ -1,5 +1,7 @@
 #include "cores/core_xinput.h"
 
+#include <string.h>
+
 #include <hoja_usb.h>
 #include "cores/cores.h"
 #include "transport/transport.h"
@@ -139,21 +141,36 @@ bool _core_xinput_get_generated_report(core_report_s *out)
     return true;
 }
 
+static void _core_xinput_populate_hid_device(void)
+{
+    _xinput_hid_device.device_descriptor     =
+        (const hoja_usb_device_descriptor_t *)hhl_tusb_xinput_device_descriptor();
+    _xinput_hid_device.config_descriptor     = hhl_tusb_xinput_configuration_descriptor();
+    _xinput_hid_device.config_descriptor_len = hhl_tusb_xinput_configuration_descriptor_len();
+}
+
 bool core_xinput_init(core_params_s *params)
 {
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
-        _xinput_hid_device.device_descriptor     = (const hoja_usb_device_descriptor_t *)hhl_tusb_xinput_device_descriptor();
-        _xinput_hid_device.config_descriptor     = hhl_tusb_xinput_configuration_descriptor();
-        _xinput_hid_device.config_descriptor_len = hhl_tusb_xinput_configuration_descriptor_len();
-        params->hid_device = &_xinput_hid_device;
         params->core_pollrate_us = 1000;
         break;
-        
+
+        /*
+         * WLAN dongle mode: the dongle owns USB to the host. Advertise XInput
+         * identity in the WAKE packet and tunnel reports over Wi-Fi.
+         */
+        case GAMEPAD_TRANSPORT_WLAN:
+        params->core_pollrate_us = 2000;
+        break;
+
         default:
         return false;
     }
+
+    _core_xinput_populate_hid_device();
+    params->hid_device = &_xinput_hid_device;
 
     params->core_report_format = CORE_REPORTFORMAT_XINPUT;
     params->core_report_generator = _core_xinput_get_generated_report;

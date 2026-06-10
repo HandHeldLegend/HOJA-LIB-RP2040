@@ -3,10 +3,36 @@
 #include "cores/core_n64.h"
 #include "transport/transport.h"
 
+#include "board_config.h"
+
 #include "input/mapper.h"
 #include "input/dpad.h"
 
 #include "hoja_shared_types.h"
+
+#if defined(HOJA_USB_VID)
+#define CORE_N64_WLAN_VID HOJA_USB_VID
+#else
+#define CORE_N64_WLAN_VID 0
+#endif
+
+#if defined(HOJA_USB_PID)
+#define CORE_N64_WLAN_PID HOJA_USB_PID
+#else
+#define CORE_N64_WLAN_PID 0
+#endif
+
+#if defined(HOJA_DEVICE_NAME)
+#define CORE_N64_WLAN_NAME HOJA_DEVICE_NAME
+#else
+#define CORE_N64_WLAN_NAME "N64 Controller"
+#endif
+
+static core_hid_device_t _n64_wlan_hid = {
+    .vid  = CORE_N64_WLAN_VID,
+    .pid  = CORE_N64_WLAN_PID,
+    .name = CORE_N64_WLAN_NAME,
+};
 
 #define CORE_N64_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
@@ -72,6 +98,7 @@ bool core_n64_init(core_params_s *params)
 
         case GAMEPAD_TRANSPORT_WLAN:
         params->core_pollrate_us = 2000;
+        params->hid_device = &_n64_wlan_hid;
         break;
 
         // Unsupported transport methods

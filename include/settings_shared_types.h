@@ -207,9 +207,11 @@ typedef struct
     uint8_t  host_mac_switch[6];    // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
-    uint16_t wlan_dongle_key;       // 4 digit value for WLAN dongle pairing
+    uint16_t wlan_dongle_key;       // WLAN dongle pairing pin (0000-9999)
     uint8_t  reserved[25];
 } gamepadConfig_s;
+
+_Static_assert(sizeof(gamepadConfig_s) == 64, "gamepadConfig_s must remain 64 bytes");
 
 // Calibration data used for analog inputs (non-joystick)
 typedef struct 

@@ -3,7 +3,6 @@
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER) && (HOJA_TRANSPORT_WLAN_DRIVER == WLAN_DRIVER_HAL)
 
 #include <string.h>
-#include <stdio.h>
 
 #include "hoja.h"
 
@@ -26,6 +25,7 @@
 
 #include "dongle.h"
 #include "dongle_gamepad.h"
+#include "transport/transport_wlan.h"
 
 /*
  * HOJA WLAN dongle transport — platform adapter for HOJA-LIB-DONGLE gamepad SM.
@@ -102,6 +102,19 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
         _wlan_dgp_cfg.pid = params->hid_device->pid;
         dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, params->hid_device->name);
     }
+#if defined(HOJA_USB_VID) && defined(HOJA_USB_PID)
+    else
+    {
+        _wlan_dgp_cfg.vid = HOJA_USB_VID;
+        _wlan_dgp_cfg.pid = HOJA_USB_PID;
+    #if defined(HOJA_DEVICE_NAME)
+        dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, HOJA_DEVICE_NAME);
+    #endif
+    }
+#endif
+
+    dongle_wlan_pin_from_u16((uint16_t)(gamepad_config->wlan_dongle_key % 10000u),
+                             _wlan_dgp_cfg.pin);
 }
 
 static bool _wlan_radio_init(void)
@@ -220,17 +233,7 @@ void dongle_api_gamepad_hook_connect_async(const char *ssid, const char *pw)
     cyw43_wifi_set_roam_enabled(&cyw43_state, false);
     cyw43_wifi_set_interference_mode(&cyw43_state, CYW43_IFMODE_NONE);
 
-    const char *join_ssid = ssid;
-
-    if (gamepad_config->wlan_dongle_key != 0u)
-    {
-        static char local_ssid[32];
-        snprintf(local_ssid, sizeof(local_ssid), "HOJA_WLAN_%04u",
-                 (unsigned)gamepad_config->wlan_dongle_key);
-        join_ssid = local_ssid;
-    }
-
-    cyw43_arch_wifi_connect_async(join_ssid, pw, CYW43_AUTH_WPA2_AES_PSK);
+    cyw43_arch_wifi_connect_async(ssid, pw, CYW43_AUTH_WPA2_AES_PSK);
 }
 
 void dongle_api_gamepad_hook_udp_tx(const dongle_pkt_s *pkt, uint8_t ip[4], uint16_t port)
@@ -259,10 +262,16 @@ bool dongle_api_gamepad_hook_get_inputreport(uint8_t data[64], uint16_t *len, bo
         return false;
 
     memset(data, 0, 64);
-    memcpy(data, report.data, 64);
+
+    uint16_t n = report.size;
+    if (n > 64)
+        n = 64;
+
+    if (n > 0)
+        memcpy(data, report.data, n);
 
     if (len != NULL)
-        *len = 64;
+        *len = n;
 
     if (reliable != NULL)
         *reliable = report.reliable;
@@ -375,6 +384,27 @@ void transport_wlan_task(uint64_t timestamp)
             _wlan_core_params->sys_gyro_task();
         }
     }
+}
+
+static uint32_t _wlan_hal_probe_wireless(void)
+{
+    if (cyw43_arch_init())
+    {
+        return 0;
+    }
+
+    cyw43_arch_deinit();
+    return 1;
+}
+
+uint8_t transport_wlan_static_supported(void)
+{
+    return 1;
+}
+
+uint8_t transport_wlan_static_part_status(void)
+{
+    return _wlan_hal_probe_wireless() > 0u ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
 }
 
 #endif

@@ -9,6 +9,7 @@
 // Bluetooth driver nonsense
 #include "devices/bluetooth.h"
 #include "transport/transport_bt.h"
+#include "transport/transport_wlan.h"
 
 #include <string.h>
 
@@ -212,29 +213,7 @@ const inputInfoStatic_s input_static = {
     .input_info = HOJA_INPUT_SLOTS
 };
 
-#if defined(HOJA_BLUETOOTH_DRIVER)
-    #if (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_ESP32HOJA)
-        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
-            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
-            #define HOJA_BLUETOOTH_PART_NUMBER "ESP32"
-        #endif
-        #define STATBT_EXTERNAL_UPDATES 1
-        #define STATBT_BDR_EN 1
-        #define STATBT_BLE_EN 0
-    #elif (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
-        #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
-            #warning "HOJA_BLUETOOTH_PART_NUMBER undefined in board_config.h."
-            #define HOJA_BLUETOOTH_PART_NUMBER "BT Device"
-        #endif
-        #define STATBT_EXTERNAL_UPDATES 0
-        #define STATBT_BDR_EN 1
-        #define STATBT_BLE_EN 0
-    #endif
-#else 
-    #warning "HOJA_BLUETOOTH_DRIVER undefined. Bluetooth features will be disabled."
-    #define STATBT_BDR_EN 0
-    #define STATBT_BLE_EN 0
-    #define STATBT_EXTERNAL_UPDATES 0
+#if !defined(HOJA_BLUETOOTH_PART_NUMBER)
     #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
 #endif
 
@@ -242,14 +221,9 @@ const inputInfoStatic_s input_static = {
     #define HOJA_BLUETOOTH_FCC_ID "N/A"
 #endif
 
-// Dynamic BT
 bluetoothInfoStatic_s bluetooth_static = {
-    .bluetooth_bdr_supported = STATBT_BDR_EN,
-    .bluetooth_ble_supported = STATBT_BLE_EN, 
-    .external_update_supported = STATBT_EXTERNAL_UPDATES,
     .part_number = HOJA_BLUETOOTH_PART_NUMBER,
-    .external_version_number = 0x0000, // Needs to be filled later
-    .fcc_id = HOJA_BLUETOOTH_FCC_ID
+    .fcc_id = HOJA_BLUETOOTH_FCC_ID,
 };
 
 #if !defined(HOJA_RGB_GROUPS_NUM)
@@ -326,10 +300,65 @@ void _analog_static_setup()
 
 #define BLOCK_CHUNK_HEADER_SIZE 4
 
+static void _bluetooth_static_apply_caps(void)
+{
+    transport_bt_static_caps_s bt_caps = {0};
+
+    transport_bt_static_get_caps(&bt_caps);
+    bluetooth_static.bluetooth_bdr_supported = bt_caps.bdr_supported;
+    bluetooth_static.bluetooth_ble_supported = bt_caps.ble_supported;
+    bluetooth_static.external_update_supported = bt_caps.external_update_supported;
+    bluetooth_static.wlan_supported = transport_wlan_static_supported();
+}
+
+static uint8_t _wireless_part_status_combine(uint8_t bt_status, uint8_t wlan_status)
+{
+    if (bt_status == WIRELESS_PART_STATUS_ERROR || wlan_status == WIRELESS_PART_STATUS_ERROR)
+    {
+        return WIRELESS_PART_STATUS_ERROR;
+    }
+
+    bool bt_probed = bt_status != WIRELESS_PART_STATUS_NA;
+    bool wlan_probed = wlan_status != WIRELESS_PART_STATUS_NA;
+
+    if (!bt_probed && !wlan_probed)
+    {
+        return WIRELESS_PART_STATUS_NA;
+    }
+
+    if (bt_probed && bt_status != WIRELESS_PART_STATUS_OK)
+    {
+        return WIRELESS_PART_STATUS_ERROR;
+    }
+
+    if (wlan_probed && wlan_status != WIRELESS_PART_STATUS_OK)
+    {
+        return WIRELESS_PART_STATUS_ERROR;
+    }
+
+    return WIRELESS_PART_STATUS_OK;
+}
+
+/** Probe wireless hardware and refresh runtime bluetooth/wlan static fields. */
+static void _bluetooth_static_refresh(void)
+{
+    uint8_t bt_status = transport_bt_static_part_status();
+    uint8_t wlan_status = transport_wlan_static_part_status();
+    uint8_t overall_status = _wireless_part_status_combine(bt_status, wlan_status);
+
+    bluetooth_static.wireless_part_status = overall_status;
+    bluetooth_static.external_version_number = transport_bt_static_external_version();
+
+    memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
+    strncpy((char *)bluetooth_static.part_number, HOJA_BLUETOOTH_PART_NUMBER,
+        sizeof(bluetooth_static.part_number) - 1u);
+}
+
 void static_config_init()
 {
     _rgb_static_set_names();
     _analog_static_setup();
+    _bluetooth_static_apply_caps();
 }
 
 uint8_t _serdata[64] = {0};
@@ -424,15 +453,7 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
-            // Set our Bluetooth baseband version
-            bool test = transport_bt_test() > 0;
-            bluetooth_static.external_version_number = 1;
-            const char* error = "ERROR ";
-            if(!test)
-            {
-                memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
-                memcpy(bluetooth_static.part_number, error, sizeof(error+1));
-            }
+            _bluetooth_static_refresh();
             _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
         break;
 
