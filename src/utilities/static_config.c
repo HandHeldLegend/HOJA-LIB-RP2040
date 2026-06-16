@@ -113,21 +113,9 @@ const imuInfoStatic_s imu_static = {
     .axis_accel_b = IMU_AVAILABLE,
 };
 
-#if !defined(HOJA_BATTERY_CAPACITY_MAH)
- #warning "HOJA_BATTERY_CAPACITY_MAH undefined in board_config.h. Battery features will be disabled."
- #define HOJA_BATTERY_CAPACITY_MAH 0
-#endif
-
 #if !defined(HOJA_BATTERY_PART_CODE)
  #warning "HOJA_BATTERY_PART_CODE undefined in board_config.h."
  #define HOJA_BATTERY_PART_CODE "N/A"
-#endif
-
-#if !defined(HOJA_BATTERY_PMIC_PART_NUMBER)
- #warning "HOJA_BATTERY_PMIC_PART_NUMBER undefined in board_config.h."
- #define HOJA_BATTERY_PMIC_PART_NUMBER "N/A"
-
- #define PMIC_IGNORE_STATUS 1
 #endif
 
 #if !defined(HOJA_BATTERY_FUELGAUGE_PART_NUMBER)
@@ -137,10 +125,12 @@ const imuInfoStatic_s imu_static = {
  #define FUELGAUGE_IGNORE_STATUS 1
 #endif
 
+// capacity (hoja config) and pmic_part_number (battery driver) are populated
+// at runtime in _battery_static_refresh().
 batteryInfoStatic_s battery_static = {
-    .battery_capacity_mah = HOJA_BATTERY_CAPACITY_MAH,
+    .battery_capacity_mah = 0,
     .battery_part_number  = HOJA_BATTERY_PART_CODE,
-    .pmic_part_number = HOJA_BATTERY_PMIC_PART_NUMBER,
+    .pmic_part_number = "N/A",
     .fuelgauge_part_number = HOJA_BATTERY_FUELGAUGE_PART_NUMBER,
 };
 
@@ -354,11 +344,28 @@ static void _bluetooth_static_refresh(void)
         sizeof(bluetooth_static.part_number) - 1u);
 }
 
+/** Refresh runtime battery static fields sourced from the hoja config/driver. */
+static void _battery_static_refresh(void)
+{
+    const hoja_config_s *config = hoja_config_get();
+    const battery_driver_s *drv = config ? config->battery_driver : NULL;
+
+    // Capacity is a generic board parameter carried in the hoja config.
+    battery_static.battery_capacity_mah = config ? config->battery_capacity_mah : 0;
+
+    // PMIC part number is supplied by the assigned battery driver.
+    const char *pmic = (drv && drv->api && drv->api->part_code) ? drv->api->part_code : "N/A";
+    memset(battery_static.pmic_part_number, 0, sizeof(battery_static.pmic_part_number));
+    strncpy((char *)battery_static.pmic_part_number, pmic,
+        sizeof(battery_static.pmic_part_number) - 1u);
+}
+
 void static_config_init()
 {
     _rgb_static_set_names();
     _analog_static_setup();
     _bluetooth_static_apply_caps();
+    _battery_static_refresh();
 }
 
 uint8_t _serdata[64] = {0};
@@ -443,11 +450,11 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
             battery_static.fuelgauge_status = fgstat.connected ? 2 : 1;
             #endif
 
-            #if defined(PMIC_IGNORE_STATUS)
-            battery_static.pmic_status = 0;
-            #else
-            battery_static.pmic_status = batstat.connected ? 2 : 1;
-            #endif
+            const hoja_config_s *bat_cfg = hoja_config_get();
+            if(!bat_cfg || !bat_cfg->battery_driver)
+                battery_static.pmic_status = 0; // No PMIC assigned for this board
+            else
+                battery_static.pmic_status = batstat.connected ? 2 : 1;
 
             _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
         break;

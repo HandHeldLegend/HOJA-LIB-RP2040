@@ -32,6 +32,13 @@
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
 
+static const hoja_config_s *_hoja_config = NULL;
+
+const hoja_config_s *hoja_config_get(void)
+{
+  return _hoja_config;
+}
+
 bool _hoja_null_cb(uint64_t timestamp)
 {
   return false;
@@ -346,7 +353,7 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
     battery_init();
 
   // Fuel gauge
-  fuelgauge_init(1200);
+  fuelgauge_init(_hoja_config ? _hoja_config->battery_capacity_mah : 0);
 
   // System Monitor
   sysmon_init();
@@ -380,8 +387,10 @@ bool _system_input_init()
   return true;
 }
 
-void hoja_init()
+void hoja_init(const hoja_config_s *config)
 {
+  _hoja_config = config;
+
   _system_requirements_init();
   _system_input_init();
 

@@ -9,8 +9,26 @@
 #include "input_shared_types.h"
 #include "devices_shared_types.h"
 
+#include "devices/battery.h"
+
 #include "input/analog.h"
 #include "utilities/callback.h"
+
+// Board-supplied driver/configuration bundle.
+// Boards populate this (typically a const instance) and register it from
+// cb_hoja_init() via hoja_config_set(). Device layers pull their assigned
+// driver from here during init. Fields are added per-subsystem as drivers
+// migrate to the injected-driver model.
+typedef struct
+{
+    const battery_driver_s *battery_driver;
+
+    // Board-specific battery pack capacity in mAh. Generic (not tied to any
+    // particular PMIC/fuel-gauge driver), so it lives directly in the config.
+    uint16_t battery_capacity_mah;
+} hoja_config_s;
+
+const hoja_config_s *hoja_config_get(void);
 
 void cb_hoja_shutdown();
 bool cb_hoja_boot(boot_input_s *boot);
@@ -36,6 +54,6 @@ hoja_status_s hoja_get_status();
 void hoja_restart();
 void hoja_shutdown();
 void hoja_deinit(callback_t cb);
-void hoja_init();
+void hoja_init(const hoja_config_s *config);
 
 #endif

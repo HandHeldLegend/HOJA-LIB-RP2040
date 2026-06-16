@@ -29,9 +29,8 @@ void macros_task(uint64_t timestamp)
     // Only run macros on successful button read
     if(!first_run) return;
 
-    #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
+    // Always run; battery_set_ship_mode() safely no-ops when no PMIC is present.
     macro_shutdown(timestamp, &input);
-    #endif
 
     #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
     macro_pairing(timestamp, &input);

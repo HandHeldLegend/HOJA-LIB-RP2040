@@ -77,7 +77,7 @@ bool _core_switch_get_generated_report(core_report_s *out)
         out->reportformat = CORE_REPORTFORMAT_SWPRO;
         out->size = _core_switch_report_size;
 
-        out->reliable = out->data != NS_INPUT_REPORT_ID_FULL;
+        out->reliable = out->data[0] != NS_INPUT_REPORT_ID_FULL;
         return true;
     }
     return false;
