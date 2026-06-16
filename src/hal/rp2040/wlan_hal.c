@@ -223,6 +223,7 @@ bool dongle_api_gamepad_hook_apply_static_ip(uint8_t addr[4], uint8_t mask[4], u
     netif_set_addr(nif, &target, &m, &gw);
 
     cyw43_wifi_pm(&cyw43_state, CYW43_NONE_PM);
+    //cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
 
     return true;
 }

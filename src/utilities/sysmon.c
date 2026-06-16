@@ -7,6 +7,13 @@
 
 #include "utilities/crosscore_snapshot.h"
 #include "hoja.h"
+#include "board_config.h"
+
+// SOC (%) at or below which an unplugged device begins critical shutdown.
+// Sane default of 5%; boards may override in board_config.h.
+#ifndef HOJA_BATTERY_SHUTDOWN_PERCENT
+#define HOJA_BATTERY_SHUTDOWN_PERCENT 5
+#endif
 
 battery_status_s _sysbattery = {.connected=false, .charging=false, .plugged=false};
 fuelgauge_status_s _sysfuel = {.connected=false, .percent=100};
@@ -121,7 +128,11 @@ void sysmon_task(uint64_t timestamp)
         {
             _sysfuel = tmp_fuel;
 
-            if(_sysfuel.simple == BATTERY_LEVEL_CRITICAL && !_sysbattery.plugged)
+            // Shut down at/below the configured SOC threshold. The gauge's 0%
+            // already includes margin (Terminate Voltage + learned load-spike
+            // delta), so a low threshold still leaves headroom for an orderly
+            // shutdown.
+            if(_sysfuel.percent <= HOJA_BATTERY_SHUTDOWN_PERCENT && !_sysbattery.plugged)
             {
                 sysmon_set_critical_shutdown();
             }

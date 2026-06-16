@@ -85,10 +85,10 @@ bool fuelgauge_init(uint16_t capacity_mah)
     // Fuel gauge isn't present or not responding
     if(!present) return false;
 
-    bool init = false;
+    bool init = true;
 
     #if defined(HOJA_FUELGAUGE_INIT)
-    HOJA_FUELGAUGE_INIT(capacity_mah);
+    init = HOJA_FUELGAUGE_INIT(capacity_mah);
     #endif 
 
     // Fuel gauge init failure
@@ -101,4 +101,7 @@ bool fuelgauge_init(uint16_t capacity_mah)
     #endif 
 
     _fuelgauge_set_percent(percent);
+    _fuelgauge_set_connected(true);
+
+    return true;
 }

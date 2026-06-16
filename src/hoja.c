@@ -223,6 +223,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
 }
 
 #include "hardware/sync.h"
+#include "devices/fuelgauge.h"
 
 // Core 1 task loop entrypoint
 void _hoja_task_1()

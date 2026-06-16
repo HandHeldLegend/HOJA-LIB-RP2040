@@ -18,15 +18,16 @@
         #error "HOJA_FUELGAUGE_I2C_INSTANCE undefined in board_config.h" 
     #endif
 
-    #define HOJA_FUELGAUGE_PRESENT()          bq27621g1_is_present()
-    #define HOJA_FUELGAUGE_INIT(capacity_mah) bq27621g1_init(capacity_mah)
-    #define HOJA_FUELGAUGE_GETPERCENT()       bq27621g1_get_percent()
-    #define HOJA_FUELGAUGE_GET_STATUS()       bq27621g1_get_status()
+    #define HOJA_FUELGAUGE_PRESENT()            bq27621g1_is_present()
+    #define HOJA_FUELGAUGE_INIT(capacity_mah)   bq27621g1_init(capacity_mah)
+    #define HOJA_FUELGAUGE_GETPERCENT()         bq27621g1_get_percent()
+    #define HOJA_FUELGAUGE_GET_STATUS()         bq27621g1_get_status()
 #endif
 
 fuelgauge_status_s bq27621g1_get_status(void);
 bool bq27621g1_is_present(void);
 uint8_t bq27621g1_get_percent(void);
 bool bq27621g1_init(uint16_t capacity_mah);
+bool bq27621g1_verify(uint16_t capacity_mah);
 
 #endif
