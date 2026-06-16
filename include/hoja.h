@@ -10,6 +10,7 @@
 #include "devices_shared_types.h"
 
 #include "devices/battery.h"
+#include "devices/fuelgauge.h"
 
 #include "input/analog.h"
 #include "utilities/callback.h"
@@ -21,11 +22,21 @@
 // migrate to the injected-driver model.
 typedef struct
 {
-    const battery_driver_s *battery_driver;
+    const battery_driver_s   *battery_driver;
+    const fuelgauge_driver_s *fuelgauge_driver;
 
     // Board-specific battery pack capacity in mAh. Generic (not tied to any
     // particular PMIC/fuel-gauge driver), so it lives directly in the config.
+    // Used to program the fuel gauge during init.
     uint16_t battery_capacity_mah;
+
+    // Physical battery pack code (e.g. "BDT 903035"). Board-specific; surfaced
+    // to the config tool. NULL falls back to "N/A".
+    const char *battery_part_code;
+
+    // Optional override for the SOC (%) at/below which an unplugged device
+    // begins critical shutdown. 0 uses the library default (5%).
+    uint8_t battery_shutdown_percent;
 } hoja_config_s;
 
 const hoja_config_s *hoja_config_get(void);

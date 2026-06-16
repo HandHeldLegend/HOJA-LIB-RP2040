@@ -9,6 +9,7 @@
 #include "hoja_bsp.h"
 
 #include "devices/bluetooth.h"
+#include "devices/fuelgauge.h"
 
 #include "input/imu.h"
 #include "input/analog.h"
@@ -52,6 +53,14 @@ void esp32hoja_task(uint64_t timestamp);
 int esp32hoja_hwtest();
 
 uint32_t esp32hoja_get_fwversion();
+
+// Optional fuel gauge driver bundled with the ESP32 baseband. A board using
+// the ESP32 bluetooth driver may point hoja_config_s.fuelgauge_driver at this
+// to use the ESP32 module as its fuel gauge source. Entirely optional.
+extern const fuelgauge_driver_s esp32hoja_fuelgauge_driver;
+
+// Feed latest state-of-charge in from the ESP32 telemetry path.
+void esp32hoja_fuelgauge_report(uint8_t percent, bool connected);
 
 #endif
 #endif 

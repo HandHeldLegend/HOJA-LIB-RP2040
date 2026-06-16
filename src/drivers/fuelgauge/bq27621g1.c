@@ -2,8 +2,6 @@
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
 
-#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
-
 // This driver mirrors the verified ChromiumOS EC bq27621-G1 battery driver
 // (driver/battery/bq27621_g1.c), adapted to the HOJA I2C HAL. Sequence,
 // register addresses, checksum method, and timing quirks are taken from that
@@ -45,13 +43,23 @@
 #define FLAGS_ITPOR                   0x0020
 #define FLAGS_CFGUPD                  0x0010
 
-// Board-config overrides for application-specific tuning.
-#ifndef HOJA_FUELGAUGE_TERMINATE_MV
-#define HOJA_FUELGAUGE_TERMINATE_MV 3200   // System minimum operating voltage (mV)
-#endif
-#ifndef HOJA_FUELGAUGE_TAPER_MA
-#define HOJA_FUELGAUGE_TAPER_MA 100        // Charger taper/termination current (mA)
-#endif
+// Fallback tuning values, used when the board leaves a cfg field as 0.
+#define BQ27621_DEFAULT_TERMINATE_MV 3200   // System minimum operating voltage (mV)
+#define BQ27621_DEFAULT_TAPER_MA     100    // Charger taper/termination current (mA)
+
+// Active driver config, set at the top of each public vtable entry so the
+// low-level helpers can reach the I2C instance and tuning values.
+static const bq27621g1_cfg_s *_cfg = NULL;
+
+static inline uint16_t _term_mv(void)
+{
+    return (_cfg && _cfg->terminate_mv) ? _cfg->terminate_mv : BQ27621_DEFAULT_TERMINATE_MV;
+}
+
+static inline uint16_t _taper_ma(void)
+{
+    return (_cfg && _cfg->taper_ma) ? _cfg->taper_ma : BQ27621_DEFAULT_TAPER_MA;
+}
 
 // The ChromiumOS driver requires the bus at <= 100 kbps ("Delays need to be
 // added for correct operation at > 100Kbps"). The HOJA bus runs at 400 kHz,
@@ -69,7 +77,7 @@
 static int _bq_w8(uint8_t reg, uint8_t val)
 {
     uint8_t tx[2] = { reg, val };
-    return i2c_hal_write_timeout_us_odbaud(HOJA_FUELGAUGE_I2C_INSTANCE, BQ27621_ADDR,
+    return i2c_hal_write_timeout_us_odbaud(_cfg->i2c_instance, BQ27621_ADDR,
                                            tx, 2, false, BQ27621_I2C_TIMEOUT_US,
                                            BQ27621_I2C_BAUD_KHZ);
 }
@@ -77,18 +85,18 @@ static int _bq_w8(uint8_t reg, uint8_t val)
 static int _bq_w16(uint8_t reg, uint16_t val)
 {
     uint8_t tx[3] = { reg, (uint8_t)(val & 0xff), (uint8_t)(val >> 8) };
-    return i2c_hal_write_timeout_us_odbaud(HOJA_FUELGAUGE_I2C_INSTANCE, BQ27621_ADDR,
+    return i2c_hal_write_timeout_us_odbaud(_cfg->i2c_instance, BQ27621_ADDR,
                                            tx, 3, false, BQ27621_I2C_TIMEOUT_US,
                                            BQ27621_I2C_BAUD_KHZ);
 }
 
 static int _bq_read(uint8_t reg, uint8_t *dst, size_t len)
 {
-    int ret = i2c_hal_write_timeout_us_odbaud(HOJA_FUELGAUGE_I2C_INSTANCE, BQ27621_ADDR,
+    int ret = i2c_hal_write_timeout_us_odbaud(_cfg->i2c_instance, BQ27621_ADDR,
                                               &reg, 1, true, BQ27621_I2C_TIMEOUT_US,
                                               BQ27621_I2C_BAUD_KHZ);
     if (ret < 0) return ret;
-    return i2c_hal_read_timeout_us_odbaud(HOJA_FUELGAUGE_I2C_INSTANCE, BQ27621_ADDR,
+    return i2c_hal_read_timeout_us_odbaud(_cfg->i2c_instance, BQ27621_ADDR,
                                           dst, len, false, BQ27621_I2C_TIMEOUT_US,
                                           BQ27621_I2C_BAUD_KHZ);
 }
@@ -124,9 +132,9 @@ static void _bq_compute_params(uint16_t capacity_mah, uint16_t *design_cap,
     *design_cap    = _bq_scaled_capacity(capacity_mah);
     // Design Energy = Design Capacity x 3.7 (ChromiumOS board parameter docs)
     *design_energy = (uint16_t)(((uint32_t)(*design_cap) * 37u) / 10u);
-    *term_volt     = (uint16_t)HOJA_FUELGAUGE_TERMINATE_MV;
+    *term_volt     = _term_mv();
     // Taper Rate = Design Capacity / (0.1 * Taper Current), unscaled capacity
-    *taper_rate    = (uint16_t)(((uint32_t)capacity_mah * 10u) / (uint32_t)HOJA_FUELGAUGE_TAPER_MA);
+    *taper_rate    = (uint16_t)(((uint32_t)capacity_mah * 10u) / (uint32_t)_taper_ma());
 }
 
 // ---- Sequencing helpers (1:1 with the ChromiumOS driver) ----
@@ -226,14 +234,11 @@ static bool _bq_config_params(uint16_t capacity_mah)
     return true;
 }
 
-// ---- Public API ----
+// ---- Internal init/verify ----
 
-bool bq27621g1_is_present(void)
-{
-    return _bq_probe();
-}
+static bool bq27621g1_verify(uint16_t capacity_mah);
 
-bool bq27621g1_init(uint16_t capacity_mah)
+static bool bq27621g1_init_internal(uint16_t capacity_mah)
 {
     if (capacity_mah == 0) return false;
 
@@ -256,8 +261,8 @@ bool bq27621g1_init(uint16_t capacity_mah)
 }
 
 // Reads the four configured parameters back out of the State block and
-// confirms they match what bq27621g1_init() programs for this capacity.
-bool bq27621g1_verify(uint16_t capacity_mah)
+// confirms they match what bq27621g1_init_internal() programs for this capacity.
+static bool bq27621g1_verify(uint16_t capacity_mah)
 {
     if (capacity_mah == 0) return false;
 
@@ -282,7 +287,7 @@ bool bq27621g1_verify(uint16_t capacity_mah)
     return true;
 }
 
-uint8_t bq27621g1_get_percent(void)
+static uint8_t bq27621g1_get_percent(void)
 {
     static uint8_t soc = 100;
 
@@ -295,13 +300,31 @@ uint8_t bq27621g1_get_percent(void)
     return soc;
 }
 
-fuelgauge_status_s bq27621g1_get_status(void)
-{
-    static fuelgauge_status_s status = {0};
+// ---- Driver vtable entry points ----
 
+static bool bq27621g1_drv_init(const fuelgauge_driver_s *drv, uint16_t capacity_mah)
+{
+    _cfg = (const bq27621g1_cfg_s *)drv->cfg;
+
+    // Presence detection (folded into init): confirm the device type ID.
+    if (!_bq_probe()) return false;
+
+    return bq27621g1_init_internal(capacity_mah);
+}
+
+static fuelgauge_status_s bq27621g1_drv_get_status(const fuelgauge_driver_s *drv)
+{
+    _cfg = (const bq27621g1_cfg_s *)drv->cfg;
+
+    fuelgauge_status_s status = {0};
     status.percent = bq27621g1_get_percent();
     status.connected = true;
 
     return status;
 }
-#endif
+
+const fuelgauge_driver_api_s bq27621g1_fuelgauge_api = {
+    .part_code  = "BQ27621G1",
+    .init       = bq27621g1_drv_init,
+    .get_status = bq27621g1_drv_get_status,
+};

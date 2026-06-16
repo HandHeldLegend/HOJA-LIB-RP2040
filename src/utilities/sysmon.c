@@ -10,10 +10,8 @@
 #include "board_config.h"
 
 // SOC (%) at or below which an unplugged device begins critical shutdown.
-// Sane default of 5%; boards may override in board_config.h.
-#ifndef HOJA_BATTERY_SHUTDOWN_PERCENT
-#define HOJA_BATTERY_SHUTDOWN_PERCENT 5
-#endif
+// Sane default of 5%; boards may override via hoja_config_s.battery_shutdown_percent.
+#define SYSMON_DEFAULT_SHUTDOWN_PERCENT 5
 
 battery_status_s _sysbattery = {.connected=false, .charging=false, .plugged=false};
 fuelgauge_status_s _sysfuel = {.connected=false, .percent=100};
@@ -132,7 +130,12 @@ void sysmon_task(uint64_t timestamp)
             // already includes margin (Terminate Voltage + learned load-spike
             // delta), so a low threshold still leaves headroom for an orderly
             // shutdown.
-            if(_sysfuel.percent <= HOJA_BATTERY_SHUTDOWN_PERCENT && !_sysbattery.plugged)
+            const hoja_config_s *cfg = hoja_config_get();
+            uint8_t shutdown_percent = (cfg && cfg->battery_shutdown_percent)
+                                     ? cfg->battery_shutdown_percent
+                                     : SYSMON_DEFAULT_SHUTDOWN_PERCENT;
+
+            if(_sysfuel.percent <= shutdown_percent && !_sysbattery.plugged)
             {
                 sysmon_set_critical_shutdown();
             }

@@ -20,8 +20,42 @@ typedef enum
     BATTERY_LEVEL_HIGH
 } battery_level_t;
 
+// Outcome of a fuel gauge operation. Fuel gauge functions are always safe to
+// call; the return value reports whether anything actually happened.
+typedef enum
+{
+    FUELGAUGE_RESULT_NO_DRIVER = 0, // No fuel gauge driver assigned
+    FUELGAUGE_RESULT_OK,            // Operation completed successfully
+    FUELGAUGE_RESULT_FAILED,        // Driver present, but the operation failed
+} fuelgauge_result_t;
+
+// Forward declaration so the vtable can reference the instance type.
+typedef struct fuelgauge_driver_s fuelgauge_driver_s;
+
+// Operations every fuel gauge driver must implement. Each callback receives
+// the owning driver instance so it can reach its driver-specific config via
+// drv->cfg. init() also performs presence detection (no separate is_present).
+typedef struct
+{
+    // Human-readable fuel gauge part number, supplied by the driver itself
+    // (e.g. "BQ27621G1"). Surfaced to the config tool; not board-specific.
+    const char *part_code;
+
+    bool               (*init)(const fuelgauge_driver_s *drv, uint16_t capacity_mah);
+    fuelgauge_status_s (*get_status)(const fuelgauge_driver_s *drv);
+} fuelgauge_driver_api_s;
+
+// A concrete driver instance: a vtable plus a pointer to the driver's own
+// configuration struct. Boards declare one (const) and inject it through the
+// hoja config.
+struct fuelgauge_driver_s
+{
+    const fuelgauge_driver_api_s *api;
+    const void                   *cfg;
+};
+
 void fuelgauge_update_status(void);
 void fuelgauge_get_status(fuelgauge_status_s *out);
-bool fuelgauge_init(uint16_t capacity_mah);
+fuelgauge_result_t fuelgauge_init(void);
 
 #endif

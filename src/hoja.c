@@ -353,7 +353,7 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
     battery_init();
 
   // Fuel gauge
-  fuelgauge_init(_hoja_config ? _hoja_config->battery_capacity_mah : 0);
+  fuelgauge_init();
 
   // System Monitor
   sysmon_init();
