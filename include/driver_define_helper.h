@@ -61,11 +61,17 @@
 
     // Battery Drivers
     #define BATTERY_DRIVER_BQ25180 1
+    // Override: board supplies its own battery driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_BATTERY_CFG_TYPE) for the override hook.
+    #define BATTERY_DRIVER_CUSTOM  0xFF
 
     // Fuel Gauge Drivers
     #define FUELGAUGE_DRIVER_ADC 1
     #define FUELGAUGE_DRIVER_ESP32 2
     #define FUELGAUGE_DRIVER_BQ27621G1 3
+    // Override: board supplies its own fuel gauge driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_FUELGAUGE_CFG_TYPE) for the override hook.
+    #define FUELGAUGE_DRIVER_CUSTOM 0xFF
 
     // WLAN Drivers
     #define WLAN_DRIVER_HAL 1

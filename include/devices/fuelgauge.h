@@ -29,30 +29,20 @@ typedef enum
     FUELGAUGE_RESULT_FAILED,        // Driver present, but the operation failed
 } fuelgauge_result_t;
 
-// Forward declaration so the vtable can reference the instance type.
-typedef struct fuelgauge_driver_s fuelgauge_driver_s;
-
-// Operations every fuel gauge driver must implement. Each callback receives
-// the owning driver instance so it can reach its driver-specific config via
-// drv->cfg. init() also performs presence detection (no separate is_present).
-typedef struct
-{
-    // Human-readable fuel gauge part number, supplied by the driver itself
-    // (e.g. "BQ27621G1"). Surfaced to the config tool; not board-specific.
-    const char *part_code;
-
-    bool               (*init)(const fuelgauge_driver_s *drv, uint16_t capacity_mah);
-    fuelgauge_status_s (*get_status)(const fuelgauge_driver_s *drv);
-} fuelgauge_driver_api_s;
-
-// A concrete driver instance: a vtable plus a pointer to the driver's own
-// configuration struct. Boards declare one (const) and inject it through the
-// hoja config.
-struct fuelgauge_driver_s
-{
-    const fuelgauge_driver_api_s *api;
-    const void                   *cfg;
-};
+// ---- Fuel gauge driver contract (weak-function model) ----
+// The selected fuel gauge driver provides strong definitions of these. Which
+// driver compiles is decided by the HOJA_FUELGAUGE_DRIVER gate in
+// board_config.h. fuelgauge.c ships weak defaults so that when no driver is
+// selected every call is a safe no-op. The driver reads its own configuration
+// straight from the hoja config (hoja_config_get()->fuelgauge), whose type is
+// shaped by the gate (drivers without config, e.g. ESP32, read nothing).
+//
+// fuelgauge_driver_part_code() returning NULL is the canonical "no driver
+// present" signal used by the device layer; a real driver returns its part
+// number (e.g. "BQ27621G1"). init() also performs hardware presence detection.
+bool               fuelgauge_driver_init(uint16_t capacity_mah);
+fuelgauge_status_s fuelgauge_driver_get_status(void);
+const char        *fuelgauge_driver_part_code(void);
 
 void fuelgauge_update_status(void);
 void fuelgauge_get_status(fuelgauge_status_s *out);

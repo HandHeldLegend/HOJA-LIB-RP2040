@@ -149,6 +149,27 @@ typedef struct
     uint16_t boot_flags;
 } core_sm_s;
 
+// Runtime transport eligibility from the board's hoja_config_s. Replaces the
+// per-transport HOJA_TRANSPORT_*_DRIVER compile guards that used to gate this
+// switch. Transport entry points always link (weak defaults), so an attempted
+// transport whose platform HAL isn't compiled simply returns false.
+static bool _transport_supported(gamepad_transport_t type)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if(cfg == NULL) return false;
+
+    switch(type)
+    {
+        case GAMEPAD_TRANSPORT_USB:       return cfg->supported_transports.usb;
+        case GAMEPAD_TRANSPORT_BLUETOOTH: return cfg->supported_transports.bluetooth;
+        case GAMEPAD_TRANSPORT_WLAN:      return cfg->supported_transports.wlan;
+        case GAMEPAD_TRANSPORT_NESBUS:    return cfg->supported_transports.nesbus;
+        case GAMEPAD_TRANSPORT_JOYBUS64:  return cfg->supported_transports.joybus_n64;
+        case GAMEPAD_TRANSPORT_JOYBUSGC:  return cfg->supported_transports.joybus_gc;
+        default:                          return false;
+    }
+}
+
 bool transport_init(core_params_s *params)
 {
     switch(params->core_report_format)
@@ -164,9 +185,11 @@ bool transport_init(core_params_s *params)
 
     _transport_set_mac(params->transport_dev_mac, params->core_report_format);
 
+    if(!_transport_supported(params->transport_type))
+        return false;
+
     switch(params->transport_type)
-    {   
-        #if defined(HOJA_TRANSPORT_USB_DRIVER)
+    {
         case GAMEPAD_TRANSPORT_USB:
         if(transport_usb_init(params))
         {
@@ -175,10 +198,7 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        break;
-        #endif
-        
-        #if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER)
+
         case GAMEPAD_TRANSPORT_JOYBUS64:
         if(transport_jb64_init(params))
         {
@@ -187,9 +207,7 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        #endif
 
-        #if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
         case GAMEPAD_TRANSPORT_JOYBUSGC:
         if(transport_jbgc_init(params))
         {
@@ -198,9 +216,7 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        #endif
 
-        #if defined(HOJA_TRANSPORT_NESBUS_DRIVER)
         case GAMEPAD_TRANSPORT_NESBUS:
         if(transport_nesbus_init(params))
         {
@@ -209,9 +225,7 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        #endif
 
-        #if defined(HOJA_TRANSPORT_BT_DRIVER)
         case GAMEPAD_TRANSPORT_BLUETOOTH:
         if(transport_bt_init(params))
         {
@@ -220,9 +234,7 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        #endif
 
-        #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
         case GAMEPAD_TRANSPORT_WLAN:
         if(transport_wlan_init(params))
         {
@@ -231,7 +243,6 @@ bool transport_init(core_params_s *params)
             return true;
         }
         else return false;
-        #endif
 
         default:
         return false;

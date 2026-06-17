@@ -11,8 +11,17 @@ snapshot_battery_t _battery_snap;
 bool _battery_init_done = false;
 volatile bool _shipping_lockout = false;
 
-// Active battery driver, injected via the board's hoja_config_s.
-static const battery_driver_s *_battery_driver = NULL;
+// Weak driver contract defaults. A board that selects no battery driver links
+// these, making every battery call a safe no-op. The selected driver (compiled
+// in by the HOJA_BATTERY_DRIVER gate) overrides them with strong definitions.
+__attribute__((weak)) bool battery_driver_init(void) { return false; }
+__attribute__((weak)) battery_status_s battery_driver_get_status(void) { battery_status_s s = {0}; return s; }
+__attribute__((weak)) bool battery_driver_set_charge_rate(uint16_t rate_ma) { (void)rate_ma; return false; }
+__attribute__((weak)) bool battery_driver_set_ship_mode(void) { return false; }
+__attribute__((weak)) const char *battery_driver_part_code(void) { return NULL; }
+
+// A driver is present iff it supplies a part code (weak default returns NULL).
+static inline bool _battery_present(void) { return battery_driver_part_code() != NULL; }
 
 void _battery_set_connected(bool connected)
 {
@@ -46,8 +55,8 @@ void battery_update_status(void)
 
     battery_status_s status = {0};
 
-    if(_battery_init_done && _battery_driver && _battery_driver->api->get_status)
-        status = _battery_driver->api->get_status(_battery_driver);
+    if(_battery_init_done)
+        status = battery_driver_get_status();
 
     snapshot_battery_write(&_battery_snap, &status);
 }
@@ -66,16 +75,12 @@ battery_result_t battery_init(void)
     // Reset connected status
     _battery_set_connected(false);
 
-    // Grab the board-assigned driver (if any).
-    const hoja_config_s *config = hoja_config_get();
-    _battery_driver = config ? config->battery_driver : NULL;
-
-    // No battery driver assigned for this board.
-    if(!_battery_driver || !_battery_driver->api || !_battery_driver->api->init)
+    // No battery driver compiled in for this board.
+    if(!_battery_present())
         return BATTERY_RESULT_NO_DRIVER;
 
-    // init() also performs presence detection.
-    if(!_battery_driver->api->init(_battery_driver))
+    // init() also performs hardware presence detection.
+    if(!battery_driver_init())
         return BATTERY_RESULT_FAILED;
 
     _battery_set_connected(true);
@@ -89,10 +94,10 @@ battery_result_t battery_init(void)
 // Set PMIC charge rate. Always safe to call.
 battery_result_t battery_set_charge_rate(uint16_t rate_ma)
 {
-    if(!_battery_driver || !_battery_driver->api->set_charge_rate)
+    if(!_battery_present())
         return BATTERY_RESULT_NO_DRIVER;
 
-    return _battery_driver->api->set_charge_rate(_battery_driver, rate_ma)
+    return battery_driver_set_charge_rate(rate_ma)
          ? BATTERY_RESULT_OK
          : BATTERY_RESULT_FAILED;
 }
@@ -103,10 +108,10 @@ battery_result_t battery_set_ship_mode()
 {
     _shipping_lockout = true;
 
-    if(!_battery_driver || !_battery_driver->api->set_ship_mode)
+    if(!_battery_present())
         return BATTERY_RESULT_NO_DRIVER;
 
-    return _battery_driver->api->set_ship_mode(_battery_driver)
+    return battery_driver_set_ship_mode()
          ? BATTERY_RESULT_OK
          : BATTERY_RESULT_FAILED;
 }

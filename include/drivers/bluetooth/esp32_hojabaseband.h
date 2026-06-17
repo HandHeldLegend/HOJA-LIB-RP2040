@@ -54,10 +54,11 @@ int esp32hoja_hwtest();
 
 uint32_t esp32hoja_get_fwversion();
 
-// Optional fuel gauge driver bundled with the ESP32 baseband. A board using
-// the ESP32 bluetooth driver may point hoja_config_s.fuelgauge_driver at this
-// to use the ESP32 module as its fuel gauge source. Entirely optional.
-extern const fuelgauge_driver_s esp32hoja_fuelgauge_driver;
+// Optional fuel gauge driver bundled with the ESP32 baseband. A board using the
+// ESP32 bluetooth driver may route fuel-gauge duties to the ESP32 module by
+// selecting HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32 in board_config.h.
+// In that case this file provides the strong fuelgauge_driver_* overrides.
+// Entirely optional; boards with their own gauge select a different driver.
 
 // Feed latest state-of-charge in from the ESP32 telemetry path.
 void esp32hoja_fuelgauge_report(uint8_t percent, bool connected);

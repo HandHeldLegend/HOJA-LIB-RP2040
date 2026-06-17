@@ -1,4 +1,10 @@
+#include "board_config.h"
+
+#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180)
+
 #include "drivers/battery/bq25180.h"
+#include "devices/battery.h"
+#include "hoja.h"
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
@@ -50,17 +56,25 @@ typedef struct
 
 static bool _charge_disabled = false;
 
-// Pull the I2C bus instance out of the injected driver config.
-static inline uint8_t _bus(const battery_driver_s *drv)
+// The board's hoja_config_s embeds our config as `.battery` (shaped by the
+// HOJA_BATTERY_DRIVER gate). Read it straight from the global config.
+static inline const bq25180_cfg_s *_cfg(void)
 {
-    return ((const bq25180_cfg_s *)drv->cfg)->i2c_instance;
+    const hoja_config_s *c = hoja_config_get();
+    return c ? &c->battery : NULL;
+}
+
+static inline uint8_t _bus(void)
+{
+    const bq25180_cfg_s *cfg = _cfg();
+    return cfg ? cfg->i2c_instance : 0;
 }
 
 // Hardware presence detection (internal). Folded into init() rather than
-// exposed as a separate vtable entry.
-static bool bq25180_is_present(const battery_driver_s *drv)
+// exposed as a separate driver entry point.
+static bool bq25180_is_present(void)
 {
-    uint8_t i2c = _bus(drv);
+    uint8_t i2c = _bus();
 
     uint8_t _getstatus[1] = {BQ25180_REG_MASK_ID};
     uint8_t _readstatus[1] = {0x00};
@@ -74,9 +88,9 @@ static bool bq25180_is_present(const battery_driver_s *drv)
     else return false;
 }
 
-static battery_status_s bq25180_get_status(const battery_driver_s *drv)
+battery_status_s battery_driver_get_status(void)
 {
-    uint8_t i2c = _bus(drv);
+    uint8_t i2c = _bus();
 
     static battery_status_s status = {0};
 
@@ -135,9 +149,9 @@ static battery_status_s bq25180_get_status(const battery_driver_s *drv)
     return status;
 }
 
-static bool bq25180_set_source(const battery_driver_s *drv, battery_source_t source)
+static bool bq25180_set_source(battery_source_t source)
 {
-    uint8_t i2c = _bus(drv);
+    uint8_t i2c = _bus();
 
     // Disable pushbutton
 
@@ -179,9 +193,9 @@ static bool bq25180_set_source(const battery_driver_s *drv, battery_source_t sou
     return false;
 }
 
-static bool bq25180_set_charge_rate(const battery_driver_s *drv, uint16_t rate_ma)
+bool battery_driver_set_charge_rate(uint16_t rate_ma)
 {
-    uint8_t i2c = _bus(drv);
+    uint8_t i2c = _bus();
 
     // Default is 0x5
     uint8_t code = 0x5;
@@ -240,9 +254,9 @@ static bool bq25180_set_charge_rate(const battery_driver_s *drv, uint16_t rate_m
     return false;
 }
 
-static bool bq25180_set_ship_mode(const battery_driver_s *drv)
+bool battery_driver_set_ship_mode(void)
 {
-    uint8_t i2c = _bus(drv);
+    uint8_t i2c = _bus();
 
     const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
     int ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
@@ -262,23 +276,27 @@ static bool bq25180_set_ship_mode(const battery_driver_s *drv)
     return (ret==2);
 }
 
-static bool bq25180_init(const battery_driver_s *drv)
+bool battery_driver_init(void)
 {
-    const bq25180_cfg_s *cfg = (const bq25180_cfg_s *)drv->cfg;
+    const bq25180_cfg_s *cfg = _cfg();
+
+    // Misconfiguration guard: a board that selected this driver must supply
+    // its config. (cfg fields like i2c_instance==0 / charge_rate_ma==0 are
+    // intentionally valid, so they are not asserted here.)
+    if(cfg == NULL) return false;
 
     // Bail out if the PMIC isn't responding on the bus.
-    if(!bq25180_is_present(drv)) return false;
+    if(!bq25180_is_present()) return false;
 
     sys_hal_sleep_ms(100);
-    bq25180_set_source(drv, BATTERY_SOURCE_AUTO);
-    bq25180_set_charge_rate(drv, cfg->charge_rate_ma);
+    bq25180_set_source(BATTERY_SOURCE_AUTO);
+    battery_driver_set_charge_rate(cfg->charge_rate_ma);
     return true;
 }
 
-const battery_driver_api_s bq25180_battery_api = {
-    .part_code       = "BQ25180",
-    .init            = bq25180_init,
-    .get_status      = bq25180_get_status,
-    .set_charge_rate = bq25180_set_charge_rate,
-    .set_ship_mode   = bq25180_set_ship_mode,
-};
+const char *battery_driver_part_code(void)
+{
+    return "BQ25180";
+}
+
+#endif // HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180

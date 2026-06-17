@@ -29,34 +29,22 @@ typedef enum
     BATTERY_RESULT_FAILED,        // Driver present, but the operation failed
 } battery_result_t;
 
-// Forward declaration so the vtable can reference the instance type.
-typedef struct battery_driver_s battery_driver_s;
-
-// Operations every battery PMIC driver must implement.
-// Each callback receives the owning driver instance so it can reach its
-// driver-specific config via drv->cfg (no global state required).
-typedef struct
-{
-    // Human-readable PMIC part number, supplied by the driver itself
-    // (e.g. "BQ25180"). Surfaced to the config tool; not board-specific.
-    const char *part_code;
-
-    // init() also performs hardware presence detection: return false if the
-    // PMIC is not responding. There is intentionally no separate is_present().
-    bool             (*init)(const battery_driver_s *drv);
-    battery_status_s (*get_status)(const battery_driver_s *drv);
-    bool             (*set_charge_rate)(const battery_driver_s *drv, uint16_t rate_ma);
-    bool             (*set_ship_mode)(const battery_driver_s *drv);
-} battery_driver_api_s;
-
-// A concrete driver instance: a vtable plus a pointer to the driver's own
-// configuration struct. Boards declare one of these (const, so it lives in
-// flash) and inject it through the hoja config.
-struct battery_driver_s
-{
-    const battery_driver_api_s *api;
-    const void                 *cfg;
-};
+// ---- Battery driver contract (weak-function model) ----
+// The selected battery driver provides strong definitions of these. Which
+// driver compiles is decided by the HOJA_BATTERY_DRIVER gate in board_config.h.
+// battery.c ships weak defaults so that when no driver is selected every call
+// is a safe no-op. The driver reads its own configuration straight from the
+// hoja config (hoja_config_get()->battery), whose type is shaped by the gate.
+//
+// battery_driver_part_code() returning NULL is the canonical "no driver
+// present" signal used by the device layer; a real driver returns its PMIC
+// part number (e.g. "BQ25180"). init() also performs hardware presence
+// detection and returns false if the PMIC is not responding.
+bool             battery_driver_init(void);
+battery_status_s battery_driver_get_status(void);
+bool             battery_driver_set_charge_rate(uint16_t rate_ma);
+bool             battery_driver_set_ship_mode(void);
+const char      *battery_driver_part_code(void);
 
 void battery_update_status(void);
 void battery_get_status(battery_status_s *out); 

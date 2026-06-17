@@ -848,9 +848,12 @@ uint16_t transport_bt_static_external_version(void)
 //
 // When a board uses the ESP32 baseband for bluetooth it may *optionally* route
 // fuel-gauge duties to the ESP32 module instead of a dedicated gauge IC, by
-// pointing hoja_config_s.fuelgauge_driver at esp32hoja_fuelgauge_driver. Boards
-// with their own gauge simply don't reference it.
+// selecting HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32. The strong
+// fuelgauge_driver_* overrides below are then compiled in (the gate also shapes
+// hoja_config_s so no `.fuelgauge` config member is required for this driver).
 // -------------------------------------------------------------------------
+
+#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32)
 
 static uint8_t _esp32_fuelgauge_percent   = 100;
 static bool    _esp32_fuelgauge_connected = true;
@@ -861,31 +864,25 @@ void esp32hoja_fuelgauge_report(uint8_t percent, bool connected)
     _esp32_fuelgauge_connected = connected;
 }
 
-static bool _esp32hoja_fuelgauge_init(const fuelgauge_driver_s *drv, uint16_t capacity_mah)
+bool fuelgauge_driver_init(uint16_t capacity_mah)
 {
-    (void)drv;
     (void)capacity_mah;
     return true;
 }
 
-static fuelgauge_status_s _esp32hoja_fuelgauge_get_status(const fuelgauge_driver_s *drv)
+fuelgauge_status_s fuelgauge_driver_get_status(void)
 {
-    (void)drv;
     fuelgauge_status_s status = {0};
     status.connected = _esp32_fuelgauge_connected;
     status.percent   = _esp32_fuelgauge_percent;
     return status;
 }
 
-static const fuelgauge_driver_api_s _esp32hoja_fuelgauge_api = {
-    .part_code  = "ESP32",
-    .init       = _esp32hoja_fuelgauge_init,
-    .get_status = _esp32hoja_fuelgauge_get_status,
-};
+const char *fuelgauge_driver_part_code(void)
+{
+    return "ESP32";
+}
 
-const fuelgauge_driver_s esp32hoja_fuelgauge_driver = {
-    .api = &_esp32hoja_fuelgauge_api,
-    .cfg = NULL,
-};
+#endif // HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32
 
 #endif

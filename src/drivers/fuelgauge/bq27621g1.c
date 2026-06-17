@@ -1,4 +1,10 @@
+#include "board_config.h"
+
+#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_BQ27621G1)
+
 #include "drivers/fuelgauge/bq27621g1.h"
+#include "devices/fuelgauge.h"
+#include "hoja.h"
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
 
@@ -47,9 +53,16 @@
 #define BQ27621_DEFAULT_TERMINATE_MV 3200   // System minimum operating voltage (mV)
 #define BQ27621_DEFAULT_TAPER_MA     100    // Charger taper/termination current (mA)
 
-// Active driver config, set at the top of each public vtable entry so the
-// low-level helpers can reach the I2C instance and tuning values.
+// Active driver config, refreshed at the top of each strong entry point so the
+// low-level helpers can reach the I2C instance and tuning values. The config is
+// owned by the board and embedded in the hoja config (hoja_config_get()->fuelgauge).
 static const bq27621g1_cfg_s *_cfg = NULL;
+
+static inline void _load_cfg(void)
+{
+    const hoja_config_s *c = hoja_config_get();
+    _cfg = c ? &c->fuelgauge : NULL;
+}
 
 static inline uint16_t _term_mv(void)
 {
@@ -300,11 +313,12 @@ static uint8_t bq27621g1_get_percent(void)
     return soc;
 }
 
-// ---- Driver vtable entry points ----
+// ---- Strong driver contract overrides (weak-function model) ----
 
-static bool bq27621g1_drv_init(const fuelgauge_driver_s *drv, uint16_t capacity_mah)
+bool fuelgauge_driver_init(uint16_t capacity_mah)
 {
-    _cfg = (const bq27621g1_cfg_s *)drv->cfg;
+    _load_cfg();
+    if (_cfg == NULL) return false;
 
     // Presence detection (folded into init): confirm the device type ID.
     if (!_bq_probe()) return false;
@@ -312,19 +326,22 @@ static bool bq27621g1_drv_init(const fuelgauge_driver_s *drv, uint16_t capacity_
     return bq27621g1_init_internal(capacity_mah);
 }
 
-static fuelgauge_status_s bq27621g1_drv_get_status(const fuelgauge_driver_s *drv)
+fuelgauge_status_s fuelgauge_driver_get_status(void)
 {
-    _cfg = (const bq27621g1_cfg_s *)drv->cfg;
-
     fuelgauge_status_s status = {0};
+
+    _load_cfg();
+    if (_cfg == NULL) return status;
+
     status.percent = bq27621g1_get_percent();
     status.connected = true;
 
     return status;
 }
 
-const fuelgauge_driver_api_s bq27621g1_fuelgauge_api = {
-    .part_code  = "BQ27621G1",
-    .init       = bq27621g1_drv_init,
-    .get_status = bq27621g1_drv_get_status,
-};
+const char *fuelgauge_driver_part_code(void)
+{
+    return "BQ27621G1";
+}
+
+#endif // HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_BQ27621G1

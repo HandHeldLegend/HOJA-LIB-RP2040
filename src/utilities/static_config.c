@@ -337,8 +337,6 @@ static void _bluetooth_static_refresh(void)
 static void _battery_static_refresh(void)
 {
     const hoja_config_s *config = hoja_config_get();
-    const battery_driver_s *drv = config ? config->battery_driver : NULL;
-    const fuelgauge_driver_s *fg = config ? config->fuelgauge_driver : NULL;
 
     // Capacity is a generic board parameter carried in the hoja config.
     battery_static.battery_capacity_mah = config ? config->battery_capacity_mah : 0;
@@ -349,14 +347,18 @@ static void _battery_static_refresh(void)
     strncpy((char *)battery_static.battery_part_number, pack,
         sizeof(battery_static.battery_part_number) - 1u);
 
-    // PMIC part number is supplied by the assigned battery driver.
-    const char *pmic = (drv && drv->api && drv->api->part_code) ? drv->api->part_code : "N/A";
+    // PMIC part number is supplied by the selected battery driver (weak default
+    // returns NULL when no driver is compiled in).
+    const char *pmic = battery_driver_part_code();
+    if(pmic == NULL) pmic = "N/A";
     memset(battery_static.pmic_part_number, 0, sizeof(battery_static.pmic_part_number));
     strncpy((char *)battery_static.pmic_part_number, pmic,
         sizeof(battery_static.pmic_part_number) - 1u);
 
-    // Fuel gauge part number is supplied by the assigned fuel gauge driver.
-    const char *fgpart = (fg && fg->api && fg->api->part_code) ? fg->api->part_code : "N/A";
+    // Fuel gauge part number is supplied by the selected fuel gauge driver
+    // (weak default returns NULL when no driver is compiled in).
+    const char *fgpart = fuelgauge_driver_part_code();
+    if(fgpart == NULL) fgpart = "N/A";
     memset(battery_static.fuelgauge_part_number, 0, sizeof(battery_static.fuelgauge_part_number));
     strncpy((char *)battery_static.fuelgauge_part_number, fgpart,
         sizeof(battery_static.fuelgauge_part_number) - 1u);
@@ -446,15 +448,13 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
             battery_get_status(&batstat);
             fuelgauge_get_status(&fgstat);
 
-            const hoja_config_s *bat_cfg = hoja_config_get();
-
-            if(!bat_cfg || !bat_cfg->fuelgauge_driver)
-                battery_static.fuelgauge_status = 0; // No fuel gauge assigned
+            if(fuelgauge_driver_part_code() == NULL)
+                battery_static.fuelgauge_status = 0; // No fuel gauge driver compiled in
             else
                 battery_static.fuelgauge_status = fgstat.connected ? 2 : 1;
 
-            if(!bat_cfg || !bat_cfg->battery_driver)
-                battery_static.pmic_status = 0; // No PMIC assigned for this board
+            if(battery_driver_part_code() == NULL)
+                battery_static.pmic_status = 0; // No PMIC driver compiled in
             else
                 battery_static.pmic_status = batstat.connected ? 2 : 1;
 

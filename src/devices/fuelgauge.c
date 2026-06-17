@@ -9,16 +9,23 @@
 SNAPSHOT_TYPE(fuelgauge, fuelgauge_status_s);
 snapshot_fuelgauge_t _fuelgauge_snap;
 
-// Active fuel gauge driver, injected via the board's hoja_config_s.
-static const fuelgauge_driver_s *_fuelgauge_driver = NULL;
+// Weak driver contract defaults. A board with no fuel gauge driver selected
+// links these, making every fuel gauge call a safe no-op. The selected driver
+// (compiled in by the HOJA_FUELGAUGE_DRIVER gate) overrides them.
+__attribute__((weak)) bool fuelgauge_driver_init(uint16_t capacity_mah) { (void)capacity_mah; return false; }
+__attribute__((weak)) fuelgauge_status_s fuelgauge_driver_get_status(void) { fuelgauge_status_s s = {0}; return s; }
+__attribute__((weak)) const char *fuelgauge_driver_part_code(void) { return NULL; }
+
+// A driver is present iff it supplies a part code (weak default returns NULL).
+static inline bool _fuelgauge_present(void) { return fuelgauge_driver_part_code() != NULL; }
 
 void fuelgauge_update_status(void)
 {
     fuelgauge_status_s status = {0};
 
-    if(_fuelgauge_driver && _fuelgauge_driver->api->get_status)
+    if(_fuelgauge_present())
     {
-        status = _fuelgauge_driver->api->get_status(_fuelgauge_driver);
+        status = fuelgauge_driver_get_status();
 
         if(status.percent>=55)
         {
@@ -66,17 +73,15 @@ fuelgauge_result_t fuelgauge_init(void)
 {
     _fuelgauge_set_connected(false);
 
-    const hoja_config_s *config = hoja_config_get();
-    _fuelgauge_driver = config ? config->fuelgauge_driver : NULL;
-
-    // No fuel gauge driver assigned for this board.
-    if(!_fuelgauge_driver || !_fuelgauge_driver->api || !_fuelgauge_driver->api->init)
+    // No fuel gauge driver compiled in for this board.
+    if(!_fuelgauge_present())
         return FUELGAUGE_RESULT_NO_DRIVER;
 
+    const hoja_config_s *config = hoja_config_get();
     uint16_t capacity_mah = config ? config->battery_capacity_mah : 0;
 
-    // init() also performs presence detection.
-    if(!_fuelgauge_driver->api->init(_fuelgauge_driver, capacity_mah))
+    // init() also performs hardware presence detection.
+    if(!fuelgauge_driver_init(capacity_mah))
         return FUELGAUGE_RESULT_FAILED;
 
     // Pull initial status (percent + connected) from the driver.
