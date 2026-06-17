@@ -161,43 +161,52 @@ bluetoothInfoStatic_s bluetooth_static = {
     .fcc_id = HOJA_BLUETOOTH_FCC_ID,
 };
 
-#if !defined(HOJA_RGB_GROUPS_NUM)
-    #warning "HOJA_RGB_GROUPS_NUM undefined in board_config.h. RGB features will be disabled"
-    #define RGB_GROUPS 0
-    #define RGB_GROUP_NAMES {0}
-#else
-    #if (HOJA_RGB_GROUPS_NUM > 32)
-        #error "HOJA_RGB_GROUPS_NUM must be 32 or less!"
-    #endif 
-        #define RGB_GROUPS HOJA_RGB_GROUPS_NUM
-
-    #if !defined(HOJA_RGB_GROUP_NAMES) 
-        #error "You must provide the names as a 2d array as HOJA_RGB_GROUP_NAMES. 8 ASCII characters, 32 groups max." 
-    #else
-        #define RGB_GROUP_NAMES HOJA_RGB_GROUP_NAMES 
-    #endif
-#endif  
-
-uint8_t _rgb_names[32][8] = RGB_GROUP_NAMES;
-
 rgbInfoStatic_s rgb_static = {
-    .rgb_groups = RGB_GROUPS,
-    .rgb_player_group = -1 // populated from hoja_config_s.rgb at init
+    .rgb_groups = 0,
+    .rgb_player_group = -1
 };
 
 void _rgb_static_set_names() 
 {
-    for(int i = 0; i < RGB_GROUPS; i++)
-    {
-        memcpy(&rgb_static.rgb_group_names[i].rgb_group_name[0], 
-        &_rgb_names[i][0], 8);
-    }
-
-    // Player-group index is owned by the runtime RGB config now.
 #if defined(HOJA_RGB_CFG_PRESENT)
     const hoja_config_s *config = hoja_config_get();
-    if(config)
-        rgb_static.rgb_player_group = config->rgb.player_group_index;
+    if(!config)
+        return;
+
+    const hoja_rgb_cfg_s *rgb_cfg = &config->rgb;
+    rgb_static.rgb_groups = rgb_config_infer_group_count(rgb_cfg);
+    rgb_static.rgb_player_group = rgb_cfg->player_group_index;
+
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        if(!rgb_group_cfg_enabled(&rgb_cfg->groups[i]))
+            continue;
+        memcpy(rgb_static.rgb_group_names[i].rgb_group_name,
+               rgb_cfg->groups[i].name,
+               RGB_MAX_GROUP_NAME_LEN);
+    }
+#else
+    #if !defined(HOJA_RGB_GROUPS_NUM)
+        #warning "HOJA_RGB_GROUPS_NUM undefined in board_config.h. RGB features will be disabled"
+        rgb_static.rgb_groups = 0;
+    #else
+        #if (HOJA_RGB_GROUPS_NUM > 32)
+            #error "HOJA_RGB_GROUPS_NUM must be 32 or less!"
+        #endif
+        rgb_static.rgb_groups = HOJA_RGB_GROUPS_NUM;
+
+        #if !defined(HOJA_RGB_GROUP_NAMES)
+            #error "You must provide HOJA_RGB_GROUP_NAMES. 8 ASCII characters, 32 groups max."
+        #else
+            uint8_t _rgb_names[32][8] = HOJA_RGB_GROUP_NAMES;
+            for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+            {
+                memcpy(rgb_static.rgb_group_names[i].rgb_group_name,
+                       &_rgb_names[i][0],
+                       RGB_MAX_GROUP_NAME_LEN);
+            }
+        #endif
+    #endif
 #endif
 }
 

@@ -53,10 +53,23 @@ void rgb_init(int mode, int brightness)
 {
     idle_manager_heartbeat();
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-    // Load the board's group layout from the config (LED membership + count).
+    // Load the board's group layout from the config. Disabled slots (empty name)
+    // are skipped; count is inferred from the highest enabled index.
     const hoja_rgb_cfg_s *rgb_cfg = &hoja_config_get()->rgb;
-    rgb_group_count = rgb_cfg->group_count;
-    memcpy(rgb_led_groups, rgb_cfg->groupings, sizeof(rgb_led_groups));
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
+            rgb_led_groups[i][j] = -1;
+    }
+    rgb_group_count = 0;
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        if(!rgb_group_cfg_enabled(&rgb_cfg->groups[i]))
+            continue;
+        memcpy(rgb_led_groups[i], rgb_cfg->groups[i].leds, RGB_MAX_LEDS_PER_GROUP * sizeof(int8_t));
+        if((uint8_t)(i + 1) > rgb_group_count)
+            rgb_group_count = (uint8_t)(i + 1);
+    }
 
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
@@ -115,12 +128,12 @@ void rgb_init(int mode, int brightness)
         }
 
         #if defined(HOJA_RGB_GROUP_DEFAULTS)
-        rgb_s default_colors[HOJA_RGB_GROUPS_NUM] = HOJA_RGB_GROUP_DEFAULTS;
-        for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+        rgb_s default_colors[RGB_MAX_GROUPS] = HOJA_RGB_GROUP_DEFAULTS;
+        for(int i = 0; i < rgb_group_count; i++)
         {
             rgb_s col_tmp = default_colors[i];
             rgb_config->rgb_colors[i] = anm_utility_pack_local_color(col_tmp);
-        }   
+        }
         #endif
 
         rgb_config->rgb_speed = 650;

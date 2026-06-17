@@ -19,8 +19,17 @@
 #define RGB_FADE_FIXED_MULT (uint32_t) (1<<RGB_FADE_FIXED_SHIFT)
 #define RGB_FLOAT_TO_FIXED(f) ((uint32_t) (f * RGB_FADE_FIXED_MULT))
 
+// One RGB group: a display name plus the physical LED indices that belong to it.
+// Use RGB_GROUP(...) for .leds. An all-zero .name disables the slot; the active
+// group count is inferred from the highest enabled index + 1.
+typedef struct
+{
+    char  name[RGB_MAX_GROUP_NAME_LEN];       // empty => group disabled
+    int8_t leds[RGB_MAX_LEDS_PER_GROUP];      // physical LED indices (-1 = unused slot)
+} rgb_group_cfg_s;
+
 // One reactive-mode slot: when the given input is driven, it lights the LEDs of
-// the referenced group (0-based index into the groupings table).
+// the referenced group (0-based index into groups[]).
 typedef struct
 {
     mapper_input_code_t input;  // driving input (INPUT_CODE_*)
@@ -28,13 +37,11 @@ typedef struct
 } rgb_reactive_slot_s;
 
 // Board RGB layout + indicator configuration. Lives in hoja_config_s.rgb.
-// groupings[g] lists the physical LED indices that belong to group g (-1 marks
-// an unused slot). The notification / player indicators and reactive mode all
-// reference group indices into this table.
+// groups[] holds up to RGB_MAX_GROUPS entries; notification / player indicators
+// and reactive mode reference group indices into this table.
 typedef struct
 {
-    uint8_t group_count;                                        // valid entries in groupings[]
-    int8_t  groupings[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP];   // LED idx per group (-1 = unused)
+    rgb_group_cfg_s groups[RGB_MAX_GROUPS];
 
     int8_t  notification_group_index;   // group used for notifications (-1 = none)
     uint8_t notification_group_size;    // LEDs in the notification group
@@ -44,6 +51,26 @@ typedef struct
     uint8_t             reactive_count;                          // valid entries in reactive[]
     rgb_reactive_slot_s reactive[RGB_MAX_REACTIVE_SLOTS];        // input->group reactive map
 } hoja_rgb_cfg_s;
+
+static inline bool rgb_group_cfg_enabled(const rgb_group_cfg_s *group)
+{
+    for(int i = 0; i < RGB_MAX_GROUP_NAME_LEN; i++)
+        if(group->name[i] != '\0')
+            return true;
+    return false;
+}
+
+// Highest enabled group index + 1 (0 when every slot is disabled).
+static inline uint8_t rgb_config_infer_group_count(const hoja_rgb_cfg_s *cfg)
+{
+    uint8_t count = 0;
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        if(rgb_group_cfg_enabled(&cfg->groups[i]))
+            count = (uint8_t)(i + 1);
+    }
+    return count;
+}
 
 extern int8_t  rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP];
 extern rgb_s   rgb_colors_safe[RGB_MAX_GROUPS];
