@@ -39,6 +39,9 @@ typedef struct
 // Shorthand for designated initializers in main.c:
 // INPUT_DEFAULT(INPUT_CODE_SOUTH, SWITCH_CODE_A)
 #define INPUT_DEFAULT(in, out)  { .input = (in), .output = (out) }
+// Terminates the sparse .maps list; zero padding would otherwise look like
+// INPUT_CODE_SOUTH -> output 0.
+#define INPUT_DEFAULTS_END      { .input = INPUT_CODE_MAX, .output = 0 }
 
 static inline bool hoja_input_slot_enabled(const hoja_input_slot_cfg_s *slot)
 {

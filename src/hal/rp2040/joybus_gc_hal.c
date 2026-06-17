@@ -237,7 +237,11 @@ bool _joybus_gc_hal_init()
 
   // Dynamically grab a PIO block + state machine with room for the program.
   if(!pio_claim_free_sm_and_add_program(&joybus_program, &_gc_pio, &_gc_sm, &_gamecube_offset))
+  {
+    hoja_set_notification_status(COLOR_RED);
     return false;
+  }
+    
 
   // IRQ line depends on which PIO block we were given.
   _gamecube_irq = (uint)pio_get_irq_num(_gc_pio, 0);
@@ -365,7 +369,9 @@ bool transport_jbgc_init(core_params_s *params)
     return false;
   _gc_hal_params = params;
 
-  _joybus_gc_hal_init();
+  if(!_joybus_gc_hal_init())
+    return false;
+
   return true;
 }
 

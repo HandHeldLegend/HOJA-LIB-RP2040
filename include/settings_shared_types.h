@@ -36,7 +36,7 @@ typedef enum
 
 // Battery cfg is removed
 //#define CFG_BLOCK_BATTERY_VERSION   0x12
-#define CFG_BLOCK_INPUT_VERSION     0x13
+#define CFG_BLOCK_INPUT_VERSION     0x14
 
 #define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 

@@ -172,27 +172,75 @@ void _rgb_static_set_names()
 #endif
 }
 
+static void _analog_static_set_from_slot(mapper_input_code_t code, input_type_t type)
+{
+    switch(code)
+    {
+        case INPUT_CODE_LT_ANALOG:
+            if(type == INPUT_TYPE_HOVER)
+                analog_static.axis_lt = 1;
+            break;
+
+        case INPUT_CODE_RT_ANALOG:
+            if(type == INPUT_TYPE_HOVER)
+                analog_static.axis_rt = 1;
+            break;
+
+        case INPUT_CODE_LX_LEFT:
+            if(type == INPUT_TYPE_JOYSTICK)
+                analog_static.axis_lx = 1;
+            break;
+
+        case INPUT_CODE_LY_UP:
+            if(type == INPUT_TYPE_JOYSTICK)
+                analog_static.axis_ly = 1;
+            break;
+
+        case INPUT_CODE_RX_LEFT:
+            if(type == INPUT_TYPE_JOYSTICK)
+                analog_static.axis_rx = 1;
+            break;
+
+        case INPUT_CODE_RY_UP:
+            if(type == INPUT_TYPE_JOYSTICK)
+                analog_static.axis_ry = 1;
+            break;
+
+        default:
+            break;
+    }
+}
+
 void _analog_static_setup()
 {
-    const inputInfoSlot_s *slots = input_static.input_info;
+    analog_static.axis_lx = 0;
+    analog_static.axis_ly = 0;
+    analog_static.axis_rx = 0;
+    analog_static.axis_ry = 0;
+    analog_static.axis_lt = 0;
+    analog_static.axis_rt = 0;
 
-    if(slots[INPUT_CODE_LT_ANALOG].input_type == INPUT_TYPE_HOVER)
-        analog_static.axis_lt = 1;
-
-    if(slots[INPUT_CODE_RT_ANALOG].input_type == INPUT_TYPE_HOVER)
-        analog_static.axis_rt = 1;
-
-    if(slots[INPUT_CODE_LX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
-        analog_static.axis_lx = 1;
-
-    if(slots[INPUT_CODE_LY_UP].input_type == INPUT_TYPE_JOYSTICK)
-        analog_static.axis_ly = 1;
-
-    if(slots[INPUT_CODE_RX_LEFT].input_type == INPUT_TYPE_JOYSTICK)
-        analog_static.axis_rx = 1;
-
-    if(slots[INPUT_CODE_RY_UP].input_type == INPUT_TYPE_JOYSTICK)
-        analog_static.axis_ry = 1;
+    const hoja_config_s *cfg = hoja_config_get();
+    if(cfg)
+    {
+        for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+        {
+            const hoja_input_slot_cfg_s *slot = &cfg->inputs.slots[i];
+            if(!hoja_input_slot_enabled(slot))
+                continue;
+            _analog_static_set_from_slot(slot->code, slot->type);
+        }
+    }
+    else
+    {
+        const inputInfoSlot_s *slots = input_static.input_info;
+        _analog_static_set_from_slot(INPUT_CODE_LT_ANALOG, (input_type_t) slots[INPUT_CODE_LT_ANALOG].input_type);
+        _analog_static_set_from_slot(INPUT_CODE_RT_ANALOG, (input_type_t) slots[INPUT_CODE_RT_ANALOG].input_type);
+        _analog_static_set_from_slot(INPUT_CODE_LX_LEFT,  (input_type_t) slots[INPUT_CODE_LX_LEFT].input_type);
+        _analog_static_set_from_slot(INPUT_CODE_LY_UP,    (input_type_t) slots[INPUT_CODE_LY_UP].input_type);
+        _analog_static_set_from_slot(INPUT_CODE_RX_LEFT,  (input_type_t) slots[INPUT_CODE_RX_LEFT].input_type);
+        _analog_static_set_from_slot(INPUT_CODE_RY_UP,    (input_type_t) slots[INPUT_CODE_RY_UP].input_type);
+    }
 
     analog_static.invert_allowed = ANALOG_INVERT_ALLOWED;
 }

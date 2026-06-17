@@ -351,8 +351,9 @@ void _hoja_task_0()
 
     if(!_deinit_lockout)
     {
-      // Analog task
-      if(analog_static.axis_lx)
+      // Analog task (any stick half-axis present)
+      if(analog_static.axis_lx || analog_static.axis_ly
+      || analog_static.axis_rx || analog_static.axis_ry)
         analog_task(c0_timestamp);
     }
   }

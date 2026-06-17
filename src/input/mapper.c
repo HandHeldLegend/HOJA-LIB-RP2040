@@ -570,7 +570,9 @@ static void _mapper_apply_default_maps(int8_t *dest, int8_t unused_code,
     for(int i = 0; i < HOJA_INPUT_MAX_DEFAULT_MAPS; i++)
     {
         mapper_input_code_t in = maps->maps[i].input;
-        if(in <= INPUT_CODE_UNUSED || in >= INPUT_CODE_MAX)
+        if(in >= INPUT_CODE_MAX)
+            break;
+        if(in <= INPUT_CODE_UNUSED)
             continue;
         dest[in] = maps->maps[i].output;
     }
