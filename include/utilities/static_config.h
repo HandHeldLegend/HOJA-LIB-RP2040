@@ -137,9 +137,9 @@ typedef struct
 #define WIRELESS_PART_STATUS_ERROR      TRANSPORT_WIRELESS_PART_ERROR
 #define WIRELESS_PART_STATUS_OK         TRANSPORT_WIRELESS_PART_OK
 
-extern const deviceInfoStatic_s     device_static; 
+extern deviceInfoStatic_s           device_static; 
 extern analogInfoStatic_s           analog_static; 
-extern const imuInfoStatic_s        imu_static; 
+extern imuInfoStatic_s              imu_static; 
 extern batteryInfoStatic_s          battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
 extern const inputInfoStatic_s      input_static;

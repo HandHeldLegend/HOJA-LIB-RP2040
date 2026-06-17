@@ -21,8 +21,13 @@
 #include <stdbool.h>
 #include <string.h>
 
-// Include all IMU drivers
-#include "drivers/imu/lsm6dsr.h"
+// Weak driver contract defaults. A board with no IMU driver selected links
+// these, making every IMU call a safe no-op. The selected driver (compiled in
+// by the HOJA_IMU_DRIVER gate) overrides them.
+__attribute__((weak)) uint8_t imu_driver_channel_count(void) { return 0; }
+__attribute__((weak)) bool imu_driver_init(void) { return false; }
+__attribute__((weak)) bool imu_driver_read(uint8_t channel, imu_data_s *out) { (void)channel; (void)out; return false; }
+__attribute__((weak)) const char *imu_driver_part_code(void) { return NULL; }
 
 #define IMU_CALIBRATE_CYCLES 2000
 #define IMU_READ_RATE 3000
@@ -65,7 +70,9 @@ static void _imu_read_quaternion(uint64_t timestamp)
 {
   ns_gyrodata_s this_imu[3] = {0};
 
-  if (imu_config->imu_disabled == 1)
+  uint8_t channels = imu_driver_channel_count();
+
+  if (imu_config->imu_disabled == 1 || channels == 0)
   {
     // Disabled
     this_imu[2].ax = 0;
@@ -79,30 +86,20 @@ static void _imu_read_quaternion(uint64_t timestamp)
   }
   else
   {
-#if defined(HOJA_IMU_CHAN_A_INIT) && defined(HOJA_IMU_CHAN_B_INIT)
-    HOJA_IMU_CHAN_A_READ((imu_data_s*)&this_imu[0]);
-    HOJA_IMU_CHAN_B_READ((imu_data_s*)&this_imu[1]);
+    // Single-channel boards read channel 0 twice (and reuse its offsets) so the
+    // averaging below collapses to that single sensor.
+    uint8_t ch2 = (channels >= 2) ? 1 : 0;
+
+    imu_driver_read(0,   (imu_data_s *)&this_imu[0]);
+    imu_driver_read(ch2, (imu_data_s *)&this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
     this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
 
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(1);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(1);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(1);
-
-#elif defined(HOJA_IMU_CHAN_A_INIT)
-    HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-    HOJA_IMU_CHAN_A_READ(&this_imu[1]);
-
-    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
-#endif
+    this_imu[1].gx -= IMU_GYRO_OFFSET_X(ch2);
+    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(ch2);
+    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(ch2);
 
     // Average
     this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
@@ -123,7 +120,9 @@ static void _imu_read_standard(uint64_t timestamp)
 {
   imu_data_s this_imu[3] = {0};
 
-  if (imu_config->imu_disabled == 1)
+  uint8_t channels = imu_driver_channel_count();
+
+  if (imu_config->imu_disabled == 1 || channels == 0)
   {
     // Disabled
     this_imu[2].ax = 0;
@@ -137,30 +136,20 @@ static void _imu_read_standard(uint64_t timestamp)
   }
   else
   {
-#if defined(HOJA_IMU_CHAN_A_INIT) && defined(HOJA_IMU_CHAN_B_INIT)
-    HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-    HOJA_IMU_CHAN_B_READ(&this_imu[1]);
+    // Single-channel boards read channel 0 twice (and reuse its offsets) so the
+    // averaging below collapses to that single sensor.
+    uint8_t ch2 = (channels >= 2) ? 1 : 0;
+
+    imu_driver_read(0,   &this_imu[0]);
+    imu_driver_read(ch2, &this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
     this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
 
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(1);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(1);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(1);
-
-#elif defined(HOJA_IMU_CHAN_A_INIT)
-    HOJA_IMU_CHAN_A_READ(&this_imu[0]);
-    HOJA_IMU_CHAN_A_READ(&this_imu[1]);
-
-    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(0);
-#endif
+    this_imu[1].gx -= IMU_GYRO_OFFSET_X(ch2);
+    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(ch2);
+    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(ch2);
 
     // Average
     this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
@@ -221,47 +210,52 @@ void _imu_calibrate_function(uint64_t timestamp)
   static int ry = 0;
   static int rz = 0;
 
+  uint8_t channels = imu_driver_channel_count();
+
   if (_imu_calibrate_cycles_remaining > 0)
   {
     _imu_calibrate_cycles_remaining--;
 
     imu_data_s imu_calibration_read = {0};
 
-// Read IMU data
-#if defined(HOJA_IMU_CHAN_A_INIT)
-    HOJA_IMU_CHAN_A_READ(&imu_calibration_read);
-    lx += imu_calibration_read.gx;
-    ly += imu_calibration_read.gy;
-    lz += imu_calibration_read.gz;
-#endif
+    if (channels >= 1)
+    {
+      imu_driver_read(0, &imu_calibration_read);
+      lx += imu_calibration_read.gx;
+      ly += imu_calibration_read.gy;
+      lz += imu_calibration_read.gz;
+    }
 
-#if defined(HOJA_IMU_CHAN_B_INIT)
-    HOJA_IMU_CHAN_B_READ(&imu_calibration_read);
-    rx += imu_calibration_read.gx;
-    ry += imu_calibration_read.gy;
-    rz += imu_calibration_read.gz;
-#endif
+    if (channels >= 2)
+    {
+      imu_driver_read(1, &imu_calibration_read);
+      rx += imu_calibration_read.gx;
+      ry += imu_calibration_read.gy;
+      rz += imu_calibration_read.gz;
+    }
   }
 
   if (!_imu_calibrate_cycles_remaining)
   {
-#if defined(HOJA_IMU_CHAN_A_INIT)
-    CH_A_GYRO_OFFSET(0) = (int8_t)(lx / IMU_CALIBRATE_CYCLES);
-    CH_A_GYRO_OFFSET(1) = (int8_t)(ly / IMU_CALIBRATE_CYCLES);
-    CH_A_GYRO_OFFSET(2) = (int8_t)(lz / IMU_CALIBRATE_CYCLES);
-    lx = 0;
-    ly = 0;
-    lz = 0;
-#endif
+    if (channels >= 1)
+    {
+      CH_A_GYRO_OFFSET(0) = (int8_t)(lx / IMU_CALIBRATE_CYCLES);
+      CH_A_GYRO_OFFSET(1) = (int8_t)(ly / IMU_CALIBRATE_CYCLES);
+      CH_A_GYRO_OFFSET(2) = (int8_t)(lz / IMU_CALIBRATE_CYCLES);
+      lx = 0;
+      ly = 0;
+      lz = 0;
+    }
 
-#if defined(HOJA_IMU_CHAN_B_INIT)
-    CH_B_GYRO_OFFSET(0) = (int8_t)(rx / IMU_CALIBRATE_CYCLES);
-    CH_B_GYRO_OFFSET(1) = (int8_t)(ry / IMU_CALIBRATE_CYCLES);
-    CH_B_GYRO_OFFSET(2) = (int8_t)(rz / IMU_CALIBRATE_CYCLES);
-    rx = 0;
-    ry = 0;
-    rz = 0;
-#endif
+    if (channels >= 2)
+    {
+      CH_B_GYRO_OFFSET(0) = (int8_t)(rx / IMU_CALIBRATE_CYCLES);
+      CH_B_GYRO_OFFSET(1) = (int8_t)(ry / IMU_CALIBRATE_CYCLES);
+      CH_B_GYRO_OFFSET(2) = (int8_t)(rz / IMU_CALIBRATE_CYCLES);
+      rx = 0;
+      ry = 0;
+      rz = 0;
+    }
     _imu_calibrate_stop();
   }
 }
@@ -293,26 +287,30 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
 // IMU forced task (for gated/syncronized reads)
 void imu_forced_task_standard(void)
 {
-#if defined(HOJA_IMU_CHAN_A_DRIVER)
+  if (imu_driver_channel_count() == 0)
+    return;
+
   static uint64_t t;
   sys_hal_time_us(&t);
   _imu_read_standard(t);
-#endif
 }
 
 void imu_forced_task_quaternion(void)
 {
-#if defined(HOJA_IMU_CHAN_A_DRIVER)
+  if (imu_driver_channel_count() == 0)
+    return;
+
   static uint64_t t;
   sys_hal_time_us(&t);
   _imu_read_quaternion(t);
-#endif
 }
 
 // IMU module operational task
 void imu_task(uint64_t timestamp)
 {
-#if defined(HOJA_IMU_CHAN_A_DRIVER)
+  if (imu_driver_channel_count() == 0)
+    return;
+
   static interval_s _imu_read_interval = {0};
 
   if (interval_run(timestamp, IMU_READ_RATE, &_imu_read_interval))
@@ -323,7 +321,6 @@ void imu_task(uint64_t timestamp)
     else
       _imu_read_standard(timestamp);
   }
-#endif
 }
 
 // IMU module initialization function
@@ -346,13 +343,8 @@ bool imu_init()
   // Reset quaternion
   ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
 
-#if defined(HOJA_IMU_CHAN_A_INIT)
-  HOJA_IMU_CHAN_A_INIT();
-#endif
-
-#if defined(HOJA_IMU_CHAN_B_INIT)
-  HOJA_IMU_CHAN_B_INIT();
-#endif
+  // Bring up every configured channel (weak default is a no-op when no driver).
+  imu_driver_init();
 
   return true;
 }

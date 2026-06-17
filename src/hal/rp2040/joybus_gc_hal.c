@@ -1,6 +1,6 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) && (HOJA_TRANSPORT_JOYBUS64_DRIVER == JOYBUS_GC_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER) && (HOJA_TRANSPORT_JOYBUSGC_DRIVER == JOYBUS_GC_DRIVER_HAL)
 
 #include <stdlib.h>
 
@@ -11,6 +11,7 @@
 #include "hal/joybus_gc_hal.h"
 #include "pico/stdlib.h"
 #include "hoja.h"
+#include "hoja_bsp.h"
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"
 
@@ -31,25 +32,15 @@ snapshot_gcinput_t _gc_hal_snap;
 
 core_params_s *_gc_core_params = NULL;
 
-#if !defined(JOYBUS_GC_DRIVER_PIO_INSTANCE)
-#error "JOYBUS_GC_DRIVER_PIO_INSTANCE must be defined in board_config.h"
-#endif
-
-#if !defined(JOYBUS_GC_DRIVER_DATA_PIN)
-#error "JOYBUS_GC_DRIVER_DATA_PIN must be defined in board_config.h"
-#endif
-
-#if (JOYBUS_GC_DRIVER_PIO_INSTANCE == 0)
-#define GC_PIO_IN_USE pio0
-#define PIO_IRQ_USE_0 PIO0_IRQ_0
-#define PIO_IRQ_USE_1 PIO0_IRQ_1
-#else
-#define GC_PIO_IN_USE pio1
-#define PIO_IRQ_USE_0 PIO1_IRQ_0
-#define PIO_IRQ_USE_1 PIO1_IRQ_1
-#endif
-
-#define PIO_SM 0
+// The PIO block + state machine are allocated dynamically at init (see
+// pio_claim_free_sm_and_add_program); the data pin comes from
+// hoja_config_s.joybus, shared with the N64 joybus HAL. Cached into these
+// statics so the time-critical handlers stay branch-free.
+static PIO     _gc_pio      = NULL;
+static uint    _gc_sm       = 0;
+static uint8_t _gc_data_pin = 0;
+#define GC_PIO_IN_USE _gc_pio
+#define PIO_SM _gc_sm
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
@@ -103,7 +94,7 @@ void _gamecube_send_poll()
 
 void _gamecube_reset_state()
 {
-  joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
+  joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, _gc_data_pin, &_gamecube_c);
 }
 
 #define BYTECOUNT_DEFAULT 2
@@ -242,18 +233,22 @@ static void __time_critical_func(_gamecube_isr_handler)(void)
 
 bool _joybus_gc_hal_init()
 {
-  _gamecube_offset = pio_add_program(GC_PIO_IN_USE, &joybus_program);
+  _gc_data_pin = hoja_config_get()->joybus.data_pin;
 
-  _gamecube_irq = PIO_IRQ_USE_0;
+  // Dynamically grab a PIO block + state machine with room for the program.
+  if(!pio_claim_free_sm_and_add_program(&joybus_program, &_gc_pio, &_gc_sm, &_gamecube_offset))
+    return false;
+
+  // IRQ line depends on which PIO block we were given.
+  _gamecube_irq = (uint)pio_get_irq_num(_gc_pio, 0);
 
   pio_set_irq0_source_enabled(GC_PIO_IN_USE, pis_interrupt0, true);
 
   irq_set_exclusive_handler(_gamecube_irq, _gamecube_isr_handler);
 
-  irq_set_priority(PIO_IRQ_USE_0, 0);
-  // irq_set_priority(PIO_IRQ_USE_1, 0);
+  irq_set_priority(_gamecube_irq, 0);
 
-  joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, JOYBUS_GC_DRIVER_DATA_PIN, &_gamecube_c);
+  joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, _gc_data_pin, &_gamecube_c);
   irq_set_enabled(_gamecube_irq, true);
   _gc_running = true;
 

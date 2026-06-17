@@ -79,14 +79,12 @@ static dongle_mode_t _wlan_mode_from_format(core_reportformat_t fmt)
     }
 }
 
-#if !defined(HOJA_DEVICE_MAKER)
-#define WLAN_DGP_MAKER "HHL"
-#else
-#define WLAN_DGP_MAKER HOJA_DEVICE_MAKER
-#endif
-
 static void _wlan_fill_dgp_cfg(core_params_s *params)
 {
+    const hoja_config_s *cfg = hoja_config_get();
+    const char *dev_maker = (cfg && cfg->device_maker) ? cfg->device_maker : "HHL";
+    const char *dev_name  = (cfg && cfg->device_name)  ? cfg->device_name  : NULL;
+
     memset(&_wlan_dgp_cfg, 0, sizeof(_wlan_dgp_cfg));
 
     _wlan_dgp_cfg.mode = _wlan_mode_from_format(params->core_report_format);
@@ -94,7 +92,7 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
     _wlan_dgp_cfg.evt.player_number = true;
     _wlan_dgp_cfg.evt.transport_status = true;
 
-    dongle_wake_strcopy(_wlan_dgp_cfg.manufacturer, DONGLE_WAKE_MANUFACTURER_LEN, WLAN_DGP_MAKER);
+    dongle_wake_strcopy(_wlan_dgp_cfg.manufacturer, DONGLE_WAKE_MANUFACTURER_LEN, dev_maker);
 
     if (params->hid_device != NULL)
     {
@@ -102,16 +100,13 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
         _wlan_dgp_cfg.pid = params->hid_device->pid;
         dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, params->hid_device->name);
     }
-#if defined(HOJA_USB_VID) && defined(HOJA_USB_PID)
-    else
+    else if (cfg && (cfg->usb_vid || cfg->usb_pid))
     {
-        _wlan_dgp_cfg.vid = HOJA_USB_VID;
-        _wlan_dgp_cfg.pid = HOJA_USB_PID;
-    #if defined(HOJA_DEVICE_NAME)
-        dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, HOJA_DEVICE_NAME);
-    #endif
+        _wlan_dgp_cfg.vid = cfg->usb_vid;
+        _wlan_dgp_cfg.pid = cfg->usb_pid;
+        if (dev_name)
+            dongle_wake_strcopy(_wlan_dgp_cfg.name, DONGLE_WAKE_NAME_LEN, dev_name);
     }
-#endif
 
     dongle_wlan_pin_from_u16((uint16_t)(gamepad_config->wlan_dongle_key % 10000u),
                              _wlan_dgp_cfg.pin);

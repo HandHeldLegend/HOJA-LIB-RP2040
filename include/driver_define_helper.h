@@ -53,8 +53,14 @@
     #define HOJA_ENABLE_INPUT(code) | HOJA_MASK(code)
     
     // IMU Drivers
+    // Legacy per-channel/per-bus selectors (used by not-yet-migrated boards).
     #define IMU_DRIVER_LSM6DSR_SPI 1
     #define IMU_DRIVER_LSM6DSR_I2C 2
+    // Unified LSM6DSR driver: bus (SPI/I2C) is chosen per-channel in the cfg.
+    #define IMU_DRIVER_LSM6DSR     3
+    // Override: board supplies its own IMU driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_IMU_CFG_TYPE) for the override hook.
+    #define IMU_DRIVER_CUSTOM      0xFF
 
     // Haptic helper Drivers 
     #define HAPTIC_HELPER_DRIVER_DRV2605L 1

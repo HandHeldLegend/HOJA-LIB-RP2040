@@ -6,33 +6,14 @@
 #include "hoja.h"
 
 #include "input/mapper.h"
+#include "transport/transport_nesbus.h"
 
 #include "board_config.h"
 
-#if defined(HOJA_NESBUS_DRIVER) && (HOJA_NESBUS_DRIVER == NESBUS_DRIVER_HAL)
-#if !defined(NESBUS_DRIVER_PIO_INSTANCE)
-    #error "NESBUS_DRIVER_PIO_INSTANCE must be defined in board_config.h" 
-#endif
+#if defined(HOJA_TRANSPORT_NESBUS_DRIVER) && (HOJA_TRANSPORT_NESBUS_DRIVER == NESBUS_DRIVER_HAL)
 
-#if !defined(NESBUS_DRIVER_CLOCK_PIN)
-    #error "NESBUS_DRIVER_CLOCK_PIN must be defined in board_config.h" 
-#endif
-
-#if !defined(NESBUS_DRIVER_DATA_PIN)
-    #error "NESBUS_DRIVER_DATA_PIN must be defined in board_config.h" 
-#endif
-
-#if !defined(NESBUS_DRIVER_LATCH_PIN)
-    #error "NESBUS_DRIVER_LATCH_PIN must be defined in board_config.h" 
-#endif
-
-#if(NESBUS_DRIVER_PIO_INSTANCE==0)
-    #define PIO_IN_USE pio0
-    #define PIO_IRQ_USE_0 PIO0_IRQ_0
-#else 
-    #define PIO_IN_USE pio1 
-    #define PIO_IRQ_USE_0 PIO1_IRQ_0
-#endif
+// PIO block + GPIO pins come from hoja_config_s.nesbus, resolved at init.
+#define PIO_IN_USE _nspi_pio
 
 typedef struct
 {
@@ -86,7 +67,8 @@ volatile snes_hal_input_s tmpsnes  = {.value = 0xFFFF0000};
 static bool _nspi_running;
 static uint _nspi_irq;
 static PIO  _nspi_pio;
-static uint _nspi_sm;
+static uint _nspi_sm;       // data shift SM
+static uint _nspi_latch_sm; // latch-detect SM (same PIO + program)
 static uint _nspi_offset;
 static volatile uint32_t _nspi_buffer = 0xFFFFFFFF;
 static bool _nspi_snesdetected = false;
@@ -115,32 +97,47 @@ static void _nspi_isr_handler(void)
     }
 }
 
-void nesbus_hal_stop()
+void transport_nesbus_stop()
 {
 
 }
 
-bool nesbus_hal_init()
+bool transport_nesbus_init(core_params_s *params)
 {
-    // Set up PIO for NSPI
-    _nspi_pio = PIO_IN_USE;
-    _nspi_irq = PIO_IRQ_USE_0;
-    _nspi_sm = 0;
-    _nspi_offset = pio_add_program(_nspi_pio, &nserial_program);
+    if(params->core_report_format != CORE_REPORTFORMAT_SNES) return false;
+
+    const hoja_nesbus_cfg_s *cfg = &hoja_config_get()->nesbus;
+
+    // Dynamically grab a PIO block + state machine (data shifter) with room for
+    // the program, then claim a second SM on the same block for latch detection.
+    if(!pio_claim_free_sm_and_add_program(&nserial_program, &_nspi_pio, &_nspi_sm, &_nspi_offset))
+        return false;
+
+    int latch_sm = pio_claim_unused_sm(_nspi_pio, false);
+    if(latch_sm < 0)
+    {
+        pio_remove_program_and_unclaim_sm(&nserial_program, _nspi_pio, _nspi_sm, _nspi_offset);
+        return false;
+    }
+    _nspi_latch_sm = (uint)latch_sm;
+
+    // IRQ line depends on which PIO block we were given.
+    _nspi_irq = (uint)pio_get_irq_num(_nspi_pio, 0);
 
     pio_set_irq0_source_enabled(PIO_IN_USE, pis_interrupt0, true);
     irq_set_exclusive_handler(_nspi_irq, _nspi_isr_handler);
 
-    nserial_program_init(_nspi_pio, _nspi_sm, _nspi_offset, NESBUS_DRIVER_DATA_PIN, NESBUS_DRIVER_CLOCK_PIN);
-    nserial_program_latch_init(_nspi_pio, _nspi_sm+1, _nspi_offset, NESBUS_DRIVER_LATCH_PIN);
+    nserial_program_init(_nspi_pio, _nspi_sm, _nspi_offset, cfg->data_pin, cfg->clock_pin);
+    nserial_program_latch_init(_nspi_pio, _nspi_latch_sm, _nspi_offset, cfg->latch_pin);
 
     pio_sm_put_blocking(_nspi_pio, _nspi_sm, 0x00);
 
     irq_set_enabled(_nspi_irq, true);
     _nspi_running = true;
+    return true;
 }
 
-void nesbus_hal_task(uint64_t timestamp)
+void transport_nesbus_task(uint64_t timestamp)
 {   
     
     static interval_s interval = {0};

@@ -149,25 +149,35 @@ typedef struct
     uint16_t boot_flags;
 } core_sm_s;
 
-// Runtime transport eligibility from the board's hoja_config_s. Replaces the
-// per-transport HOJA_TRANSPORT_*_DRIVER compile guards that used to gate this
-// switch. Transport entry points always link (weak defaults), so an attempted
-// transport whose platform HAL isn't compiled simply returns false.
+// A transport is supported when the board declares its driver in board_config.h
+// (HOJA_TRANSPORT_*_DRIVER). That same gate compiles the transport's platform
+// HAL, so support is inferred directly from the driver's existence rather than
+// a separate runtime list. Transports without a declared driver are rejected.
 static bool _transport_supported(gamepad_transport_t type)
 {
-    const hoja_config_s *cfg = hoja_config_get();
-    if(cfg == NULL) return false;
-
     switch(type)
     {
-        case GAMEPAD_TRANSPORT_USB:       return cfg->supported_transports.usb;
-        case GAMEPAD_TRANSPORT_BLUETOOTH: return cfg->supported_transports.bluetooth;
-        case GAMEPAD_TRANSPORT_WLAN:      return cfg->supported_transports.wlan;
-        case GAMEPAD_TRANSPORT_NESBUS:    return cfg->supported_transports.nesbus;
-        case GAMEPAD_TRANSPORT_JOYBUS64:  return cfg->supported_transports.joybus_n64;
-        case GAMEPAD_TRANSPORT_JOYBUSGC:  return cfg->supported_transports.joybus_gc;
-        default:                          return false;
+#if defined(HOJA_TRANSPORT_USB_DRIVER)
+        case GAMEPAD_TRANSPORT_USB:       return true;
+#endif
+#if defined(HOJA_TRANSPORT_BT_DRIVER)
+        case GAMEPAD_TRANSPORT_BLUETOOTH: return true;
+#endif
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+        case GAMEPAD_TRANSPORT_WLAN:      return true;
+#endif
+#if defined(HOJA_TRANSPORT_NESBUS_DRIVER)
+        case GAMEPAD_TRANSPORT_NESBUS:    return true;
+#endif
+#if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER)
+        case GAMEPAD_TRANSPORT_JOYBUS64:  return true;
+#endif
+#if defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
+        case GAMEPAD_TRANSPORT_JOYBUSGC:  return true;
+#endif
+        default: break;
     }
+    return false;
 }
 
 bool transport_init(core_params_s *params)

@@ -10,6 +10,8 @@
 #include "utilities/settings.h"
 #include "utilities/crosscore_snapshot.h"
 
+#include "hoja.h"
+
 #include "hoja_bsp.h"
 #if HOJA_BSP_CHIPSET == CHIPSET_RP2040
 // Special float functions for RP2040
@@ -32,6 +34,10 @@ volatile uint32_t _external_sample_scaler = 0;
 
 volatile float _pcm_param_min_lo = PCM_LO_FREQUENCY_MIN; // Minimum low frequency parameter
 volatile float _pcm_param_min_hi = PCM_HI_FREQUENCY_MIN; // Minimum high frequency parameter
+
+// Amplitude ceiling (0..1). Defaults to the library value; overridden at the
+// first pcm_init() from hoja_config_s.haptics.intensity_max when non-zero.
+volatile float _pcm_max_safe_ratio = PCM_MAX_SAFE_RATIO;
 
 #define PCM_LO_FREQUENCY_LPF_HZ 400
 #define PCM_HI_FREQUENCY_LPF_HZ 1000
@@ -338,6 +344,24 @@ void pcm_init(int intensity)
     intensity = (intensity > 255) ? 255 : intensity;
     static uint8_t this_intensity = 0;
 
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+    // PCM synthesis only backs the LRA HAL; pull the board's amplitude ceiling /
+    // frequency floors from the LRA config the first time we run. Zero entries
+    // keep the library defaults set above.
+    static bool _cfg_loaded = false;
+    if(!_cfg_loaded)
+    {
+        _cfg_loaded = true;
+        const hoja_config_s *hcfg = hoja_config_get();
+        if(hcfg)
+        {
+            if(hcfg->haptics.intensity_max    > 0.0f) _pcm_max_safe_ratio = hcfg->haptics.intensity_max;
+            if(hcfg->haptics.intensity_min_lo > 0.0f) _pcm_param_min_lo   = hcfg->haptics.intensity_min_lo;
+            if(hcfg->haptics.intensity_min_hi > 0.0f) _pcm_param_min_hi   = hcfg->haptics.intensity_min_hi;
+        }
+    }
+#endif
+
     if(!intensity)
     {
         _lo_amp_scaler_fixed = 0;
@@ -373,7 +397,7 @@ void pcm_init(int intensity)
     }
 
     // Calculate the scaled maximum wrap value. We also factor in the user config scaler and board config
-    float max_scaled = ((float) PCM_WRAP_HALF_VAL * scaler * PCM_MAX_SAFE_RATIO);
+    float max_scaled = ((float) PCM_WRAP_HALF_VAL * scaler * _pcm_max_safe_ratio);
 
     // Calculate the value our minimums will be
     // We only use half of the wrap value because the low/high amplitudes
@@ -431,24 +455,33 @@ uint32_t _external_sample_remaining_r = 0;
 uint32_t _external_sample_size_l = 0;
 uint32_t _external_sample_size_r = 0;
 
-#if defined(HOJA_HAPTICS_CHAN_SWAP) && (HOJA_HAPTICS_CHAN_SWAP==1)
-void pcm_play_bump(bool left, bool right)
-#else
-void pcm_play_bump(bool right, bool left)
-#endif
+void pcm_play_bump(bool arg_right, bool arg_left)
 {
     if(!haptic_config->haptic_triggers) return;
 
-#if !defined(HOJA_HAPTICS_CHAN_B_PIN)
-    if(left)
-    {
-        right=true;
-    }
-    else if(right)
-    {
-        left=true;
-    }
+    // Resolve physical channel routing at runtime. channel_swap mirrors the old
+    // HOJA_HAPTICS_CHAN_SWAP define: when set, arg_left/arg_right map straight to
+    // the left/right motors; when clear, they are crossed.
+    bool left, right;
+    bool channel_b_enable = false;
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+    // Channel routing only applies to the dual-channel LRA HAL.
+    const hoja_config_s *hcfg = hoja_config_get();
+    const bool channel_swap = hcfg ? hcfg->haptics.channel_swap : false;
+    channel_b_enable = hcfg ? hcfg->haptics.channel_b_enable : false;
+#else
+    const bool channel_swap = false;
 #endif
+
+    if(channel_swap) { left = arg_left;  right = arg_right; }
+    else             { left = arg_right; right = arg_left;  }
+
+    // Single-channel boards fold both sides onto the one motor.
+    if(!channel_b_enable)
+    {
+        if(left)       right = true;
+        else if(right) left  = true;
+    }
 
     static bool left_on = false;
     static bool right_on = false;

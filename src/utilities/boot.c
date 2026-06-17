@@ -53,15 +53,10 @@ uint8_t boot_pick_strongest_analog4(const uint16_t raw[4], uint16_t min_delta, u
     return (uint8_t)(1u << max_i);
 }
 
-#if defined(HOJA_SEWN_TYPE)
-#define BOOT_SEWN_LAYOUT (HOJA_SEWN_TYPE)
-#else
-#define BOOT_SEWN_LAYOUT SEWN_LAYOUT_ABXY
-#endif
-
 static uint8_t boot_sewn_layout_clamp(void)
 {
-    uint8_t l = (uint8_t)BOOT_SEWN_LAYOUT;
+    const hoja_config_s *cfg = hoja_config_get();
+    uint8_t l = cfg ? cfg->sewn_layout : (uint8_t)SEWN_LAYOUT_ABXY;
     if (l > (uint8_t)SEWN_LAYOUT_AXBY)
         l = (uint8_t)SEWN_LAYOUT_ABXY;
     return l;

@@ -15,6 +15,7 @@
 #include "utilities/interval.h"
 #include "utilities/crosscore_snapshot.h"
 
+#include "hoja.h"
 #include "hoja_bsp.h"
 
 typedef enum
@@ -29,25 +30,14 @@ typedef enum
 SNAPSHOT_TYPE(n64input, core_n64_report_s);
 snapshot_n64input_t _n64_hal_snap;
 
-#if !defined(JOYBUS_N64_DRIVER_PIO_INSTANCE)
-    #error "JOYBUS_N64_DRIVER_PIO_INSTANCE must be defined in board_config.h" 
-#endif
-
-#if !defined(JOYBUS_N64_DRIVER_DATA_PIN)
-    #error "JOYBUS_N64_DRIVER_DATA_PIN must be defined in board_config.h" 
-#endif
-
-#if(JOYBUS_N64_DRIVER_PIO_INSTANCE==0)
-    #define PIO_IN_USE_N64 pio0
-    #define PIO_IRQ_USE_0 PIO0_IRQ_0
-    #define PIO_IRQ_USE_1 PIO0_IRQ_1
-#else 
-    #define PIO_IN_USE_N64 pio1 
-    #define PIO_IRQ_USE_0 PIO1_IRQ_0
-    #define PIO_IRQ_USE_1 PIO1_IRQ_1
-#endif
-
-#define PIO_SM 0
+// The PIO block + state machine are allocated dynamically at init (see
+// pio_claim_free_sm_and_add_program); the data pin comes from
+// hoja_config_s.joybus, shared with the GameCube joybus HAL. Cached into these
+// statics so the time-critical handlers stay branch-free.
+static PIO     _n64_pio       = NULL;
+static uint    _n64_sm        = 0;
+static uint8_t _n64_data_pin  = 0;
+#define PIO_SM _n64_sm
 
 #define CLAMP_0_255(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 #define ALIGNED_JOYBUS_8(val) ((val) << 24)
@@ -57,6 +47,8 @@ snapshot_n64input_t _n64_hal_snap;
 uint _n64_irq;
 uint _n64_offset;
 pio_sm_config _n64_c;
+
+#define PIO_IN_USE_N64 _n64_pio
 bool _n64_rumble = false;
 
 volatile static uint8_t _workingCmd = 0x00;
@@ -256,22 +248,27 @@ static void __time_critical_func(_n64_isr_handler)(void)
 
 void _n64_reset_state()
 {
-  joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
+  joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, _n64_data_pin, &_n64_c);
 }
 
 bool _joybus_n64_hal_init()
 {
-    _n64_offset = pio_add_program(PIO_IN_USE_N64, &joybus_program);
+    _n64_data_pin = hoja_config_get()->joybus.data_pin;
 
-    _n64_irq    = PIO_IRQ_USE_0;
+    // Dynamically grab a PIO block + state machine with room for the program.
+    if(!pio_claim_free_sm_and_add_program(&joybus_program, &_n64_pio, &_n64_sm, &_n64_offset))
+        return false;
+
+    // IRQ line depends on which PIO block we were given.
+    _n64_irq = (uint)pio_get_irq_num(_n64_pio, 0);
 
     pio_set_irq0_source_enabled(PIO_IN_USE_N64, pis_interrupt0, true);
 
     irq_set_exclusive_handler(_n64_irq, _n64_isr_handler);
 
-    irq_set_priority(PIO_IRQ_USE_0, 0);
+    irq_set_priority(_n64_irq, 0);
 
-    joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, JOYBUS_N64_DRIVER_DATA_PIN, &_n64_c);
+    joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, _n64_data_pin, &_n64_c);
     irq_set_enabled(_n64_irq, true);
     return true;
 }
@@ -322,10 +319,9 @@ void transport_jb64_stop()
   irq_remove_handler(_n64_irq, _n64_isr_handler);
   pio_set_irq0_source_enabled(PIO_IN_USE_N64, pis_interrupt0, false);
 
-  // Stop and clean up the state machine
+  // Stop and release the dynamically-claimed state machine + program
   pio_sm_set_enabled(PIO_IN_USE_N64, PIO_SM, false);
-  pio_sm_unclaim(PIO_IN_USE_N64, PIO_SM);
-  pio_remove_program(PIO_IN_USE_N64, &joybus_program, _n64_offset);
+  pio_remove_program_and_unclaim_sm(&joybus_program, PIO_IN_USE_N64, PIO_SM, _n64_offset);
 
   // Notify transport about disconnection before clearing params
   _jb64_handle_connection(false);

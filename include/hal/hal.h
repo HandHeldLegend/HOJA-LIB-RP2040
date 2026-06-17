@@ -33,14 +33,14 @@
 #endif
 #endif
 
-#ifdef HOJA_BSP_HAS_GCJOYBUS
-#if HOJA_BSP_HAS_GCJOYBUS > 0
+#ifdef HOJA_BSP_HAS_JOYBUS_GC
+#if HOJA_BSP_HAS_JOYBUS_GC > 0
 #include "hal/joybus_gc_hal.h"
 #endif
 #endif
 
-#ifdef HOJA_BSP_HAS_N64JOYBUS
-#if HOJA_BSP_HAS_N64JOYBUS > 0
+#ifdef HOJA_BSP_HAS_JOYBUS_N64
+#if HOJA_BSP_HAS_JOYBUS_N64 > 0
 #include "hal/joybus_n64_hal.h"
 #endif
 #endif

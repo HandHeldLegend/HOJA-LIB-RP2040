@@ -13,18 +13,17 @@
 
 #include "usb/webusb.h"
 
+#include "hoja.h"
+
 #include "hhl_tusb.h"
 
-#if !defined(HOJA_MANUFACTURER)
-#define USB_MANUFACTURER "HOJA"
+// WebUSB landing URL the browser offers when the device is plugged in. Defaults
+// to the HOJA config web app; a board may override it by defining
+// HOJA_WEBUSB_URL in its board_config.h (optional, rarely needed).
+#if defined(HOJA_WEBUSB_URL)
+#define USB_WEBUSB_URL HOJA_WEBUSB_URL
 #else
-#define USB_MANUFACTURER HOJA_MANUFACTURER
-#endif
-
-#if !defined(HOJA_PRODUCT)
-#define USB_PRODUCT "Gamepad"
-#else
-#define USB_PRODUCT HOJA_PRODUCT
+#define USB_WEBUSB_URL "handheldlegend.github.io/hoja2"
 #endif
 
 core_params_s *_usb_core_params = NULL;
@@ -140,9 +139,11 @@ bool transport_usb_init(core_params_s *params)
         return false;
     }
 
+    const hoja_config_s *cfg = hoja_config_get();
+
     hhl_tusb_config_s tcfg = {0};
-    tcfg.strings.manufacturer = USB_MANUFACTURER;
-    tcfg.strings.product = USB_PRODUCT;
+    tcfg.strings.manufacturer = (cfg && cfg->device_maker) ? cfg->device_maker : "HOJA";
+    tcfg.strings.product      = (cfg && cfg->device_name)  ? cfg->device_name  : "Gamepad";
     _usb_hal_set_serial_from_mac(params->transport_dev_mac);
     tcfg.strings.serial_number = _usb_serial_str;
 
@@ -159,20 +160,16 @@ bool transport_usb_init(core_params_s *params)
         _usb_frames = 1;
         tcfg.driver = HHL_TUSB_DRIVER_HID;
         tcfg.webusb.enabled = true;
-#if defined(HOJA_WEBUSB_URL)
-        tcfg.webusb.url = HOJA_WEBUSB_URL;
+        tcfg.webusb.url = USB_WEBUSB_URL;
         tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
-#endif
         break;
 
     case CORE_REPORTFORMAT_SWPRO:
         _usb_frames = 8;
         tcfg.driver = HHL_TUSB_DRIVER_HID;
         tcfg.webusb.enabled = true;
-#if defined(HOJA_WEBUSB_URL)
-        tcfg.webusb.url = HOJA_WEBUSB_URL;
+        tcfg.webusb.url = USB_WEBUSB_URL;
         tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
-#endif
         break;
 
     case CORE_REPORTFORMAT_XINPUT:

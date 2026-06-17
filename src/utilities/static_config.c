@@ -5,6 +5,7 @@
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
+#include "input/imu.h"
 
 // Bluetooth driver nonsense
 #include "devices/bluetooth.h"
@@ -13,19 +14,9 @@
 
 #include <string.h>
 
-#if !defined(HOJA_DEVICE_NAME)
- #warning "HOJA_DEVICE_NAME undefined in board_config.h"
- #define DEVICE_NAME "HOJA GamePad"
-#else 
-    #define DEVICE_NAME HOJA_DEVICE_NAME 
-#endif
-
-#if !defined(HOJA_DEVICE_MAKER)
- #warning "HOJA_DEVICE_MAKER undefined in board_config.h"
- #define DEVICE_MAKER "HHL"
-#else 
-    #define DEVICE_MAKER HOJA_DEVICE_MAKER 
-#endif
+// Device name/maker and the manifest/firmware/manual URLs now live in the
+// board's hoja_config_s (populated in main.c) and are copied into device_static
+// at runtime by _device_static_refresh().
 
 #if !defined(HOJA_DEVICE_SNES_SUPPORTED)
  #warning "HOJA_DEVICE_SNES_SUPPORTED undefined. SNES/NES disabled."
@@ -41,43 +32,17 @@
  #define JOYBUS_SUPPORT HOJA_DEVICE_JOYBUS_SUPPORTED
 #endif
 
-#if !defined(HOJA_DEVICE_MANIFEST_URL) 
- #warning "HOJA_DEVICE_MANIFEST_URL undefined. Update notifications disabled."
- #define MANIFEST_URL "~"
-#else 
- #define MANIFEST_URL HOJA_DEVICE_MANIFEST_URL
-#endif
-
-#if defined(HOJA_DEVICE_MANIFEST_URL)
-    #if !defined(HOJA_DEVICE_FIRMWARE_URL) 
-        #error "HOJA_DEVICE_FIRMWARE_URL must be defined for firmware update notifications." 
-    #else 
-        #define FIRMWARE_URL HOJA_DEVICE_FIRMWARE_URL
-    #endif
-#else 
-    #define FIRMWARE_URL "~"
-#endif
-
 #if !defined(HOJA_DEVICE_FCC_ID_TEXT) 
     #define FCC_ID_TEXT "~"
 #else 
     #define FCC_ID_TEXT HOJA_DEVICE_FCC_ID_TEXT
 #endif
 
-#if defined(HOJA_DEVICE_MANUAL_URL)
-    #define MANUAL_URL HOJA_DEVICE_MANUAL_URL
-#else 
-    #define MANUAL_URL "~"
-    #warning "HOJA_DEVICE_MANUAL_URL undefined. Include to enable documentation URL in app."
-#endif
-
-const deviceInfoStatic_s    device_static = {
+// name/maker/manifest_url/firmware_url/manual_url are filled at runtime from the
+// hoja config (see _device_static_refresh); only the compile-time fields are
+// initialized here.
+deviceInfoStatic_s    device_static = {
     .fw_version     = FIRMWARE_VERSION_TIMESTAMP,
-    .maker          = DEVICE_MAKER, 
-    .name           = DEVICE_NAME,
-    .firmware_url   = FIRMWARE_URL,
-    .manifest_url   = MANIFEST_URL,
-    .manual_url     = MANUAL_URL,
     .snes_supported = SNES_SUPPORT,
     .joybus_supported = JOYBUS_SUPPORT
 };
@@ -100,18 +65,9 @@ analogInfoStatic_s analog_static = {
     .invert_allowed = 0,
 };
 
-#if defined(HOJA_IMU_CHAN_A_DRIVER)
-    #define IMU_AVAILABLE 1
-#else 
-    #define IMU_AVAILABLE 0
-#endif
-
-const imuInfoStatic_s imu_static = {
-    .axis_gyro_a  = IMU_AVAILABLE,
-    .axis_gyro_b  = IMU_AVAILABLE,
-    .axis_accel_a = IMU_AVAILABLE,
-    .axis_accel_b = IMU_AVAILABLE,
-};
+// Populated at runtime from the selected IMU driver's channel count (see
+// _imu_static_refresh); a board with no IMU driver reports all axes absent.
+imuInfoStatic_s imu_static = {0};
 
 // All battery static fields are populated at runtime in
 // _battery_static_refresh(): capacity + battery_part_number from the hoja
@@ -333,6 +289,43 @@ static void _bluetooth_static_refresh(void)
         sizeof(bluetooth_static.part_number) - 1u);
 }
 
+/** Copy a config string into a fixed device_static field with a fallback. */
+static void _device_static_copy(uint8_t *dst, size_t dst_size, const char *src, const char *fallback)
+{
+    const char *val = (src != NULL) ? src : fallback;
+    memset(dst, 0, dst_size);
+    strncpy((char *)dst, val, dst_size - 1u);
+}
+
+/** Refresh runtime device identity/URL fields from the hoja config. */
+static void _device_static_refresh(void)
+{
+    const hoja_config_s *config = hoja_config_get();
+
+    const char *name     = config ? config->device_name   : NULL;
+    const char *maker    = config ? config->device_maker  : NULL;
+    const char *manifest = config ? config->manifest_url  : NULL;
+    const char *firmware = config ? config->firmware_url  : NULL;
+    const char *manual   = config ? config->manual_url    : NULL;
+
+    _device_static_copy(device_static.name,         sizeof(device_static.name),         name,     "HOJA GamePad");
+    _device_static_copy(device_static.maker,        sizeof(device_static.maker),        maker,    "HHL");
+    // "~" is the sentinel the app reads as "no URL".
+    _device_static_copy(device_static.manifest_url, sizeof(device_static.manifest_url), manifest, "~");
+    _device_static_copy(device_static.firmware_url, sizeof(device_static.firmware_url), firmware, "~");
+    _device_static_copy(device_static.manual_url,   sizeof(device_static.manual_url),   manual,   "~");
+}
+
+/** Refresh runtime IMU static fields from the selected IMU driver. */
+static void _imu_static_refresh(void)
+{
+    uint8_t channels = imu_driver_channel_count();
+    imu_static.axis_gyro_a  = (channels >= 1) ? 1 : 0;
+    imu_static.axis_accel_a = (channels >= 1) ? 1 : 0;
+    imu_static.axis_gyro_b  = (channels >= 2) ? 1 : 0;
+    imu_static.axis_accel_b = (channels >= 2) ? 1 : 0;
+}
+
 /** Refresh runtime battery static fields sourced from the hoja config/driver. */
 static void _battery_static_refresh(void)
 {
@@ -422,6 +415,7 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_DEVICE:
+            _device_static_refresh();
             _serialize_static_block(block, (uint8_t *) &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
         break;
 
@@ -438,6 +432,7 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
         break;
 
         case STATIC_BLOCK_IMU:
+            _imu_static_refresh();
             _serialize_static_block(block, (uint8_t *) &imu_static, STATINFO_IMU_SIZE, cb);
         break;
 

@@ -9,28 +9,17 @@
 #include "input/dpad.h"
 
 #include "hoja_shared_types.h"
+#include "hoja.h"
 
-#if defined(HOJA_USB_VID)
-#define CORE_N64_WLAN_VID HOJA_USB_VID
-#else
-#define CORE_N64_WLAN_VID 0
-#endif
+#include <string.h>
 
-#if defined(HOJA_USB_PID)
-#define CORE_N64_WLAN_PID HOJA_USB_PID
-#else
-#define CORE_N64_WLAN_PID 0
-#endif
-
-#if defined(HOJA_DEVICE_NAME)
-#define CORE_N64_WLAN_NAME HOJA_DEVICE_NAME
-#else
+// Generic fallback name; identity (name/vid/pid) is overridden at init from the
+// board's hoja config.
 #define CORE_N64_WLAN_NAME "N64 Controller"
-#endif
 
 static core_hid_device_t _n64_wlan_hid = {
-    .vid  = CORE_N64_WLAN_VID,
-    .pid  = CORE_N64_WLAN_PID,
+    .vid  = 0,
+    .pid  = 0,
     .name = CORE_N64_WLAN_NAME,
 };
 
@@ -98,6 +87,16 @@ bool core_n64_init(core_params_s *params)
 
         case GAMEPAD_TRANSPORT_WLAN:
         params->core_pollrate_us = 2000;
+        {
+            const hoja_config_s *cfg = hoja_config_get();
+            if(cfg && cfg->device_name)
+            {
+                memset(_n64_wlan_hid.name, 0, sizeof(_n64_wlan_hid.name));
+                strncpy(_n64_wlan_hid.name, cfg->device_name, sizeof(_n64_wlan_hid.name) - 1u);
+            }
+            if(cfg) _n64_wlan_hid.vid = cfg->usb_vid;
+            if(cfg) _n64_wlan_hid.pid = cfg->usb_pid;
+        }
         params->hid_device = &_n64_wlan_hid;
         break;
 

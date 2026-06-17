@@ -533,21 +533,11 @@ bool transport_bt_init(core_params_s *params)
     data_out[15] = GET_GREEN(col);
     data_out[16] = GET_BLUE(col);
 
-    // New VID/PID section for SInput mode
-    uint16_t vid = 0;
-    uint16_t pid = 0;
-
-    #if defined(HOJA_USB_VID)
-    vid = HOJA_USB_VID;
-    #else
-    vid = 0x2E8A; // Raspberry Pi
-    #endif
-    
-    #if defined(HOJA_USB_PID)
-    pid = HOJA_USB_PID; // board_config PID
-    #else
-    pid = 0x10C6; // Hoja Gamepad
-    #endif
+    // New VID/PID section for SInput mode. Pulled from the hoja config, with
+    // library fallbacks (Raspberry Pi VID / Hoja PID) when the board leaves 0.
+    const hoja_config_s *dev_cfg = hoja_config_get();
+    uint16_t vid = (dev_cfg && dev_cfg->usb_vid) ? dev_cfg->usb_vid : 0x2E8A;
+    uint16_t pid = (dev_cfg && dev_cfg->usb_pid) ? dev_cfg->usb_pid : 0x10C6;
 
     data_out[17] = (vid >> 8);
     data_out[18] = (vid & 0xFF);
@@ -557,9 +547,7 @@ bool transport_bt_init(core_params_s *params)
     // end VID/PID section
 
     // Stupid workaround for SuperGamepad+ :)
-    #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
-    data_out[21] = HOJA_SINPUT_GAMEPAD_SUBTYPE;
-    #endif
+    data_out[21] = dev_cfg ? dev_cfg->sinput.gamepad_subtype : 0;
 
     // Local MAC
     memcpy(&data_out[22], _bt_esp32_params->transport_dev_mac, 6);

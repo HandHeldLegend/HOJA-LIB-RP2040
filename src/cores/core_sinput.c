@@ -23,23 +23,10 @@
 #include "sinput_lib.h"
 #include "sinput_lib_hid.h"
 
-#if defined(HOJA_USB_VID)
-#define SINPUT_VID  HOJA_USB_VID
-#else
-#define SINPUT_VID 0x2E8A // Raspberry Pi
-#endif
-
-#if defined(HOJA_USB_PID)
-#define SINPUT_PID  HOJA_USB_PID
-#else
+// Library fallbacks; overridden at init from the board's hoja config.
+#define SINPUT_VID  0x2E8A // Raspberry Pi
 #define SINPUT_PID  0x10C6 // Hoja Gamepad
-#endif
-
-#if defined(HOJA_DEVICE_NAME)
-#define SINPUT_NAME HOJA_DEVICE_NAME
-#else
 #define SINPUT_NAME "SInput Gamepad"
-#endif
 
 // Helper function for checking if an SINPUT button is enabled
 bool _si_enabled(uint8_t code)
@@ -265,6 +252,15 @@ bool core_sinput_init(core_params_s *params)
         return false;
     }
 
+    const hoja_config_s *dev_cfg = hoja_config_get();
+    if(dev_cfg && dev_cfg->device_name)
+    {
+        memset(_sinput_hid_device.name, 0, sizeof(_sinput_hid_device.name));
+        strncpy(_sinput_hid_device.name, dev_cfg->device_name, sizeof(_sinput_hid_device.name) - 1u);
+    }
+    if(dev_cfg && dev_cfg->usb_vid) _sinput_hid_device.vid = dev_cfg->usb_vid;
+    if(dev_cfg && dev_cfg->usb_pid) _sinput_hid_device.pid = dev_cfg->usb_pid;
+
     params->hid_device = &_sinput_hid_device;
 
     params->sys_gyro_task = imu_forced_task_standard;
@@ -321,8 +317,8 @@ bool core_sinput_init(core_params_s *params)
         .polling_rate_us = params->core_pollrate_us,
         
         .rumble = (haptic_static.haptic_hd | haptic_static.haptic_sd),
-        .gamepad_type = HOJA_SINPUT_GAMEPAD_TYPE,
-        .face_buttons_style = HOJA_SINPUT_GAMEPAD_FACESTYLE,
+        .gamepad_type = dev_cfg ? dev_cfg->sinput.gamepad_type : 0,
+        .face_buttons_style = dev_cfg ? dev_cfg->sinput.face_buttons_style : 0,
         .gamepad_format = SINPUT_GAMEPAD_FORMAT_JOYPAD,
     };
 

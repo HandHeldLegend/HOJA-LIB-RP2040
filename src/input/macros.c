@@ -40,8 +40,6 @@ void macros_task(uint64_t timestamp)
     macro_pcmdebug(timestamp, &input);
     #endif
 
-    #if defined(HOJA_DISABLE_TOURNEY_MACRO) && (HOJA_DISABLE_TOURNEY_MACRO==1)
-    #else
+    // Gated at runtime by hoja_config_s.tourney_macro_enable.
     macro_tourney(timestamp, &input);
-    #endif
 }

@@ -6,27 +6,17 @@
 #include "input/mapper.h"
 #include "input/dpad.h"
 
-#if defined(HOJA_USB_VID)
-#define CORE_GC_WLAN_VID HOJA_USB_VID
-#else
-#define CORE_GC_WLAN_VID 0
-#endif
+#include "hoja.h"
 
-#if defined(HOJA_USB_PID)
-#define CORE_GC_WLAN_PID HOJA_USB_PID
-#else
-#define CORE_GC_WLAN_PID 0
-#endif
+#include <string.h>
 
-#if defined(HOJA_DEVICE_NAME)
-#define CORE_GC_WLAN_NAME HOJA_DEVICE_NAME
-#else
+// Generic fallback name; identity (name/vid/pid) is overridden at init from the
+// board's hoja config.
 #define CORE_GC_WLAN_NAME "GameCube Controller"
-#endif
 
 static core_hid_device_t _gamecube_wlan_hid = {
-    .vid  = CORE_GC_WLAN_VID,
-    .pid  = CORE_GC_WLAN_PID,
+    .vid  = 0,
+    .pid  = 0,
     .name = CORE_GC_WLAN_NAME,
 };
 
@@ -113,6 +103,16 @@ bool core_gamecube_init(core_params_s *params)
 
         case GAMEPAD_TRANSPORT_WLAN:
         params->core_pollrate_us = 2000;
+        {
+            const hoja_config_s *cfg = hoja_config_get();
+            if(cfg && cfg->device_name)
+            {
+                memset(_gamecube_wlan_hid.name, 0, sizeof(_gamecube_wlan_hid.name));
+                strncpy(_gamecube_wlan_hid.name, cfg->device_name, sizeof(_gamecube_wlan_hid.name) - 1u);
+            }
+            if(cfg) _gamecube_wlan_hid.vid = cfg->usb_vid;
+            if(cfg) _gamecube_wlan_hid.pid = cfg->usb_pid;
+        }
         params->hid_device = &_gamecube_wlan_hid;
         break;
 

@@ -11,11 +11,23 @@
 
 #include "ns_lib_motion.h"
 
-#ifdef HOJA_IMU_CHAN_A_READ
-    #define HOJA_IMU_DRIVER_ENABLED 1
-#else
-    #define HOJA_IMU_DRIVER_ENABLED 0
-#endif
+// ---- IMU driver contract (weak-function model) ----
+// The selected IMU driver provides strong definitions of these. Which driver
+// compiles is decided by the HOJA_IMU_DRIVER gate in board_config.h. imu.c
+// ships weak defaults so that when no driver is selected every call is a safe
+// no-op. The driver reads its own configuration straight from the hoja config
+// (hoja_config_get()->imu), whose type is shaped by the gate.
+//
+// imu_driver_part_code() returning NULL is the canonical "no driver present"
+// signal; a real driver returns its part number (e.g. "LSM6DSR").
+// imu_driver_channel_count() reports how many physical IMUs the board wired up
+// (0/1/2); the device layer averages two channels or duplicates a single one.
+// imu_driver_read() fills one channel's sample; init() also performs hardware
+// bring-up of every configured channel.
+uint8_t     imu_driver_channel_count(void);
+bool        imu_driver_init(void);
+bool        imu_driver_read(uint8_t channel, imu_data_s *out);
+const char *imu_driver_part_code(void);
 
 void imu_access_safe(imu_data_s *out);
 void imu_quaternion_access_safe(ns_quaternion_s *out);
