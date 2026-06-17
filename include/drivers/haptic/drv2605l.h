@@ -2,25 +2,21 @@
 #define DRIVERS_HAPTIC_DRV2605L_H
 
 #include "hoja_bsp.h"
+#include "board_config.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "hardware/clocks.h"
-#include "board_config.h"
 
-#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER == HAPTIC_HELPER_DRIVER_DRV2605L)
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
 
-#if (HOJA_BSP_HAS_I2C==0)
-    #error "DRV2605L helper driver requires I2C." 
+#if (HOJA_BSP_HAS_I2C == 0)
+    #error "DRV2605L front-end requires I2C."
 #endif
 
-#if !defined(HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE)
-    #error "Define HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE in board_config.h" 
-#endif 
+// od_clamp: 0 keeps the library default OD clamp register value.
+bool drv2605l_init(uint8_t i2c_instance, uint8_t od_clamp);
 
-#define HOJA_HAPTIC_HELPER_DRIVER_INIT() drv2605l_init(HAPTIC_HELPER_DRIVER_DRV2605L_I2C_INSTANCE)
-
-bool drv2605l_init(uint8_t i2c_instance);
-
+#endif
 #endif
 
 #endif

@@ -24,8 +24,7 @@
 
 #include "hoja.h"
 
-// Helper driver is specific to this HAL
-#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
     #include "drivers/haptic/drv2605l.h"
 #endif
 
@@ -112,12 +111,10 @@ bool lra_hal_init(uint8_t intensity)
     if(hal_init) return true;
     hal_init = true;
 
-    // Optional init driver
-    #if defined(HOJA_HAPTIC_HELPER_DRIVER_INIT)
-    HOJA_HAPTIC_HELPER_DRIVER_INIT();
-    #else 
-        #warning "No haptics helper driver defined. Using HAL only."
-    #endif
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
+    if(!drv2605l_init(cfg->drv2605l.i2c_instance, cfg->drv2605l.od_clamp))
+        return false;
+#endif
 
     // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);

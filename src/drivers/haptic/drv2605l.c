@@ -1,6 +1,10 @@
 #include "drivers/haptic/drv2605l.h"
+#include "board_config.h"
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
+
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
 
 #define I2C_ERR_CHECK(func) ((func()) < 0 ? true : false)
 
@@ -137,8 +141,9 @@
 #define RTP_FREQUENCY_REGISTER 0x22
 #define DRV2605_SLAVE_ADDR 0x5A
 
-bool drv2605l_init(uint8_t i2c_instance)
+bool drv2605l_init(uint8_t i2c_instance, uint8_t od_clamp)
 {
+    const uint8_t od_clamp_val = od_clamp ? od_clamp : ODCLAMP_BYTE;
     // Take MODE out of standby
     // uint8_t _set_mode1[] = {MODE_REGISTER, 0x00};
     // i2c_write_blocking(HOJA_I2C_BUS, DRV2605_SLAVE_ADDR, _set_mode1, 2, false);
@@ -176,7 +181,7 @@ bool drv2605l_init(uint8_t i2c_instance)
     // uint8_t _set_freq[] = {OL_LRA_REGISTER, OL_LRA_PERIOD};
     // i2c_safe_write_blocking(HOJA_I2C_BUS, DRV2605_SLAVE_ADDR, _set_freq, 2, false);
 
-    uint8_t _set_odclamped[] = {ODCLAMP_REGISTER, ODCLAMP_BYTE};
+    uint8_t _set_odclamped[] = {ODCLAMP_REGISTER, od_clamp_val};
     if(i2c_hal_write_blocking(i2c_instance, DRV2605_SLAVE_ADDR, _set_odclamped, 2, false) < 0) return false;
     sys_hal_sleep_ms(5);
 
@@ -186,4 +191,9 @@ bool drv2605l_init(uint8_t i2c_instance)
     uint8_t _set_mode3[] = {MODE_REGISTER, MODE_BYTE};
     if(i2c_hal_write_blocking(i2c_instance, DRV2605_SLAVE_ADDR, _set_mode3, 2, false) < 0) return false;
     sys_hal_sleep_ms(5);
+
+    return true;
 }
+
+#endif
+#endif
