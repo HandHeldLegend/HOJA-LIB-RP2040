@@ -3,30 +3,8 @@
 #include "pico/multicore.h"
 #include "pico/timeout_helper.h"
 #include "hardware/gpio.h"
-#include "board_config.h"
 
 #define I2C_HAL_MAX_INSTANCES 2
-
-// I2C
-#if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE == 1)
-#ifndef HOJA_I2C_0_GPIO_SDA
-#error "HOJA_I2C_0_GPIO_SDA undefined in board_config.h"
-#endif
-
-#ifndef HOJA_I2C_0_GPIO_SCL
-#error "HOJA_I2C_0_GPIO_SCL undefined in board_config.h"
-#endif
-#endif
-
-#if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE == 1)
-#ifndef HOJA_I2C_1_GPIO_SDA
-#error "HOJA_I2C_1_GPIO_SDA undefined in board_config.h"
-#endif
-
-#ifndef HOJA_I2C_1_GPIO_SCL
-#error "HOJA_I2C_1_GPIO_SCL undefined in board_config.h"
-#endif
-#endif
 
 /* Implement SDK 1.5.1 I2C function because it's broken in new SDK */
 static int _oldi2c_write_blocking_internal(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, bool nostop,

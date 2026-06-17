@@ -39,6 +39,58 @@ const hoja_config_s *hoja_config_get(void)
   return _hoja_config;
 }
 
+static void _i2c_hal_init_one(uint8_t hw_instance, const hoja_i2c_instance_cfg_s *inst)
+{
+  if(!inst || !inst->enabled)
+    return;
+  uint32_t baud_khz = inst->baudrate_khz ? inst->baudrate_khz : HOJA_I2C_DEFAULT_BAUDRATE_KHZ;
+  i2c_hal_init(hw_instance, inst->sda_gpio, inst->scl_gpio, baud_khz);
+}
+
+static void _spi_hal_init_one(uint8_t hw_instance, const hoja_spi_instance_cfg_s *inst)
+{
+  if(!inst || !inst->enabled)
+    return;
+  spi_hal_init(hw_instance, inst->clk_gpio, inst->miso_gpio, inst->mosi_gpio);
+}
+
+static void _peripheral_hal_init_from_config(void)
+{
+  const hoja_config_s *cfg = hoja_config_get();
+  if(!cfg)
+    return;
+
+#if defined(HOJA_BSP_HAS_SPI) && (HOJA_BSP_HAS_SPI > 0)
+  #if (HOJA_BSP_HAS_SPI >= 1)
+    _spi_hal_init_one(0, &cfg->spi.instance_0);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 2)
+    _spi_hal_init_one(1, &cfg->spi.instance_1);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 3)
+    _spi_hal_init_one(2, &cfg->spi.instance_2);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 4)
+    _spi_hal_init_one(3, &cfg->spi.instance_3);
+  #endif
+#endif
+
+#if defined(HOJA_BSP_HAS_I2C) && (HOJA_BSP_HAS_I2C > 0)
+  #if (HOJA_BSP_HAS_I2C >= 1)
+    _i2c_hal_init_one(0, &cfg->i2c.instance_0);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 2)
+    _i2c_hal_init_one(1, &cfg->i2c.instance_1);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 3)
+    _i2c_hal_init_one(2, &cfg->i2c.instance_2);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 4)
+    _i2c_hal_init_one(3, &cfg->i2c.instance_3);
+  #endif
+#endif
+}
+
 bool _hoja_null_cb(uint64_t timestamp)
 {
   return false;
@@ -311,28 +363,7 @@ bool _system_requirements_init()
   // System hal init
   sys_hal_init();
 
-// SPI 0
-#if defined(HOJA_SPI_0_ENABLE) && (HOJA_SPI_0_ENABLE == 1)
-  spi_hal_init(0, HOJA_SPI_0_GPIO_CLK, HOJA_SPI_0_GPIO_MISO, HOJA_SPI_0_GPIO_MOSI);
-#endif
-
-// I2C 0
-#if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE == 1)
-  uint32_t baudrate_khz_i2c0 = 400; // Default baudrate
-#if defined(HOJA_I2C_0_BAUDRATE_KHZ)
-  baudrate_khz_i2c0 = HOJA_I2C_0_BAUDRATE_KHZ;
-#endif
-  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL, baudrate_khz_i2c0);
-#endif
-
-// I2C 1
-#if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE == 1)
-  uint32_t baudrate_khz_i2c1 = 400; // Default baudrate
-#if defined(HOJA_I2C_1_BAUDRATE_KHZ)
-  baudrate_khz_i2c1 = HOJA_I2C_1_BAUDRATE_KHZ;
-#endif
-  i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL, baudrate_khz_i2c1);
-#endif
+  _peripheral_hal_init_from_config();
 
   // Static config
   static_config_init();

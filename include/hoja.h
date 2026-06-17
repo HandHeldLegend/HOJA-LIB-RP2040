@@ -30,6 +30,9 @@
 // ---- Input labels + default maps (board supplies in hoja_config_s / main.c) ----
 #include "input/input_config.h"
 
+// ---- On-chip I2C/SPI HAL (array sizes from hoja_bsp.h) ----
+#include "hal/peripheral_cfg.h"
+
 // ---- Battery driver config type, shaped by the HOJA_BATTERY_DRIVER gate ----
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER != 0)
   #if (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180)
@@ -138,6 +141,18 @@ typedef struct
 // above); the active driver reads its config straight from here at init.
 typedef struct
 {
+#if defined(HOJA_BSP_HAS_I2C) && (HOJA_BSP_HAS_I2C > 0)
+    // On-chip I2C (.instance_0 .. instance_N-1 per HOJA_BSP_HAS_I2C). Set
+    // .enabled on each bus the board wires up; others stay off.
+    hoja_i2c_cfg_s i2c;
+#endif
+
+#if defined(HOJA_BSP_HAS_SPI) && (HOJA_BSP_HAS_SPI > 0)
+    // On-chip SPI (.instance_0 .. instance_N-1 per HOJA_BSP_HAS_SPI). Set
+    // .enabled on each bus the board wires up; others stay off.
+    hoja_spi_cfg_s spi;
+#endif
+
 #if defined(HOJA_BATTERY_CFG_PRESENT)
     // Battery PMIC config. Type is chosen by the HOJA_BATTERY_DRIVER gate.
     hoja_battery_cfg_t battery;
