@@ -7,18 +7,17 @@
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 
+#include "hoja.h"
 #include "board_config.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
-uint32_t _color_fades[MAPPER_INPUT_COUNT] = {0};
-uint16_t _max_values[MAPPER_INPUT_COUNT] = {0};
+uint32_t _color_fades[RGB_MAX_GROUPS] = {0};
+uint16_t _max_values[RGB_MAX_GROUPS] = {0};
 uint32_t _color_fade_step = 0;
-uint16_t _analog_smoothed[HOJA_RGB_GROUPS_NUM] = {0};
+uint16_t _analog_smoothed[RGB_MAX_GROUPS] = {0};
 uint16_t _analog_release_step = 0;
 rgb_s color_black = {.color = 0x00};
-
-int8_t _rgb_react_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
 
 static inline uint16_t _smooth_analog_group_input(uint8_t group_idx, uint16_t target)
 {
@@ -111,7 +110,7 @@ static inline void _handle_analog_input(uint16_t input_value, const uint8_t grou
 
     // Write color to output according to group
     for(int i = 0; i < RGB_MAX_LEDS_PER_GROUP; i++) {
-        int8_t idx_out = _rgb_react_group_leds[group_idx][i];
+        int8_t idx_out = rgb_led_groups[group_idx][i];
         if(idx_out < 0) {
             continue;
         }
@@ -130,12 +129,12 @@ bool anm_react_get_state(rgb_s *output)
     _analog_release_step = (uint16_t)step;
 
     // Reset our static state from stored rgb group data
-    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
     {
         _color_fades[i] = RGB_FADE_FIXED_MULT;
     }
 
-    for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
     {
         _analog_smoothed[i] = 0;
     }
@@ -158,16 +157,21 @@ uint16_t _parse_distance(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2)
 bool anm_react_handler(rgb_s* output)
 {
     mapper_input_s input = mapper_get_translated_input();
-    
-    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
-    {
-        uint8_t group = input_static.input_info[i].rgb_group;
-        if(group > 0)
-        {
-            group-=1;
-            if(group >= HOJA_RGB_GROUPS_NUM)
-                continue;
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
+    // Walk the board's reactive slots: each maps an input code to the group it
+    // illuminates.
+    for(int s = 0; s < rcfg->reactive_count && s < RGB_MAX_REACTIVE_SLOTS; s++)
+    {
+        mapper_input_code_t i = rcfg->reactive[s].input;
+        uint8_t group = rcfg->reactive[s].group;
+
+        if(i < 0 || i >= MAPPER_INPUT_COUNT)
+            continue;
+        if(group >= rgb_group_count)
+            continue;
+
+        {
             switch(i)
             {
                 case INPUT_CODE_LX_RIGHT:

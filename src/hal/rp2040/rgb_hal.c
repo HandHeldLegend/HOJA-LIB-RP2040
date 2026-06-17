@@ -6,6 +6,8 @@
 #include "hardware/pio.h"
 #include "generated/ws2812.pio.h"
 
+#include "hoja.h"
+
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER == RGB_DRIVER_HAL)
 
 // PIO block + state machine are allocated dynamically at init.
@@ -41,7 +43,7 @@ void rgb_hal_init()
         false
     );
 
-    ws2812_program_init(_rgb_pio, sm, offset, RGB_DRIVER_OUTPUT_PIN);
+    ws2812_program_init(_rgb_pio, sm, offset, hoja_config_get()->rgb_driver.gpio_pin);
     rgb_hal_update(NULL);
 }
 

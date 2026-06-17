@@ -4,6 +4,16 @@
 #include <stdint.h>
 #include "board_config.h"
 
+// RGB driver defaults. board_config.h only needs to override these (the color
+// order shapes rgb_s below, so it must be known at compile time; LED count sizes
+// the animation buffers). Both are optional in board_config.h.
+#ifndef RGB_DRIVER_ORDER
+#define RGB_DRIVER_ORDER RGB_ORDER_GRB
+#endif
+#ifndef RGB_DRIVER_LED_COUNT
+#define RGB_DRIVER_LED_COUNT 32
+#endif
+
 // Handle RGB mode choosing compiler side
 #if (RGB_DRIVER_ORDER == RGB_ORDER_GRB)
 typedef struct

@@ -1,11 +1,13 @@
 #include "devices/rgb.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 #include "input/idle_manager.h"
 
+#include "hoja.h"
 #include "board_config.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER==RGB_DRIVER_HAL)
@@ -16,8 +18,10 @@
 #include "devices/animations/anm_utility.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s  rgb_colors_safe[RGB_MAX_GROUPS] = {0};
+// Group LED membership + group count are loaded from hoja_config_s.rgb at init.
+int8_t  rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = {0};
+rgb_s   rgb_colors_safe[RGB_MAX_GROUPS] = {0};
+uint8_t rgb_group_count = 0;
 
 // Perform a fade animation to black, then call our callback
 void rgb_deinit(callback_t cb)
@@ -49,6 +53,11 @@ void rgb_init(int mode, int brightness)
 {
     idle_manager_heartbeat();
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    // Load the board's group layout from the config (LED membership + count).
+    const hoja_rgb_cfg_s *rgb_cfg = &hoja_config_get()->rgb;
+    rgb_group_count = rgb_cfg->group_count;
+    memcpy(rgb_led_groups, rgb_cfg->groupings, sizeof(rgb_led_groups));
+
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
     uint16_t loaded_brightness = 0;

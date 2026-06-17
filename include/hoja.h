@@ -82,6 +82,19 @@
   #endif
 #endif
 
+// ---- RGB driver + layout config, shaped by the HOJA_RGB_DRIVER gate ----
+// rgb_driver carries the per-driver line config (WS2812 data pin); the rgb
+// layout/indicator/reactive config (hoja_rgb_cfg_s) is driver-agnostic and
+// lives in devices/rgb.h.
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER != 0)
+  #if (HOJA_RGB_DRIVER == RGB_DRIVER_HAL)
+    #include "hal/rgb_hal.h"
+    #include "devices/rgb.h"
+    typedef rgb_hal_cfg_s hoja_rgb_driver_cfg_t;
+    #define HOJA_RGB_CFG_PRESENT 1
+  #endif
+#endif
+
 // ---- Haptics driver config type, shaped by the HOJA_HAPTICS_DRIVER gate ----
 // The LRA and ERM HALs need different parameters (LRA is dual-channel + PCM
 // tuned; ERM is single-channel with an optional brake line), so each HAL header
@@ -203,6 +216,13 @@ typedef struct
     // Haptics config. Type is chosen by the HOJA_HAPTICS_DRIVER gate
     // (lra_hal_cfg_s or erm_hal_cfg_s).
     hoja_haptics_cfg_t haptics;
+#endif
+
+#if defined(HOJA_RGB_CFG_PRESENT)
+    // RGB driver line config (WS2812 data pin). Type chosen by HOJA_RGB_DRIVER.
+    hoja_rgb_driver_cfg_t rgb_driver;
+    // RGB group layout, notification/player indicators, and reactive map.
+    hoja_rgb_cfg_s        rgb;
 #endif
 } hoja_config_s;
 

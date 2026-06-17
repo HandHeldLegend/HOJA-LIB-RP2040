@@ -2,6 +2,7 @@
 #include "devices/animations/anm_utility.h"
 #include "devices/rgb.h"
 #include "board_config.h"
+#include "hoja.h"
 #include "utilities/settings.h"
 #include "devices/battery.h"
 
@@ -109,14 +110,16 @@ bool anm_idle_handler(rgb_s* output)
     // 3. RENDER: Apply current color to the notification group
     if(rgb_config->rgb_idle_glow != 1)
     {
-        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-        for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++) {
-            int index_out = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][j];
-            if(index_out >= 0) {
-                output[index_out].color = _idle_current_color.color;
+        const int8_t notif_group = hoja_config_get()->rgb.notification_group_index;
+        if(notif_group >= 0)
+        {
+            for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++) {
+                int index_out = rgb_led_groups[notif_group][j];
+                if(index_out >= 0) {
+                    output[index_out].color = _idle_current_color.color;
+                }
             }
         }
-        #endif
     }
     
 

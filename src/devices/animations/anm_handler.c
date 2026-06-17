@@ -92,14 +92,16 @@ void _ani_queue_fade_start()
     if(!first_boot)
     {
         // Set notif to black if it exists
-        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-        for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+        const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+        if(rcfg->notification_group_index >= 0)
         {
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
-            _fade_end[group_idx].color = 0;
-            
+            for(int i = 0; i < rcfg->notification_group_size && i < RGB_MAX_LEDS_PER_GROUP; i++)
+            {
+                int8_t group_idx = rgb_led_groups[rcfg->notification_group_index][i];
+                if(group_idx >= 0)
+                    _fade_end[group_idx].color = 0;
+            }
         }
-        #endif
     }
 }
 
@@ -185,58 +187,75 @@ rgb_s _notification_single_shot_color = {0};
 
 void _notification_manager(rgb_s *output)
 {
-    #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    rgb_s notif_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+    if(rcfg->notification_group_index < 0) return;
+
+    const int8_t notif_group = rcfg->notification_group_index;
+    uint8_t notif_size = rcfg->notification_group_size;
+    if(notif_size > RGB_MAX_LEDS_PER_GROUP) notif_size = RGB_MAX_LEDS_PER_GROUP;
+
+    rgb_s notif_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
 
     // Get the current notif LEDs
-    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+    for(int i = 0; i < notif_size; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[notif_group][i];
         notif_leds[i] = output[this_idx];
     }
-
 
     hoja_status_s this_status = hoja_get_status();
 
     if(this_status.ss_notif_pending)
     {
-        if(ply_blink_handler_ss(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.ss_notif_color))
+        if(ply_blink_handler_ss(notif_leds, notif_size, this_status.ss_notif_color))
         {
             hoja_clr_ss_notif();
         }
     }
     else if(this_status.notification_color.color != 0)
     {
-        if(ply_blink_handler(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.notification_color))
+        if(ply_blink_handler(notif_leds, notif_size, this_status.notification_color))
         {
 
         }
     }
 
     // Write the player LED colors to the output
-    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+    for(int i = 0; i < notif_size; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[notif_group][i];
         output[this_idx] = notif_leds[i];
     }
-    
-    #endif
 }
 
 void _player_connection_manager(rgb_s *output) 
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) || defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    hoja_status_s status = hoja_get_status();
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) 
-    rgb_s player_leds[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
-    uint8_t player_leds_count = HOJA_RGB_PLAYER_GROUP_SIZE;
-    uint8_t player_group_idx = HOJA_RGB_PLAYER_GROUP_IDX;
-    #elif defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    rgb_s player_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
-    uint8_t player_leds_count = HOJA_RGB_NOTIF_GROUP_SIZE;
-    uint8_t player_group_idx = HOJA_RGB_NOTIF_GROUP_IDX;
-    #endif
+    // Prefer the dedicated player group (4-LED chase); otherwise fall back to the
+    // notification group (blink). If neither exists there's nothing to drive.
+    int8_t  player_group_idx;
+    uint8_t player_leds_count;
+    bool    use_chase;
+
+    if(rcfg->player_group_index >= 0)
+    {
+        player_group_idx  = rcfg->player_group_index;
+        player_leds_count = RGB_PLAYER_GROUP_SIZE;
+        use_chase         = true;
+    }
+    else if(rcfg->notification_group_index >= 0)
+    {
+        player_group_idx  = rcfg->notification_group_index;
+        player_leds_count = rcfg->notification_group_size;
+        use_chase         = false;
+    }
+    else return;
+
+    if(player_leds_count > RGB_MAX_LEDS_PER_GROUP) player_leds_count = RGB_MAX_LEDS_PER_GROUP;
+
+    hoja_status_s status = hoja_get_status();
+    rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
 
     // Get the current player LEDs
     for(int i = 0; i < player_leds_count; i++)
@@ -249,11 +268,10 @@ void _player_connection_manager(rgb_s *output)
     {
         case CONNECTION_STATUS_DISCONNECTED:
         case CONNECTION_STATUS_DOWN:
-            #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-            ply_chase_handler(player_leds, status.gamepad_color);
-            #else 
-            ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
-            #endif
+            if(use_chase)
+                ply_chase_handler(player_leds, status.gamepad_color);
+            else
+                ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
         break;
 
         default:
@@ -274,7 +292,6 @@ void _player_connection_manager(rgb_s *output)
         uint8_t this_idx = rgb_led_groups[player_group_idx][i];
         output[this_idx] = player_leds[i];
     }
-    #endif
 }
 
 volatile bool _anm_idle_active = false;

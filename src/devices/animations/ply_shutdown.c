@@ -19,8 +19,7 @@ bool _started = false;
 
 bool ply_shutdown_handler(rgb_s *output)
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(int i = 0; i < RGB_PLAYER_GROUP_SIZE; i++)
     {
         output[i].color = anm_utility_blend(&_black, &output[i], _player_change_blend_shutdown);
     }
@@ -30,7 +29,6 @@ bool ply_shutdown_handler(rgb_s *output)
     {
         _player_change_blend_shutdown = 0;
     }
-    #endif
     return true;
 }
 

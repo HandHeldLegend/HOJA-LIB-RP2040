@@ -178,18 +178,11 @@ bluetoothInfoStatic_s bluetooth_static = {
     #endif
 #endif  
 
-#if !defined(HOJA_RGB_PLAYER_GROUP_IDX)
-    #warning "HOJA_RGB_PLAYER_GROUP_IDX is undefined. Player number indicator will be unused."
-    #define PLAYER_GROUP -1
-#else 
-    #define PLAYER_GROUP HOJA_RGB_PLAYER_GROUP_IDX 
-#endif
-
 uint8_t _rgb_names[32][8] = RGB_GROUP_NAMES;
 
 rgbInfoStatic_s rgb_static = {
     .rgb_groups = RGB_GROUPS,
-    .rgb_player_group = PLAYER_GROUP
+    .rgb_player_group = -1 // populated from hoja_config_s.rgb at init
 };
 
 void _rgb_static_set_names() 
@@ -199,6 +192,13 @@ void _rgb_static_set_names()
         memcpy(&rgb_static.rgb_group_names[i].rgb_group_name[0], 
         &_rgb_names[i][0], 8);
     }
+
+    // Player-group index is owned by the runtime RGB config now.
+#if defined(HOJA_RGB_CFG_PRESENT)
+    const hoja_config_s *config = hoja_config_get();
+    if(config)
+        rgb_static.rgb_player_group = config->rgb.player_group_index;
+#endif
 }
 
 void _analog_static_setup()
