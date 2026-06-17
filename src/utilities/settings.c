@@ -22,6 +22,9 @@
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+#include "devices/animations/anm_authentic.h"
+#endif
 
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
@@ -262,11 +265,21 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
         case CFG_BLOCK_INPUT:
             write_to_ptr = live_settings.input_configuration_block;
             if(completed)
+            {
                 mapper_init();
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+                anm_authentic_refresh();
+#endif
+            }
         break;
     }
 
     if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
+
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    if(block == CFG_BLOCK_INPUT && write)
+        anm_authentic_refresh();
+#endif
 }
 
 uint8_t _sdata[64] = {0};

@@ -13,6 +13,9 @@ int mapper_joystick_concat(int center, int neg, int pos);
 void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb);
 
 void mapper_init();
+const inputConfigSlot_s *mapper_get_active_profile(void);
+int8_t mapper_get_palette_mode(void);
+void mapper_webusb_remap_preview_end(void);
 mapper_input_s mapper_get_translated_input();
 mapper_input_s mapper_get_input();
 

@@ -15,8 +15,15 @@
 
 #include "hoja.h"
 
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+#include "devices/animations/anm_authentic.h"
+#include "devices/animations/rgb_modes.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
+
+static void _set_raw_output_profile(uint8_t mode);
 
 mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
@@ -319,6 +326,31 @@ typedef struct
 } mapper_operation_s;
 
 mapper_operation_s _translated_op = {.input_slots = NULL, .output_types = NULL, .remap_en=false, .rapid_value={0}, .rapid_press_state ={0}};
+
+static bool _webusb_remap_preview = false;
+static gamepad_mode_t _webusb_remap_mode = GAMEPAD_MODE_SWPRO;
+
+static void _mapper_webusb_preview_begin(gamepad_mode_t mode)
+{
+    _webusb_remap_preview = true;
+    _webusb_remap_mode = mode;
+    _set_raw_output_profile(mode);
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    anm_authentic_refresh();
+#endif
+}
+
+void mapper_webusb_remap_preview_end(void)
+{
+    if(!_webusb_remap_preview)
+        return;
+
+    _webusb_remap_preview = false;
+    _set_raw_output_profile(hoja_get_status().gamepad_mode);
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    anm_authentic_refresh();
+#endif
+}
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
 
 #define MAPPER_ANALOG_MAX 0xFFF
@@ -742,27 +774,27 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
-        _set_raw_output_profile(GAMEPAD_MODE_SWPRO);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_SWPRO);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
-        _set_raw_output_profile(GAMEPAD_MODE_XINPUT);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_XINPUT);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
-        _set_raw_output_profile(GAMEPAD_MODE_SNES);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_SNES);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
-        _set_raw_output_profile(GAMEPAD_MODE_N64);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_N64);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
-        _set_raw_output_profile(GAMEPAD_MODE_GAMECUBE);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_GAMECUBE);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
-        _set_raw_output_profile(GAMEPAD_MODE_SINPUT);
+        _mapper_webusb_preview_begin(GAMEPAD_MODE_SINPUT);
         break;
     }  
 
@@ -841,6 +873,48 @@ void mapper_init()
     {
         _standard_op.rapid_value[i] = _standard_op.input_slots[i].threshold_delta;
     }
+}
+
+const inputConfigSlot_s *mapper_get_active_profile(void)
+{
+    if(!input_config)
+        return NULL;
+
+    if(_webusb_remap_preview && _translated_op.input_slots)
+        return _translated_op.input_slots;
+
+    switch(hoja_get_status().gamepad_mode)
+    {
+        case GAMEPAD_MODE_SWPRO:
+            return input_config->input_profile_switch;
+
+        case GAMEPAD_MODE_GAMECUBE:
+        case GAMEPAD_MODE_GCUSB:
+            return input_config->input_profile_gamecube;
+
+        case GAMEPAD_MODE_SNES:
+            return input_config->input_profile_snes;
+
+        case GAMEPAD_MODE_N64:
+            return input_config->input_profile_n64;
+
+        case GAMEPAD_MODE_XINPUT:
+            return input_config->input_profile_xinput;
+
+        case GAMEPAD_MODE_SINPUT:
+            return input_config->input_profile_sinput;
+
+        default:
+            return NULL;
+    }
+}
+
+gamepad_mode_t mapper_get_palette_mode(void)
+{
+    if(_webusb_remap_preview)
+        return _webusb_remap_mode;
+
+    return hoja_get_status().gamepad_mode;
 }
 
 mapper_input_s mapper_get_translated_input()

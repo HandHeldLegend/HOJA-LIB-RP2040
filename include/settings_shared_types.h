@@ -21,11 +21,10 @@ typedef enum
 #define CFG_BLOCK_GAMEPAD_VERSION   0x14
 
 // Remap config is replaced by hover cfg
-//#define CFG_BLOCK_REMAP_VERSION     0x13
 #define CFG_BLOCK_HOVER_VERSION     0x14
 
-#define CFG_BLOCK_ANALOG_VERSION    0x13 // Migrate from 0x11
-#define CFG_BLOCK_RGB_VERSION       0x11
+#define CFG_BLOCK_ANALOG_VERSION    0x13 
+#define CFG_BLOCK_RGB_VERSION       0x12
 
 // Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
@@ -34,8 +33,6 @@ typedef enum
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
 
-// Battery cfg is removed
-//#define CFG_BLOCK_BATTERY_VERSION   0x12
 #define CFG_BLOCK_INPUT_VERSION     0x14
 
 #define CFG_BLOCK_SWITCHPAIR_VERSION 0x10

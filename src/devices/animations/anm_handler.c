@@ -14,6 +14,7 @@
 
 // Primary animation modes
 #include "devices/animations/anm_none.h"
+#include "devices/animations/anm_authentic.h"
 #include "devices/animations/anm_breathe.h"
 #include "devices/animations/anm_fairy.h"
 #include "devices/animations/anm_rainbow.h"
@@ -31,6 +32,8 @@
 #include "devices/animations/or_flash.h"
 #include "devices/animations/or_indicate.h"
 
+#include "devices/animations/rgb_modes.h"
+
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
 #define ALL_LEDS_SIZE (sizeof(uint32_t) * RGB_DRIVER_LED_COUNT)
@@ -39,26 +42,14 @@
 #define FADE_LENGTH_FRAMES  ((FADE_LENGTH_MS*1000) / RGB_TASK_INTERVAL)
 #define FADE_STEP_FIXED     RGB_FLOAT_TO_FIXED(1.0f / FADE_LENGTH_FRAMES)
 
-// This function handles animation transition, and returns the proper rgb array pointer
 typedef bool (*rgb_anim_fn)(rgb_s *);
 typedef void (*rgb_anim_stop_fn)(void);
 
-rgb_anim_fn         _ani_main_fn = NULL; // The main operating function of the current rgb mode
-rgb_anim_fn         _ani_fn_get_state = NULL; // Get the current state of the active mode
-rgb_anim_stop_fn    _ani_fn_stop = NULL; // Call this to stop/pause the rgb state
-
-rgb_anim_fn         _ani_override_fn = NULL; // Override function
+rgb_anim_fn         _ani_main_fn = NULL;
+rgb_anim_fn         _ani_fn_get_state = NULL;
+rgb_anim_stop_fn    _ani_fn_stop = NULL;
+rgb_anim_fn         _ani_override_fn = NULL;
 rgb_anim_stop_fn    _ani_override_stop_fn = NULL;
-
-typedef enum 
-{
-    RGB_ANIM_NONE,      // Show stored colors static
-    RGB_ANIM_RAINBOW,   // Fade through the RGB rainbow
-    RGB_ANIM_REACT,     // React to user input
-    RGB_ANIM_FAIRY,     // Play a random animation between user preset colors
-    RGB_ANIM_BREATHE,   // Looping animation using stored colors
-    RGB_ANIM_IDLE,      // Idle animation where no LEDs are shown
-} rgb_anim_t;
 
 typedef enum 
 {
@@ -88,18 +79,24 @@ void _ani_queue_fade_start()
     _fade_progress = 0;
     _fade = true;
 
-    static bool first_boot = false;
-    if(!first_boot)
+    static bool first_boot = true;
+    if(first_boot)
     {
-        // Set notif to black if it exists
-        const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
-        if(rcfg->notification_group_index >= 0)
+        first_boot = false;
+
+        // On first boot, fade the notification LED up from black — except in
+        // Authentic mode, where get_state already placed the user-config color.
+        if(rgb_config->rgb_mode != RGB_ANIM_AUTHENTIC)
         {
-            for(int i = 0; i < rcfg->notification_group_size && i < RGB_MAX_LEDS_PER_GROUP; i++)
+            const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+            if(rcfg->notification_group_index >= 0)
             {
-                int8_t group_idx = rgb_led_groups[rcfg->notification_group_index][i];
-                if(group_idx >= 0)
-                    _fade_end[group_idx].color = 0;
+                for(int i = 0; i < rcfg->notification_group_size && i < RGB_MAX_LEDS_PER_GROUP; i++)
+                {
+                    int8_t group_idx = rgb_led_groups[rcfg->notification_group_index][i];
+                    if(group_idx >= 0)
+                        _fade_end[group_idx].color = 0;
+                }
             }
         }
     }
@@ -150,9 +147,12 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     _current_mode = rgb_mode;
 
     switch(rgb_mode)
-    {        
-        // RGB_ANIM_NONE
-        default:
+    {
+        case RGB_ANIM_AUTHENTIC:
+            _ani_main_fn = anm_authentic_handler;
+            _ani_fn_get_state = anm_authentic_get_state;
+        break;
+
         case RGB_ANIM_NONE:
             _ani_main_fn = anm_none_handler;
             _ani_fn_get_state = anm_none_get_state;
@@ -176,6 +176,11 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
         case RGB_ANIM_IDLE:
             _ani_main_fn = anm_idle_handler;
             _ani_fn_get_state = anm_idle_get_state;
+        break;
+
+        default:
+            _ani_main_fn = anm_none_handler;
+            _ani_fn_get_state = anm_none_get_state;
         break;
     }
 

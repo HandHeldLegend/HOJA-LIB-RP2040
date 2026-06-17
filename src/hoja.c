@@ -28,6 +28,9 @@
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+#include "devices/animations/anm_authentic.h"
+#endif
 
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
@@ -273,6 +276,9 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
 
   // Reload our remap
   mapper_init();
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+  anm_authentic_refresh();
+#endif
 
   // Reload stick config
   stick_scaling_init();
@@ -400,6 +406,14 @@ bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
     const int halfbright = (RGB_BRIGHTNESS_MAX / 3);
     bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
   }
+
+  // Input profile + gamepad mode must be ready before the first RGB fade so
+  // Authentic mode resolves era colors into _fade_end instead of gray fallbacks.
+  _hoja_status.gamepad_mode = mode;
+  mapper_init();
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+  anm_authentic_refresh();
+#endif
 
   // RGB
   rgb_init(-1, bright);

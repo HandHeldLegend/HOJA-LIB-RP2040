@@ -12,12 +12,24 @@
 
 #include "hoja.h"
 
+#include "input/mapper.h"
+
 #include "hhl_tusb.h"
 
 uint8_t _webusb_focused_hover = 0;
 uint8_t _webusb_report_mode = WEBUSB_INPUT_RAW;
 
 bool _ready_to_go = false;
+
+static void _webusb_mark_unready(void)
+{
+    if(!_ready_to_go)
+        return;
+
+    _ready_to_go = false;
+    mapper_webusb_remap_preview_end();
+}
+
 bool webusb_outputting_check()
 {
     return _ready_to_go;
@@ -41,7 +53,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
 
     if (!hhl_tusb_webusb_report_send(data, size))
     {
-        _ready_to_go = false;
+        _webusb_mark_unready();
     }
 }
 
@@ -62,7 +74,7 @@ void webusb_send_rawinput(uint64_t timestamp)
         {
             ready = true;
         }
-        else _ready_to_go = false;
+        else _webusb_mark_unready();
     }
 
     if (interval_run(timestamp, 8000, &interval) && ready)
@@ -149,7 +161,7 @@ void webusb_send_rawinput(uint64_t timestamp)
 
         if (!hhl_tusb_webusb_report_send(webusb_input_report, 64))
         {
-            _ready_to_go = false;
+            _webusb_mark_unready();
         }
 
         ready = false;
