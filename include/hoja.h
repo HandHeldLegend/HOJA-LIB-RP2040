@@ -27,6 +27,11 @@
 #include "board_config.h"
 #include "driver_define_helper.h"
 
+// ---- Input labels + default maps (board declares HOJA_INPUT_CFG_PRESENT) ----
+#if defined(HOJA_INPUT_CFG_PRESENT)
+  #include "input/input_config.h"
+#endif
+
 // ---- Battery driver config type, shaped by the HOJA_BATTERY_DRIVER gate ----
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER != 0)
   #if (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180)
@@ -173,6 +178,7 @@ typedef struct
     const char *manifest_url;  // firmware-update manifest (NULL disables updates)
     const char *firmware_url;  // firmware image URL
     const char *manual_url;    // documentation URL
+    const char *fcc_id;        // FCC certification ID (NULL falls back to "N/A")
 
     // ---- USB identity ----
     // Used for the USB device descriptor and advertised over WLAN/SInput.
@@ -195,10 +201,8 @@ typedef struct
     uint8_t sewn_layout;
 
     // ---- Tournament-lockout macro ----
-    // When enabled, holding tourney_macro_code toggles tournament mode, which
-    // masks dpad / extra face inputs while hovering. tourney_macro_code is a
-    // mapper input (INPUT_CODE_*) that selects which physical button triggers it.
-    bool                tourney_macro_enable;
+    // Holding tourney_macro_code toggles tournament mode, which masks dpad /
+    // extra face inputs while hovering. Set to INPUT_CODE_UNUSED to disable.
     mapper_input_code_t tourney_macro_code;
 
 #if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) || defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
@@ -223,6 +227,17 @@ typedef struct
     hoja_rgb_driver_cfg_t rgb_driver;
     // RGB group layout, notification/player indicators, and reactive map.
     hoja_rgb_cfg_s        rgb;
+#endif
+
+#if defined(HOJA_INPUT_CFG_PRESENT)
+    // Physical input labels/types and per-mode default input->output maps.
+    hoja_input_cfg_s              inputs;
+    hoja_input_mode_defaults_s    defaults_switch;
+    hoja_input_mode_defaults_s    defaults_snes;
+    hoja_input_mode_defaults_s    defaults_n64;
+    hoja_input_mode_defaults_s    defaults_gamecube;
+    hoja_input_mode_defaults_s    defaults_xinput;
+    hoja_input_mode_defaults_s    defaults_sinput;
 #endif
 } hoja_config_s;
 

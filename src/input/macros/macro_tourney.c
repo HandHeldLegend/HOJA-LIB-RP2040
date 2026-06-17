@@ -22,7 +22,7 @@ void macro_tourney(uint64_t timestamp, mapper_input_s *input)
     static bool holding = false;
 
     const hoja_config_s *cfg = hoja_config_get();
-    if(!cfg || !cfg->tourney_macro_enable)
+    if(!cfg || cfg->tourney_macro_code == INPUT_CODE_UNUSED)
         return;
 
     const mapper_input_code_t code = cfg->tourney_macro_code;

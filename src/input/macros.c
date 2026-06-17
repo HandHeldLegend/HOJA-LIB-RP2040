@@ -40,6 +40,6 @@ void macros_task(uint64_t timestamp)
     macro_pcmdebug(timestamp, &input);
     #endif
 
-    // Gated at runtime by hoja_config_s.tourney_macro_enable.
+    // Disabled when hoja_config_s.tourney_macro_code is INPUT_CODE_UNUSED.
     macro_tourney(timestamp, &input);
 }

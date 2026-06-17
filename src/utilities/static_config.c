@@ -32,12 +32,6 @@
  #define JOYBUS_SUPPORT HOJA_DEVICE_JOYBUS_SUPPORTED
 #endif
 
-#if !defined(HOJA_DEVICE_FCC_ID_TEXT) 
-    #define FCC_ID_TEXT "~"
-#else 
-    #define FCC_ID_TEXT HOJA_DEVICE_FCC_ID_TEXT
-#endif
-
 // name/maker/manifest_url/firmware_url/manual_url are filled at runtime from the
 // hoja config (see _device_static_refresh); only the compile-time fields are
 // initialized here.
@@ -102,6 +96,7 @@ const hapticInfoStatic_s    haptic_static = {
     .haptic_sd = HAPTICS_SD_EN,
 };
 
+#if !defined(HOJA_INPUT_CFG_PRESENT)
 #if !defined(HOJA_INPUT_SLOTS)
     #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
     #define HOJA_INPUT_SLOTS { \
@@ -147,18 +142,41 @@ const hapticInfoStatic_s    haptic_static = {
 const inputInfoStatic_s input_static = {
     .input_info = HOJA_INPUT_SLOTS
 };
+#else
+inputInfoStatic_s input_static = {0};
+#endif
+
+void _input_static_refresh(void)
+{
+#if defined(HOJA_INPUT_CFG_PRESENT)
+    const hoja_config_s *config = hoja_config_get();
+    if(!config)
+        return;
+
+    memset(&input_static, 0, sizeof(input_static));
+
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
+        const hoja_input_slot_cfg_s *slot = &config->inputs.slots[i];
+        if(!hoja_input_slot_enabled(slot))
+            continue;
+        if(slot->code <= INPUT_CODE_UNUSED || slot->code >= INPUT_CODE_MAX)
+            continue;
+
+        inputInfoSlot_s *dst = &input_static.input_info[slot->code];
+        dst->input_type = (uint8_t) slot->type;
+        memcpy(dst->input_name, slot->name, HOJA_INPUT_NAME_LEN);
+        dst->rgb_group  = 0;
+    }
+#endif
+}
 
 #if !defined(HOJA_BLUETOOTH_PART_NUMBER)
     #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
 #endif
 
-#if !defined(HOJA_BLUETOOTH_FCC_ID)
-    #define HOJA_BLUETOOTH_FCC_ID "N/A"
-#endif
-
 bluetoothInfoStatic_s bluetooth_static = {
     .part_number = HOJA_BLUETOOTH_PART_NUMBER,
-    .fcc_id = HOJA_BLUETOOTH_FCC_ID,
 };
 
 rgbInfoStatic_s rgb_static = {
@@ -283,6 +301,26 @@ static uint8_t _wireless_part_status_combine(uint8_t bt_status, uint8_t wlan_sta
     return WIRELESS_PART_STATUS_OK;
 }
 
+/** Copy wireless part identity strings into bluetooth_static. */
+static void _bluetooth_static_refresh_identity(void)
+{
+    const hoja_config_s *config = hoja_config_get();
+
+#if defined(HOJA_BLUETOOTH_FCC_ID)
+    const char *fcc_fallback = HOJA_BLUETOOTH_FCC_ID;
+#else
+    const char *fcc_fallback = "N/A";
+#endif
+    const char *fcc = (config && config->fcc_id) ? config->fcc_id : fcc_fallback;
+
+    memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
+    strncpy((char *)bluetooth_static.part_number, HOJA_BLUETOOTH_PART_NUMBER,
+        sizeof(bluetooth_static.part_number) - 1u);
+
+    memset(bluetooth_static.fcc_id, 0, sizeof(bluetooth_static.fcc_id));
+    strncpy((char *)bluetooth_static.fcc_id, fcc, sizeof(bluetooth_static.fcc_id) - 1u);
+}
+
 /** Probe wireless hardware and refresh runtime bluetooth/wlan static fields. */
 static void _bluetooth_static_refresh(void)
 {
@@ -293,9 +331,7 @@ static void _bluetooth_static_refresh(void)
     bluetooth_static.wireless_part_status = overall_status;
     bluetooth_static.external_version_number = transport_bt_static_external_version();
 
-    memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
-    strncpy((char *)bluetooth_static.part_number, HOJA_BLUETOOTH_PART_NUMBER,
-        sizeof(bluetooth_static.part_number) - 1u);
+    _bluetooth_static_refresh_identity();
 }
 
 /** Copy a config string into a fixed device_static field with a fallback. */
@@ -368,9 +404,11 @@ static void _battery_static_refresh(void)
 
 void static_config_init()
 {
+    _input_static_refresh();
     _rgb_static_set_names();
     _analog_static_setup();
     _bluetooth_static_apply_caps();
+    _bluetooth_static_refresh_identity();
     _battery_static_refresh();
 }
 

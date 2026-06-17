@@ -142,7 +142,7 @@ extern analogInfoStatic_s           analog_static;
 extern imuInfoStatic_s              imu_static; 
 extern batteryInfoStatic_s          battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
-extern const inputInfoStatic_s      input_static;
+extern inputInfoStatic_s          input_static;
 extern bluetoothInfoStatic_s        bluetooth_static;
 extern rgbInfoStatic_s              rgb_static;
 

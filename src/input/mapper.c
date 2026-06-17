@@ -554,12 +554,52 @@ static inline void _set_joystick_axis(uint16_t *pos, uint16_t *neg, int16_t valu
     }
 }
 
+#ifndef HOJA_INPUT_CFG_PRESENT
 const int8_t default_codes_switch[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SWITCH;
 const int8_t default_codes_snes[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SNES;
 const int8_t default_codes_n64[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_N64;
 const int8_t default_codes_gamecube[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_GAMECUBE;
 const int8_t default_codes_xinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_XINPUT;
 const int8_t default_codes_sinput[MAPPER_INPUT_COUNT] = HOJA_INPUT_DEFAULTS_SINPUT;
+#endif
+
+#if defined(HOJA_INPUT_CFG_PRESENT)
+static int8_t default_codes_switch[MAPPER_INPUT_COUNT];
+static int8_t default_codes_snes[MAPPER_INPUT_COUNT];
+static int8_t default_codes_n64[MAPPER_INPUT_COUNT];
+static int8_t default_codes_gamecube[MAPPER_INPUT_COUNT];
+static int8_t default_codes_xinput[MAPPER_INPUT_COUNT];
+static int8_t default_codes_sinput[MAPPER_INPUT_COUNT];
+
+static void _mapper_apply_default_maps(int8_t *dest, int8_t unused_code,
+                                       const hoja_input_mode_defaults_s *maps)
+{
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+        dest[i] = unused_code;
+
+    for(int i = 0; i < HOJA_INPUT_MAX_DEFAULT_MAPS; i++)
+    {
+        mapper_input_code_t in = maps->maps[i].input;
+        if(in <= INPUT_CODE_UNUSED || in >= INPUT_CODE_MAX)
+            continue;
+        dest[in] = maps->maps[i].output;
+    }
+}
+
+static void _mapper_refresh_default_codes(void)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if(!cfg)
+        return;
+
+    _mapper_apply_default_maps(default_codes_switch,   SWITCH_CODE_UNUSED,   &cfg->defaults_switch);
+    _mapper_apply_default_maps(default_codes_snes,      SNES_CODE_UNUSED,     &cfg->defaults_snes);
+    _mapper_apply_default_maps(default_codes_n64,       N64_CODE_UNUSED,      &cfg->defaults_n64);
+    _mapper_apply_default_maps(default_codes_gamecube,  GAMECUBE_CODE_UNUSED, &cfg->defaults_gamecube);
+    _mapper_apply_default_maps(default_codes_xinput,    XINPUT_CODE_UNUSED,   &cfg->defaults_xinput);
+    _mapper_apply_default_maps(default_codes_sinput,    SINPUT_CODE_UNUSED,   &cfg->defaults_sinput);
+}
+#endif
 
 static uint8_t _lhapticmode = 0;
 static uint8_t _rhapticmode = 0;
@@ -740,6 +780,10 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
 
 void mapper_init()
 {
+#if defined(HOJA_INPUT_CFG_PRESENT)
+    _mapper_refresh_default_codes();
+#endif
+
     // Debug always set to defaults on reboot
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
     {
