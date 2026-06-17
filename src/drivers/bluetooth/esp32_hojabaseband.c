@@ -831,6 +831,11 @@ uint16_t transport_bt_static_external_version(void)
     return _esp32_static_cached_version;
 }
 
+const char *bluetooth_driver_part_code(void)
+{
+    return "ESP32";
+}
+
 // -------------------------------------------------------------------------
 // Optional ESP32 fuel gauge driver
 //

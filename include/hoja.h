@@ -27,10 +27,8 @@
 #include "board_config.h"
 #include "driver_define_helper.h"
 
-// ---- Input labels + default maps (board declares HOJA_INPUT_CFG_PRESENT) ----
-#if defined(HOJA_INPUT_CFG_PRESENT)
-  #include "input/input_config.h"
-#endif
+// ---- Input labels + default maps (board supplies in hoja_config_s / main.c) ----
+#include "input/input_config.h"
 
 // ---- Battery driver config type, shaped by the HOJA_BATTERY_DRIVER gate ----
 #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER != 0)
@@ -229,7 +227,6 @@ typedef struct
     hoja_rgb_cfg_s        rgb;
 #endif
 
-#if defined(HOJA_INPUT_CFG_PRESENT)
     // Physical input labels/types and per-mode default input->output maps.
     hoja_input_cfg_s              inputs;
     hoja_input_mode_defaults_s    defaults_switch;
@@ -238,7 +235,6 @@ typedef struct
     hoja_input_mode_defaults_s    defaults_gamecube;
     hoja_input_mode_defaults_s    defaults_xinput;
     hoja_input_mode_defaults_s    defaults_sinput;
-#endif
 } hoja_config_s;
 
 const hoja_config_s *hoja_config_get(void);

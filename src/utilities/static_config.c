@@ -96,59 +96,10 @@ const hapticInfoStatic_s    haptic_static = {
     .haptic_sd = HAPTICS_SD_EN,
 };
 
-#if !defined(HOJA_INPUT_CFG_PRESENT)
-#if !defined(HOJA_INPUT_SLOTS)
-    #warning "HOJA_INPUT_SLOTS is not defined. Falling back to default params"
-    #define HOJA_INPUT_SLOTS { \
-        (inputInfoSlot_s) {/*South*/.input_name="South", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=1}, \
-        (inputInfoSlot_s) {/*East*/.input_name="East", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=2}, \
-        (inputInfoSlot_s) {/*West*/.input_name="West", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=3}, \
-        (inputInfoSlot_s) {/*North*/.input_name="North", .input_type=INPUT_TYPE_DIGITAL, .rgb_group=4}, \
-        (inputInfoSlot_s) {/*Up*/.input_name="Up", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Down*/.input_name="Down", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Left*/.input_name="Left", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Right*/.input_name="Right", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*SL*/.input_name="SL", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*SR*/.input_name="SR", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*LB*/.input_name="LB", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*RB*/.input_name="RB", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*LT*/.input_name="L", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*RT*/.input_name="R", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*LP1*/0}, \
-        (inputInfoSlot_s) {/*RP1*/0}, \
-        (inputInfoSlot_s) {/*Start*/.input_name="Start", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Select*/.input_name="Select", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Home*/.input_name="Home", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*Share*/.input_name="Share", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*LP2*/0}, \
-        (inputInfoSlot_s) {/*RP2*/0}, \
-        (inputInfoSlot_s) {/*TP1*/0}, \
-        (inputInfoSlot_s) {/*TP2*/0}, \
-        (inputInfoSlot_s) {/*MISC3*/.input_name="Power", .input_type=INPUT_TYPE_DIGITAL}, \
-        (inputInfoSlot_s) {/*MISC4*/0}, \
-        (inputInfoSlot_s) {/*LTANALOG*/.input_name="LT", .input_type=INPUT_TYPE_HOVER}, \
-        (inputInfoSlot_s) {/*RTANALOG*/.input_name="RT", .input_type=INPUT_TYPE_HOVER}, \
-        (inputInfoSlot_s) {/*LX_RIGHT*/.input_name="LX+", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*LX_LEFT*/.input_name="LX-", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*LY_UP*/.input_name="LY+", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*LY_DOWN*/.input_name="LY-", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*RX_RIGHT*/.input_name="RX+", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*RX_LEFT*/.input_name="RX-", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*RY_UP*/.input_name="RY+", .input_type=INPUT_TYPE_JOYSTICK}, \
-        (inputInfoSlot_s) {/*RY_DOWN*/.input_name="RY-", .input_type=INPUT_TYPE_JOYSTICK} \
-    }
-#endif
-
-const inputInfoStatic_s input_static = {
-    .input_info = HOJA_INPUT_SLOTS
-};
-#else
 inputInfoStatic_s input_static = {0};
-#endif
 
 void _input_static_refresh(void)
 {
-#if defined(HOJA_INPUT_CFG_PRESENT)
     const hoja_config_s *config = hoja_config_get();
     if(!config)
         return;
@@ -168,16 +119,9 @@ void _input_static_refresh(void)
         memcpy(dst->input_name, slot->name, HOJA_INPUT_NAME_LEN);
         dst->rgb_group  = 0;
     }
-#endif
 }
 
-#if !defined(HOJA_BLUETOOTH_PART_NUMBER)
-    #define HOJA_BLUETOOTH_PART_NUMBER "N/A"
-#endif
-
-bluetoothInfoStatic_s bluetooth_static = {
-    .part_number = HOJA_BLUETOOTH_PART_NUMBER,
-};
+bluetoothInfoStatic_s bluetooth_static = {0};
 
 rgbInfoStatic_s rgb_static = {
     .rgb_groups = 0,
@@ -313,8 +257,10 @@ static void _bluetooth_static_refresh_identity(void)
 #endif
     const char *fcc = (config && config->fcc_id) ? config->fcc_id : fcc_fallback;
 
+    const char *part = bluetooth_driver_part_code();
+    if(part == NULL) part = "N/A";
     memset(bluetooth_static.part_number, 0, sizeof(bluetooth_static.part_number));
-    strncpy((char *)bluetooth_static.part_number, HOJA_BLUETOOTH_PART_NUMBER,
+    strncpy((char *)bluetooth_static.part_number, part,
         sizeof(bluetooth_static.part_number) - 1u);
 
     memset(bluetooth_static.fcc_id, 0, sizeof(bluetooth_static.fcc_id));

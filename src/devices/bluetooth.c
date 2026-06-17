@@ -118,3 +118,8 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
     }
 }
+
+__attribute__((weak)) const char *bluetooth_driver_part_code(void)
+{
+    return NULL;
+}

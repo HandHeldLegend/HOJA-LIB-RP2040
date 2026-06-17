@@ -40,4 +40,9 @@ bool bluetooth_mode_task(uint64_t timestamp);
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg);
 
+// Wireless module part number (e.g. "RPI RM2", "ESP32"). The selected
+// bluetooth/transport driver provides a strong definition; bluetooth.c ships a
+// weak default returning NULL when no driver is compiled in.
+const char *bluetooth_driver_part_code(void);
+
 #endif

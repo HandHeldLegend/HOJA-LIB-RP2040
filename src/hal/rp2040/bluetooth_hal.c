@@ -573,4 +573,9 @@ uint16_t transport_bt_static_external_version(void)
     return 0;
 }
 
+const char *bluetooth_driver_part_code(void)
+{
+    return "RPI RM2";
+}
+
 #endif
