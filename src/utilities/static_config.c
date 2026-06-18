@@ -14,22 +14,28 @@
 
 #include <string.h>
 
+// Default when no wireless driver is linked (BT-less boards).
+__attribute__((weak)) const char *bluetooth_driver_part_code(void)
+{
+    return NULL;
+}
+
 // Device name/maker and the manifest/firmware/manual URLs now live in the
 // board's hoja_config_s (populated in main.c) and are copied into device_static
 // at runtime by _device_static_refresh().
 
-#if !defined(HOJA_DEVICE_SNES_SUPPORTED)
- #warning "HOJA_DEVICE_SNES_SUPPORTED undefined. SNES/NES disabled."
- #define SNES_SUPPORT 0
-#else 
- #define SNES_SUPPORT HOJA_DEVICE_SNES_SUPPORTED
+// SNES/NES and N64/GameCube wired support follow the transport driver gates
+// declared in board_config.h (same signals transport_init() uses).
+#if defined(HOJA_TRANSPORT_NESBUS_DRIVER)
+#define SNES_SUPPORT 1
+#else
+#define SNES_SUPPORT 0
 #endif
 
-#if !defined(HOJA_DEVICE_JOYBUS_SUPPORTED)
- #warning "HOJA_DEVICE_JOYBUS_SUPPORTED undefined. N64/GameCube disabled."
- #define JOYBUS_SUPPORT 0
-#else 
- #define JOYBUS_SUPPORT HOJA_DEVICE_JOYBUS_SUPPORTED
+#if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) || defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
+#define JOYBUS_SUPPORT 1
+#else
+#define JOYBUS_SUPPORT 0
 #endif
 
 // name/maker/manifest_url/firmware_url/manual_url are filled at runtime from the

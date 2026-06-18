@@ -106,7 +106,10 @@ static void _resolve_group_colors(void)
 
         int8_t output_code = profile[physical].output_code;
         if(output_code < 0)
+        {
+            _group_colors[g] = (rgb_s){ .r = 0, .g = 0, .b = 0 };
             continue;
+        }
 
         rgb_s resolved = fallback;
         if(anm_authentic_palette_color(mode, output_code, &resolved))

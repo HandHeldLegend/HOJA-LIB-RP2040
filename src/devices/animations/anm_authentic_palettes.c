@@ -5,13 +5,13 @@
 
 #define RGB_HEX(hex) ((rgb_s){.r = (uint8_t)(((hex) >> 16) & 0xFF), .g = (uint8_t)(((hex) >> 8) & 0xFF), .b = (uint8_t)((hex) & 0xFF)})
 
-#define COLOR_LIGHT_GRAY   RGB_HEX(0xF2F2F2)
+#define COLOR_LIGHT_GRAY   RGB_HEX(0xF0F0F0)
 #define COLOR_SFC_YELLOW   RGB_HEX(0xF5D400)
 #define COLOR_SFC_RED      RGB_HEX(0xFF0000)
 #define COLOR_SFC_GREEN    RGB_HEX(0x00FF00)
 #define COLOR_GC_TEAL      RGB_HEX(0x00F5A3)
 #define COLOR_GC_RED       RGB_HEX(0xFF3838)
-#define COLOR_N64_YELLOW   RGB_HEX(0xFFEB14)
+#define COLOR_GC_Z         RGB_HEX(0x7300FF)
 // WS2812 pure #0000FF can read purple; a small green boost reads truer on LED.
 #define COLOR_LED_BLUE     RGB_HEX(0x0032FF)
 
@@ -87,6 +87,7 @@ static bool _gamecube_palette(int8_t output_code, rgb_s *out)
     {
         case GAMECUBE_CODE_A: *out = COLOR_GC_TEAL;    return true;
         case GAMECUBE_CODE_B: *out = COLOR_GC_RED;     return true;
+        case GAMECUBE_CODE_Z: *out = COLOR_GC_Z;      return true;
         case GAMECUBE_CODE_X:
         case GAMECUBE_CODE_Y: *out = COLOR_LIGHT_GRAY; return true;
         default: return false;
@@ -102,7 +103,7 @@ static bool _n64_palette(int8_t output_code, rgb_s *out)
         case N64_CODE_CUP:
         case N64_CODE_CDOWN:
         case N64_CODE_CLEFT:
-        case N64_CODE_CRIGHT: *out = COLOR_N64_YELLOW; return true;
+        case N64_CODE_CRIGHT: *out = COLOR_SFC_YELLOW; return true;
         default: return false;
     }
 }
