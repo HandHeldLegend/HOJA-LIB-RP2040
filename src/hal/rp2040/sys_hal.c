@@ -73,6 +73,11 @@ volatile uint64_t _time_global = 0;
 
 #define SYS_HAL_TIME_DEBUG 0
 
+uint64_t sys_hal_now_us(void)
+{
+    return time_us_64();
+}
+
 void sys_hal_time_us(uint64_t *out) {
     uint64_t t = time_us_64();
     

@@ -17,6 +17,9 @@ uint32_t sys_hal_random();
 // Update watchdog if applicable
 void sys_hal_tick();
 
+// Current u64 time
+uint64_t sys_hal_now_us(void);
+
 // Return time/ticks since boot 
 void sys_hal_time_us(uint64_t *out);
 
