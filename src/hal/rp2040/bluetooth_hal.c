@@ -32,13 +32,10 @@
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
 #define BT_HAL_INBOUND_FIFO_LEN 32
 
-volatile uint32_t _bt_hal_pollrate_ms = BT_HAL_TARGET_POLLING_RATE_MS;
-
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
 
 volatile bool _pairing_mode = false;
-volatile bool _interval_reset = false;
 
 static const char hid_device_name[] = "Wireless Gamepad";
 static const char service_name[] = "Wireless Gamepad";
@@ -47,10 +44,8 @@ static uint8_t pnp_service_buffer[700] = {0};
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static uint16_t hid_cid = 0;
 
-static uint32_t last_hid_report_timestamp_ms = 0;
-static interval_s hid_report_interval = {0};
-// Timer structure for scheduling delayed HID report requests
-static btstack_timer_source_t hid_timer;
+static btstack_timer_source_t hid_report_timer;
+static bool hid_report_timer_active = false;
 
 typedef struct
 {
@@ -196,14 +191,38 @@ static void _bt_hid_set_report_handler(uint16_t cid,
 
 
 
-// Timer handler to request can send now event after delay
-static void hid_timer_handler(btstack_timer_source_t *ts)
+static void _bt_hal_hid_report_timer_stop(void)
 {
-    // Avoid compiler warning for unused parameter
-    (void)ts;
+    if (!hid_report_timer_active)
+    {
+        return;
+    }
 
-    // Request another CAN_SEND_NOW event
+    btstack_run_loop_remove_timer(&hid_report_timer);
+    hid_report_timer_active = false;
+}
+
+static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
+{
+    if (!hid_cid || !_connected)
+    {
+        return;
+    }
+
     hid_device_request_can_send_now_event(hid_cid);
+
+    btstack_run_loop_set_timer(ts, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_add_timer(ts);
+}
+
+static void _bt_hal_hid_report_timer_start(void)
+{
+    _bt_hal_hid_report_timer_stop();
+
+    btstack_run_loop_set_timer_handler(&hid_report_timer, &_bt_hal_hid_report_timer_handler);
+    btstack_run_loop_set_timer(&hid_report_timer, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_add_timer(&hid_report_timer);
+    hid_report_timer_active = true;
 }
 
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
@@ -353,12 +372,13 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 printf("HID Connected\n");
                 _connected = true;
-                hid_device_request_can_send_now_event(hid_cid);
+                _bt_hal_hid_report_timer_start();
 
                 break;
             case HID_SUBEVENT_CONNECTION_CLOSED:
                 printf("HID Disconnected\n");
 
+                _bt_hal_hid_report_timer_stop();
                 _connected = false;
                 _hidreportclear = false;
                 hid_cid = 0;
@@ -371,50 +391,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid)
                 {
-                    static uint64_t tmpstamp = 0;
-                    sys_hal_time_us(&tmpstamp);
+                    core_report_s report = {0};
 
-                    uint32_t current_time_ms = btstack_run_loop_get_time_ms();
-                    uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
-
-                    if (time_elapsed >= _bt_hal_pollrate_ms)
+                    if (core_get_generated_report(&report))
                     {
-                        core_report_s report = {0};
-                        
-                        if (core_get_generated_report(&report))
-                        {
-                            _bluetooth_hal_hid_tunnel(report.data, report.size);
-                            last_hid_report_timestamp_ms = current_time_ms;
-                        }
-
-                        hid_device_request_can_send_now_event(hid_cid);
-                    }
-                    else
-                    {
-                        // Not enough time has passed, schedule another send event after delay
-                        uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
-                        uint32_t delay = BT_HAL_TARGET_POLLING_RATE_MS - time_elapsed;
-                        btstack_run_loop_set_timer(&hid_timer, delay);
-                        btstack_run_loop_set_timer_handler(&hid_timer, &hid_timer_handler);
-                        btstack_run_loop_add_timer(&hid_timer);
+                        _bluetooth_hal_hid_tunnel(report.data, report.size);
                     }
                 }
                 break;
             case HID_SUBEVENT_SNIFF_SUBRATING_PARAMS:
-            {
-                uint16_t max = hid_subevent_sniff_subrating_params_get_host_max_latency(packet);
-                uint16_t ms = (uint16_t)((max * 625) / 1000);
-                _bt_hal_pollrate_ms = ms;
-                if (!ms)
-                    _bt_hal_pollrate_ms = 1;
-                _interval_reset = true;
-                uint16_t min = hid_subevent_sniff_subrating_params_get_host_min_timeout(packet);
                 rgb_set_idle(true);
                 hoja_set_notification_status(COLOR_GREEN);
-
-                // printf("Sniff: %d, %d\n", max, min);
-            }
-            break;
+                break;
 
             default:
                 break;
@@ -453,15 +441,6 @@ bool transport_bt_init(core_params_s *params)
         return false;
 
     _bt_hal_hid = _bt_hal_params->hid_device;
-
-    if(params->core_pollrate_us < 8000)
-    {
-        _bt_hal_pollrate_ms = 8;
-    }
-    else
-    {
-        _bt_hal_pollrate_ms = params->core_pollrate_us/1000;
-    }
 
     while (cyw43_arch_init())
     {
