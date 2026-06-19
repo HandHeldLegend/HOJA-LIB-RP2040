@@ -10,7 +10,7 @@
 #include "hardware/structs/xip_ctrl.h"
 #include "board_config.h"
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
 #include "pico/btstack_flash_bank.h"
 #define BT_IN_USE_FLASH 1 
 #define FLASH_START_OFFSET (PICO_FLASH_BANK_STORAGE_OFFSET - FLASH_SECTOR_SIZE)

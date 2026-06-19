@@ -13,7 +13,7 @@
 
 #include "utilities/n64_crc.h"
 #include "utilities/interval.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 #include "hoja.h"
 #include "hoja_bsp.h"

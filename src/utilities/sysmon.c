@@ -5,7 +5,7 @@
 #include "devices/fuelgauge.h"
 #include "devices/rgb.h"
 
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 #include "hoja.h"
 #include "board_config.h"
 

@@ -2,7 +2,7 @@
 #include "board_config.h"
 #include "input/hover.h"
 #include "utilities/settings.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 #include "input_shared_types.h"
 #include "input/macros/macro_tourney.h"
 

@@ -168,29 +168,28 @@ void tasks_register(task_s *task)
 
 void tasks_set_motion_interval(uint64_t interval_us)
 {
-    if(interval_us <= 2000)
+    if (!_tasks_sm.motion)
     {
-        if(_tasks_sm.motion)
-        {
-            _tasks_sm.motion_iterations = 1;
-            _tasks_sm.motion_period_us  = 1;
-        }
+        return;
     }
-    else if(interval_us <= 4000)
+
+    if (interval_us <= 2000)
     {
-        if(_tasks_sm.motion)
-        {
-            _tasks_sm.motion_iterations = 2;
-            _tasks_sm.motion_period_us  = 1500;
-        }
+        _tasks_sm.motion_iterations = 1;
+        _tasks_sm.motion_period_us  = 1;
     }
-    else if(interval_us <= 8000)
+    else if (interval_us <= 4000)
     {
-        if(_tasks_sm.motion)
-        {
-            _tasks_sm.motion_iterations = 3;
-            _tasks_sm.motion_period_us  = 2000;
-        }
+        _tasks_sm.motion_iterations = 2;
+        _tasks_sm.motion_period_us  = interval_us / 2;
+    }
+    else
+    {
+        // Three reads per poll window. The first runs immediately when the cycle
+        // resets (see _task_try_motion); later reads are spaced by interval/4 so the
+        // third finishes well before an 8000us report (0, ~2ms, ~4ms).
+        _tasks_sm.motion_iterations = 3;
+        _tasks_sm.motion_period_us  = interval_us / 4;
     }
 }
 
@@ -209,7 +208,10 @@ void tasks_mark_sent(void)
 static bool _task_try_motion(task_s *task)
 {
     uint64_t now_us = sys_hal_now_us();
-    if(now_us > _tasks_sm.motion_last_us + _tasks_sm.motion_period_us)
+    bool due = (_tasks_sm.motion_completed_count == 0 && _tasks_sm.motion_last_us == 0)
+            || (now_us > _tasks_sm.motion_last_us + _tasks_sm.motion_period_us);
+
+    if (due)
     {
         task->fn(now_us);
         _tasks_sm.motion_last_us = now_us;

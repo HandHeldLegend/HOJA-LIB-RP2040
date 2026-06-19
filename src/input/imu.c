@@ -13,7 +13,7 @@
 #include "usb/webusb.h"
 
 #include "utilities/settings.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 #include "ns_lib_motion.h"
 

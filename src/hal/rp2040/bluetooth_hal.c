@@ -26,8 +26,11 @@
 #include "transport/transport.h"
 
 #include "hoja.h"
+#include "cores/cores.h"
+#include "utilities/crosscore_utils.h"
 
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
+#define BT_HAL_INBOUND_FIFO_LEN 32
 
 volatile uint32_t _bt_hal_pollrate_ms = BT_HAL_TARGET_POLLING_RATE_MS;
 
@@ -48,6 +51,15 @@ static uint32_t last_hid_report_timestamp_ms = 0;
 static interval_s hid_report_interval = {0};
 // Timer structure for scheduling delayed HID report requests
 static btstack_timer_source_t hid_timer;
+
+typedef struct
+{
+    uint8_t len;
+    uint8_t data[64];
+} bt_hal_inbound_report_s;
+
+HOJA_CROSSCORE_FIFO_TYPE(bt_inbound, bt_hal_inbound_report_s, BT_HAL_INBOUND_FIFO_LEN);
+static hoja_fifo_bt_inbound_t _bt_inbound_fifo;
 
 /** True when persisted pairing bytes are not blank (0x0000) or erased (0xFFFF…) sentinel. */
 static bool _bluetooth_hal_is_stored_identity_valid(const uint8_t *bytes)
@@ -111,19 +123,23 @@ static inline void _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
 }
 
 uint8_t _output_report_data[64] = {0};
-const uint8_t *_output_report = &_output_report_data[0];
 
-static void _bt_hid_output_tunnel(const uint8_t *report, uint16_t len)
+static void _bt_hal_queue_inbound_report(const uint8_t *report, uint16_t len)
 {
     if (!report || len == 0)
     {
         return;
     }
-    if (len > sizeof(_output_report_data))
+
+    bt_hal_inbound_report_s inbound = {0};
+    if (len > sizeof(inbound.data))
     {
-        len = sizeof(_output_report_data);
+        len = sizeof(inbound.data);
     }
-    core_report_tunnel_cb(report, len);
+
+    memcpy(inbound.data, report, len);
+    inbound.len = (uint8_t)len;
+    (void)hoja_fifo_bt_inbound_push(&_bt_inbound_fifo, &inbound);
 }
 
 /** Interrupt-channel DATA output (report id separate from payload). */
@@ -153,7 +169,7 @@ static void _bt_hid_report_handler(uint16_t cid,
     }
 
     memcpy(&_output_report_data[1], report, (size_t)report_size);
-    _bt_hid_output_tunnel(_output_report, (uint16_t)(report_size + 1));
+    _bt_hal_queue_inbound_report(_output_report_data, (uint16_t)(report_size + 1));
 }
 
 /** Control-channel SET_REPORT output (report id is report[0]). Used by Switch. */
@@ -175,7 +191,7 @@ static void _bt_hid_set_report_handler(uint16_t cid,
         return;
     }
 
-    _bt_hid_output_tunnel(report, (uint16_t)report_size);
+    _bt_hal_queue_inbound_report(report, (uint16_t)report_size);
 }
 
 
@@ -532,7 +548,12 @@ bool transport_bt_init(core_params_s *params)
 void transport_bt_task(uint64_t timestamp)
 {
     (void)timestamp;
-    sleep_us(250);
+
+    bt_hal_inbound_report_s inbound;
+    if (hoja_fifo_bt_inbound_pop(&_bt_inbound_fifo, &inbound))
+    {
+        core_report_tunnel_cb(inbound.data, inbound.len);
+    }
 }
 
 static uint32_t _bt_hal_probe_wireless(void)

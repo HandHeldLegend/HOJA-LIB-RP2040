@@ -76,6 +76,6 @@ void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
 bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
-void core_task(void);
+void core_task(uint64_t now_us);
 
 #endif

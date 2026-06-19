@@ -4,7 +4,7 @@
 #include "hal/sys_hal.h"
 #include "utilities/interval.h"
 #include "utilities/hwtest.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 SNAPSHOT_TYPE(fuelgauge, fuelgauge_status_s);
 snapshot_fuelgauge_t _fuelgauge_snap;

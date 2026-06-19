@@ -321,6 +321,12 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
   return true;
 }
 
+static task_s _task_core = {
+  .fn = core_task,
+  .name = "core",
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
 static task_s _task_rgb = {
   .fn = rgb_task,
   .name = "rgb",
@@ -387,6 +393,7 @@ void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
   tasks_register(&_task_rgb);
   tasks_register(&_task_sysmon);
   tasks_register(&_task_watchdog);
+  tasks_register(&_task_core);
 
   switch(mode)
   {
@@ -419,7 +426,6 @@ void _hoja_task_1()
   for (;;)
   {
     tasks_run();
-    core_task();
   }
 }
 
@@ -521,6 +527,9 @@ void hoja_init(const hoja_config_s *config)
   _system_input_init();
 
   boot_get_mode_method(&thisMode, &thisTransport, &thisPair, &thisBootFlags);
+
+  // DEBUG
+  thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
 
   _system_devices_init(_hoja_transport_to_method(thisTransport), thisMode);
 

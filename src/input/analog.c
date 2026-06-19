@@ -24,7 +24,7 @@
 #include "utilities/interval.h"
 
 #include "utilities/settings.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 #include "board_config.h"
 

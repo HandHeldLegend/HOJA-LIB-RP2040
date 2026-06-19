@@ -16,7 +16,7 @@
 #include "generated/joybus.pio.h"
 
 #include "utilities/interval.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 typedef enum
 {
