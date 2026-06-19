@@ -1,6 +1,7 @@
 #include "utilities/tasks.h"
 #include "hal/sys_hal.h"
 #include <stddef.h>
+#include <string.h>
 
 #define TASKS_MAX_COUNT 8
 
@@ -11,6 +12,7 @@
 #define RUNTIME_MAX_NO_UPDATE false
 
 volatile bool _tasks_sent_isr_signal = false; 
+volatile bool _tasks_shutdown_lock = false;
 
 typedef enum
 {
@@ -46,6 +48,16 @@ typedef struct
 static tasks_sm_s _tasks_sm;
 static task_phase_t _tasks_phase = TASK_PHASE_REQUIRED;
 
+void tasks_mark_shutdown(void)
+{
+
+}
+
+void tasks_reset(void)
+{
+    memset(&_tasks_sm, 0, sizeof(tasks_sm_s));
+}
+
 static void _tasks_reset_sm(void)
 {
     uint64_t now_us = sys_hal_now_us();
@@ -69,12 +81,11 @@ static void _tasks_force_run(task_s *task, bool update_max_runtime)
 {
     uint64_t start_us = sys_hal_now_us();
     task->fn(start_us);
-    uint64_t now_us = sys_hal_now_us();
-    task->last_us = start_us;
+    uint64_t end_us = sys_hal_now_us();
 
     if(!update_max_runtime) return;
 
-    uint64_t runtime_us = now_us - start_us;
+    uint64_t runtime_us = end_us - start_us;
     if(runtime_us > task->max_runtime_us)
     {
         task->max_runtime_us = runtime_us;
@@ -90,13 +101,12 @@ static bool _tasks_try_run(task_s *task, bool update_max_runtime)
 
     // Run task with the allocated time
     task->fn(start_us);
-    uint64_t now_us = sys_hal_now_us();
-    task->last_us = start_us;
+    uint64_t end_us = sys_hal_now_us();
 
     // Optionally update max runtime of the task
     if(!update_max_runtime) return true;
 
-    uint64_t runtime_us = now_us - start_us;
+    uint64_t runtime_us = end_us - start_us;
     if(runtime_us > task->max_runtime_us)
     {
         task->max_runtime_us = runtime_us;
@@ -111,6 +121,15 @@ static void _tasks_check_deadline(void)
     {
         _tasks_reset_sm();
     }
+}
+
+static void _task_try_add(task_s *task_list[TASKS_MAX_COUNT], uint8_t *task_count, task_s *task)
+{
+    if(*task_count >= TASKS_MAX_COUNT) return;
+
+    task_list[*task_count] = task;
+    task->max_runtime_us = TASKS_DEFAULT_RUNTIME_US;
+    *task_count++;
 }
 
 void tasks_register(task_s *task)
@@ -142,7 +161,7 @@ void tasks_register(task_s *task)
     }
 }
 
-void tasks_set_target_interval(uint64_t interval_us)
+void tasks_set_motion_interval(uint64_t interval_us)
 {
     if(interval_us <= 2000)
     {
@@ -202,7 +221,7 @@ static bool _task_try_motion(task_s *task)
     return false;
 }
 
-void tasks_task(void)
+void tasks_run(void)
 {
     task_s *t;
 
@@ -230,7 +249,7 @@ void tasks_task(void)
             if(_tasks_sm.required_completed < _tasks_sm.required_count)
             {
                 t = _tasks_sm.required[_tasks_sm.required_completed];
-                _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
+                _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
                 _tasks_sm.required_completed++;
             }
             else
@@ -240,7 +259,7 @@ void tasks_task(void)
                 if (_tasks_sm.optional_count > 0)
                 {
                     t = _tasks_sm.optional[_tasks_sm.optional_completed];
-                    _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
+                    _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
                     _tasks_sm.optional_completed = (_tasks_sm.optional_completed + 1) % _tasks_sm.optional_count;
                 }
 
@@ -254,7 +273,7 @@ void tasks_task(void)
             if (_tasks_sm.recurring_count == 0) break;
 
             t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
-            if(!_task_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
+            if(!_tasks_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
             _tasks_sm.recurring_completed = (_tasks_sm.recurring_completed + 1) % _tasks_sm.recurring_count;
         }
         break;
