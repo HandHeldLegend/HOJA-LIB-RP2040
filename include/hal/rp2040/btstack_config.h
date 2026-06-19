@@ -38,7 +38,7 @@
 
 // Limit number of ACL/SCO Buffer to use by stack to avoid cyw43 shared bus
 // overrun
-#define MAX_NR_CONTROLLER_ACL_BUFFERS 8
+#define MAX_NR_CONTROLLER_ACL_BUFFERS 3
 #define MAX_NR_CONTROLLER_SCO_PACKETS 0
 
 // Enable and configure HCI Controller to Host Flow Control to avoid cyw43

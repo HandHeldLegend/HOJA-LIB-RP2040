@@ -218,6 +218,11 @@ typedef struct
     // extra face inputs while hovering. Set to INPUT_CODE_UNUSED to disable.
     mapper_input_code_t tourney_macro_code;
 
+    // ---- Ship-mode / shutdown macro ----
+    // Hold shipping_macro_code[0] (and [1] when not INPUT_CODE_UNUSED) for
+    // several seconds to enter ship mode. Set [0] to INPUT_CODE_UNUSED to disable.
+    mapper_input_code_t shipping_macro_code[2];
+
 #if defined(HOJA_TRANSPORT_JOYBUS64_DRIVER) || defined(HOJA_TRANSPORT_JOYBUSGC_DRIVER)
     // Shared N64/GameCube joybus line. Present when either joybus transport gate
     // is declared in board_config.h.

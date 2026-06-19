@@ -342,7 +342,7 @@ static task_s _task_hover = {
 static task_s _task_macros = {
   .fn = macros_task,
   .name = "macros",
-  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_flash = {
