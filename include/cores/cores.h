@@ -59,7 +59,6 @@ typedef struct
     uint8_t                 transport_dev_mac[6];
     uint8_t                 transport_host_mac[6];
     core_task_t             core_task;
-    core_gyro_task_t        sys_gyro_task;
     core_transport_task_t   transport_task;
     core_reportformat_t     core_report_format;
     uint16_t                core_pollrate_us; // Transport methods may or may not respect this value
@@ -77,6 +76,6 @@ void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
 bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
-void core_task(uint64_t timestamp);
+void core_task(void);
 
 #endif

@@ -11,6 +11,13 @@
 
 #include "ns_lib_motion.h"
 
+typedef enum
+{
+    IMU_MODE_OFF = 0,
+    IMU_MODE_STANDARD,
+    IMU_MODE_QUATERNION,
+} imu_mode_t;
+
 // ---- IMU driver contract (weak-function model) ----
 // The selected IMU driver provides strong definitions of these. Which driver
 // compiles is decided by the HOJA_IMU_DRIVER gate in board_config.h. imu.c
@@ -34,10 +41,12 @@ void imu_quaternion_access_safe(ns_quaternion_s *out);
 
 bool imu_init(void);
 
+void imu_set_read_mode(imu_mode_t mode);
+
 void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb);
 
-void imu_forced_task_quaternion(void);
-void imu_forced_task_standard(void);
-void imu_task(uint64_t timestamp);
+void imu_forced_task_quaternion(uint64_t now_us);
+void imu_forced_task_standard(uint64_t now_us);
+void imu_task(uint64_t now_us);
 
 #endif

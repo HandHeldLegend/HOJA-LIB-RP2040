@@ -246,15 +246,15 @@ void ns_api_hook_set_imu_mode(ns_imu_mode_t imu_mode)
     {
         default:
         case NS_IMU_OFF:
-        _core_switch_params->sys_gyro_task = NULL;
+        imu_set_read_mode(IMU_MODE_OFF);
         break;
 
         case NS_IMU_RAW:
-        _core_switch_params->sys_gyro_task = imu_forced_task_standard;
+        imu_set_read_mode(IMU_MODE_STANDARD);
         break;
 
         case NS_IMU_QUAT:
-        _core_switch_params->sys_gyro_task = imu_forced_task_quaternion;
+        imu_set_read_mode(IMU_MODE_QUATERNION);
         break;
     }
     //tp_evt_s evt = {.evt = TP_EVT_IMUCOMMAND, .evt_imucommand = {.imu_command=cmd}};
@@ -350,8 +350,6 @@ bool core_switch_init(core_params_s *params)
 
     // Re-init PCM
     pcm_init(-1);
-
-    params->sys_gyro_task = imu_forced_task_standard;
 
     params->core_report_format = CORE_REPORTFORMAT_SWPRO;
     params->core_report_generator = _core_switch_get_generated_report;

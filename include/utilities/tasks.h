@@ -34,7 +34,6 @@ void tasks_reset(void);
 void tasks_register(task_s *task);
 
 // Call once at the start of each main-loop iteration.
-void tasks_mark_start(void);
 void tasks_mark_sent_isr(void);
 void tasks_mark_sent(void);
 

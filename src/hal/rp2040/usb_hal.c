@@ -9,6 +9,8 @@
 #include "cores/cores.h"
 
 #include "utilities/settings.h"
+#include "utilities/tasks.h"
+
 #include "hal/sys_hal.h"
 
 #include "usb/webusb.h"
@@ -148,7 +150,6 @@ bool transport_usb_init(core_params_s *params)
     tcfg.strings.serial_number = _usb_serial_str;
 
     tcfg.hooks.vendor_rx = _usb_hal_webusb_rx;
-    tcfg.hooks.vendor_rx_preamble = sys_hal_tick;
     tcfg.hooks.platform_sleep_ms = sys_hal_sleep_ms;
     tcfg.hooks.hid_output_report = _usb_hal_hid_output_report;
     tcfg.hooks.on_mount = _usb_hal_on_mount;
@@ -221,12 +222,6 @@ void transport_usb_task(uint64_t timestamp)
         return;
     }
 
-    if (_usb_core_params->sys_gyro_task && _gyro_gate)
-    {
-        _gyro_gate = false;
-        _usb_core_params->sys_gyro_task();
-    }
-
     if (!_usb_ready)
     {
         _usb_ready = hhl_tusb_report_ready();
@@ -241,6 +236,7 @@ void transport_usb_task(uint64_t timestamp)
         {
             if (hhl_tusb_report_send(_core_report.data[0], &_core_report.data[1], _core_report.size - 1))
             {
+                tasks_mark_sent();
                 hhl_tusb_task();
             }
         }

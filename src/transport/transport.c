@@ -16,6 +16,7 @@
 
 #include "devices/haptics.h"
 #include "utilities/settings.h"
+#include "utilities/tasks.h"
 
 void _transport_playerled(uint8_t led)
 {
@@ -186,10 +187,12 @@ bool transport_init(core_params_s *params)
     {
         case CORE_REPORTFORMAT_SWPRO:
         memcpy(params->transport_host_mac, gamepad_config->host_mac_switch, 6);
+        tasks_set_motion_interval(params->core_pollrate_us);
         break;
 
         case CORE_REPORTFORMAT_SINPUT:
         memcpy(params->transport_host_mac, gamepad_config->host_mac_sinput, 6);
+        tasks_set_motion_interval(params->core_pollrate_us);
         break;
     }
 

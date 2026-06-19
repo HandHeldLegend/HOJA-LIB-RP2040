@@ -367,19 +367,6 @@ void transport_wlan_task(uint64_t timestamp)
         return;
 
     dongle_api_gamepad_wlan_task();
-
-    if (_wlan_core_params != NULL && _wlan_core_params->sys_gyro_task != NULL &&
-        dongle_api_gamepad_hook_link_up() == DONGLE_LINK_UP)
-    {
-        static uint64_t last_gyro_us = 0;
-        uint64_t now = time_us_64();
-
-        if ((now - last_gyro_us) >= 1000u)
-        {
-            last_gyro_us = now;
-            _wlan_core_params->sys_gyro_task();
-        }
-    }
 }
 
 static uint32_t _wlan_hal_probe_wireless(void)

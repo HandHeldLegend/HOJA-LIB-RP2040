@@ -18,7 +18,7 @@
 #include "transport/transport_bt.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
-#include "utilities/interval.h"
+#include "utilities/tasks.h"
 #include "utilities/sysmon.h"
 #include "devices/rgb.h"
 
@@ -106,6 +106,7 @@ static inline void _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
     if (hid_cid)
     {
         hid_device_send_interrupt_message(hid_cid, new_report, len + 1);
+        tasks_mark_sent_isr();
     }
 }
 
@@ -530,12 +531,8 @@ bool transport_bt_init(core_params_s *params)
 
 void transport_bt_task(uint64_t timestamp)
 {
-    static interval_s interval = {0};
-
-    if(interval_run(timestamp, 1000, &interval) && _bt_hal_params->sys_gyro_task)
-    {
-        _bt_hal_params->sys_gyro_task();
-    }
+    (void)timestamp;
+    sleep_us(250);
 }
 
 static uint32_t _bt_hal_probe_wireless(void)

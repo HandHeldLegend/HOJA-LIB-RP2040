@@ -43,7 +43,7 @@ void sys_hal_sleep_us(uint32_t us)
     sleep_us(us);
 }
 
-void sys_hal_tick()
+void sys_hal_tick(uint64_t now_us)
 {
     watchdog_update();
 }

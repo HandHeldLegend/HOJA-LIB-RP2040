@@ -15,7 +15,7 @@ void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void)
 uint32_t sys_hal_random();
 
 // Update watchdog if applicable
-void sys_hal_tick();
+void sys_hal_tick(uint64_t now_us);
 
 // Current u64 time
 uint64_t sys_hal_now_us(void);

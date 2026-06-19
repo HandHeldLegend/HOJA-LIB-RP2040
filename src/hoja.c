@@ -26,6 +26,10 @@
 #include "input/hover.h"
 #include "input/stick_scaling.h"
 
+#include "hardware/sync.h"
+#include "devices/fuelgauge.h"
+#include "utilities/tasks.h"
+
 #include "devices/battery.h"
 #include "devices/rgb.h"
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
@@ -143,6 +147,7 @@ void hoja_deinit(callback_t cb)
     return;
   _deinit_lockout = true;
 
+  tasks_mark_shutdown();
   sysmon_shutdown();
 
   // Stop our current loop function
@@ -316,8 +321,90 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
   return true;
 }
 
-#include "hardware/sync.h"
-#include "devices/fuelgauge.h"
+static task_s _task_rgb = {
+  .fn = rgb_task,
+  .name = "rgb",
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_hover = {
+  .fn = hover_task,
+  .name = "hover",
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_macros = {
+  .fn = macros_task,
+  .name = "macros",
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_flash = {
+  .fn = flash_hal_task,
+  .name = "flash",
+  .type_mask = (TASK_TYPE_OPTIONAL)
+};
+
+static task_s _task_motion = {
+  .fn = imu_task,
+  .name = "imu",
+  .type_mask = (TASK_TYPE_MOTION)
+};
+
+static task_s _task_haptics = {
+  .fn = haptics_task,
+  .name = "haptics",
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING)
+};
+
+static task_s _task_sysmon = {
+  .fn = sysmon_task,
+  .name = "sysmon",
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_idle = {
+  .fn = idle_manager_task,
+  .name = "idle",
+  .type_mask = (TASK_TYPE_OPTIONAL)
+};
+
+static task_s _task_watchdog = {
+  .fn = sys_hal_tick,
+  .name = "wd",
+  .type_mask = (TASK_TYPE_REQUIRED)
+};
+
+void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
+{
+  tasks_reset();
+
+  // Tasks for all modes
+  tasks_register(&_task_flash);
+  tasks_register(&_task_idle);
+  tasks_register(&_task_macros);
+  tasks_register(&_task_hover);
+  tasks_register(&_task_rgb);
+  tasks_register(&_task_sysmon);
+  tasks_register(&_task_watchdog);
+
+  switch(mode)
+  {
+    default:
+    tasks_register(&_task_haptics);
+    break;
+
+    case GAMEPAD_MODE_SINPUT:
+    case GAMEPAD_MODE_SWPRO:
+    tasks_register(&_task_haptics);
+    tasks_register(&_task_motion);
+    tasks_set_motion_interval(core_current_params()->core_pollrate_us);
+    break;
+
+    case GAMEPAD_MODE_SNES:
+    break;
+  }
+}
 
 // Core 1 task loop entrypoint
 void _hoja_task_1()
@@ -327,51 +414,12 @@ void _hoja_task_1()
   // init gamepad mode on core 1
   _gamepad_mode_init(thisMode, thisTransport, thisPair);
 
+  _hoja_init_gamepad_tasks(thisMode);
+
   for (;;)
   {
-    // Get current system timestamp
-    sys_hal_time_us(&c1_timestamp);
-
-    // RGB task
-    rgb_task(c1_timestamp);
-
-    // Read inputs
-    hover_task(c1_timestamp);
-
-    // Process any macros
-    macros_task(c1_timestamp);
-
-    // Handle haptics
-    haptics_task(c1_timestamp);
-
-    if(!_deinit_lockout)
-    {
-      // Flash task
-      flash_hal_task();
-
-      // TinyUSB is only initialized for USB transport; polling it during BT/WLAN
-      // breaks CYW43 / BTstack init on Pico W.
-      if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_USB)
-        transport_usb_task(c1_timestamp);
-
-      if (webusb_outputting_check())
-      {
-        // Optional web Input
-        imu_task(c1_timestamp);
-        webusb_send_rawinput(c1_timestamp);
-      }
-      else core_task(c1_timestamp);
-
-      // System Monitor task (battery/fuel gauge)
-      sysmon_task(c1_timestamp);
-
-      // Update sys tick
-      sys_hal_tick();
-
-      // Idle manager
-      idle_manager_task(c1_timestamp);
-    }
-    else sys_hal_sleep_ms(1);
+    tasks_run();
+    core_task();
   }
 }
 

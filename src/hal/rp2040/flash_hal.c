@@ -88,7 +88,7 @@ void flash_hal_init()
 
 // Run this to apply our flash if
 // our flash flag is set
-void flash_hal_task()
+void flash_hal_task(uint64_t now_us)
 {
     if(_flash_go)
     {

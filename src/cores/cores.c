@@ -6,6 +6,8 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 
+#include "hal/sys_hal.h"
+
 #include "cores/core_switch.h"
 #include "cores/core_sinput.h"
 #include "cores/core_xinput.h"
@@ -152,8 +154,8 @@ void core_deinit()
     transport_stop();
 }
 
-void core_task(uint64_t timestamp)
+void core_task(void)
 {
     if(!_core_params.transport_task) return;
-    _core_params.transport_task(timestamp);
+    _core_params.transport_task(sys_hal_now_us());
 }

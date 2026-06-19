@@ -21,12 +21,20 @@
 #include <stdbool.h>
 #include <string.h>
 
+typedef void (*imu_fn_t)(uint64_t);
+imu_fn_t _imu_fn = NULL;
+
 // Weak driver contract defaults. A board with no IMU driver selected links
 // these, making every IMU call a safe no-op. The selected driver (compiled in
 // by the HOJA_IMU_DRIVER gate) overrides them.
 __attribute__((weak)) uint8_t imu_driver_channel_count(void) { return 0; }
 __attribute__((weak)) bool imu_driver_init(void) { return false; }
-__attribute__((weak)) bool imu_driver_read(uint8_t channel, imu_data_s *out) { (void)channel; (void)out; return false; }
+__attribute__((weak)) bool imu_driver_read(uint8_t channel, imu_data_s *out)
+{
+  (void)channel;
+  (void)out;
+  return false;
+}
 __attribute__((weak)) const char *imu_driver_part_code(void) { return NULL; }
 
 #define IMU_CALIBRATE_CYCLES 2000
@@ -90,7 +98,7 @@ static void _imu_read_quaternion(uint64_t timestamp)
     // averaging below collapses to that single sensor.
     uint8_t ch2 = (channels >= 2) ? 1 : 0;
 
-    imu_driver_read(0,   (imu_data_s *)&this_imu[0]);
+    imu_driver_read(0, (imu_data_s *)&this_imu[0]);
     imu_driver_read(ch2, (imu_data_s *)&this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
@@ -140,7 +148,7 @@ static void _imu_read_standard(uint64_t timestamp)
     // averaging below collapses to that single sensor.
     uint8_t ch2 = (channels >= 2) ? 1 : 0;
 
-    imu_driver_read(0,   &this_imu[0]);
+    imu_driver_read(0, &this_imu[0]);
     imu_driver_read(ch2, &this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
@@ -284,43 +292,53 @@ void imu_config_cmd(imu_cmd_t cmd, webreport_cmd_confirm_t cb)
   }
 }
 
-// IMU forced task (for gated/syncronized reads)
-void imu_forced_task_standard(void)
+void imu_set_read_mode(imu_mode_t mode)
 {
-  if (imu_driver_channel_count() == 0)
-    return;
+  switch (mode)
+  {
+  default:
+  case IMU_MODE_OFF:
+    _imu_fn = NULL;
+    break;
 
-  static uint64_t t;
-  sys_hal_time_us(&t);
-  _imu_read_standard(t);
+  case IMU_MODE_STANDARD:
+    _imu_fn = imu_forced_task_standard;
+    break;
+
+  case IMU_MODE_QUATERNION:
+    _imu_fn = imu_forced_task_quaternion;
+    break;
+  }
 }
 
-void imu_forced_task_quaternion(void)
+// IMU forced task (for gated/syncronized reads)
+void imu_forced_task_standard(uint64_t now_us)
 {
   if (imu_driver_channel_count() == 0)
     return;
 
-  static uint64_t t;
-  sys_hal_time_us(&t);
-  _imu_read_quaternion(t);
+  _imu_read_standard(sys_hal_now_us());
+}
+
+void imu_forced_task_quaternion(uint64_t now_us)
+{
+  if (imu_driver_channel_count() == 0)
+    return;
+
+  _imu_read_quaternion(sys_hal_now_us());
 }
 
 // IMU module operational task
-void imu_task(uint64_t timestamp)
+void imu_task(uint64_t now_us)
 {
   if (imu_driver_channel_count() == 0)
     return;
 
-  static interval_s _imu_read_interval = {0};
-
-  if (interval_run(timestamp, IMU_READ_RATE, &_imu_read_interval))
-  {
-    // Jump into appropriate IMU task if it's defined
-    if (_imu_calibrate_cycles_remaining)
-      _imu_calibrate_function(timestamp);
-    else
-      _imu_read_standard(timestamp);
-  }
+  // Jump into appropriate IMU task if it's defined
+  if (_imu_calibrate_cycles_remaining)
+    _imu_calibrate_function(now_us);
+  else if (_imu_fn)
+    _imu_fn(now_us);
 }
 
 // IMU module initialization function
