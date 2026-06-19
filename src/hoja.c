@@ -265,10 +265,34 @@ gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
 bool thisPair = false;
 uint16_t thisBootFlags = 0;
 
+static gamepad_method_t _hoja_transport_to_method(gamepad_transport_t transport)
+{
+  switch (transport)
+  {
+  case GAMEPAD_TRANSPORT_BLUETOOTH:
+    return GAMEPAD_METHOD_BLUETOOTH;
+
+  case GAMEPAD_TRANSPORT_WLAN:
+    return GAMEPAD_METHOD_WLAN;
+
+  case GAMEPAD_TRANSPORT_USB:
+    return GAMEPAD_METHOD_USB;
+
+  case GAMEPAD_TRANSPORT_NESBUS:
+  case GAMEPAD_TRANSPORT_JOYBUS64:
+  case GAMEPAD_TRANSPORT_JOYBUSGC:
+    return GAMEPAD_METHOD_WIRED;
+
+  default:
+    return GAMEPAD_METHOD_AUTO;
+  }
+}
+
 // Replace with proper boot function later TODO
 bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
 {
   _hoja_status.gamepad_mode = mode;
+  _hoja_status.gamepad_method = _hoja_transport_to_method(transport);
   _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
 
   hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED); // Pending
@@ -283,8 +307,13 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
   // Reload stick config
   stick_scaling_init();
 
-  // Do core init
-  return core_init(mode, transport, pair, thisBootFlags);
+  if (!core_init(mode, transport, pair, thisBootFlags))
+  {
+    hoja_set_notification_status(COLOR_ORANGE);
+    return false;
+  }
+
+  return true;
 }
 
 #include "hardware/sync.h"
@@ -319,8 +348,11 @@ void _hoja_task_1()
     {
       // Flash task
       flash_hal_task();
-      // USB task
-      transport_usb_task(c1_timestamp);
+
+      // TinyUSB is only initialized for USB transport; polling it during BT/WLAN
+      // breaks CYW43 / BTstack init on Pico W.
+      if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_USB)
+        transport_usb_task(c1_timestamp);
 
       if (webusb_outputting_check())
       {
@@ -442,7 +474,7 @@ void hoja_init(const hoja_config_s *config)
 
   boot_get_mode_method(&thisMode, &thisTransport, &thisPair, &thisBootFlags);
 
-  _system_devices_init(thisTransport, thisMode);
+  _system_devices_init(_hoja_transport_to_method(thisTransport), thisMode);
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

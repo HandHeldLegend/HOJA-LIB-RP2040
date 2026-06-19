@@ -4,7 +4,7 @@
 #include "board_config.h"
 #include "devices/bluetooth.h"
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_HAL)
 
 #define HOJA_BLUETOOTH_INIT(device_mode, pairing_mode, evt_cb) bluetooth_hal_init(device_mode, pairing_mode, evt_cb)
 #define HOJA_BLUETOOTH_TASK(timestamp) bluetooth_hal_task(timestamp)

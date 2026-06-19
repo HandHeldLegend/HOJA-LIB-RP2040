@@ -10,12 +10,22 @@ extern "C" {
 
 typedef void (*task_fn_t)(uint64_t now_us);
 
+typedef enum
+{
+    TASK_TYPE_REQUIRED  = 0b00000001, // Must run once per task period
+    TASK_TYPE_RECURRING = 0b00000010, // Will iterate through during free time
+    TASK_TYPE_OPTIONAL  = 0b00000100, // One optional task runs per task period
+    TASK_TYPE_MOTION    = 0b00001000, // Motion task may run multiple iterations as required by the task loop
+    TASK_TYPE_SHUTDOWN  = 0b00010000, // Task is enabled during shutdown lock
+} task_type_t;
+
 typedef struct
 {
     const char *name;
     uint64_t last_us;
     uint64_t interval_us;
     uint64_t max_runtime_us;
+    uint8_t  type_mask; // task_type_t to form the mask
     task_fn_t fn;
 } task_s;
 

@@ -124,6 +124,12 @@
     #define BT_DRIVER_HAL 1
     #define BT_DRIVER_ESP32HOJA 2
 
+    // Older board_config.h files declared HOJA_BLUETOOTH_DRIVER instead of
+    // HOJA_TRANSPORT_BT_DRIVER. Values match (BLUETOOTH_DRIVER_* == BT_DRIVER_*).
+    #if !defined(HOJA_TRANSPORT_BT_DRIVER) && defined(HOJA_BLUETOOTH_DRIVER)
+    #define HOJA_TRANSPORT_BT_DRIVER HOJA_BLUETOOTH_DRIVER
+    #endif
+
     // USB Drivers
     #define USB_DRIVER_HAL 1
 

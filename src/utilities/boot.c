@@ -195,6 +195,19 @@ static void boot_apply_wlan_combo(const mapper_input_s *input, gamepad_transport
     }
 }
 
+static void boot_apply_bt_combo(const mapper_input_s *input, gamepad_transport_t *transport_out)
+{
+    if (transport_out == NULL)
+        return;
+
+    // LB+START is the USB bootloader combo; do not treat it as a BT boot.
+    if (input->presses[INPUT_CODE_LB] && input->presses[INPUT_CODE_START])
+        return;
+
+    if (input->presses[INPUT_CODE_LB] && *transport_out == GAMEPAD_TRANSPORT_AUTO)
+        *transport_out = GAMEPAD_TRANSPORT_BLUETOOTH;
+}
+
 void boot_get_memory(boot_memory_s *out)
 {
     boot_memory_s tmp = {0};
@@ -247,6 +260,7 @@ void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, 
 
         boot_apply_start_combos(&input, &thisPair, &thisBootloader, &thisBTBootloader);
         boot_apply_wlan_combo(&input, &thisTransport, &thisBootFlags);
+        boot_apply_bt_combo(&input, &thisTransport);
 
         bool skip_digital_face = false;
         gamepad_mode_t face_mode = thisMode;
@@ -340,16 +354,20 @@ skipAutoTransport:
         thisMode = boot_memory.gamepad_mode;
         thisPair = boot_memory.gamepad_pair ? true : false;
 
-        if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
+        if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_BLUETOOTH)
+        {
+            thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        }
+        else if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
         {
             thisTransport = GAMEPAD_TRANSPORT_WLAN;
             thisBootFlags |= COREBOOT_FLAG_WLAN;
         }
     }
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER > 0)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER > 0)
     else
     {
-#if (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_ESP32HOJA)
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
         if (thisBTBootloader)
         {
             *mode = GAMEPAD_MODE_LOAD;
@@ -374,6 +392,7 @@ skipAutoTransport:
         break;
 
     case GAMEPAD_TRANSPORT_WLAN:
+    case GAMEPAD_TRANSPORT_BLUETOOTH:
         battery_init();
         goto skipTransportParse;
 

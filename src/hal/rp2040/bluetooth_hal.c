@@ -446,12 +446,11 @@ bool transport_bt_init(core_params_s *params)
         _bt_hal_pollrate_ms = params->core_pollrate_us/1000;
     }
 
-    // If the init fails it returns true lol
-    if (cyw43_arch_init())
+    while (cyw43_arch_init())
     {
-        return false;
+        sys_hal_sleep_ms(1000);
     }
-    
+
     _bt_init = true;
 
     gap_set_bondable_mode(1);

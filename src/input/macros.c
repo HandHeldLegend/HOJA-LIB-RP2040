@@ -32,7 +32,7 @@ void macros_task(uint64_t timestamp)
     // Always run; battery_set_ship_mode() safely no-ops when no PMIC is present.
     macro_shutdown(timestamp, &input);
 
-    #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
+    #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER > 0)
     macro_pairing(timestamp, &input);
     #endif
 

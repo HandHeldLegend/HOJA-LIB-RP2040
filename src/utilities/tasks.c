@@ -2,241 +2,230 @@
 #include "hal/sys_hal.h"
 #include <stddef.h>
 
-#define TASKS_MAX_COUNT 32
+#define TASKS_MAX_COUNT 8
 
 // Estimated runtime for tasks that have not been measured yet.
 #define TASKS_DEFAULT_RUNTIME_US 1
+#define TASK_FORCE_RESET_US (16 * 1000 * 1000) // 16ms forceful reset
+#define RUNTIME_MAX_DO_UPDATE true 
+#define RUNTIME_MAX_NO_UPDATE false
 
-static uint8_t _required_task_count = 0;
-static task_s *_required_tasks[TASKS_MAX_COUNT] = {0};
-
-static uint8_t _optional_task_count = 0;
-static task_s *_optional_tasks[TASKS_MAX_COUNT] = {0};
-static uint8_t _optional_scan_index = 0;
-
-static uint8_t _idle_task_count = 0;
-static task_s *_idle_tasks[TASKS_MAX_COUNT] = {0};
-static uint8_t _idle_index = 0;
-
-static uint64_t _task_last_mark_us = 0;
-static uint64_t _task_frame_deadline_us = 0;
-
-static uint8_t _required_index = 0;
+volatile bool _tasks_sent_signal = false; 
 
 typedef enum
 {
-    TASKS_PHASE_REQUIRED, // Each required task runs once per loop.
-    TASKS_PHASE_OPTIONAL, // At most one due optional task per loop.
-    TASKS_PHASE_IDLE,       // Fill remaining frame time with idle tasks.
-} tasks_phase_t;
+    TASK_PHASE_REQUIRED,
+    TASK_PHASE_OPTIONAL,
+    TASK_PHASE_RECURRING,
+} task_phase_t;
 
-static tasks_phase_t _phase = TASKS_PHASE_REQUIRED;
-
-static inline bool _task_is_due(const task_s *task, uint64_t now_us)
+typedef struct
 {
-    if (task->interval_us == 0)
-    {
-        return true;
-    }
+    task_s   *required[TASKS_MAX_COUNT]; 
+    uint8_t   required_count;
+    uint8_t   required_completed;
 
-    return now_us >= (task->last_us + task->interval_us);
+    task_s   *recurring[TASKS_MAX_COUNT]; 
+    uint8_t   recurring_count;
+    uint8_t   recurring_completed;
+
+    task_s   *optional[TASKS_MAX_COUNT]; 
+    uint8_t   optional_count;
+    uint8_t   optional_completed;
+
+    task_s   *motion; 
+    uint8_t   motion_iterations; 
+    uint8_t   motion_completed_count;
+    uint64_t  motion_period_us;
+    uint64_t  motion_last_us;
+
+    uint64_t cycle_deadline_us; 
+    uint64_t cycle_reset_deadline_us;
+} tasks_sm_s; 
+
+static tasks_sm_s _tasks_sm;
+static task_phase_t _tasks_phase = TASK_PHASE_REQUIRED;
+
+static void _tasks_reset(uint64_t now_us)
+{
+    _tasks_sm.cycle_reset_deadline_us = now_us + TASK_FORCE_RESET_US;
+
+    _tasks_sm.motion_completed_count = 0;
+    _tasks_sm.motion_last_us = 0;
+
+    _tasks_sm.required_completed = 0;
 }
 
-static inline uint64_t _task_budget_us(const task_s *task)
+static void _task_force_run(task_s *task, bool update_max_runtime)
 {
-    return task->max_runtime_us ? task->max_runtime_us : TASKS_DEFAULT_RUNTIME_US;
-}
-
-static inline bool _task_can_run(uint64_t now_us, uint64_t required_runtime_us)
-{
-    return (now_us + required_runtime_us) <= _task_frame_deadline_us;
-}
-
-static void _task_run(task_s *task, uint64_t now_us, bool track_runtime)
-{
-    uint64_t start_us = now_us;
-
-    task->fn(now_us);
-
-    now_us = sys_hal_now_us();
+    uint64_t start_us = sys_hal_now_us();
+    task->fn(start_us);
+    uint64_t now_us = sys_hal_now_us();
     task->last_us = start_us;
 
-    if (!track_runtime)
-    {
-        return;
-    }
+    if(!update_max_runtime) return;
 
     uint64_t runtime_us = now_us - start_us;
-    if (runtime_us > task->max_runtime_us)
+    if(runtime_us > task->max_runtime_us)
     {
         task->max_runtime_us = runtime_us;
     }
+
 }
 
-static int8_t _optional_pick_due(uint64_t now_us)
+static bool _task_try_run(task_s *task, bool update_max_runtime)
 {
-    if (_optional_task_count == 0)
+    // Confirm there's enough budget remaining
+    uint64_t start_us = sys_hal_now_us();
+    // Return if not enough time remaining
+    if(start_us + task->max_runtime_us >= _tasks_sm.cycle_deadline_us) return false;
+
+    // Run task with the allocated time
+    task->fn(start_us);
+    uint64_t now_us = sys_hal_now_us();
+    task->last_us = start_us;
+
+    // Optionally update max runtime of the task
+    if(!update_max_runtime) return true;
+
+    uint64_t runtime_us = now_us - start_us;
+    if(runtime_us > task->max_runtime_us)
     {
-        return -1;
+        task->max_runtime_us = runtime_us;
+    }
+    return true;
+}
+
+static bool _task_check_deadline(uint64_t now_us)
+{
+    if(now_us >= _tasks_sm.cycle_reset_deadline_us)
+    {
+
+    }
+}
+
+void tasks_register(task_s *task)
+{
+    if (!task || !task->fn)
+    {
+        return;
     }
 
-    for (uint8_t step = 0; step < _optional_task_count; step++)
+    if(task->type_mask & TASK_TYPE_REQUIRED)
     {
-        uint8_t idx = (_optional_scan_index + step) % _optional_task_count;
-        task_s *task = _optional_tasks[idx];
+        _task_try_add(_tasks_sm.required, &_tasks_sm.required_count, task);
+    }
 
-        if (!_task_is_due(task, now_us))
+    if(task->type_mask & TASK_TYPE_RECURRING)
+    {
+        _task_try_add(_tasks_sm.recurring, &_tasks_sm.recurring_count, task);
+    }
+
+    if(task->type_mask & TASK_TYPE_OPTIONAL)
+    {
+        _task_try_add(_tasks_sm.optional, &_tasks_sm.optional_count, task);
+    }
+
+    if(task->type_mask & TASK_TYPE_MOTION)
+    {
+        _tasks_sm.motion = task;
+        _tasks_sm.motion_iterations = 1;
+    }
+}
+
+void tasks_set_target_interval(uint64_t interval_us)
+{
+    if(interval_us <= 2000)
+    {
+        if(_tasks_sm.motion)
         {
-            continue;
+            _tasks_sm.motion_iterations = 1;
+            _tasks_sm.motion_period_us  = 1;
         }
-
-        if (!_task_can_run(now_us, _task_budget_us(task)))
+    }
+    else if(interval_us <= 4000)
+    {
+        if(_tasks_sm.motion)
         {
-            continue;
+            _tasks_sm.motion_iterations = 2;
+            _tasks_sm.motion_period_us  = 1500;
         }
-
-        _optional_scan_index = (idx + 1) % _optional_task_count;
-        return (int8_t)idx;
     }
-
-    return -1;
+    else if(interval_us <= 8000)
+    {
+        if(_tasks_sm.motion)
+        {
+            _tasks_sm.motion_iterations = 3;
+            _tasks_sm.motion_period_us  = 2000;
+        }
+    }
 }
 
-void tasks_register_required(task_s *task)
+void tasks_mark_sent(void)
 {
-    if (_required_task_count >= TASKS_MAX_COUNT)
-    {
-        return;
-    }
-
-    if (!task || !task->fn)
-    {
-        return;
-    }
-
-    _required_tasks[_required_task_count++] = task;
+    _tasks_sent_signal = true;
 }
 
-void tasks_register_optional(task_s *task)
-{
-    if (_optional_task_count >= TASKS_MAX_COUNT)
-    {
-        return;
-    }
-
-    if (!task || !task->fn)
-    {
-        return;
-    }
-
-    _optional_tasks[_optional_task_count++] = task;
-}
-
-void tasks_register_idle(task_s *task)
-{
-    if (_idle_task_count >= TASKS_MAX_COUNT)
-    {
-        return;
-    }
-
-    if (!task || !task->fn)
-    {
-        return;
-    }
-
-    _idle_tasks[_idle_task_count++] = task;
-}
-
+// Can be called from any core
 void tasks_mark_start(void)
 {
     uint64_t now_us = sys_hal_now_us();
-    uint64_t period_us = 0;
 
-    if (_task_last_mark_us != 0)
+}
+
+static bool _task_try_motion(task_s *task)
+{
+    uint64_t now_us = sys_hal_now_us();
+    if(now_us > _tasks_sm.motion_last_us + _tasks_sm.motion_period_us)
     {
-        period_us = now_us - _task_last_mark_us;
+        task->fn(now_us);
+        _tasks_sm.motion_last_us = now_us;
+        return true;
     }
-
-    _task_last_mark_us = now_us;
-
-    if (period_us == 0)
-    {
-        // First frame, or zero-length loop: allow slack work until measured.
-        _task_frame_deadline_us = UINT64_MAX;
-    }
-    else
-    {
-        _task_frame_deadline_us = now_us + period_us;
-    }
-
-    _required_index = 0;
-    _phase = TASKS_PHASE_REQUIRED;
+    return false;
 }
 
 void tasks_task(void)
 {
-    task_s *task = NULL;
-    uint64_t now_us = 0;
-    int8_t optional_idx = -1;
+    task_s *t;
 
-    switch (_phase)
+    if(_tasks_sm.motion_completed_count < _tasks_sm.motion_iterations)
     {
-        default:
+        if(_task_try_motion(_tasks_sm.motion))
+        {
+            _tasks_sm.motion_completed_count++;
             return;
+        }
+    }
 
-        case TASKS_PHASE_REQUIRED:
-            if (_required_task_count == 0)
+    switch(_tasks_phase)
+    {
+        case TASK_PHASE_REQUIRED:
+        {
+            if(_tasks_sm.required_completed < _tasks_sm.required_count)
             {
-                _phase = TASKS_PHASE_OPTIONAL;
-                return;
+                t = _tasks_sm.required[_tasks_sm.required_completed];
+                _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
+                _tasks_sm.required_completed++;
             }
-
-            task = _required_tasks[_required_index];
-            now_us = sys_hal_now_us();
-            _task_run(task, now_us, true);
-
-            _required_index++;
-            if (_required_index >= _required_task_count)
+            else
             {
-                _required_index = 0;
-                _phase = TASKS_PHASE_OPTIONAL;
+                // If we got here, run one optional task and move
+                // to our recurring tasks
+                t = _tasks_sm.optional[_tasks_sm.optional_completed];
+                _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
+                _tasks_sm.optional_completed = ++_tasks_sm.optional_completed % _tasks_sm.optional_count;
+                _tasks_phase = TASK_PHASE_RECURRING;
             }
-            return;
+        }
+        break;
 
-        case TASKS_PHASE_OPTIONAL:
-            now_us = sys_hal_now_us();
-            optional_idx = _optional_pick_due(now_us);
-
-            if (optional_idx >= 0)
-            {
-                task = _optional_tasks[(uint8_t)optional_idx];
-                _task_run(task, now_us, true);
-            }
-
-            _phase = TASKS_PHASE_IDLE;
-            return;
-
-        case TASKS_PHASE_IDLE:
-            if (_idle_task_count == 0)
-            {
-                return;
-            }
-
-            task = _idle_tasks[_idle_index];
-            now_us = sys_hal_now_us();
-
-            if (!_task_can_run(now_us, _task_budget_us(task)))
-            {
-                return;
-            }
-
-            _task_run(task, now_us, true);
-
-            _idle_index++;
-            if (_idle_index >= _idle_task_count)
-            {
-                _idle_index = 0;
-            }
-            return;
+        case TASK_PHASE_RECURRING:
+        {
+            t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
+            if(!_task_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
+            _tasks_sm.recurring_completed = ++_tasks_sm.recurring_completed % _tasks_sm.recurring_count;
+        }
+        break;
     }
 }
