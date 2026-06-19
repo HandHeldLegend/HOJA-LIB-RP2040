@@ -6,16 +6,15 @@
 
 // Estimated runtime for tasks that have not been measured yet.
 #define TASKS_DEFAULT_RUNTIME_US 1
-#define TASK_FORCE_RESET_US (16 * 1000 * 1000) // 16ms forceful reset
+#define TASK_FORCE_RESET_US (16 * 1000) // 16ms forceful reset
 #define RUNTIME_MAX_DO_UPDATE true 
 #define RUNTIME_MAX_NO_UPDATE false
 
-volatile bool _tasks_sent_signal = false; 
+volatile bool _tasks_sent_isr_signal = false; 
 
 typedef enum
 {
     TASK_PHASE_REQUIRED,
-    TASK_PHASE_OPTIONAL,
     TASK_PHASE_RECURRING,
 } task_phase_t;
 
@@ -39,6 +38,7 @@ typedef struct
     uint64_t  motion_period_us;
     uint64_t  motion_last_us;
 
+    uint64_t cycle_last_reset_us;
     uint64_t cycle_deadline_us; 
     uint64_t cycle_reset_deadline_us;
 } tasks_sm_s; 
@@ -46,17 +46,26 @@ typedef struct
 static tasks_sm_s _tasks_sm;
 static task_phase_t _tasks_phase = TASK_PHASE_REQUIRED;
 
-static void _tasks_reset(uint64_t now_us)
+static void _tasks_reset_sm(void)
 {
-    _tasks_sm.cycle_reset_deadline_us = now_us + TASK_FORCE_RESET_US;
+    uint64_t now_us = sys_hal_now_us();
+    uint64_t period = (_tasks_sm.cycle_last_reset_us == 0)
+    ? 0   // or a sensible default like interval_us
+    : now_us - _tasks_sm.cycle_last_reset_us;
+    _tasks_sm.cycle_last_reset_us = now_us;
+
+    _tasks_sm.cycle_deadline_us        = now_us + period;
+    _tasks_sm.cycle_reset_deadline_us  = now_us + TASK_FORCE_RESET_US;
 
     _tasks_sm.motion_completed_count = 0;
     _tasks_sm.motion_last_us = 0;
 
     _tasks_sm.required_completed = 0;
+
+    _tasks_phase = TASK_PHASE_REQUIRED;
 }
 
-static void _task_force_run(task_s *task, bool update_max_runtime)
+static void _tasks_force_run(task_s *task, bool update_max_runtime)
 {
     uint64_t start_us = sys_hal_now_us();
     task->fn(start_us);
@@ -70,10 +79,9 @@ static void _task_force_run(task_s *task, bool update_max_runtime)
     {
         task->max_runtime_us = runtime_us;
     }
-
 }
 
-static bool _task_try_run(task_s *task, bool update_max_runtime)
+static bool _tasks_try_run(task_s *task, bool update_max_runtime)
 {
     // Confirm there's enough budget remaining
     uint64_t start_us = sys_hal_now_us();
@@ -96,11 +104,12 @@ static bool _task_try_run(task_s *task, bool update_max_runtime)
     return true;
 }
 
-static bool _task_check_deadline(uint64_t now_us)
+static void _tasks_check_deadline(void)
 {
-    if(now_us >= _tasks_sm.cycle_reset_deadline_us)
+    uint64_t now_us = sys_hal_now_us();
+    if (now_us >= _tasks_sm.cycle_reset_deadline_us)
     {
-
+        _tasks_reset_sm();
     }
 }
 
@@ -161,16 +170,16 @@ void tasks_set_target_interval(uint64_t interval_us)
     }
 }
 
-void tasks_mark_sent(void)
+// Used where it's unsafe to call sys_hal_now_us
+void tasks_mark_sent_isr(void)
 {
-    _tasks_sent_signal = true;
+    _tasks_sent_isr_signal = true;
 }
 
-// Can be called from any core
-void tasks_mark_start(void)
+// Used where it's not ISR context and safe to call sys_hal_now_us
+void tasks_mark_sent(void)
 {
-    uint64_t now_us = sys_hal_now_us();
-
+    _tasks_reset_sm();
 }
 
 static bool _task_try_motion(task_s *task)
@@ -180,6 +189,14 @@ static bool _task_try_motion(task_s *task)
     {
         task->fn(now_us);
         _tasks_sm.motion_last_us = now_us;
+        uint64_t end_us = sys_hal_now_us();
+
+        uint64_t runtime_us = end_us - now_us;
+        if(runtime_us > task->max_runtime_us)
+        {
+            task->max_runtime_us = runtime_us;
+        }
+
         return true;
     }
     return false;
@@ -189,7 +206,15 @@ void tasks_task(void)
 {
     task_s *t;
 
-    if(_tasks_sm.motion_completed_count < _tasks_sm.motion_iterations)
+    _tasks_check_deadline();
+
+    if(_tasks_sent_isr_signal)
+    {
+        _tasks_reset_sm();
+        _tasks_sent_isr_signal = false;
+    }
+
+    if(_tasks_sm.motion && (_tasks_sm.motion_completed_count < _tasks_sm.motion_iterations) )
     {
         if(_task_try_motion(_tasks_sm.motion))
         {
@@ -212,9 +237,13 @@ void tasks_task(void)
             {
                 // If we got here, run one optional task and move
                 // to our recurring tasks
-                t = _tasks_sm.optional[_tasks_sm.optional_completed];
-                _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
-                _tasks_sm.optional_completed = ++_tasks_sm.optional_completed % _tasks_sm.optional_count;
+                if (_tasks_sm.optional_count > 0)
+                {
+                    t = _tasks_sm.optional[_tasks_sm.optional_completed];
+                    _task_force_run(t, RUNTIME_MAX_DO_UPDATE);
+                    _tasks_sm.optional_completed = (_tasks_sm.optional_completed + 1) % _tasks_sm.optional_count;
+                }
+
                 _tasks_phase = TASK_PHASE_RECURRING;
             }
         }
@@ -222,9 +251,11 @@ void tasks_task(void)
 
         case TASK_PHASE_RECURRING:
         {
+            if (_tasks_sm.recurring_count == 0) break;
+
             t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
             if(!_task_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
-            _tasks_sm.recurring_completed = ++_tasks_sm.recurring_completed % _tasks_sm.recurring_count;
+            _tasks_sm.recurring_completed = (_tasks_sm.recurring_completed + 1) % _tasks_sm.recurring_count;
         }
         break;
     }
