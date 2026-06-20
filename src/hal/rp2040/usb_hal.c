@@ -116,6 +116,7 @@ static void _usb_hal_on_sof(uint32_t frame_count)
 static void _usb_hal_webusb_rx(const uint8_t *data, uint16_t len)
 {
     webusb_command_handler((uint8_t *)data, len);
+    hhl_tusb_task();
 }
 
 void transport_usb_stop()
@@ -213,12 +214,17 @@ bool transport_usb_init(core_params_s *params)
 
 void transport_usb_task(uint64_t timestamp)
 {
-    (void)timestamp;
-
     hhl_tusb_task();
 
     if (!_usb_hal_mounted)
     {
+        return;
+    }
+
+    if (webusb_outputting_check())
+    {
+        webusb_send_rawinput(timestamp);
+        hhl_tusb_task();
         return;
     }
 

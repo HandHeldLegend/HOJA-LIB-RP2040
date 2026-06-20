@@ -1,5 +1,6 @@
 #include "usb/webusb.h"
 #include "utilities/interval.h"
+#include "utilities/tasks.h"
 #include "input_shared_types.h"
 
 #include "utilities/settings.h"
@@ -163,6 +164,10 @@ void webusb_send_rawinput(uint64_t timestamp)
         {
             _webusb_mark_unready();
         }
+        else
+        {
+            tasks_mark_sent();
+        }
 
         ready = false;
     }
@@ -184,6 +189,11 @@ void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool succe
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
 {
+    if (!_ready_to_go)
+    {
+        imu_set_read_mode(IMU_MODE_STANDARD);
+    }
+
     _ready_to_go = true;
     switch(data[0])
     {

@@ -365,7 +365,7 @@ static task_s _task_motion = {
 static task_s _task_haptics = {
   .fn = haptics_task,
   .name = "haptics",
-  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING)
+  .type_mask = (TASK_TYPE_RAPID)
 };
 
 static task_s _task_sysmon = {

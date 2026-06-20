@@ -34,6 +34,9 @@ typedef struct
     uint8_t   optional_count;
     // optional_completed removed: selection is now interval-aware, not round-robin
 
+    task_s   *rapid[TASKS_MAX_COUNT];
+    uint8_t   rapid_count;
+
     uint64_t cycle_last_reset_us;
     uint64_t cycle_deadline_us; 
     uint64_t cycle_reset_deadline_us;
@@ -141,6 +144,14 @@ static void _tasks_optional_run(task_s *optional_tasks[TASKS_MAX_COUNT], uint8_t
     }
 }
 
+static void _tasks_rapid_run(void)
+{
+    for(int i = 0; i < _tasks_sm.rapid_count; i++)
+    {
+        _tasks_force_run(_tasks_sm.rapid[i], RUNTIME_MAX_NO_UPDATE);
+    }
+}
+
 static bool _tasks_try_run(task_s *task, bool update_max_runtime)
 {
     if(!_tasks_runnable(task)) return false;
@@ -211,6 +222,11 @@ void tasks_register(task_s *task)
     {
         _task_try_add(_tasks_sm.optional, &_tasks_sm.optional_count, task);
     }
+
+    if(task->type_mask & TASK_TYPE_RAPID)
+    {
+        _task_try_add(_tasks_sm.rapid, &_tasks_sm.rapid_count, task);
+    }
 }
 
 // Used where it's unsafe to call sys_hal_now_us
@@ -236,6 +252,8 @@ void tasks_run(void)
         _tasks_reset_sm();
         _tasks_sent_isr_signal = false;
     }
+
+    _tasks_rapid_run();
 
     switch(_tasks_phase)
     {
