@@ -53,7 +53,6 @@ volatile bool _usb_sendit = false;
 volatile uint8_t _usb_sent_id = 0xFF;
 
 static bool _usb_hal_mounted = false;
-volatile bool _gyro_gate = false;
 
 static void _usb_hal_hid_output_report(const uint8_t *buffer, uint16_t len)
 {
@@ -70,15 +69,6 @@ static void _usb_hal_on_mount(void)
 
 static void _usb_hal_on_sof(uint32_t frame_count)
 {
-    if (_usb_frames == 1)
-    {
-        _gyro_gate = true;
-    }
-    else if (frame_count % 2 == 0)
-    {
-        _gyro_gate = true;
-    }
-
     switch (_usb_frames)
     {
     case 1:

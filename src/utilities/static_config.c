@@ -407,6 +407,7 @@ void static_config_init()
     _input_static_refresh();
     _rgb_static_set_names();
     _analog_static_setup();
+    _imu_static_refresh();
     _bluetooth_static_apply_caps();
     _bluetooth_static_refresh_identity();
     _battery_static_refresh();

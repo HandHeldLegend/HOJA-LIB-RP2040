@@ -324,7 +324,7 @@ bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool
 static task_s _task_core = {
   .fn = core_task,
   .name = "core",
-  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_rgb = {

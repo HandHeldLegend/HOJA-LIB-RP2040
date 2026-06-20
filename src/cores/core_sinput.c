@@ -267,6 +267,8 @@ bool core_sinput_init(core_params_s *params)
     params->core_report_generator = _core_sinput_get_generated_report;
     params->core_report_tunnel    = sinput_api_output_tunnel;
 
+    const bool imu_available = (imu_driver_channel_count() >= 1) && (imu_config->imu_disabled != 1);
+
     sinput_hid_get_descriptor_params(
         &_sinput_hid_device.hid_report_descriptor, &_sinput_hid_device.hid_report_descriptor_len,
         &_sinput_hid_device.config_descriptor, &_sinput_hid_device.config_descriptor_len, 
@@ -307,9 +309,9 @@ bool core_sinput_init(core_params_s *params)
         },
         .motion = 
         {
-            .accelerometer = imu_static.axis_accel_a,
+            .accelerometer = imu_available,
             .accelerometer_g_range = 8,
-            .gyroscope = imu_static.axis_gyro_a,
+            .gyroscope = imu_available,
             .gyroscope_dps_range = 2000,
         },
         .polling_rate_us = params->core_pollrate_us,
@@ -323,6 +325,11 @@ bool core_sinput_init(core_params_s *params)
     memcpy(cfg.mac_address, params->transport_dev_mac, 6);
 
     sinput_api_init(&cfg);
+
+    if (imu_available)
+    {
+        imu_set_read_mode(IMU_MODE_STANDARD);
+    }
 
     return transport_init(params);
 }
