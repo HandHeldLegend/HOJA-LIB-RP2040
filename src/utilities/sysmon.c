@@ -1,5 +1,4 @@
 #include "utilities/sysmon.h"
-#include "utilities/interval.h"
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
@@ -18,7 +17,6 @@ fuelgauge_status_s _sysfuel = {.connected=false, .percent=100};
 
 // Critical power shutdown function
 #define CRITICAL_SHUTDOWN_TIMEOUT_US 6500 * 1000 // 6.5 seconds
-#define SYSMON_INTERVAL_US 1 * 1000 * 1000 // 2 seconds
 #define DISCONNECT_TIMEOUT_US 30 * 1000 * 1000 // 30 second timeout to shut down when disconnected
 bool _shutdown_timeout_initiated = false;
 int  _shutdown_timeout_reset = 0;
@@ -65,80 +63,79 @@ void sysmon_task(uint64_t timestamp)
 
     if(_shutdown_timeout_initiated)
     {
-        static interval_s critical_interval = {0};
-        if(interval_resettable_run(timestamp, CRITICAL_SHUTDOWN_TIMEOUT_US, (_shutdown_timeout_reset==1), &critical_interval))
+        static uint64_t critical_deadline_us = 0;
+
+        if(_shutdown_timeout_reset == 1)
+        {
+            critical_deadline_us = timestamp + CRITICAL_SHUTDOWN_TIMEOUT_US;
+            _shutdown_timeout_reset = 2;
+        }
+
+        if(timestamp >= critical_deadline_us)
         {
             _shutdown_lockout = true;
             hoja_deinit(hoja_shutdown);
         }
-        _shutdown_timeout_reset = 2;
 
-        // Do not run any other sysmon tasks 
+        // Do not run any other sysmon tasks
         // during critical power shutdown
         return;
     }
 
-    static interval_s interval = {0};
     static bool flipflop = false;
 
-    if (interval_run(timestamp, SYSMON_INTERVAL_US, &interval))
+    static battery_status_s tmp_battery;
+    static fuelgauge_status_s tmp_fuel;
+
+    // Flip between updating battery and fuel gauge status
+    if(flipflop)
     {
-        // static transport_status_s tmp_transport;
-        // transport_get_status(&tmp_transport);
+        battery_update_status();
+        battery_get_status(&tmp_battery);
+    }
+    else
+    {
+        fuelgauge_update_status();
+        fuelgauge_get_status(&tmp_fuel);
+    }
+    flipflop = !flipflop;
 
-        static battery_status_s tmp_battery;
-        static fuelgauge_status_s tmp_fuel;
-
-        // Flip between updating battery and fuel gauge status
-        if(flipflop)
+    // PMIC is functional
+    if(tmp_battery.connected)
+    {
+        if(_sysbattery.plugged && !tmp_battery.plugged)
         {
-            battery_update_status();
-            battery_get_status(&tmp_battery);
+            // UNPLUG EVENT
+            _sysmon_event_handler(SYSMON_EVT_UNPLUG);
+            return;
         }
-        else
+        else if(!_sysbattery.plugged && tmp_battery.plugged)
         {
-            fuelgauge_update_status();
-            fuelgauge_get_status(&tmp_fuel);
-        }
-        flipflop = !flipflop;
-
-        // PMIC is functional
-        if(tmp_battery.connected)
-        {
-            if(_sysbattery.plugged && !tmp_battery.plugged)
-            {
-                // UNPLUG EVENT
-                _sysmon_event_handler(SYSMON_EVT_UNPLUG);
-                return;
-            }
-            else if(!_sysbattery.plugged && tmp_battery.plugged)
-            {
-                // PLUG EVENT
-                _sysmon_event_handler(SYSMON_EVT_PLUG);
-            }
-
-            _sysbattery = tmp_battery;
+            // PLUG EVENT
+            _sysmon_event_handler(SYSMON_EVT_PLUG);
         }
 
-        // PMIC and Fuel Gauge need to be present to
-        // utilize the fuel gauge status
-        if(tmp_battery.connected && tmp_fuel.connected)
+        _sysbattery = tmp_battery;
+    }
+
+    // PMIC and Fuel Gauge need to be present to
+    // utilize the fuel gauge status
+    if(tmp_battery.connected && tmp_fuel.connected)
+    {
+        _sysfuel = tmp_fuel;
+
+        // Shut down at/below the configured SOC threshold. The gauge's 0%
+        // already includes margin (Terminate Voltage + learned load-spike
+        // delta), so a low threshold still leaves headroom for an orderly
+        // shutdown.
+        const hoja_config_s *cfg = hoja_config_get();
+        uint8_t shutdown_percent = (cfg && cfg->battery_shutdown_percent)
+                                 ? cfg->battery_shutdown_percent
+                                 : SYSMON_DEFAULT_SHUTDOWN_PERCENT;
+
+        if(_sysfuel.percent <= shutdown_percent && !_sysbattery.plugged)
         {
-            _sysfuel = tmp_fuel;
-
-            // Shut down at/below the configured SOC threshold. The gauge's 0%
-            // already includes margin (Terminate Voltage + learned load-spike
-            // delta), so a low threshold still leaves headroom for an orderly
-            // shutdown.
-            const hoja_config_s *cfg = hoja_config_get();
-            uint8_t shutdown_percent = (cfg && cfg->battery_shutdown_percent)
-                                     ? cfg->battery_shutdown_percent
-                                     : SYSMON_DEFAULT_SHUTDOWN_PERCENT;
-
-            if(_sysfuel.percent <= shutdown_percent && !_sysbattery.plugged)
-            {
-                sysmon_set_critical_shutdown();
-            }
+            sysmon_set_critical_shutdown();
         }
     }
 }

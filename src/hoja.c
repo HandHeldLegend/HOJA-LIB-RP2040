@@ -330,6 +330,9 @@ static task_s _task_core = {
 static task_s _task_rgb = {
   .fn = rgb_task,
   .name = "rgb",
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+  .optional_interval_us = RGB_TASK_INTERVAL,
+#endif
   .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
@@ -342,19 +345,21 @@ static task_s _task_hover = {
 static task_s _task_macros = {
   .fn = macros_task,
   .name = "macros",
+  .optional_interval_us = 8000,
   .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_flash = {
   .fn = flash_hal_task,
   .name = "flash",
+  .optional_interval_us = 16000,
   .type_mask = (TASK_TYPE_OPTIONAL)
 };
 
 static task_s _task_motion = {
   .fn = imu_task,
   .name = "imu",
-  .type_mask = (TASK_TYPE_MOTION)
+  .type_mask = (TASK_TYPE_REQUIRED)
 };
 
 static task_s _task_haptics = {
@@ -366,34 +371,26 @@ static task_s _task_haptics = {
 static task_s _task_sysmon = {
   .fn = sysmon_task,
   .name = "sysmon",
+  .optional_interval_us = SYSMON_TASK_INTERVAL_US,
   .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_idle = {
   .fn = idle_manager_task,
   .name = "idle",
+  .optional_interval_us = IDLE_TASK_INTERVAL_US,
   .type_mask = (TASK_TYPE_OPTIONAL)
 };
 
 static task_s _task_watchdog = {
   .fn = sys_hal_tick,
   .name = "wd",
-  .type_mask = (TASK_TYPE_REQUIRED)
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
 };
 
 void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
 {
   tasks_reset();
-
-  // Tasks for all modes
-  tasks_register(&_task_flash);
-  tasks_register(&_task_idle);
-  tasks_register(&_task_macros);
-  tasks_register(&_task_hover);
-  tasks_register(&_task_rgb);
-  tasks_register(&_task_sysmon);
-  tasks_register(&_task_watchdog);
-  tasks_register(&_task_core);
 
   switch(mode)
   {
@@ -405,12 +402,21 @@ void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
     case GAMEPAD_MODE_SWPRO:
     tasks_register(&_task_haptics);
     tasks_register(&_task_motion);
-    tasks_set_motion_interval(core_current_params()->core_pollrate_us);
     break;
 
     case GAMEPAD_MODE_SNES:
     break;
   }
+
+  // Tasks for all modes
+  tasks_register(&_task_flash);
+  tasks_register(&_task_idle);
+  tasks_register(&_task_macros);
+  tasks_register(&_task_hover);
+  tasks_register(&_task_rgb);
+  tasks_register(&_task_sysmon);
+  tasks_register(&_task_watchdog);
+  tasks_register(&_task_core);
 }
 
 // Core 1 task loop entrypoint
@@ -529,7 +535,7 @@ void hoja_init(const hoja_config_s *config)
   boot_get_mode_method(&thisMode, &thisTransport, &thisPair, &thisBootFlags);
 
   // DEBUG
-  thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
+  //thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
 
   _system_devices_init(_hoja_transport_to_method(thisTransport), thisMode);
 

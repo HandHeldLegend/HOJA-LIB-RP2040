@@ -3,7 +3,6 @@
 #include <math.h>
 #include <string.h>
 
-#include "utilities/interval.h"
 #include "utilities/settings.h"
 #include "input/idle_manager.h"
 
@@ -172,16 +171,11 @@ void rgb_init(int mode, int brightness)
 }
 
 // One tick of RGB logic
-// only performs actions if necessary
 void rgb_task(uint64_t timestamp)
 {
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-    static interval_s interval = {0};
-
-    if (interval_run(timestamp, RGB_TASK_INTERVAL, &interval))
-    {
-        anm_handler_tick();
-    }
+    (void) timestamp;
+    anm_handler_tick();
     #endif
 }
 
