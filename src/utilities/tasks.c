@@ -120,17 +120,12 @@ static void _tasks_optional_run(task_s *optional_tasks[TASKS_MAX_COUNT], uint8_t
             continue;
         }
 
-        bool due = _tasks_shutdown_lock && (candidate->type_mask & TASK_TYPE_SHUTDOWN)
-                 ? true
-                 : _tasks_interval_due(candidate, now_us);
-        if(!due)
+        if(!_tasks_interval_due(candidate, now_us))
         {
             continue;
         }
 
-        uint64_t d = _tasks_shutdown_lock && (candidate->type_mask & TASK_TYPE_SHUTDOWN)
-                   ? (now_us - candidate->last_run_us)
-                   : (now_us - (candidate->last_run_us + candidate->optional_interval_us));
+        uint64_t d = now_us - (candidate->last_run_us + candidate->optional_interval_us);
         if(d > max_delta)
         {
             max_delta = d;
@@ -158,10 +153,7 @@ static bool _tasks_try_run(task_s *task, bool update_max_runtime)
 
     uint64_t start_us = sys_hal_now_us();
 
-    if(!(_tasks_shutdown_lock && (task->type_mask & TASK_TYPE_SHUTDOWN)))
-    {
-        if(!_tasks_interval_due(task, start_us)) return false;
-    }
+    if(!_tasks_interval_due(task, start_us)) return false;
 
     // Confirm there's enough budget remaining
     // Return if not enough time remaining
@@ -264,6 +256,7 @@ void tasks_run(void)
                 t = _tasks_sm.required[_tasks_sm.required_completed];
                 _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
                 _tasks_sm.required_completed++;
+                return;
             }
             else
             {
@@ -275,6 +268,7 @@ void tasks_run(void)
                     _tasks_optional_run(_tasks_sm.optional, _tasks_sm.optional_count, now_us);
                 }
                 _tasks_phase = TASK_PHASE_RECURRING;
+                return;
             }
         }
         break;

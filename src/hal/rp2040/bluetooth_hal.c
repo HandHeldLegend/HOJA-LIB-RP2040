@@ -514,7 +514,7 @@ bool transport_bt_init(core_params_s *params)
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
     hid_device_register_set_report_callback(&_bt_hid_set_report_handler);
 
-    _pairing_mode = params->core_boot_flags & COREBOOT_FLAG_PAIR;
+    _pairing_mode = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
 
     hci_power_control(HCI_POWER_ON);
 

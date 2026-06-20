@@ -9,6 +9,7 @@
 #include "utilities/static_config.h"
 #include "input/hover.h"
 #include "input_shared_types.h"
+#include "input/mapper.h"
 #include "cores/cores.h"
 
 #include "hoja.h"
@@ -168,13 +169,42 @@ static void boot_apply_dpad_face_digital(const mapper_input_s *input, gamepad_mo
         *mode = k_sewn_face_modes[layout][3];
 }
 
+static bool boot_input_code_pressed(const mapper_input_s *input, mapper_input_code_t code)
+{
+    if (code == INPUT_CODE_UNUSED || code < 0 || code >= INPUT_CODE_MAX)
+    {
+        return false;
+    }
+
+    switch (input_static.input_info[code].input_type)
+    {
+    case MAPPER_INPUT_TYPE_HOVER:
+    case MAPPER_INPUT_TYPE_JOYSTICK:
+        return input->inputs[code] > 0;
+
+    default:
+        return input->presses[code];
+    }
+}
+
+bool boot_sync_on_boot_pressed(const mapper_input_s *input)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if (!cfg || cfg->sync_on_boot_code == INPUT_CODE_UNUSED)
+    {
+        return false;
+    }
+
+    return boot_input_code_pressed(input, cfg->sync_on_boot_code);
+}
+
 static void boot_apply_start_combos(const mapper_input_s *input, bool *pair_out, bool *bootloader_out, bool *bt_bootloader_out)
 {
     if (input->presses[INPUT_CODE_RB] && input->presses[INPUT_CODE_START])
         *bt_bootloader_out = true;
     else if (input->presses[INPUT_CODE_LB] && input->presses[INPUT_CODE_START])
         *bootloader_out = true;
-    else if (input->presses[INPUT_CODE_START])
+    else if (boot_sync_on_boot_pressed(input))
         *pair_out = true;
 }
 

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hoja_shared_types.h"
+#include "input/mapper.h"
 
 #define BOOT_MEM_MAGIC 0b10110011
 
@@ -29,6 +30,9 @@ void boot_clear_memory();
 void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
 void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair, uint16_t *boot_flags);
+
+// True when the configured sync-on-boot input is held (INPUT_CODE_UNUSED disables).
+bool boot_sync_on_boot_pressed(const mapper_input_s *input);
 
 // Compare four 12-bit (0..4095) analog samples. Returns a single-bit mask (1<<index) for the
 // clear winner, or 0 if ambiguous or below min_activation. The winner must beat the

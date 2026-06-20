@@ -360,9 +360,6 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
     // Temporary store for new output data
     mapper_input_s tmp = {0};
 
-    // Write system inputs
-    tmp.buttons_system = _all_inputs.buttons_system;
-
     bool haptic_left = false;
     bool haptic_right = false;
 

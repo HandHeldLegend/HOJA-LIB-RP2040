@@ -236,6 +236,7 @@ void ns_api_hook_set_usbpair(ns_usbpair_s pairing_data)
 {
     memcpy(gamepad_config->host_mac_switch, pairing_data.host_mac, 6);
     memcpy(switchpair_config->link_key, pairing_data.link_key, 16);
+    switchpair_config->switchpair_config_version = CFG_BLOCK_SWITCHPAIR_VERSION;
     settings_commit_blocks();
 }
 

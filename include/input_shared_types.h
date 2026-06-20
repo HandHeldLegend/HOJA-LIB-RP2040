@@ -259,17 +259,6 @@ typedef struct
 {
     uint16_t inputs[48];
     bool presses[48];
-    
-    union
-    {
-        struct 
-        {
-            uint8_t button_sync : 1;
-            uint8_t button_safemode : 1; 
-            uint8_t button_shipping : 1; 
-        };
-        uint8_t buttons_system;
-    };
 } mapper_input_s;
 
 // Analog input data structure

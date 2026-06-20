@@ -20,6 +20,7 @@ void macros_task(uint64_t timestamp)
     macro_shutdown(timestamp, &input);
 
     #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER > 0)
+    // Disabled when hoja_config_s.sync_macro_code[0] is INPUT_CODE_UNUSED.
     macro_pairing(timestamp, &input);
     #endif
 
