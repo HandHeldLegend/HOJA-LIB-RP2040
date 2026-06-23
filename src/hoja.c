@@ -398,6 +398,13 @@ void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
     tasks_register(&_task_haptics);
     break;
 
+    case GAMEPAD_MODE_XINPUT:
+    case GAMEPAD_MODE_GCUSB:
+    case GAMEPAD_MODE_GAMECUBE:
+    case GAMEPAD_MODE_N64:
+    tasks_register(&_task_haptics);
+    break;
+
     case GAMEPAD_MODE_SINPUT:
     case GAMEPAD_MODE_SWPRO:
     tasks_register(&_task_haptics);

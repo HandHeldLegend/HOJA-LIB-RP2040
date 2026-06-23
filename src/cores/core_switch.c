@@ -331,6 +331,8 @@ bool core_switch_init(core_params_s *params)
     cfg.gyro_full_scale_dps = 2000.0f;
     cfg.gyro_rad_per_lsb = 0.0f;
 
+    memcpy(cfg.device_serial, user_config->user_name, sizeof(cfg.device_serial));
+
     memcpy(cfg.device_mac, params->transport_dev_mac, 6);
     // Load persisted host MAC before NS-LIB init. transport_init also copies this
     // into params later, but ns_api_init must see the saved MAC for USB pairing.
