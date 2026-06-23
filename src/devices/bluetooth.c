@@ -23,11 +23,11 @@
 
 
 
-bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
+bool bluetooth_mode_start(core_reportformat_t format, bool pairing_mode) 
 {
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
 
-    if(mode==GAMEPAD_MODE_LOAD)
+    if(format == CORE_REPORTFORMAT_UNDEFINED)
     {
         #if defined(HOJA_BLUETOOTH_INIT_LOAD)
         HOJA_BLUETOOTH_INIT_LOAD();
@@ -45,7 +45,7 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
 
     // All other bluetooth modes init normally
     #if defined(HOJA_BLUETOOTH_INIT)
-    return HOJA_BLUETOOTH_INIT(mode, pairing_mode, bluetooth_callback_handler);
+    return HOJA_BLUETOOTH_INIT(format, pairing_mode, bluetooth_callback_handler);
     #else 
     return false;
     #endif

@@ -454,7 +454,7 @@ bool transport_bt_init(core_params_s *params)
     HOJA_USB_MUX_INIT();
     #endif
 
-    uint8_t gamepad_mode = 0;
+    uint8_t esp32_legacy_mode = 0;
 
     if(params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
     {
@@ -462,15 +462,12 @@ bool transport_bt_init(core_params_s *params)
         return true;
     }
 
-    // Use legacy gamepad modes
-    switch(params->core_report_format)
+    // ESP32 baseband wire protocol uses the same mode indices as core_reportformat_t.
+    switch (params->core_report_format)
     {
         case CORE_REPORTFORMAT_SWPRO:
-        gamepad_mode = 0;
-        break;
-
         case CORE_REPORTFORMAT_SINPUT:
-        gamepad_mode = 6;
+        esp32_legacy_mode = (uint8_t)params->core_report_format;
         break;
 
         default:
@@ -478,7 +475,7 @@ bool transport_bt_init(core_params_s *params)
     }
 
     uint8_t pair_flag = ((params->core_boot_flags & COREBOOT_FLAG_PAIR) ? 0b10000000 : 0);
-    uint8_t out_mode = pair_flag | (uint8_t) gamepad_mode;
+    uint8_t out_mode = pair_flag | esp32_legacy_mode;
 
     #if defined(HOJA_BT_LOGGING_DEBUG) && (HOJA_BT_LOGGING_DEBUG==1)
     _esp32hoja_enable_uart(true);

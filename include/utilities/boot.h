@@ -4,18 +4,30 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hoja_shared_types.h"
-#include "input/mapper.h"
+#include "cores/cores.h"
 
 #define BOOT_MEM_MAGIC 0b10110011
 
+// Resolved boot selections after boot_init() (inputs, persisted memory, battery, transport policy).
+typedef struct
+{
+    core_reportformat_t reportformat;
+    gamepad_transport_t transport;
+    uint16_t            flags; // COREBOOT_FLAG_WLAN, COREBOOT_FLAG_ALTFLASH, etc.
+    bool                pairing;
+    bool                usb_bootloader;       // always false after boot_init returns (USB path reboots)
+    bool                baseband_bootloader;    // ESP32 firmware-update mode
+} boot_info_s;
+
+// Persisted across a controlled reboot (e.g. runtime pairing macro).
 typedef struct
 {
     union {
         struct
         {
             uint8_t magic_num : 8;
-            uint8_t gamepad_mode : 4;
-            uint8_t gamepad_method: 4;
+            uint8_t report_format : 4;
+            uint8_t gamepad_method : 4;
             uint8_t gamepad_pair : 1;
             uint8_t reserved_1 : 7;
             uint8_t reserved_2 : 8;
@@ -26,13 +38,16 @@ typedef struct
 
 #define BOOT_MEMORY_SIZE sizeof(boot_memory_s)
 
-void boot_clear_memory();
+void boot_clear_memory(void);
 void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair, uint16_t *boot_flags);
 
-// True when the configured sync-on-boot input is held (INPUT_CODE_UNUSED disables).
-bool boot_sync_on_boot_pressed(const mapper_input_s *input);
+// Run once during startup. Resolves all boot inputs and stores the result internally.
+// USB bootloader combo reboots into UF2 and does not return.
+void boot_init(void);
+
+// Read-only view of the boot selections made by boot_init(). Valid for the lifetime of the firmware.
+const boot_info_s *boot_get_info(void);
 
 // Compare four 12-bit (0..4095) analog samples. Returns a single-bit mask (1<<index) for the
 // clear winner, or 0 if ambiguous or below min_activation. The winner must beat the

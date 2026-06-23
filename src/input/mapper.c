@@ -15,15 +15,15 @@
 
 #include "hoja.h"
 
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 #include "devices/animations/anm_authentic.h"
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 #include "devices/animations/rgb_modes.h"
 #endif
 
 #include <stdlib.h>
 #include <string.h>
 
-static void _set_raw_output_profile(uint8_t mode);
+static void _set_raw_output_profile(core_reportformat_t format);
 
 mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // A
@@ -328,16 +328,14 @@ typedef struct
 mapper_operation_s _translated_op = {.input_slots = NULL, .output_types = NULL, .remap_en=false, .rapid_value={0}, .rapid_press_state ={0}};
 
 static bool _webusb_remap_preview = false;
-static gamepad_mode_t _webusb_remap_mode = GAMEPAD_MODE_SWPRO;
+static core_reportformat_t _webusb_remap_format = CORE_REPORTFORMAT_SWPRO;
 
-static void _mapper_webusb_preview_begin(gamepad_mode_t mode)
+static void _mapper_webusb_preview_begin(core_reportformat_t format)
 {
     _webusb_remap_preview = true;
-    _webusb_remap_mode = mode;
-    _set_raw_output_profile(mode);
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    _webusb_remap_format = format;
+    _set_raw_output_profile(format);
     anm_authentic_refresh();
-#endif
 }
 
 void mapper_webusb_remap_preview_end(void)
@@ -346,10 +344,8 @@ void mapper_webusb_remap_preview_end(void)
         return;
 
     _webusb_remap_preview = false;
-    _set_raw_output_profile(hoja_get_status().gamepad_mode);
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    _set_raw_output_profile(hoja_get_status().reportformat);
     anm_authentic_refresh();
-#endif
 }
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
 
@@ -687,45 +683,45 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
     }
 }
 
-void _set_raw_output_profile(uint8_t mode)
+void _set_raw_output_profile(core_reportformat_t format)
 {
     _translated_op.remap_en = false;
 
-    switch(mode)
+    switch(format)
     {
         default:
-        case GAMEPAD_MODE_SWPRO:
+        case CORE_REPORTFORMAT_SWPRO:
         _translated_op.input_slots = input_config->input_profile_switch;
         _translated_op.output_types = _switch_output_types;
         _translated_op.output_types_max = SWITCH_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_SLIPPI:
         _translated_op.input_slots = input_config->input_profile_gamecube;
         _translated_op.output_types = _gamecube_output_types;
         _translated_op.output_types_max = GAMECUBE_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_SNES:
+        case CORE_REPORTFORMAT_SNES:
         _translated_op.input_slots = input_config->input_profile_snes;
         _translated_op.output_types = _snes_output_types;
         _translated_op.output_types_max = SNES_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_N64:
+        case CORE_REPORTFORMAT_N64:
         _translated_op.input_slots = input_config->input_profile_n64;
         _translated_op.output_types = _n64_output_types;
         _translated_op.output_types_max = N64_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_XINPUT:
+        case CORE_REPORTFORMAT_XINPUT:
         _translated_op.input_slots = input_config->input_profile_xinput;
         _translated_op.output_types = _xinput_output_types;
         _translated_op.output_types_max = XINPUT_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_SINPUT:
+        case CORE_REPORTFORMAT_SINPUT:
         _translated_op.input_slots = input_config->input_profile_sinput;
         _translated_op.output_types = _sinput_output_types;
         _translated_op.output_types_max = SINPUT_CODE_MAX;
@@ -771,27 +767,27 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_SWPRO);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SWPRO);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_XINPUT);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_XINPUT);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_SNES);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SNES);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_N64);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_N64);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_GAMECUBE);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_GAMECUBE);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
-        _mapper_webusb_preview_begin(GAMEPAD_MODE_SINPUT);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SINPUT);
         break;
     }  
 
@@ -817,49 +813,49 @@ void mapper_init()
     static bool boot_init = false;
     if(!boot_init)
     {
-        _set_raw_output_profile(hoja_get_status().gamepad_mode);
+        _set_raw_output_profile(hoja_get_status().reportformat);
     }
         
     boot_init = true;
 
     _minimum_d2a_value = 0;
 
-    switch(hoja_get_status().gamepad_mode)
+    switch(hoja_get_status().reportformat)
     {
         default:
-        case GAMEPAD_MODE_SWPRO:
+        case CORE_REPORTFORMAT_SWPRO:
         _standard_op.input_slots = input_config->input_profile_switch;
         _standard_op.output_types = _switch_output_types;
         _standard_op.output_types_max = SWITCH_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_SLIPPI:
         _minimum_d2a_value = 784;
         _standard_op.input_slots = input_config->input_profile_gamecube;
         _standard_op.output_types = _gamecube_output_types;
         _standard_op.output_types_max = GAMECUBE_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_SNES:
+        case CORE_REPORTFORMAT_SNES:
         _standard_op.input_slots = input_config->input_profile_snes;
         _standard_op.output_types = _snes_output_types;
         _standard_op.output_types_max = SNES_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_N64:
+        case CORE_REPORTFORMAT_N64:
         _standard_op.input_slots = input_config->input_profile_n64;
         _standard_op.output_types = _n64_output_types;
         _standard_op.output_types_max = N64_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_XINPUT:
+        case CORE_REPORTFORMAT_XINPUT:
         _standard_op.input_slots = input_config->input_profile_xinput;
         _standard_op.output_types = _xinput_output_types;
         _standard_op.output_types_max = XINPUT_CODE_MAX;
         break;
 
-        case GAMEPAD_MODE_SINPUT:
+        case CORE_REPORTFORMAT_SINPUT:
         _standard_op.input_slots = input_config->input_profile_sinput;
         _standard_op.output_types = _sinput_output_types;
         _standard_op.output_types_max = SINPUT_CODE_MAX;
@@ -880,25 +876,25 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     if(_webusb_remap_preview && _translated_op.input_slots)
         return _translated_op.input_slots;
 
-    switch(hoja_get_status().gamepad_mode)
+    switch(hoja_get_status().reportformat)
     {
-        case GAMEPAD_MODE_SWPRO:
+        case CORE_REPORTFORMAT_SWPRO:
             return input_config->input_profile_switch;
 
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_SLIPPI:
             return input_config->input_profile_gamecube;
 
-        case GAMEPAD_MODE_SNES:
+        case CORE_REPORTFORMAT_SNES:
             return input_config->input_profile_snes;
 
-        case GAMEPAD_MODE_N64:
+        case CORE_REPORTFORMAT_N64:
             return input_config->input_profile_n64;
 
-        case GAMEPAD_MODE_XINPUT:
+        case CORE_REPORTFORMAT_XINPUT:
             return input_config->input_profile_xinput;
 
-        case GAMEPAD_MODE_SINPUT:
+        case CORE_REPORTFORMAT_SINPUT:
             return input_config->input_profile_sinput;
 
         default:
@@ -906,12 +902,12 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     }
 }
 
-gamepad_mode_t mapper_get_palette_mode(void)
+core_reportformat_t mapper_get_palette_format(void)
 {
     if(_webusb_remap_preview)
-        return _webusb_remap_mode;
+        return _webusb_remap_format;
 
-    return hoja_get_status().gamepad_mode;
+    return hoja_get_status().reportformat;
 }
 
 mapper_input_s mapper_get_translated_input()

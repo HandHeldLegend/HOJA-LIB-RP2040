@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "utilities/settings.h"
+#include "utilities/boot.h"
 #include "input/idle_manager.h"
 
 #include "hoja.h"
@@ -15,6 +16,7 @@
 
 #include "devices/animations/anm_handler.h"
 #include "devices/animations/anm_utility.h"
+#include "devices/animations/anm_authentic.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 // Group LED membership + group count are loaded from hoja_config_s.rgb at init.
@@ -46,6 +48,18 @@ void rgb_set_idle(bool enable)
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     anm_set_idle_enable(enable);
     #endif
+}
+
+static bool _rgb_transport_is_wireless(gamepad_transport_t transport)
+{
+    return transport == GAMEPAD_TRANSPORT_BLUETOOTH
+        || transport == GAMEPAD_TRANSPORT_WLAN;
+}
+
+static uint16_t _rgb_cap_brightness_wireless(uint16_t brightness)
+{
+    const uint16_t cap = (uint16_t)(RGB_BRIGHTNESS_MAX / 3);
+    return brightness > cap ? cap : brightness;
 }
 
 void rgb_init(int mode, int brightness)
@@ -97,6 +111,8 @@ void rgb_init(int mode, int brightness)
     if(brightness < 0)
     {
         loaded_brightness = rgb_config->rgb_brightness;
+        if (_rgb_transport_is_wireless(boot_get_info()->transport))
+            loaded_brightness = _rgb_cap_brightness_wireless(loaded_brightness);
     }
     else {
         loaded_brightness = brightness;
@@ -164,6 +180,10 @@ void rgb_init(int mode, int brightness)
         RGB_DRIVER_INIT();
         _rgb_ll_init = true;
     }
+
+    // Mapper profile + report format must be current before the first fade so Authentic
+    // mode resolves era colors instead of gray fallbacks.
+    anm_authentic_refresh();
 
     anm_handler_setup_mode(set_mode, set_brightness, set_speed);
 

@@ -36,9 +36,9 @@ rgb_s anm_authentic_fallback_color(void)
     return COLOR_LIGHT_GRAY;
 }
 
-rgb_s anm_authentic_stick_color(gamepad_mode_t mode)
+rgb_s anm_authentic_stick_color(core_reportformat_t format)
 {
-    (void)mode;
+    (void)format;
     return COLOR_LIGHT_GRAY;
 }
 
@@ -108,28 +108,28 @@ static bool _n64_palette(int8_t output_code, rgb_s *out)
     }
 }
 
-bool anm_authentic_palette_color(gamepad_mode_t mode, int8_t output_code, rgb_s *out)
+bool anm_authentic_palette_color(core_reportformat_t format, int8_t output_code, rgb_s *out)
 {
     if(!out || output_code < 0)
         return false;
 
-    switch(mode)
+    switch(format)
     {
-        case GAMEPAD_MODE_SWPRO:
-        case GAMEPAD_MODE_SNES:
+        case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_SNES:
             return _nintendo_abxy_palette(output_code, out);
 
-        case GAMEPAD_MODE_XINPUT:
+        case CORE_REPORTFORMAT_XINPUT:
             return _xinput_palette(output_code, out);
 
-        case GAMEPAD_MODE_SINPUT:
+        case CORE_REPORTFORMAT_SINPUT:
             return _sinput_palette(output_code, out);
 
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_SLIPPI:
             return _gamecube_palette(output_code, out);
 
-        case GAMEPAD_MODE_N64:
+        case CORE_REPORTFORMAT_N64:
             return _n64_palette(output_code, out);
 
         default:

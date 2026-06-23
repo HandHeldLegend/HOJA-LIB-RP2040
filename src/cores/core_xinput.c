@@ -5,6 +5,8 @@
 #include <hoja_usb.h>
 #include "cores/cores.h"
 #include "transport/transport.h"
+#include "input/mapper.h"
+#include "input/dpad.h"
 
 // USB device/config descriptors are owned by the HHL-TINYUSB-DRIVERS library
 #include "hhl_tusb_xinput.h"

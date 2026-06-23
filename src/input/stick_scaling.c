@@ -580,10 +580,10 @@ bool stick_scaling_init()
     _r_count= _joy_validation_sort_and_count(analog_config->joy_config_r);
 
     // Copy to working config set unless we are in a gamecube mode
-    switch(hoja_get_status().gamepad_mode)
+    switch(hoja_get_status().reportformat)
     {
-        case GAMEPAD_MODE_GAMECUBE:
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_SLIPPI:
         _validate_gc_setup(analog_config->joy_config_l, _active_l);
         _validate_gc_setup(analog_config->joy_config_r, _active_r);
         break;

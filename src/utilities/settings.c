@@ -22,9 +22,7 @@
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 #include "devices/animations/anm_authentic.h"
-#endif
 
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
@@ -66,7 +64,7 @@ void settings_init()
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
     {
         gamepad_config->gamepad_config_version = CFG_BLOCK_GAMEPAD_VERSION;
-        gamepad_config->gamepad_default_mode   = GAMEPAD_MODE_SWPRO;
+        gamepad_config->gamepad_default_mode   = CORE_REPORTFORMAT_SWPRO;
 
         for(uint8_t i = 0; i < 6; i++)
         {
@@ -140,7 +138,7 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
             // Enable bluetooth upload
-            //bluetooth_mode_start(GAMEPAD_MODE_LOAD, false);
+            //bluetooth_mode_start(CORE_REPORTFORMAT_UNDEFINED, false);
         break;
 
         case GAMEPAD_CMD_SAVE_ALL:
@@ -267,19 +265,15 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
             if(completed)
             {
                 mapper_init();
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
                 anm_authentic_refresh();
-#endif
             }
         break;
     }
 
     if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
 
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
     if(block == CFG_BLOCK_INPUT && write)
         anm_authentic_refresh();
-#endif
 }
 
 uint8_t _sdata[64] = {0};

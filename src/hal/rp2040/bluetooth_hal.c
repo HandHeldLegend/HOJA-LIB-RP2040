@@ -248,10 +248,10 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             else
             {
-                switch (hoja_get_status().gamepad_mode)
+                switch (hoja_get_status().reportformat)
                 {
                 default:
-                case GAMEPAD_MODE_SWPRO:
+                case CORE_REPORTFORMAT_SWPRO:
                     link_key_type_t read_type;
                     link_key_t read_key;
 
@@ -291,7 +291,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                     break;
 
-                case GAMEPAD_MODE_SINPUT:
+                case CORE_REPORTFORMAT_SINPUT:
                     if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
                     {
                         hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
@@ -302,7 +302,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             break;
 
         case HCI_EVENT_LINK_KEY_NOTIFICATION:
-            if(hoja_get_status().gamepad_mode == GAMEPAD_MODE_SWPRO)
+            if(hoja_get_status().reportformat == CORE_REPORTFORMAT_SWPRO)
             {
                 bd_addr_t addr;
                 hci_event_link_key_request_get_bd_addr(packet, addr);
@@ -349,14 +349,14 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 uint8_t *addr_location = NULL;
 
-                switch (hoja_get_status().gamepad_mode)
+                switch (hoja_get_status().reportformat)
                 {
                 default:
-                case GAMEPAD_MODE_SWPRO:
+                case CORE_REPORTFORMAT_SWPRO:
                     addr_location = gamepad_config->host_mac_switch;
                     break;
 
-                case GAMEPAD_MODE_SINPUT:
+                case CORE_REPORTFORMAT_SINPUT:
                     addr_location = gamepad_config->host_mac_sinput;
                     break;
                 }

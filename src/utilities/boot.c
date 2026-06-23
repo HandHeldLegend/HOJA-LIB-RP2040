@@ -4,7 +4,6 @@
 #include "board_config.h"
 #include "driver_define_helper.h"
 #include "devices/battery.h"
-#include "devices/bluetooth.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "input/hover.h"
@@ -13,6 +12,20 @@
 #include "cores/cores.h"
 
 #include "hoja.h"
+
+#ifndef HOJA_BOOT_ANALOG_FACE_DELTA
+#define HOJA_BOOT_ANALOG_FACE_DELTA 200
+#endif
+
+#ifndef HOJA_BOOT_ANALOG_FACE_MIN
+#define HOJA_BOOT_ANALOG_FACE_MIN 350
+#endif
+
+static boot_info_s _boot_info = {0};
+
+// ---------------------------------------------------------------------------
+// Analog helpers
+// ---------------------------------------------------------------------------
 
 uint8_t boot_pick_strongest_analog4(const uint16_t raw[4], uint16_t min_delta, uint16_t min_activation)
 {
@@ -54,127 +67,14 @@ uint8_t boot_pick_strongest_analog4(const uint16_t raw[4], uint16_t min_delta, u
     return (uint8_t)(1u << max_i);
 }
 
-static uint8_t boot_sewn_layout_clamp(void)
-{
-    const hoja_config_s *cfg = hoja_config_get();
-    uint8_t l = cfg ? cfg->sewn_layout : (uint8_t)SEWN_LAYOUT_ABXY;
-    if (l > (uint8_t)SEWN_LAYOUT_AXBY)
-        l = (uint8_t)SEWN_LAYOUT_ABXY;
-    return l;
-}
+// ---------------------------------------------------------------------------
+// Input helpers
+// ---------------------------------------------------------------------------
 
-// Face button order: South, East, West, North (indices 0..3)
-static const gamepad_mode_t k_sewn_face_modes[3][4] = {
-    [SEWN_LAYOUT_ABXY] = {GAMEPAD_MODE_SWPRO, GAMEPAD_MODE_SINPUT, GAMEPAD_MODE_XINPUT, GAMEPAD_MODE_GCUSB},
-    [SEWN_LAYOUT_BAYX] = {GAMEPAD_MODE_SINPUT, GAMEPAD_MODE_SWPRO, GAMEPAD_MODE_GCUSB, GAMEPAD_MODE_XINPUT},
-    [SEWN_LAYOUT_AXBY] = {GAMEPAD_MODE_SWPRO, GAMEPAD_MODE_XINPUT, GAMEPAD_MODE_SINPUT, GAMEPAD_MODE_GCUSB},
-};
-
-static bool boot_face_inputs_all_hover(void)
-{
-    static const uint8_t face[4] = {
-        INPUT_CODE_SOUTH,
-        INPUT_CODE_EAST,
-        INPUT_CODE_WEST,
-        INPUT_CODE_NORTH,
-    };
-    for (int i = 0; i < 4; i++)
-    {
-        if (input_static.input_info[face[i]].input_type != MAPPER_INPUT_TYPE_HOVER)
-            return false;
-    }
-    return true;
-}
-
-#if defined(HOJA_BOOT_ANALOG_FACE_MODE) && (HOJA_BOOT_ANALOG_FACE_MODE)
-static bool boot_try_builtin_analog_face(const mapper_input_s *in, gamepad_mode_t *mode_out)
-{
-    if (!boot_face_inputs_all_hover())
-        return false;
-
-    if (!hover_config->hover_calibration_set)
-    {
-        *mode_out = GAMEPAD_MODE_LOAD;
-        return true;
-    }
-
-    uint16_t raw[4] = {
-        in->inputs[INPUT_CODE_SOUTH],
-        in->inputs[INPUT_CODE_EAST],
-        in->inputs[INPUT_CODE_WEST],
-        in->inputs[INPUT_CODE_NORTH],
-    };
-
-    uint8_t bit = boot_pick_strongest_analog4(raw, HOJA_BOOT_ANALOG_FACE_DELTA, HOJA_BOOT_ANALOG_FACE_MIN);
-    if (bit == 0)
-    {
-        *mode_out = GAMEPAD_MODE_LOAD;
-        return true;
-    }
-
-    uint8_t idx = (uint8_t)__builtin_ctz((unsigned)bit);
-    *mode_out = k_sewn_face_modes[boot_sewn_layout_clamp()][idx];
-    return true;
-}
-#endif
-
-static void boot_apply_dpad_face_digital(const mapper_input_s *input, gamepad_mode_t *mode, bool skip_digital_face)
-{
-    const bool d_l = input->presses[INPUT_CODE_LEFT];
-    const bool d_d = input->presses[INPUT_CODE_DOWN];
-    const bool d_r = input->presses[INPUT_CODE_RIGHT];
-    const unsigned d_cnt = (unsigned)d_l + (unsigned)d_d + (unsigned)d_r;
-
-    if (d_cnt > 1u)
-    {
-        *mode = GAMEPAD_MODE_LOAD;
-        return;
-    }
-    if (d_cnt == 1u)
-    {
-        if (d_l)
-            *mode = GAMEPAD_MODE_SNES;
-        else if (d_d)
-            *mode = GAMEPAD_MODE_N64;
-        else
-            *mode = GAMEPAD_MODE_GAMECUBE;
-        return;
-    }
-
-    if (skip_digital_face)
-        return;
-
-    const bool f_s = input->presses[INPUT_CODE_SOUTH];
-    const bool f_e = input->presses[INPUT_CODE_EAST];
-    const bool f_w = input->presses[INPUT_CODE_WEST];
-    const bool f_n = input->presses[INPUT_CODE_NORTH];
-    const unsigned f_cnt = (unsigned)f_s + (unsigned)f_e + (unsigned)f_w + (unsigned)f_n;
-
-    if (f_cnt > 1u)
-    {
-        *mode = GAMEPAD_MODE_LOAD;
-        return;
-    }
-    if (f_cnt == 0u)
-        return;
-
-    uint8_t layout = boot_sewn_layout_clamp();
-    if (f_s)
-        *mode = k_sewn_face_modes[layout][0];
-    else if (f_e)
-        *mode = k_sewn_face_modes[layout][1];
-    else if (f_w)
-        *mode = k_sewn_face_modes[layout][2];
-    else
-        *mode = k_sewn_face_modes[layout][3];
-}
-
-static bool boot_input_code_pressed(const mapper_input_s *input, mapper_input_code_t code)
+static bool boot_input_pressed(const mapper_input_s *input, mapper_input_code_t code)
 {
     if (code == INPUT_CODE_UNUSED || code < 0 || code >= INPUT_CODE_MAX)
-    {
         return false;
-    }
 
     switch (input_static.input_info[code].input_type)
     {
@@ -187,56 +87,423 @@ static bool boot_input_code_pressed(const mapper_input_s *input, mapper_input_co
     }
 }
 
-bool boot_sync_on_boot_pressed(const mapper_input_s *input)
+static bool boot_combo_pressed(const mapper_input_s *input, const mapper_input_code_t codes[2])
+{
+    if (!codes || codes[0] == INPUT_CODE_UNUSED)
+        return false;
+
+    if (!boot_input_pressed(input, codes[0]))
+        return false;
+
+    if (codes[1] == INPUT_CODE_UNUSED)
+        return true;
+
+    return boot_input_pressed(input, codes[1]);
+}
+
+static bool boot_group_all_hover(const mapper_input_code_t *codes, uint8_t count)
+{
+    for (uint8_t i = 0; i < count; i++)
+    {
+        if (input_static.input_info[codes[i]].input_type != MAPPER_INPUT_TYPE_HOVER)
+            return false;
+    }
+    return true;
+}
+
+static uint8_t boot_count_pressed(const mapper_input_s *input, const mapper_input_code_t *codes, uint8_t count)
+{
+    uint8_t pressed = 0;
+    for (uint8_t i = 0; i < count; i++)
+    {
+        if (boot_input_pressed(input, codes[i]))
+            pressed++;
+    }
+    return pressed;
+}
+
+// ---------------------------------------------------------------------------
+// Gamepad format: ABXY face buttons and d-pad cardinals
+// ---------------------------------------------------------------------------
+
+static uint8_t boot_sewn_layout_clamp(void)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    uint8_t l = cfg ? cfg->sewn_layout : (uint8_t)SEWN_LAYOUT_ABXY;
+    if (l > (uint8_t)SEWN_LAYOUT_AXBY)
+        l = (uint8_t)SEWN_LAYOUT_ABXY;
+    return l;
+}
+
+// Face button order: South, East, West, North (indices 0..3)
+static const core_reportformat_t k_face_formats[3][4] = {
+    [SEWN_LAYOUT_ABXY] = {CORE_REPORTFORMAT_SWPRO, CORE_REPORTFORMAT_SINPUT, CORE_REPORTFORMAT_XINPUT, CORE_REPORTFORMAT_SLIPPI},
+    [SEWN_LAYOUT_BAYX] = {CORE_REPORTFORMAT_SINPUT, CORE_REPORTFORMAT_SWPRO, CORE_REPORTFORMAT_SLIPPI, CORE_REPORTFORMAT_XINPUT},
+    [SEWN_LAYOUT_AXBY] = {CORE_REPORTFORMAT_SWPRO, CORE_REPORTFORMAT_XINPUT, CORE_REPORTFORMAT_SINPUT, CORE_REPORTFORMAT_SLIPPI},
+};
+
+static const mapper_input_code_t k_face_codes[4] = {
+    INPUT_CODE_SOUTH,
+    INPUT_CODE_EAST,
+    INPUT_CODE_WEST,
+    INPUT_CODE_NORTH,
+};
+
+static const mapper_input_code_t k_dpad_codes[3] = {
+    INPUT_CODE_LEFT,
+    INPUT_CODE_DOWN,
+    INPUT_CODE_RIGHT,
+};
+
+static const core_reportformat_t k_dpad_formats[3] = {
+    CORE_REPORTFORMAT_SNES,
+    CORE_REPORTFORMAT_N64,
+    CORE_REPORTFORMAT_GAMECUBE,
+};
+
+static bool boot_try_hover_analog4(const mapper_input_s *in, const mapper_input_code_t codes[4],
+                                   uint16_t min_delta, uint16_t min_activation, uint8_t *index_out)
+{
+    if (!boot_group_all_hover(codes, 4))
+        return false;
+
+    uint16_t raw[4] = {
+        in->inputs[codes[0]],
+        in->inputs[codes[1]],
+        in->inputs[codes[2]],
+        in->inputs[codes[3]],
+    };
+
+    uint8_t bit = boot_pick_strongest_analog4(raw, min_delta, min_activation);
+    if (bit == 0)
+        return false;
+
+    *index_out = (uint8_t)__builtin_ctz((unsigned)bit);
+    return true;
+}
+
+static bool boot_try_hover_analog3(const mapper_input_s *in, const mapper_input_code_t codes[3],
+                                   uint16_t min_delta, uint16_t min_activation, uint8_t *index_out)
+{
+    if (!boot_group_all_hover(codes, 3))
+        return false;
+
+    uint16_t raw[4] = {
+        in->inputs[codes[0]],
+        in->inputs[codes[1]],
+        in->inputs[codes[2]],
+        0,
+    };
+
+    uint8_t bit = boot_pick_strongest_analog4(raw, min_delta, min_activation);
+    if (bit == 0 || bit >= (1u << 3))
+        return false;
+
+    *index_out = (uint8_t)__builtin_ctz((unsigned)bit);
+    return true;
+}
+
+static bool boot_resolve_hover_face(const mapper_input_s *in, core_reportformat_t *format_out)
+{
+    if (!boot_group_all_hover(k_face_codes, 4))
+        return false;
+
+    if (!hover_config->hover_calibration_set)
+    {
+        *format_out = CORE_REPORTFORMAT_UNDEFINED;
+        return true;
+    }
+
+    uint8_t idx = 0;
+    if (!boot_try_hover_analog4(in, k_face_codes, HOJA_BOOT_ANALOG_FACE_DELTA, HOJA_BOOT_ANALOG_FACE_MIN, &idx))
+    {
+        *format_out = CORE_REPORTFORMAT_UNDEFINED;
+        return true;
+    }
+
+    *format_out = k_face_formats[boot_sewn_layout_clamp()][idx];
+    return true;
+}
+
+static uint8_t boot_resolve_single_pressed_index(const mapper_input_s *input,
+                                                 const mapper_input_code_t *codes, uint8_t count)
+{
+    const uint8_t pressed = boot_count_pressed(input, codes, count);
+    if (pressed != 1u)
+        return 0xFFu;
+
+    for (uint8_t i = 0; i < count; i++)
+    {
+        if (boot_input_pressed(input, codes[i]))
+            return i;
+    }
+
+    return 0xFFu;
+}
+
+static void boot_resolve_face_digital(const mapper_input_s *input, core_reportformat_t *format)
+{
+    const uint8_t idx = boot_resolve_single_pressed_index(input, k_face_codes, 4);
+    if (idx == 0xFFu)
+    {
+        if (boot_count_pressed(input, k_face_codes, 4) > 1u)
+            *format = CORE_REPORTFORMAT_UNDEFINED;
+        return;
+    }
+
+    *format = k_face_formats[boot_sewn_layout_clamp()][idx];
+}
+
+static void boot_resolve_dpad(const mapper_input_s *input, core_reportformat_t *format)
+{
+    uint8_t idx = 0xFFu;
+
+    if (boot_group_all_hover(k_dpad_codes, 3))
+    {
+        if (!hover_config->hover_calibration_set)
+        {
+            *format = CORE_REPORTFORMAT_UNDEFINED;
+            return;
+        }
+
+        if (boot_try_hover_analog3(input, k_dpad_codes, HOJA_BOOT_ANALOG_FACE_DELTA,
+                                   HOJA_BOOT_ANALOG_FACE_MIN, &idx))
+        {
+            *format = k_dpad_formats[idx];
+            return;
+        }
+
+        idx = boot_resolve_single_pressed_index(input, k_dpad_codes, 3);
+        if (idx == 0xFFu)
+        {
+            if (boot_count_pressed(input, k_dpad_codes, 3) > 1u)
+                *format = CORE_REPORTFORMAT_UNDEFINED;
+            return;
+        }
+
+        *format = k_dpad_formats[idx];
+        return;
+    }
+
+    idx = boot_resolve_single_pressed_index(input, k_dpad_codes, 3);
+    if (idx == 0xFFu)
+    {
+        if (boot_count_pressed(input, k_dpad_codes, 3) > 1u)
+            *format = CORE_REPORTFORMAT_UNDEFINED;
+        return;
+    }
+
+    *format = k_dpad_formats[idx];
+}
+
+static core_reportformat_t boot_resolve_reportformat(const mapper_input_s *input)
+{
+    core_reportformat_t format = CORE_REPORTFORMAT_UNDEFINED;
+    bool hover_face_handled = false;
+
+    if (cb_hoja_boot_custom_face_mode(input, &format))
+        hover_face_handled = true;
+    else if (boot_resolve_hover_face(input, &format))
+        hover_face_handled = true;
+
+    boot_resolve_dpad(input, &format);
+
+    if (!hover_face_handled)
+        boot_resolve_face_digital(input, &format);
+
+    if (format == CORE_REPORTFORMAT_UNDEFINED)
+        format = core_reportformat_from_default(gamepad_config->gamepad_default_mode);
+
+    return format;
+}
+
+// ---------------------------------------------------------------------------
+// Boot combos (USB bootloader, baseband update, pairing, WLAN force)
+// ---------------------------------------------------------------------------
+
+static bool boot_combo_usb_bootloader(const mapper_input_s *input)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if (!cfg)
+        return false;
+
+    return boot_combo_pressed(input, cfg->usb_bootloader_code);
+}
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+static bool boot_combo_baseband_update(const mapper_input_s *input)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if (!cfg || cfg->baseband_update_code[0] == INPUT_CODE_UNUSED)
+        return false;
+
+    return boot_combo_pressed(input, cfg->baseband_update_code);
+}
+#endif
+
+static bool boot_combo_pairing(const mapper_input_s *input)
 {
     const hoja_config_s *cfg = hoja_config_get();
     if (!cfg || cfg->sync_on_boot_code == INPUT_CODE_UNUSED)
-    {
         return false;
-    }
 
-    return boot_input_code_pressed(input, cfg->sync_on_boot_code);
+    return boot_input_pressed(input, cfg->sync_on_boot_code);
 }
 
-static void boot_apply_start_combos(const mapper_input_s *input, bool *pair_out, bool *bootloader_out, bool *bt_bootloader_out)
+static bool boot_combo_wlan_force(const mapper_input_s *input)
 {
-    if (input->presses[INPUT_CODE_RB] && input->presses[INPUT_CODE_START])
-        *bt_bootloader_out = true;
-    else if (input->presses[INPUT_CODE_LB] && input->presses[INPUT_CODE_START])
-        *bootloader_out = true;
-    else if (boot_sync_on_boot_pressed(input))
-        *pair_out = true;
+    const hoja_config_s *cfg = hoja_config_get();
+    if (!cfg || cfg->wlan_force_code == INPUT_CODE_UNUSED)
+        return false;
+
+    if (boot_combo_usb_bootloader(input))
+        return false;
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+    if (boot_combo_baseband_update(input))
+        return false;
+#endif
+
+    return boot_input_pressed(input, cfg->wlan_force_code);
 }
 
-static void boot_apply_wlan_combo(const mapper_input_s *input, gamepad_transport_t *transport_out,
-                                  uint16_t *boot_flags_out)
+static void boot_apply_wlan_force(boot_info_s *info)
 {
-    if (boot_flags_out == NULL || transport_out == NULL)
-        return;
+    info->flags |= COREBOOT_FLAG_WLAN;
 
-    // RB+START is the BT bootloader combo; do not treat it as a WLAN boot.
-    if (input->presses[INPUT_CODE_RB] && input->presses[INPUT_CODE_START])
-        return;
-
-    if (input->presses[INPUT_CODE_RB])
+    switch (info->reportformat)
     {
-        *boot_flags_out |= COREBOOT_FLAG_WLAN;
-        *transport_out = GAMEPAD_TRANSPORT_WLAN;
+    case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_GAMECUBE:
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_N64:
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        break;
+
+    default:
+        break;
     }
 }
 
-static void boot_apply_bt_combo(const mapper_input_s *input, gamepad_transport_t *transport_out)
+// ---------------------------------------------------------------------------
+// Transport defaults and battery policy
+// ---------------------------------------------------------------------------
+
+static void boot_apply_wired_transport_default(core_reportformat_t format, boot_info_s *info)
 {
-    if (transport_out == NULL)
+    if (info->transport != GAMEPAD_TRANSPORT_AUTO)
         return;
 
-    // LB+START is the USB bootloader combo; do not treat it as a BT boot.
-    if (input->presses[INPUT_CODE_LB] && input->presses[INPUT_CODE_START])
-        return;
+    switch (format)
+    {
+    case CORE_REPORTFORMAT_SNES:
+        info->transport = GAMEPAD_TRANSPORT_NESBUS;
+        break;
 
-    if (input->presses[INPUT_CODE_LB] && *transport_out == GAMEPAD_TRANSPORT_AUTO)
-        *transport_out = GAMEPAD_TRANSPORT_BLUETOOTH;
+    case CORE_REPORTFORMAT_N64:
+        info->transport = GAMEPAD_TRANSPORT_JOYBUS64;
+        break;
+
+    case CORE_REPORTFORMAT_GAMECUBE:
+        info->transport = GAMEPAD_TRANSPORT_JOYBUSGC;
+        break;
+
+    default:
+        break;
+    }
 }
+
+static void boot_apply_lb_bt_hint(const mapper_input_s *input, boot_info_s *info)
+{
+    if (boot_combo_usb_bootloader(input))
+        return;
+
+    if (boot_input_pressed(input, INPUT_CODE_LB) && info->transport == GAMEPAD_TRANSPORT_AUTO)
+        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+}
+
+static void boot_apply_persisted_memory(boot_info_s *info)
+{
+    boot_memory_s boot_memory = {0};
+    boot_get_memory(&boot_memory);
+    boot_clear_memory();
+
+    hoja_set_debug_data(boot_memory.reserved_2);
+
+    if (boot_memory.val == 0)
+        return;
+
+    if (boot_memory.report_format < (uint8_t)CORE_REPORTFORMAT_MAX)
+        info->reportformat = (core_reportformat_t)boot_memory.report_format;
+
+    info->pairing = boot_memory.gamepad_pair ? true : false;
+
+    if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_BLUETOOTH)
+        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+    else if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
+    {
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->flags |= COREBOOT_FLAG_WLAN;
+    }
+}
+
+static void boot_apply_battery_transport(boot_info_s *info)
+{
+    switch (info->transport)
+    {
+    case GAMEPAD_TRANSPORT_NESBUS:
+    case GAMEPAD_TRANSPORT_JOYBUS64:
+    case GAMEPAD_TRANSPORT_JOYBUSGC:
+    case GAMEPAD_TRANSPORT_WLAN:
+    case GAMEPAD_TRANSPORT_BLUETOOTH:
+    case GAMEPAD_TRANSPORT_USB:
+        return;
+
+    default:
+        break;
+    }
+
+    battery_init();
+
+    battery_status_s status;
+    battery_get_status(&status);
+
+    if (!status.connected)
+    {
+        info->transport = GAMEPAD_TRANSPORT_USB;
+        return;
+    }
+
+    if (status.plugged)
+    {
+        info->transport = GAMEPAD_TRANSPORT_USB;
+        return;
+    }
+
+    // On battery power: pick wireless transport by report format.
+    switch (info->reportformat)
+    {
+    case CORE_REPORTFORMAT_SWPRO:
+    case CORE_REPORTFORMAT_SINPUT:
+        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        break;
+
+    case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_N64:
+    case CORE_REPORTFORMAT_GAMECUBE:
+    case CORE_REPORTFORMAT_XINPUT:
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        break;
+
+    default:
+        info->transport = GAMEPAD_TRANSPORT_USB;
+        break;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Boot memory API
+// ---------------------------------------------------------------------------
 
 void boot_get_memory(boot_memory_s *out)
 {
@@ -246,9 +513,7 @@ void boot_get_memory(boot_memory_s *out)
     if (tmp.magic_num != BOOT_MEM_MAGIC)
         out->val = 0x00000000;
     else
-    {
         out->val = tmp.val;
-    }
 }
 
 void boot_set_memory(boot_memory_s *in)
@@ -257,222 +522,72 @@ void boot_set_memory(boot_memory_s *in)
     sys_hal_set_bootmemory(in->val);
 }
 
-void boot_clear_memory()
+void boot_clear_memory(void)
 {
     sys_hal_set_bootmemory(0);
 }
 
-void boot_get_mode_method(gamepad_mode_t *mode, gamepad_transport_t *transport, bool *pair, uint16_t *boot_flags)
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+const boot_info_s *boot_get_info(void)
 {
-    if (boot_flags != NULL)
-        *boot_flags = 0;
+    return &_boot_info;
+}
 
-    boot_input_s boot_dat = {.bootloader = false, .gamepad_mode = GAMEPAD_MODE_LOAD, .gamepad_transport = GAMEPAD_TRANSPORT_AUTO, .pairing_mode = false};
+void boot_init(void)
+{
+    _boot_info = (boot_info_s){
+        .reportformat = CORE_REPORTFORMAT_UNDEFINED,
+        .transport = GAMEPAD_TRANSPORT_AUTO,
+        .flags = 0,
+        .pairing = false,
+        .usb_bootloader = false,
+        .baseband_bootloader = false,
+    };
 
-    gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
-    // LOAD until a boot combo / face / d-pad selects a mode; otherwise gamepad_default_mode applies.
-    gamepad_mode_t thisMode = GAMEPAD_MODE_LOAD;
-    bool thisPair = false;
-    bool thisBootloader = false;
-    bool thisBTBootloader = false;
-    uint16_t thisBootFlags = 0;
+    const mapper_input_s input = hover_access_boot();
+    const hoja_config_s *cfg = hoja_config_get();
 
-    if (cb_hoja_boot(&boot_dat))
-    {
-        thisPair = boot_dat.pairing_mode;
-        thisBootloader = boot_dat.bootloader;
-        thisTransport = boot_dat.gamepad_transport;
-        thisMode = boot_dat.gamepad_mode;
-    }
-    else
-    {
-        mapper_input_s input = hover_access_boot();
-
-        boot_apply_start_combos(&input, &thisPair, &thisBootloader, &thisBTBootloader);
-        boot_apply_wlan_combo(&input, &thisTransport, &thisBootFlags);
-        boot_apply_bt_combo(&input, &thisTransport);
-
-        bool skip_digital_face = false;
-        gamepad_mode_t face_mode = thisMode;
-
-        if (cb_hoja_boot_custom_face_mode(&input, &face_mode))
-        {
-            thisMode = face_mode;
-            skip_digital_face = true;
-        }
-#if defined(HOJA_BOOT_ANALOG_FACE_MODE) && (HOJA_BOOT_ANALOG_FACE_MODE)
-        else if (boot_try_builtin_analog_face(&input, &face_mode))
-        {
-            thisMode = face_mode;
-            skip_digital_face = true;
-        }
-#endif
-
-        boot_apply_dpad_face_digital(&input, &thisMode, skip_digital_face);
-    }
-
-    if (thisMode != GAMEPAD_MODE_LOAD)
-        goto skipAutoGamepadMode;
-    switch (gamepad_config->gamepad_default_mode)
-    {
-    default:
-    case 0:
-        thisMode = GAMEPAD_MODE_SWPRO;
-        break;
-
-    case 1:
-        thisMode = GAMEPAD_MODE_XINPUT;
-        break;
-
-    case 2:
-        thisMode = GAMEPAD_MODE_GCUSB;
-        break;
-
-    case 3:
-        thisMode = GAMEPAD_MODE_GAMECUBE;
-        break;
-
-    case 4:
-        thisMode = GAMEPAD_MODE_N64;
-        break;
-
-    case 5:
-        thisMode = GAMEPAD_MODE_SNES;
-        break;
-
-    case 6:
-        thisMode = GAMEPAD_MODE_SINPUT;
-        break;
-    }
-skipAutoGamepadMode:
-
-    if (thisTransport != GAMEPAD_TRANSPORT_AUTO)
-        goto skipAutoTransport;
-
-    switch (thisMode)
-    {
-    default:
-    case GAMEPAD_MODE_SWPRO:
-    case GAMEPAD_MODE_SINPUT:
-    case GAMEPAD_MODE_GCUSB:
-    case GAMEPAD_MODE_XINPUT:
-        thisTransport = GAMEPAD_TRANSPORT_AUTO;
-        break;
-
-    case GAMEPAD_MODE_SNES:
-        thisTransport = GAMEPAD_TRANSPORT_NESBUS;
-        break;
-
-    case GAMEPAD_MODE_N64:
-        thisTransport = GAMEPAD_TRANSPORT_JOYBUS64;
-        break;
-
-    case GAMEPAD_MODE_GAMECUBE:
-        thisTransport = GAMEPAD_TRANSPORT_JOYBUSGC;
-        break;
-    }
-skipAutoTransport:
-
-    boot_memory_s boot_memory = {0};
-    boot_get_memory(&boot_memory);
-    boot_clear_memory();
-
-    hoja_set_debug_data(boot_memory.reserved_2);
-
-    if (boot_memory.val != 0)
-    {
-        thisMode = boot_memory.gamepad_mode;
-        thisPair = boot_memory.gamepad_pair ? true : false;
-
-        if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_BLUETOOTH)
-        {
-            thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
-        }
-        else if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
-        {
-            thisTransport = GAMEPAD_TRANSPORT_WLAN;
-            thisBootFlags |= COREBOOT_FLAG_WLAN;
-        }
-    }
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER > 0)
-    else
-    {
-#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
-        if (thisBTBootloader)
-        {
-            *mode = GAMEPAD_MODE_LOAD;
-            *transport = GAMEPAD_TRANSPORT_BLUETOOTH;
-            *pair = false;
-            return;
-        }
-#endif
-    }
-#endif
-
-    if (thisBootloader)
+    // 1. USB bootloader — reboots into UF2, does not return.
+    if (cfg && boot_combo_usb_bootloader(&input))
     {
         sys_hal_bootloader();
         return;
     }
 
-    switch (thisTransport)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+    // 2. ESP32 baseband firmware update.
+    if (cfg && boot_combo_baseband_update(&input))
     {
-    default:
-        battery_init();
-        break;
-
-    case GAMEPAD_TRANSPORT_WLAN:
-    case GAMEPAD_TRANSPORT_BLUETOOTH:
-        battery_init();
-        goto skipTransportParse;
-
-    case GAMEPAD_TRANSPORT_NESBUS:
-    case GAMEPAD_TRANSPORT_JOYBUS64:
-    case GAMEPAD_TRANSPORT_JOYBUSGC:
-        goto skipTransportParse;
+        _boot_info.baseband_bootloader = true;
+        _boot_info.flags |= COREBOOT_FLAG_ALTFLASH;
+        _boot_info.transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        return;
     }
+#endif
 
-    battery_status_s status;
-    battery_get_status(&status);
+    // 3. Gamepad mode from ABXY / d-pad.
+    _boot_info.reportformat = boot_resolve_reportformat(&input);
 
-doTransportParse:
-    if (!status.connected)
-    {
-        thisTransport = GAMEPAD_TRANSPORT_USB;
-    }
-    else
-    {
-        if (!status.plugged)
-        {
-            switch (thisMode)
-            {
-            case GAMEPAD_MODE_SWPRO:
-            case GAMEPAD_MODE_SINPUT:
-                thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
-                break;
+    // 4. Pairing enable combo.
+    if (boot_combo_pairing(&input))
+        _boot_info.pairing = true;
 
-            case GAMEPAD_MODE_GCUSB:
-            case GAMEPAD_MODE_N64:
-            case GAMEPAD_MODE_GAMECUBE:
-            case GAMEPAD_MODE_XINPUT:
-                thisTransport = GAMEPAD_TRANSPORT_WLAN;
-                break;
+    // 5. WLAN force combo.
+    if (boot_combo_wlan_force(&input))
+        boot_apply_wlan_force(&_boot_info);
 
-            default:
-                thisTransport = GAMEPAD_TRANSPORT_USB;
-                break;
-            }
-        }
-        else
-        {
-            thisTransport = GAMEPAD_TRANSPORT_USB;
-        }
-    }
-skipTransportParse:
+    // 6. LB held at boot prefers Bluetooth when transport is still AUTO.
+    boot_apply_lb_bt_hint(&input, &_boot_info);
 
-    *mode = thisMode;
-    *transport = thisTransport;
-    *pair = thisPair;
-    if (boot_flags != NULL)
-        *boot_flags = thisBootFlags;
+    // 7. Wired formats default to their bus transport.
+    boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
+
+    // 8. Runtime reboot memory (pairing macro, etc.) overrides selections above.
+    boot_apply_persisted_memory(&_boot_info);
+
+    // 9. Battery status resolves AUTO transport to USB / BT / WLAN.
+    boot_apply_battery_transport(&_boot_info);
 }

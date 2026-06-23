@@ -106,17 +106,12 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 
             if (iterations >= PAIRING_HOLD_LOOPS)
             {
-                gamepad_mode_t mode = hoja_get_status().gamepad_mode;
+                core_reportformat_t format = hoja_get_status().reportformat;
                 bool pair = false;
 
-                switch (mode)
+                if (format == CORE_REPORTFORMAT_SWPRO)
                 {
-                    case GAMEPAD_MODE_SWPRO:
                     pair = true;
-                    break;
-
-                    default:
-                    break;
                 }
 
                 if (pair)
@@ -125,7 +120,7 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 
                     boot_memory_s mem = {
                         .gamepad_method = GAMEPAD_METHOD_BLUETOOTH,
-                        .gamepad_mode   = mode,
+                        .report_format  = (uint8_t)format,
                         .gamepad_pair   = true
                     };
 

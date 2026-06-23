@@ -8,6 +8,7 @@
 #include "hoja_shared_types.h"
 #include "input_shared_types.h"
 #include "devices_shared_types.h"
+#include "cores/cores.h"
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
@@ -223,6 +224,21 @@ typedef struct
     // several seconds to enter ship mode. Set [0] to INPUT_CODE_UNUSED to disable.
     mapper_input_code_t shipping_macro_code[2];
 
+    // ---- Boot combos ----
+    // USB UF2 bootloader (required). Hold both mapped buttons at boot; when [1]
+    // is INPUT_CODE_UNUSED, [0] alone triggers bootloader mode.
+    mapper_input_code_t usb_bootloader_code[2];
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+    // ESP32 baseband firmware-update combo (optional). Same single-or-dual rules
+    // as usb_bootloader_code. Set [0] to INPUT_CODE_UNUSED to disable.
+    mapper_input_code_t baseband_update_code[2];
+#endif
+
+    // Hold at boot to force WLAN dongle transport when supported. Set to
+    // INPUT_CODE_UNUSED to disable.
+    mapper_input_code_t wlan_force_code;
+
     // ---- Bluetooth pairing (sync) ----
     // Hold sync_on_boot_code during power-on to enter BT pairing. Set to
     // INPUT_CODE_UNUSED to disable.
@@ -270,10 +286,10 @@ typedef struct
 const hoja_config_s *hoja_config_get(void);
 
 void cb_hoja_shutdown();
-bool cb_hoja_boot(boot_input_s *boot);
-// Optional: if true, *mode_out is applied for face-button mode selection (use GAMEPAD_MODE_LOAD
-// to defer to stored default). If false, the library uses digital and/or built-in analog face logic.
-bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, gamepad_mode_t *mode_out);
+// Optional: if true, *format_out is applied for face-button mode selection (use
+// CORE_REPORTFORMAT_UNDEFINED to defer to stored default). If false, the library
+// uses digital and/or hover face logic based on configured input types.
+bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, core_reportformat_t *format_out);
 uint16_t cb_hoja_read_battery();
 // Accessible as a uint16_t array of size 4 only
 void cb_hoja_read_joystick(uint16_t *input);

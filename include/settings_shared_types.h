@@ -195,7 +195,7 @@ typedef struct
 typedef struct 
 {
     uint8_t  gamepad_config_version;
-    uint8_t  gamepad_default_mode;
+    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 6=SINPUT)
     uint8_t  gamepad_mac_address[6]; // Device BASE MAC Address
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;

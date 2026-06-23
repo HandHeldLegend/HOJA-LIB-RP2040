@@ -11,19 +11,19 @@ typedef enum
     CONNECTION_STATUS_DISCONNECTED,
 } connection_status_t;
 
+// Numeric values match gamepadConfig_s.gamepad_default_mode (legacy gamepad_mode_t order).
 typedef enum
 {
-    GAMEPAD_MODE_UNDEFINED = -2,
-    GAMEPAD_MODE_LOAD     = -1, // Firmware load (bluetooth)
-    GAMEPAD_MODE_SWPRO    = 0,
-    GAMEPAD_MODE_XINPUT   = 1,
-    GAMEPAD_MODE_GCUSB    = 2,
-    GAMEPAD_MODE_GAMECUBE = 3,
-    GAMEPAD_MODE_N64      = 4,
-    GAMEPAD_MODE_SNES     = 5,
-    GAMEPAD_MODE_SINPUT   = 6,
-    GAMEPAD_MODE_MAX,
-} gamepad_mode_t;
+    CORE_REPORTFORMAT_UNDEFINED = -1,
+    CORE_REPORTFORMAT_SWPRO       = 0,
+    CORE_REPORTFORMAT_XINPUT      = 1,
+    CORE_REPORTFORMAT_SLIPPI      = 2,
+    CORE_REPORTFORMAT_GAMECUBE    = 3,
+    CORE_REPORTFORMAT_N64         = 4,
+    CORE_REPORTFORMAT_SNES        = 5,
+    CORE_REPORTFORMAT_SINPUT      = 6,
+    CORE_REPORTFORMAT_MAX,
+} core_reportformat_t;
 
 typedef enum
 {
@@ -50,7 +50,7 @@ typedef struct
 {
     int8_t connection_status;
     uint8_t player_number;
-    gamepad_mode_t gamepad_mode;
+    core_reportformat_t reportformat;
     gamepad_method_t gamepad_method;
     bool   init_status;
     rgb_s  notification_color;

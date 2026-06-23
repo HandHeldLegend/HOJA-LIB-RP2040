@@ -32,9 +32,6 @@
 
 #include "devices/battery.h"
 #include "devices/rgb.h"
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-#include "devices/animations/anm_authentic.h"
-#endif
 
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
@@ -113,15 +110,10 @@ __attribute__((weak)) void cb_hoja_shutdown()
 
 }
 
-__attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
-{
-  return false;
-}
-
-__attribute__((weak)) bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, gamepad_mode_t *mode_out)
+__attribute__((weak)) bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, core_reportformat_t *format_out)
 {
   (void)in;
-  (void)mode_out;
+  (void)format_out;
   return false;
 }
 
@@ -183,41 +175,33 @@ void hoja_restart()
   sys_hal_reboot();
 }
 
-rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
+rgb_s _reportformat_color_get(core_reportformat_t format)
 {
-  switch (mode)
+  switch (format)
   {
-  case GAMEPAD_MODE_SWPRO:
+  case CORE_REPORTFORMAT_SWPRO:
     return COLOR_WHITE;
-    break;
 
-  case GAMEPAD_MODE_SINPUT:
+  case CORE_REPORTFORMAT_SINPUT:
     return COLOR_BLUE;
-    break;
 
-  case GAMEPAD_MODE_XINPUT:
+  case CORE_REPORTFORMAT_XINPUT:
     return COLOR_GREEN;
-    break;
 
-  case GAMEPAD_MODE_GAMECUBE:
+  case CORE_REPORTFORMAT_GAMECUBE:
     return COLOR_PURPLE;
-    break;
 
-  case GAMEPAD_MODE_GCUSB:
+  case CORE_REPORTFORMAT_SLIPPI:
     return COLOR_CYAN;
-    break;
 
-  case GAMEPAD_MODE_N64:
+  case CORE_REPORTFORMAT_N64:
     return COLOR_YELLOW;
-    break;
 
-  case GAMEPAD_MODE_SNES:
+  case CORE_REPORTFORMAT_SNES:
     return COLOR_RED;
-    break;
 
   default:
     return COLOR_ORANGE;
-    break;
   }
 }
 
@@ -226,7 +210,7 @@ volatile hoja_status_s _hoja_status = {
     .notification_color = 0,
     .gamepad_color = 0,
     .gamepad_method = 0,
-    .gamepad_mode = 0,
+    .reportformat = CORE_REPORTFORMAT_SWPRO,
     .init_status = false};
 
 void hoja_set_connected_status(connection_status_t status)
@@ -265,11 +249,6 @@ hoja_status_s hoja_get_status()
   return _hoja_status;
 }
 
-gamepad_mode_t thisMode = GAMEPAD_MODE_LOAD;
-gamepad_transport_t thisTransport = GAMEPAD_TRANSPORT_AUTO;
-bool thisPair = false;
-uint16_t thisBootFlags = 0;
-
 static gamepad_method_t _hoja_transport_to_method(gamepad_transport_t transport)
 {
   switch (transport)
@@ -294,25 +273,25 @@ static gamepad_method_t _hoja_transport_to_method(gamepad_transport_t transport)
 }
 
 // Replace with proper boot function later TODO
-bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair)
+bool _core_format_init(void)
 {
-  _hoja_status.gamepad_mode = mode;
-  _hoja_status.gamepad_method = _hoja_transport_to_method(transport);
-  _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
+  const boot_info_s *boot = boot_get_info();
+
+  _hoja_status.reportformat = boot->reportformat;
+  _hoja_status.gamepad_method = _hoja_transport_to_method(boot->transport);
+  _hoja_status.gamepad_color = _reportformat_color_get(boot->reportformat);
 
   hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED); // Pending
   hoja_set_ss_notif(_hoja_status.gamepad_color);
 
   // Reload our remap
   mapper_init();
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-  anm_authentic_refresh();
-#endif
+  rgb_init(-1, -1);
 
   // Reload stick config
   stick_scaling_init();
 
-  if (!core_init(mode, transport, pair, thisBootFlags))
+  if (!core_init(boot->reportformat, boot->transport, boot->pairing, boot->flags))
   {
     hoja_set_notification_status(COLOR_ORANGE);
     return false;
@@ -388,30 +367,30 @@ static task_s _task_watchdog = {
   .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
 };
 
-void _hoja_init_gamepad_tasks(gamepad_mode_t mode)
+void _hoja_init_core_tasks(core_reportformat_t format)
 {
   tasks_reset();
 
-  switch(mode)
+  switch(format)
   {
     default:
     tasks_register(&_task_haptics);
     break;
 
-    case GAMEPAD_MODE_XINPUT:
-    case GAMEPAD_MODE_GCUSB:
-    case GAMEPAD_MODE_GAMECUBE:
-    case GAMEPAD_MODE_N64:
+    case CORE_REPORTFORMAT_XINPUT:
+    case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_GAMECUBE:
+    case CORE_REPORTFORMAT_N64:
     tasks_register(&_task_haptics);
     break;
 
-    case GAMEPAD_MODE_SINPUT:
-    case GAMEPAD_MODE_SWPRO:
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_SWPRO:
     tasks_register(&_task_haptics);
     tasks_register(&_task_motion);
     break;
 
-    case GAMEPAD_MODE_SNES:
+    case CORE_REPORTFORMAT_SNES:
     break;
   }
 
@@ -431,10 +410,12 @@ void _hoja_task_1()
 {
   static uint64_t c1_timestamp = 0;
 
-  // init gamepad mode on core 1
-  _gamepad_mode_init(thisMode, thisTransport, thisPair);
+  const boot_info_s *boot = boot_get_info();
 
-  _hoja_init_gamepad_tasks(thisMode);
+  // init core on core 1
+  _core_format_init();
+
+  _hoja_init_core_tasks(boot->reportformat);
 
   for (;;)
   {
@@ -483,39 +464,21 @@ bool _system_requirements_init()
   return true;
 }
 
-bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
+bool _system_devices_init(void)
 {
-  // Battery
-  if(method!=GAMEPAD_METHOD_WIRED)
-    battery_init();
+  boot_init();
+  
+  const boot_info_s *boot = boot_get_info();
 
-  // Fuel gauge
+  battery_init();
   fuelgauge_init();
-
-  // System Monitor
   sysmon_init();
-
-  // Haptics
   haptics_init();
 
-  int bright = -1;
-
-  if (method == GAMEPAD_METHOD_BLUETOOTH || method == GAMEPAD_METHOD_WIRED)
-  {
-    const int halfbright = (RGB_BRIGHTNESS_MAX / 3);
-    bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
-  }
-
-  // Input profile + gamepad mode must be ready before the first RGB fade so
-  // Authentic mode resolves era colors into _fade_end instead of gray fallbacks.
-  _hoja_status.gamepad_mode = mode;
+  // Input profile + gamepad mode must be ready before the first RGB fade.
+  _hoja_status.reportformat = boot->reportformat;
   mapper_init();
-#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-  anm_authentic_refresh();
-#endif
-
-  // RGB
-  rgb_init(-1, bright);
+  rgb_init(-1, -1);
   return true;
 }
 
@@ -539,12 +502,7 @@ void hoja_init(const hoja_config_s *config)
   _system_requirements_init();
   _system_input_init();
 
-  boot_get_mode_method(&thisMode, &thisTransport, &thisPair, &thisBootFlags);
-
-  // DEBUG
-  //thisTransport = GAMEPAD_TRANSPORT_BLUETOOTH;
-
-  _system_devices_init(_hoja_transport_to_method(thisTransport), thisMode);
+  _system_devices_init();
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

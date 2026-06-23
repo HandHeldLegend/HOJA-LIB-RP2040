@@ -83,7 +83,7 @@ core_params_s* core_current_params()
     return &_core_params;
 }
 
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags)
+bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool pair, uint16_t boot_flags)
 {
     _core_params.transport_type = transport;
     _core_params.core_boot_flags = boot_flags;
@@ -120,27 +120,27 @@ bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, ui
         return false;
     }
 
-    switch(mode)
+    switch(format)
     {
-        case GAMEPAD_MODE_SWPRO:
+        case CORE_REPORTFORMAT_SWPRO:
         return core_switch_init(&_core_params);
 
-        case GAMEPAD_MODE_XINPUT:
+        case CORE_REPORTFORMAT_XINPUT:
         return core_xinput_init(&_core_params);
 
-        case GAMEPAD_MODE_SINPUT:
+        case CORE_REPORTFORMAT_SINPUT:
         return core_sinput_init(&_core_params);
 
-        case GAMEPAD_MODE_SNES:
+        case CORE_REPORTFORMAT_SNES:
         return core_snes_init(&_core_params);
 
-        case GAMEPAD_MODE_N64:
+        case CORE_REPORTFORMAT_N64:
         return core_n64_init(&_core_params);
 
-        case GAMEPAD_MODE_GAMECUBE:
+        case CORE_REPORTFORMAT_GAMECUBE:
         return core_gamecube_init(&_core_params);
 
-        case GAMEPAD_MODE_GCUSB:
+        case CORE_REPORTFORMAT_SLIPPI:
         return core_slippi_init(&_core_params);
 
         default:

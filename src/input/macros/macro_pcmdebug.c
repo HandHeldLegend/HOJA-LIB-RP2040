@@ -1,4 +1,5 @@
 #include "input/macros/macro_pcmdebug.h"
+#include "input/mapper.h"
 #include "utilities/interval.h"
 #include "utilities/pcm.h"
 #include "board_config.h"

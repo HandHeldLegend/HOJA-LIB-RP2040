@@ -55,9 +55,9 @@ static void _resolve_group_colors(void)
 
     const hoja_rgb_cfg_s *rgb_cfg = &cfg->rgb;
     const inputConfigSlot_s *profile = mapper_get_active_profile();
-    gamepad_mode_t mode = mapper_get_palette_mode();
+    core_reportformat_t format = mapper_get_palette_format();
     rgb_s fallback = anm_authentic_fallback_color();
-    rgb_s stick = anm_authentic_stick_color(mode);
+    rgb_s stick = anm_authentic_stick_color(format);
 
     for(int g = 0; g < RGB_MAX_GROUPS; g++)
         _group_colors[g] = fallback;
@@ -112,7 +112,7 @@ static void _resolve_group_colors(void)
         }
 
         rgb_s resolved = fallback;
-        if(anm_authentic_palette_color(mode, output_code, &resolved))
+        if(anm_authentic_palette_color(format, output_code, &resolved))
             _group_colors[g] = resolved;
     }
 
@@ -137,6 +137,12 @@ bool anm_authentic_handler(rgb_s *output)
     _ensure_cache();
     _unpack_groups_to_leds(output);
     return true;
+}
+
+#else
+
+void anm_authentic_refresh(void)
+{
 }
 
 #endif

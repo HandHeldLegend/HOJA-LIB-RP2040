@@ -2,7 +2,7 @@
 #define DRIVER_DEFINE_HELPER_H
 
 #include <stdint.h>
-#include "input/mapper.h"
+#include <stdbool.h>
 
     typedef enum {
         INPUT_TYPE_UNUSED,
@@ -141,11 +141,8 @@
     #define SEWN_LAYOUT_BAYX 1 // Nintendo Style
     #define SEWN_LAYOUT_AXBY 2 // GameCube Style
 
-    // Boot: set to 1 on boards with hover/analog face buttons so mode select uses
-    // relative analog strength (see boot_pick_strongest_analog4) instead of digital presses.
-    #ifndef HOJA_BOOT_ANALOG_FACE_MODE
-    #define HOJA_BOOT_ANALOG_FACE_MODE 0
-    #endif
+    // Boot: hover face buttons use relative analog strength (see
+    // boot_pick_strongest_analog4) when all four face inputs are HOVER type.
     // Winner must exceed the second-highest face reading by at least this much (12-bit raw).
     #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
     #define HOJA_BOOT_ANALOG_FACE_DELTA 200

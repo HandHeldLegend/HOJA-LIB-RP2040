@@ -3,6 +3,7 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 #include "utilities/crosscore_utils.h"
+#include "utilities/boot.h"
 #include "hoja.h"
 #include "board_config.h"
 
@@ -22,6 +23,24 @@ __attribute__((weak)) const char *battery_driver_part_code(void) { return NULL; 
 
 // A driver is present iff it supplies a part code (weak default returns NULL).
 static inline bool _battery_present(void) { return battery_driver_part_code() != NULL; }
+
+static bool _battery_boot_wants_init(void)
+{
+    const boot_info_s *boot = boot_get_info();
+    if (!boot)
+        return true;
+
+    switch (boot->transport)
+    {
+    case GAMEPAD_TRANSPORT_NESBUS:
+    case GAMEPAD_TRANSPORT_JOYBUS64:
+    case GAMEPAD_TRANSPORT_JOYBUSGC:
+        return false;
+
+    default:
+        return true;
+    }
+}
 
 void _battery_set_connected(bool connected)
 {
@@ -66,10 +85,12 @@ void battery_get_status(battery_status_s *out)
     snapshot_battery_read(&_battery_snap, out);
 }
 
-// Init battery PMIC. Always safe to call; the return value reports whether a
-// driver was assigned and whether the PMIC initialized.
+// Init battery PMIC. Always safe to call.
 battery_result_t battery_init(void)
 {
+    if (!_battery_boot_wants_init())
+        return BATTERY_RESULT_SKIPPED;
+
     _battery_init_done = false;
 
     // Reset connected status

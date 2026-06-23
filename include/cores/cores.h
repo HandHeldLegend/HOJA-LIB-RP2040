@@ -5,18 +5,6 @@
 #include "hoja_shared_types.h"
 #include <hoja_usb.h>
 
-typedef enum 
-{
-    CORE_REPORTFORMAT_UNDEFINED = -1,
-    CORE_REPORTFORMAT_SWPRO,
-    CORE_REPORTFORMAT_XINPUT,
-    CORE_REPORTFORMAT_SINPUT,
-    CORE_REPORTFORMAT_SLIPPI,
-    CORE_REPORTFORMAT_SNES,
-    CORE_REPORTFORMAT_N64,
-    CORE_REPORTFORMAT_GAMECUBE
-} core_reportformat_t;
-
 typedef struct
 {
     const uint8_t *hid_report_descriptor;
@@ -41,7 +29,7 @@ typedef struct
     uint8_t data[CORE_REPORT_DATA_LEN];
 } core_report_s;
 
-typedef gamepad_mode_t (*core_autodetect_result_t)(void);
+typedef core_reportformat_t (*core_autodetect_result_t)(void);
 typedef bool (*core_generate_report_t)(core_report_s *out);
 typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);
@@ -75,7 +63,15 @@ bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
-bool core_init(gamepad_mode_t mode, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
+bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
 void core_task(uint64_t now_us);
+
+// gamepadConfig_s.gamepad_default_mode is stored as a core_reportformat_t value (0..6).
+static inline core_reportformat_t core_reportformat_from_default(uint8_t stored)
+{
+    if (stored >= (uint8_t)CORE_REPORTFORMAT_MAX)
+        return CORE_REPORTFORMAT_SWPRO;
+    return (core_reportformat_t)stored;
+}
 
 #endif
