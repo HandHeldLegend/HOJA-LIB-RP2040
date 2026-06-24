@@ -109,6 +109,11 @@ void core_report_tunnel_cb(const uint8_t *data, uint16_t len)
     _core_params.core_report_tunnel(data, len);
 }
 
+core_reportformat_t core_current_reportformat(void)
+{
+    return _core_params.core_report_format;
+}
+
 core_params_s* core_current_params()
 {
     return &_core_params;
@@ -121,6 +126,9 @@ bool core_init(void)
     _core_params.transport_type     = info->transport;
     _core_params.core_boot_flags    = info->flags;
     _core_params.core_report_format = info->reportformat;
+
+    if (info->pairing)
+        _core_params.core_boot_flags |= COREBOOT_FLAG_PAIR;
 
     // Clear host mac just in case first
     memset(_core_params.transport_host_mac, 0, 6);

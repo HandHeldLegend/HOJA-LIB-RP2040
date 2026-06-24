@@ -248,7 +248,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             else
             {
-                switch (hoja_get_status().reportformat)
+                switch (core_current_reportformat())
                 {
                 default:
                 case CORE_REPORTFORMAT_SWPRO:
@@ -302,7 +302,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             break;
 
         case HCI_EVENT_LINK_KEY_NOTIFICATION:
-            if(hoja_get_status().reportformat == CORE_REPORTFORMAT_SWPRO)
+            if(core_current_reportformat == CORE_REPORTFORMAT_SWPRO)
             {
                 bd_addr_t addr;
                 hci_event_link_key_request_get_bd_addr(packet, addr);
@@ -349,7 +349,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 uint8_t *addr_location = NULL;
 
-                switch (hoja_get_status().reportformat)
+                switch (core_current_reportformat())
                 {
                 default:
                 case CORE_REPORTFORMAT_SWPRO:
@@ -401,7 +401,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 break;
             case HID_SUBEVENT_SNIFF_SUBRATING_PARAMS:
                 rgb_set_idle(true);
-                hoja_set_notification_status(COLOR_GREEN);
+                rgb_set_pulsing(COLOR_GREEN);
                 break;
 
             default:

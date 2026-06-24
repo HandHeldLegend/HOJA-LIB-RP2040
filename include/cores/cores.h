@@ -38,7 +38,7 @@ typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
 #define COREBOOT_FLAG_PAIR (0b1)
-#define COREBOOT_FLAG_WLAN (0b10) // R bumper held at boot — boot into WLAN dongle mode
+#define COREBOOT_FLAG_WLAN (0b10)
 #define COREBOOT_FLAG_ALTFLASH (0b10000000)
 
 typedef struct 
@@ -56,6 +56,8 @@ typedef struct
     uint16_t                core_boot_flags; // See COREBOOT_FLAG_ types
 } core_params_s;
 
+
+core_reportformat_t core_current_reportformat(void);
 core_params_s* core_current_params();
 bool core_is_mac_blank(uint8_t mac[6]);
 
