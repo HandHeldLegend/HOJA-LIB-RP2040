@@ -59,11 +59,12 @@ typedef struct
 core_params_s* core_current_params();
 bool core_is_mac_blank(uint8_t mac[6]);
 
+rgb_s core_current_color_get(void);
 bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
-bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool pair, uint16_t boot_flags);
+bool core_init(void);
 void core_task(uint64_t now_us);
 
 // gamepadConfig_s.gamepad_default_mode is stored as a core_reportformat_t value (0..6).

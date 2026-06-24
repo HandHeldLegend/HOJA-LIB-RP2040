@@ -41,7 +41,7 @@ void macro_tourney(uint64_t timestamp, mapper_input_s *input)
         {
             holding = false;
             tourney_mode_enabled = !tourney_mode_enabled;
-            hoja_set_ss_notif(tourney_mode_enabled ? COLOR_GREEN : COLOR_RED);
+            rgb_send_notification(tourney_mode_enabled ? COLOR_GREEN : COLOR_RED);
         }
     }
 }

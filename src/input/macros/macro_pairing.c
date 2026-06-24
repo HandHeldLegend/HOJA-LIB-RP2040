@@ -106,7 +106,7 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 
             if (iterations >= PAIRING_HOLD_LOOPS)
             {
-                core_reportformat_t format = hoja_get_status().reportformat;
+                core_reportformat_t format = core_current_params()->core_report_format;
                 bool pair = false;
 
                 if (format == CORE_REPORTFORMAT_SWPRO)

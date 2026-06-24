@@ -11,6 +11,13 @@ typedef void (*transport_task_t)(uint64_t timestamp);
 
 typedef enum
 {
+    TP_CONNSTAT_UNDEFINED = -1,
+    TP_CONNSTAT_IDLE = 0,
+    TP_CONNSTAT_CONNECTED = 1,
+} transport_connection_status_t;
+
+typedef enum
+{
     TP_EVT_PLAYERLED,
     TP_EVT_CONNECTIONCHANGE, 
     TP_EVT_ERMRUMBLE,
@@ -96,6 +103,9 @@ typedef struct
     transport_autoinit_state_t state;
     transport_autoinit_result_t result_ready_cb;
 } transport_autoinit_sm_s;
+
+uint8_t transport_current_player_number(void);
+transport_connection_status_t transport_current_connection(void);
 
 void transport_evt_cb(tp_evt_s evt);
 bool transport_init(core_params_s *params);

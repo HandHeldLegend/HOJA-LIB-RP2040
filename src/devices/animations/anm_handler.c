@@ -10,6 +10,10 @@
 
 #include "devices/rgb.h"
 #include "hal/rgb_hal.h"
+
+#include "transport/transport.h"
+#include "cores/cores.h"
+
 #include "utilities/settings.h"
 
 // Primary animation modes
@@ -187,9 +191,6 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     _ani_queue_fade_start();
 }
 
-bool _notification_single_shot = false;
-rgb_s _notification_single_shot_color = {0};
-
 void _notification_manager(rgb_s *output)
 {
     const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
@@ -208,18 +209,18 @@ void _notification_manager(rgb_s *output)
         notif_leds[i] = output[this_idx];
     }
 
-    hoja_status_s this_status = hoja_get_status();
-
-    if(this_status.ss_notif_pending)
+    rgb_s ss_color;
+    rgb_s pulse_color;
+    if(rgb_get_notification(&ss_color))
     {
-        if(ply_blink_handler_ss(notif_leds, notif_size, this_status.ss_notif_color))
+        if(ply_blink_handler_ss(notif_leds, notif_size, ss_color))
         {
-            hoja_clr_ss_notif();
+            rgb_clear_notification();
         }
     }
-    else if(this_status.notification_color.color != 0)
+    else if(rgb_get_pulsing(&pulse_color))
     {
-        if(ply_blink_handler(notif_leds, notif_size, this_status.notification_color))
+        if(ply_blink_handler(notif_leds, notif_size, pulse_color))
         {
 
         }
@@ -259,7 +260,6 @@ void _player_connection_manager(rgb_s *output)
 
     if(player_leds_count > RGB_MAX_LEDS_PER_GROUP) player_leds_count = RGB_MAX_LEDS_PER_GROUP;
 
-    hoja_status_s status = hoja_get_status();
     rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
 
     // Get the current player LEDs
@@ -269,14 +269,14 @@ void _player_connection_manager(rgb_s *output)
         player_leds[i] = output[this_idx];
     }
 
-    switch(status.connection_status)
+    switch(transport_current_connection())
     {
-        case CONNECTION_STATUS_DISCONNECTED:
-        case CONNECTION_STATUS_DOWN:
+        case TP_CONNSTAT_IDLE:
+        case TP_CONNSTAT_UNDEFINED:
             if(use_chase)
-                ply_chase_handler(player_leds, status.gamepad_color);
+                ply_chase_handler(player_leds, core_current_color_get());
             else
-                ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
+                ply_blink_handler(player_leds, player_leds_count, core_current_color_get());
         break;
 
         default:
@@ -287,7 +287,7 @@ void _player_connection_manager(rgb_s *output)
             {
                 player_leds[i] = rgb_colors_safe[player_group_idx];
             }
-            ply_idle_handler(player_leds, status.player_number);
+            ply_idle_handler(player_leds, transport_current_player_number());
         break;
     }  
 

@@ -147,13 +147,10 @@ void hoja_deinit(callback_t cb)
 
   haptics_stop();
 
-  hoja_set_connected_status(CONNECTION_STATUS_DOWN);
-
-#if defined(HOJA_RGB_DRIVER)
-  rgb_deinit(cb);
-#else
-  cb();
-#endif
+  if(!rgb_deinit(cb))
+  {
+    cb();
+  }
 }
 
 void hoja_shutdown()
@@ -175,115 +172,9 @@ void hoja_restart()
   sys_hal_reboot();
 }
 
-rgb_s _reportformat_color_get(core_reportformat_t format)
-{
-  switch (format)
-  {
-  case CORE_REPORTFORMAT_SWPRO:
-    return COLOR_WHITE;
-
-  case CORE_REPORTFORMAT_SINPUT:
-    return COLOR_BLUE;
-
-  case CORE_REPORTFORMAT_XINPUT:
-    return COLOR_GREEN;
-
-  case CORE_REPORTFORMAT_GAMECUBE:
-    return COLOR_PURPLE;
-
-  case CORE_REPORTFORMAT_SLIPPI:
-    return COLOR_CYAN;
-
-  case CORE_REPORTFORMAT_N64:
-    return COLOR_YELLOW;
-
-  case CORE_REPORTFORMAT_SNES:
-    return COLOR_RED;
-
-  default:
-    return COLOR_ORANGE;
-  }
-}
-
-volatile hoja_status_s _hoja_status = {
-    .connection_status = CONNECTION_STATUS_DOWN,
-    .notification_color = 0,
-    .gamepad_color = 0,
-    .gamepad_method = 0,
-    .reportformat = CORE_REPORTFORMAT_SWPRO,
-    .init_status = false};
-
-void hoja_set_connected_status(connection_status_t status)
-{
-  _hoja_status.connection_status = status;
-}
-
-void hoja_set_player_number(uint8_t number)
-{
-  _hoja_status.player_number = number;
-}
-
-void hoja_set_notification_status(rgb_s color)
-{
-  _hoja_status.notification_color = color;
-}
-
-void hoja_clr_ss_notif()
-{
-  _hoja_status.ss_notif_pending = false;
-}
-
-void hoja_set_ss_notif(rgb_s color)
-{
-  _hoja_status.ss_notif_pending = true;
-  _hoja_status.ss_notif_color = color;
-}
-
-void hoja_set_debug_data(uint8_t data)
-{
-  _hoja_status.debug_data = data;
-}
-
-hoja_status_s hoja_get_status()
-{
-  return _hoja_status;
-}
-
-static gamepad_method_t _hoja_transport_to_method(gamepad_transport_t transport)
-{
-  switch (transport)
-  {
-  case GAMEPAD_TRANSPORT_BLUETOOTH:
-    return GAMEPAD_METHOD_BLUETOOTH;
-
-  case GAMEPAD_TRANSPORT_WLAN:
-    return GAMEPAD_METHOD_WLAN;
-
-  case GAMEPAD_TRANSPORT_USB:
-    return GAMEPAD_METHOD_USB;
-
-  case GAMEPAD_TRANSPORT_NESBUS:
-  case GAMEPAD_TRANSPORT_JOYBUS64:
-  case GAMEPAD_TRANSPORT_JOYBUSGC:
-    return GAMEPAD_METHOD_WIRED;
-
-  default:
-    return GAMEPAD_METHOD_AUTO;
-  }
-}
-
 // Replace with proper boot function later TODO
 bool _core_format_init(void)
 {
-  const boot_info_s *boot = boot_get_info();
-
-  _hoja_status.reportformat = boot->reportformat;
-  _hoja_status.gamepad_method = _hoja_transport_to_method(boot->transport);
-  _hoja_status.gamepad_color = _reportformat_color_get(boot->reportformat);
-
-  hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED); // Pending
-  hoja_set_ss_notif(_hoja_status.gamepad_color);
-
   // Reload our remap
   mapper_init();
   rgb_init(-1, -1);
@@ -291,11 +182,12 @@ bool _core_format_init(void)
   // Reload stick config
   stick_scaling_init();
 
-  if (!core_init(boot->reportformat, boot->transport, boot->pairing, boot->flags))
+  if (!core_init())
   {
-    hoja_set_notification_status(COLOR_ORANGE);
+    rgb_set_pulsing(COLOR_ORANGE);
     return false;
   }
+  rgb_init(-1, -1);
 
   return true;
 }
@@ -367,11 +259,13 @@ static task_s _task_watchdog = {
   .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
 };
 
-void _hoja_init_core_tasks(core_reportformat_t format)
+void _hoja_init_core_tasks(void)
 {
   tasks_reset();
 
-  switch(format)
+  const boot_info_s *boot = boot_get_info();
+
+  switch(boot->reportformat)
   {
     default:
     tasks_register(&_task_haptics);
@@ -410,12 +304,10 @@ void _hoja_task_1()
 {
   static uint64_t c1_timestamp = 0;
 
-  const boot_info_s *boot = boot_get_info();
-
   // init core on core 1
   _core_format_init();
 
-  _hoja_init_core_tasks(boot->reportformat);
+  _hoja_init_core_tasks();
 
   for (;;)
   {
@@ -467,16 +359,12 @@ bool _system_requirements_init()
 bool _system_devices_init(void)
 {
   boot_init();
-  
-  const boot_info_s *boot = boot_get_info();
 
   battery_init();
   fuelgauge_init();
   sysmon_init();
   haptics_init();
 
-  // Input profile + gamepad mode must be ready before the first RGB fade.
-  _hoja_status.reportformat = boot->reportformat;
   mapper_init();
   rgb_init(-1, -1);
   return true;

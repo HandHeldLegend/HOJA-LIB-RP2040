@@ -296,16 +296,6 @@ void cb_hoja_read_joystick(uint16_t *input);
 void cb_hoja_read_input(mapper_input_s *input);
 void cb_hoja_init();
 
-void hoja_set_debug_data(uint8_t data);
-
-void hoja_set_player_number(uint8_t number);
-void hoja_set_connected_status(connection_status_t status);
-void hoja_set_notification_status(rgb_s color);
-void hoja_set_ss_notif(rgb_s color);
-void hoja_clr_ss_notif();
-
-hoja_status_s hoja_get_status();
-
 void hoja_restart();
 void hoja_shutdown();
 void hoja_deinit(callback_t cb);

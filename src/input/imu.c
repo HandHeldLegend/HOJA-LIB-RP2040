@@ -191,7 +191,7 @@ uint8_t _command = 0;
 
 void _imu_calibrate_stop()
 {
-  hoja_set_notification_status(COLOR_BLACK);
+  rgb_clear_pulsing();
 
   if (_calibrate_done_cb != NULL)
   {
@@ -270,7 +270,7 @@ void _imu_calibrate_function(uint64_t timestamp)
 
 void _imu_calibrate_start()
 {
-  hoja_set_notification_status(COLOR_YELLOW);
+  rgb_set_pulsing(COLOR_YELLOW);
   _imu_calibrate_cycles_remaining = IMU_CALIBRATE_CYCLES;
 }
 

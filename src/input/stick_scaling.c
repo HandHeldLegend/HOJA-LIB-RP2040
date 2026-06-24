@@ -423,13 +423,13 @@ void stick_scaling_calibrate_start(bool start)
         _zero_distances(analog_config->joy_config_l);
         _zero_distances(analog_config->joy_config_r);
 
-        hoja_set_notification_status(COLOR_RED);
+        rgb_set_pulsing(COLOR_RED);
 
         _sticks_calibrating = true;
     }
     else if (_sticks_calibrating && !start)
     {
-        hoja_set_notification_status(COLOR_BLACK);
+        rgb_clear_pulsing();
         _sticks_calibrating = false;
 
         // Copy to working mem
@@ -534,7 +534,7 @@ void stick_scaling_process(analog_data_s *in, analog_data_s *out)
 
         if (left_done && right_done)
         {
-            hoja_set_notification_status(COLOR_CYAN);
+            rgb_set_pulsing(COLOR_CYAN);
         }
     }
     else
@@ -580,7 +580,7 @@ bool stick_scaling_init()
     _r_count= _joy_validation_sort_and_count(analog_config->joy_config_r);
 
     // Copy to working config set unless we are in a gamecube mode
-    switch(hoja_get_status().reportformat)
+    switch(core_current_params()->core_report_format)
     {
         case CORE_REPORTFORMAT_GAMECUBE:
         case CORE_REPORTFORMAT_SLIPPI:

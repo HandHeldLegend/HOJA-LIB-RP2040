@@ -17,9 +17,27 @@
 #include "devices/haptics.h"
 #include "utilities/settings.h"
 
-void _transport_playerled(uint8_t led)
+typedef struct
 {
-    hoja_set_player_number(led);
+    uint8_t player_number;
+    transport_connection_status_t connection;
+} transport_status_s;
+
+static transport_status_s _tp_stat_sm = {.player_number = 0, .connection = TP_CONNSTAT_UNDEFINED};
+
+transport_connection_status_t transport_current_connection(void)
+{
+    return _tp_stat_sm.connection;
+}
+
+uint8_t transport_current_player_number(void)
+{
+    return _tp_stat_sm.player_number;
+}
+
+void _transport_player_set(uint8_t player_number)
+{
+    _tp_stat_sm.player_number = player_number;
 }
 
 void _transport_connectionchange(uint8_t status)
@@ -27,15 +45,15 @@ void _transport_connectionchange(uint8_t status)
     switch(status)
     {
         case TP_CONNECTION_NONE:
-        hoja_set_connected_status(CONNECTION_STATUS_DOWN);
+        _tp_stat_sm.connection = TP_CONNSTAT_IDLE;
         break;
 
         case TP_CONNECTION_CONNECTED:
-        hoja_set_connected_status(CONNECTION_STATUS_CONNECTED);
+        _tp_stat_sm.connection = TP_CONNSTAT_CONNECTED;
         break;
 
         case TP_CONNECTION_DISCONNECTED:
-        hoja_set_connected_status(CONNECTION_STATUS_DISCONNECTED);
+        _tp_stat_sm.connection = TP_CONNSTAT_IDLE;
         break;
     }
 }
@@ -73,7 +91,7 @@ void transport_evt_cb(tp_evt_s evt)
     switch(evt_name)
     {
         case TP_EVT_PLAYERLED:
-        _transport_playerled(evt.evt_playernumber.player_number);
+        _transport_player_set(evt.evt_playernumber.player_number);
         break;
 
         case TP_EVT_CONNECTIONCHANGE:

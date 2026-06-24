@@ -25,9 +25,14 @@ rgb_s   rgb_colors_safe[RGB_MAX_GROUPS] = {0};
 uint8_t rgb_group_count = 0;
 
 // Perform a fade animation to black, then call our callback
-void rgb_deinit(callback_t cb)
+bool rgb_deinit(callback_t cb)
 {
+    #if defined(HOJA_RGB_DRIVER)
     anm_handler_shutdown(cb);
+    return true;
+    #else
+    return false;
+    #endif
 }
 
 const rgb_s _rainbow[] = COLORS_RAINBOW; 
@@ -43,11 +48,50 @@ float _exponentialRamp(float input) {
 }
 #endif
 
-void rgb_set_idle(bool enable)
+static void _rgb_clear_notification(void)
 {
-    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-    anm_set_idle_enable(enable);
-    #endif
+
+}
+
+static bool _pulsing_color_set = false;
+static rgb_s _pulsing_color = COLOR_BLACK;
+static bool _notif_color_set = false;
+static rgb_s _notif_color = COLOR_BLACK;
+
+bool rgb_get_pulsing(rgb_s *out)
+{
+    *out = _pulsing_color;
+    return _pulsing_color_set;
+}
+
+void rgb_set_pulsing(rgb_s color)
+{
+    _pulsing_color = color;
+    _pulsing_color_set = true;
+}
+
+void rgb_clear_pulsing(void)
+{
+    _pulsing_color_set = false;
+    _pulsing_color = COLOR_BLACK;
+}
+
+bool rgb_get_notification(rgb_s *out)
+{
+    *out = _notif_color;
+    return _notif_color_set;
+}
+
+void rgb_send_notification(rgb_s color)
+{
+    _notif_color = color;
+    _notif_color_set = true;
+}
+
+void rgb_clear_notification(void)
+{
+    _notif_color_set = false;
+    _notif_color = COLOR_BLACK;
 }
 
 static bool _rgb_transport_is_wireless(gamepad_transport_t transport)
@@ -60,6 +104,13 @@ static uint16_t _rgb_cap_brightness_wireless(uint16_t brightness)
 {
     const uint16_t cap = (uint16_t)(RGB_BRIGHTNESS_MAX / 3);
     return brightness > cap ? cap : brightness;
+}
+
+void rgb_set_idle(bool enable)
+{
+    #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    anm_set_idle_enable(enable);
+    #endif
 }
 
 void rgb_init(int mode, int brightness)

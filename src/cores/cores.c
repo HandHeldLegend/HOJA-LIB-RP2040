@@ -19,6 +19,7 @@
 
 #include "devices/battery.h"
 #include "utilities/settings.h"
+#include "utilities/boot.h"
 
 const core_params_s _core_params_default = {
     .core_report_format = CORE_REPORTFORMAT_UNDEFINED,
@@ -47,6 +48,36 @@ core_params_s _core_params = {
 
     .hid_device = NULL,
 };
+
+rgb_s core_current_color_get(void)
+{
+  switch (_core_params.core_report_format)
+  {
+  case CORE_REPORTFORMAT_SWPRO:
+    return COLOR_WHITE;
+
+  case CORE_REPORTFORMAT_SINPUT:
+    return COLOR_BLUE;
+
+  case CORE_REPORTFORMAT_XINPUT:
+    return COLOR_GREEN;
+
+  case CORE_REPORTFORMAT_GAMECUBE:
+    return COLOR_PURPLE;
+
+  case CORE_REPORTFORMAT_SLIPPI:
+    return COLOR_CYAN;
+
+  case CORE_REPORTFORMAT_N64:
+    return COLOR_YELLOW;
+
+  case CORE_REPORTFORMAT_SNES:
+    return COLOR_RED;
+
+  default:
+    return COLOR_ORANGE;
+  }
+}
 
 // Runs auto-detect procedures
 // and will call the callback with the resulting gamepad
@@ -83,13 +114,13 @@ core_params_s* core_current_params()
     return &_core_params;
 }
 
-bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool pair, uint16_t boot_flags)
+bool core_init(void)
 {
-    _core_params.transport_type = transport;
-    _core_params.core_boot_flags = boot_flags;
+    const boot_info_s *info = boot_get_info();
 
-    if (pair)
-        _core_params.core_boot_flags |= COREBOOT_FLAG_PAIR;
+    _core_params.transport_type     = info->transport;
+    _core_params.core_boot_flags    = info->flags;
+    _core_params.core_report_format = info->reportformat;
 
     // Clear host mac just in case first
     memset(_core_params.transport_host_mac, 0, 6);
@@ -97,7 +128,7 @@ bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool p
     // Copy in device MAC
     memcpy(_core_params.transport_dev_mac, gamepad_config->gamepad_mac_address, 6);
 
-    switch(transport)
+    switch(_core_params.transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
         battery_set_charge_rate(200);
@@ -120,7 +151,7 @@ bool core_init(core_reportformat_t format, gamepad_transport_t transport, bool p
         return false;
     }
 
-    switch(format)
+    switch(_core_params.core_report_format)
     {
         case CORE_REPORTFORMAT_SWPRO:
         return core_switch_init(&_core_params);

@@ -428,8 +428,6 @@ static void boot_apply_persisted_memory(boot_info_s *info)
     boot_get_memory(&boot_memory);
     boot_clear_memory();
 
-    hoja_set_debug_data(boot_memory.reserved_2);
-
     if (boot_memory.val == 0)
         return;
 

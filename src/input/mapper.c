@@ -344,7 +344,7 @@ void mapper_webusb_remap_preview_end(void)
         return;
 
     _webusb_remap_preview = false;
-    _set_raw_output_profile(hoja_get_status().reportformat);
+    _set_raw_output_profile(core_current_params()->core_report_format);
     anm_authentic_refresh();
 }
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
@@ -798,6 +798,8 @@ void mapper_init()
 {
     _mapper_refresh_default_codes();
 
+    core_reportformat_t report_format = core_current_params()->core_report_format;
+
     // Debug always set to defaults on reboot
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
     {
@@ -813,14 +815,14 @@ void mapper_init()
     static bool boot_init = false;
     if(!boot_init)
     {
-        _set_raw_output_profile(hoja_get_status().reportformat);
+        _set_raw_output_profile(report_format);
     }
         
     boot_init = true;
 
     _minimum_d2a_value = 0;
 
-    switch(hoja_get_status().reportformat)
+    switch(report_format)
     {
         default:
         case CORE_REPORTFORMAT_SWPRO:
@@ -876,7 +878,7 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     if(_webusb_remap_preview && _translated_op.input_slots)
         return _translated_op.input_slots;
 
-    switch(hoja_get_status().reportformat)
+    switch(core_current_params()->core_report_format)
     {
         case CORE_REPORTFORMAT_SWPRO:
             return input_config->input_profile_switch;
@@ -907,7 +909,7 @@ core_reportformat_t mapper_get_palette_format(void)
     if(_webusb_remap_preview)
         return _webusb_remap_format;
 
-    return hoja_get_status().reportformat;
+    return core_current_params()->core_report_format;
 }
 
 mapper_input_s mapper_get_translated_input()

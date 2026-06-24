@@ -238,7 +238,7 @@ bool _joybus_gc_hal_init()
   // Dynamically grab a PIO block + state machine with room for the program.
   if(!pio_claim_free_sm_and_add_program(&joybus_program, &_gc_pio, &_gc_sm, &_gamecube_offset))
   {
-    hoja_set_notification_status(COLOR_RED);
+    rgb_set_pulsing(COLOR_RED);
     return false;
   }
     

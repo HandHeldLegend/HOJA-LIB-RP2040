@@ -145,7 +145,7 @@ void sysmon_set_critical_shutdown(void)
     if(_shutdown_timeout_initiated) return;
 
     rgb_set_idle(true);
-    hoja_set_notification_status(COLOR_RED);
+    rgb_set_pulsing(COLOR_RED);
 
     _shutdown_timeout_initiated = true;
     _shutdown_timeout_reset = 1;

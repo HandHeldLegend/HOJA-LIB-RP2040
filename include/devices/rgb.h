@@ -77,8 +77,16 @@ extern rgb_s   rgb_colors_safe[RGB_MAX_GROUPS];
 extern uint8_t rgb_group_count;
 #endif
 
+bool rgb_get_pulsing(rgb_s *out);
+void rgb_set_pulsing(rgb_s color);
+void rgb_clear_pulsing(void);
+
+bool rgb_get_notification(rgb_s *out);
+void rgb_send_notification(rgb_s color);
+void rgb_clear_notification(void);
+
 void rgb_set_idle(bool enable); 
-void rgb_deinit(callback_t cb);
+bool rgb_deinit(callback_t cb);
 void rgb_init(int mode, int brightness);
 void rgb_task(uint64_t timestamp);
 
