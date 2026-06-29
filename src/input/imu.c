@@ -14,6 +14,7 @@
 
 #include "utilities/settings.h"
 #include "utilities/crosscore_utils.h"
+#include "devices/rgb.h"
 
 #include "ns_lib_motion.h"
 

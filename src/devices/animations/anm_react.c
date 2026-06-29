@@ -159,12 +159,12 @@ bool anm_react_handler(rgb_s* output)
     mapper_input_s input = mapper_get_translated_input();
     const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
-    // Walk the board's reactive slots: each maps an input code to the group it
+    // Walk the board's key_mappings: each maps an input code to the group it
     // illuminates.
-    for(int s = 0; s < rcfg->reactive_count && s < RGB_MAX_REACTIVE_SLOTS; s++)
+    for(int s = 0; s < rcfg->key_mapping_count && s < RGB_MAX_KEY_MAPPINGS; s++)
     {
-        mapper_input_code_t i = rcfg->reactive[s].input;
-        uint8_t group = rcfg->reactive[s].group;
+        mapper_input_code_t i = rcfg->key_mappings[s].input;
+        uint8_t group = rcfg->key_mappings[s].group;
 
         if(i < 0 || i >= MAPPER_INPUT_COUNT)
             continue;

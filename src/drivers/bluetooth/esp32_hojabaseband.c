@@ -23,7 +23,8 @@
 
 #include "transport/transport_bt.h"
 
-#include "cores/core_switch.h"
+#include "ns_lib_haptics.h"
+#include "sinput_lib.h"
 
 #include "input/mapper.h"
 #include "input/imu.h"
@@ -371,7 +372,9 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SWITCH:
     {
-        //core_switch_ns_feed_hd_rumble_wire4(&(status.data[0]));
+        // ESP32 forwards the 4-byte Switch HD-rumble word; NS-LIB decodes it and
+        // dispatches through ns_api_hook_set_haptic_packet_raw -> haptics_set_ns_hd.
+        ns_haptics_rumble_translate(&(status.data[0]));
     }
     break;
 
@@ -393,7 +396,14 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SINPUT:
     {
-        //sinput_cmd_haptics(&(status.data[0]));
+        // ESP32 forwards the SInput haptic payload (type byte + stereo data).
+        // Wrap it in a minimal output report so sinput_api_output_tunnel routes
+        // to sinput_api_hook_set_haptics / set_rumble.
+        uint8_t out_report[19];
+        out_report[0] = SINPUT_OUTPUT_ID_CMDDAT;
+        out_report[1] = 0x01; // SINPUT_COMMAND_HAPTIC
+        memcpy(&out_report[2], status.data, sizeof(out_report) - 2);
+        sinput_api_output_tunnel(out_report, sizeof(out_report));
     }
     break;
     }
@@ -441,6 +451,17 @@ uint32_t esp32hoja_get_fwversion()
 void transport_bt_stop()
 {
 
+}
+
+// ESP32 baseband always expects live gyro/accel in the standard input packet.
+// There is no separate I2C motion-enable command — turn IMU reads on here.
+static void _esp32_bt_enable_imu(void)
+{
+    if (imu_driver_channel_count() == 0)
+        return;
+
+    imu_config->imu_disabled = 0;
+    imu_set_read_mode(IMU_MODE_STANDARD);
 }
 
 bool transport_bt_init(core_params_s *params)
@@ -559,7 +580,9 @@ bool transport_bt_init(core_params_s *params)
     {
         return false;
     }
-    else return true;
+
+    _esp32_bt_enable_imu();
+    return true;
 }
 
 void transport_bt_task(uint64_t timestamp)

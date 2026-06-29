@@ -98,7 +98,7 @@
     #define RGB_MAX_LEDS_PER_GROUP 4
     #define RGB_MAX_GROUP_NAME_LEN 8
     #define RGB_MAX_GROUPS 32           // Hard ceiling on RGB groups
-    #define RGB_MAX_REACTIVE_SLOTS 32   // Hard ceiling on reactive input->group slots
+    #define RGB_MAX_KEY_MAPPINGS 32   // Hard ceiling on input->group key mapping slots
     #define RGB_PLAYER_GROUP_SIZE 4     // Player-number indicator groups are always 4 LEDs
 
     // Drivers for haptics

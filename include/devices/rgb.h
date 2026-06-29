@@ -28,17 +28,16 @@ typedef struct
     int8_t leds[RGB_MAX_LEDS_PER_GROUP];      // physical LED indices (-1 = unused slot)
 } rgb_group_cfg_s;
 
-// One reactive-mode slot: when the given input is driven, it lights the LEDs of
-// the referenced group (0-based index into groups[]).
+// Maps a physical input code to an RGB group index (for Authentic + React modes).
 typedef struct
 {
     mapper_input_code_t input;  // driving input (INPUT_CODE_*)
     uint8_t             group;  // group index this input illuminates
-} rgb_reactive_slot_s;
+} rgb_key_mapping_s;
 
 // Board RGB layout + indicator configuration. Lives in hoja_config_s.rgb.
 // groups[] holds up to RGB_MAX_GROUPS entries; notification / player indicators
-// and reactive mode reference group indices into this table.
+// and key_mappings[] reference group indices into this table.
 typedef struct
 {
     rgb_group_cfg_s groups[RGB_MAX_GROUPS];
@@ -48,8 +47,8 @@ typedef struct
 
     int8_t  player_group_index;         // group used for the player indicator (-1 = none, always 4 LEDs)
 
-    uint8_t             reactive_count;                          // valid entries in reactive[]
-    rgb_reactive_slot_s reactive[RGB_MAX_REACTIVE_SLOTS];        // input->group reactive map
+    uint8_t            key_mapping_count;                       // valid entries in key_mappings[]
+    rgb_key_mapping_s  key_mappings[RGB_MAX_KEY_MAPPINGS];      // input code -> RGB group
 } hoja_rgb_cfg_s;
 
 static inline bool rgb_group_cfg_enabled(const rgb_group_cfg_s *group)

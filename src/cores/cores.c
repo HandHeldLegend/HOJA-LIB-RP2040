@@ -111,7 +111,14 @@ void core_report_tunnel_cb(const uint8_t *data, uint16_t len)
 
 core_reportformat_t core_current_reportformat(void)
 {
-    return _core_params.core_report_format;
+    if (_core_params.core_report_format != CORE_REPORTFORMAT_UNDEFINED)
+        return _core_params.core_report_format;
+
+    const boot_info_s *boot = boot_get_info();
+    if (boot && boot->reportformat != CORE_REPORTFORMAT_UNDEFINED)
+        return boot->reportformat;
+
+    return CORE_REPORTFORMAT_UNDEFINED;
 }
 
 core_params_s* core_current_params()

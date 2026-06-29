@@ -11,6 +11,7 @@
 #include "hal/joybus_gc_hal.h"
 #include "pico/stdlib.h"
 #include "hoja.h"
+#include "devices/rgb.h"
 #include "hoja_bsp.h"
 #include "hardware/pio.h"
 #include "generated/joybus.pio.h"

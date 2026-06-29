@@ -302,7 +302,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             break;
 
         case HCI_EVENT_LINK_KEY_NOTIFICATION:
-            if(core_current_reportformat == CORE_REPORTFORMAT_SWPRO)
+            if(core_current_reportformat() == CORE_REPORTFORMAT_SWPRO)
             {
                 bd_addr_t addr;
                 hci_event_link_key_request_get_bd_addr(packet, addr);

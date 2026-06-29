@@ -83,11 +83,11 @@ static void _resolve_group_colors(void)
         }
 
         mapper_input_code_t physical = INPUT_CODE_UNUSED;
-        for(int s = 0; s < rgb_cfg->reactive_count && s < RGB_MAX_REACTIVE_SLOTS; s++)
+        for(int s = 0; s < rgb_cfg->key_mapping_count && s < RGB_MAX_KEY_MAPPINGS; s++)
         {
-            if(rgb_cfg->reactive[s].group == (uint8_t)g)
+            if(rgb_cfg->key_mappings[s].group == (uint8_t)g)
             {
-                physical = rgb_cfg->reactive[s].input;
+                physical = rgb_cfg->key_mappings[s].input;
                 break;
             }
         }

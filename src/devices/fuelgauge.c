@@ -75,7 +75,10 @@ fuelgauge_result_t fuelgauge_init(void)
 
     // No fuel gauge driver compiled in for this board.
     if(!_fuelgauge_present())
+    {
+        fuelgauge_update_status();
         return FUELGAUGE_RESULT_NO_DRIVER;
+    }
 
     const hoja_config_s *config = hoja_config_get();
     uint16_t capacity_mah = config ? config->battery_capacity_mah : 0;

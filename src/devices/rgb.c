@@ -46,6 +46,12 @@ float _exponentialRamp(float input) {
     const float exponent = 1.5f; // Higher values increase steepness
     return powf(input, exponent);
 }
+#else
+bool rgb_deinit(callback_t cb)
+{
+    (void)cb;
+    return false;
+}
 #endif
 
 static void _rgb_clear_notification(void)

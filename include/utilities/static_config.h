@@ -48,7 +48,7 @@ typedef struct
 {
     uint8_t input_type; // 0=unused, 1=digital, 2=hover, 3=joystick
     uint8_t input_name[8]; // Char name of input
-    uint8_t rgb_group; // Which RGB group is correlated with this input for reactive mode (Results are -1, 0 is unused)
+    uint8_t rgb_group; // Which RGB group is correlated with this input via key_mappings (Results are -1, 0 is unused)
 } inputInfoSlot_s;
 
 #define INPUTINFOSLOT_SIZE sizeof(inputInfoSlot_s)

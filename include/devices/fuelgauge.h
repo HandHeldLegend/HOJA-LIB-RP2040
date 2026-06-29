@@ -2,6 +2,7 @@
 #define DEVICES_FUELGAUGE_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct
 {
@@ -43,6 +44,12 @@ typedef enum
 bool               fuelgauge_driver_init(uint16_t capacity_mah);
 fuelgauge_status_s fuelgauge_driver_get_status(void);
 const char        *fuelgauge_driver_part_code(void);
+
+// True when a board fuel gauge driver is compiled in for this target.
+static inline bool fuelgauge_has_driver(void)
+{
+    return fuelgauge_driver_part_code() != NULL;
+}
 
 void fuelgauge_update_status(void);
 void fuelgauge_get_status(fuelgauge_status_s *out);

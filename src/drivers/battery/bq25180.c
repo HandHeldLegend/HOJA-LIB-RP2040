@@ -259,21 +259,16 @@ bool battery_driver_set_ship_mode(void)
     uint8_t i2c = _bus();
 
     const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
-    int ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
 
-    if(ret == PICO_ERROR_GENERIC)
+    uint8_t reps = 100;
+    int ret = -1;
+
+    while(reps-- || ret < 0)
     {
-        //hoja_shutdown_instant();
-    }
-    else if (ret== PICO_ERROR_TIMEOUT)
-    {
-        //hoja_shutdown_instant();
-    }
-    else if (ret==2)
-    {
+        ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
     }
 
-    return (ret==2);
+    return true;
 }
 
 bool battery_driver_init(void)

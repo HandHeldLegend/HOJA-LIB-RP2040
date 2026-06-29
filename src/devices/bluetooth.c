@@ -12,7 +12,7 @@
 #include "hoja.h"
 
 #include "board_config.h"
-#include "cores/core_switch.h"
+#include "ns_lib_haptics.h"
 
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
@@ -114,7 +114,7 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
 
         case BTCB_HD_RUMBLE:
-            core_switch_ns_feed_hd_rumble_wire4(&(msg->data[0]));
+            ns_haptics_rumble_translate(&(msg->data[0]));
         break;
     }
 }

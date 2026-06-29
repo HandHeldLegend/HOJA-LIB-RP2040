@@ -91,7 +91,7 @@
 
 // ---- RGB driver + layout config, shaped by the HOJA_RGB_DRIVER gate ----
 // rgb_driver carries the per-driver line config (WS2812 data pin); the rgb
-// layout/indicator/reactive config (hoja_rgb_cfg_s) is driver-agnostic and
+// layout/indicator/key-mapping config (hoja_rgb_cfg_s) is driver-agnostic and
 // lives in devices/rgb.h.
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER != 0)
   #if (HOJA_RGB_DRIVER == RGB_DRIVER_HAL)
@@ -269,7 +269,7 @@ typedef struct
 #if defined(HOJA_RGB_CFG_PRESENT)
     // RGB driver line config (WS2812 data pin). Type chosen by HOJA_RGB_DRIVER.
     hoja_rgb_driver_cfg_t rgb_driver;
-    // RGB group layout, notification/player indicators, and reactive map.
+    // RGB group layout, notification/player indicators, and input->group key_mappings.
     hoja_rgb_cfg_s        rgb;
 #endif
 

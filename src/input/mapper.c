@@ -14,6 +14,7 @@
 #include "utilities/crosscore_utils.h"
 
 #include "hoja.h"
+#include "cores/cores.h"
 
 #include "devices/animations/anm_authentic.h"
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
@@ -344,7 +345,7 @@ void mapper_webusb_remap_preview_end(void)
         return;
 
     _webusb_remap_preview = false;
-    _set_raw_output_profile(core_current_params()->core_report_format);
+    _set_raw_output_profile(core_current_reportformat());
     anm_authentic_refresh();
 }
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
@@ -798,7 +799,7 @@ void mapper_init()
 {
     _mapper_refresh_default_codes();
 
-    core_reportformat_t report_format = core_current_params()->core_report_format;
+    const core_reportformat_t report_format = core_current_reportformat();
 
     // Debug always set to defaults on reboot
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
@@ -812,13 +813,7 @@ void mapper_init()
         _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
     }
 
-    static bool boot_init = false;
-    if(!boot_init)
-    {
-        _set_raw_output_profile(report_format);
-    }
-        
-    boot_init = true;
+    _set_raw_output_profile(report_format);
 
     _minimum_d2a_value = 0;
 
@@ -878,7 +873,7 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     if(_webusb_remap_preview && _translated_op.input_slots)
         return _translated_op.input_slots;
 
-    switch(core_current_params()->core_report_format)
+    switch(core_current_reportformat())
     {
         case CORE_REPORTFORMAT_SWPRO:
             return input_config->input_profile_switch;
@@ -909,7 +904,7 @@ core_reportformat_t mapper_get_palette_format(void)
     if(_webusb_remap_preview)
         return _webusb_remap_format;
 
-    return core_current_params()->core_report_format;
+    return core_current_reportformat();
 }
 
 mapper_input_s mapper_get_translated_input()

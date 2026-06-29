@@ -95,14 +95,23 @@ void sinput_api_hook_set_joystick_rgb(uint32_t rgb_value)
 
 bool sinput_api_hook_get_power(sinput_power_s *status)
 {
-    // Access all current data
+    if (!status)
+        return false;
+
+    // USB-only / wired boards with no PMIC or fuel gauge: always report full + plugged.
+    if (!battery_has_driver() && !fuelgauge_has_driver())
+    {
+        status->connection_status = SINPUT_CONNSTAT_PLUGGED_CHARGED;
+        status->charge_percent = 100;
+        return true;
+    }
+
     battery_status_s bstat = {0};
     battery_get_status(&bstat);
 
     fuelgauge_status_s fstat = {0};
     fuelgauge_get_status(&fstat);
 
-    // Write battery/power info
     if(bstat.connected)
     {
         if(bstat.charging)

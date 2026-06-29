@@ -57,6 +57,7 @@ typedef struct
 } core_params_s;
 
 
+// Active report format. Falls back to boot_get_info() until core_init() runs.
 core_reportformat_t core_current_reportformat(void);
 core_params_s* core_current_params();
 bool core_is_mac_blank(uint8_t mac[6]);

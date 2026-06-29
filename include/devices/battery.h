@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct 
 {
@@ -46,6 +47,12 @@ battery_status_s battery_driver_get_status(void);
 bool             battery_driver_set_charge_rate(uint16_t rate_ma);
 bool             battery_driver_set_ship_mode(void);
 const char      *battery_driver_part_code(void);
+
+// True when a board battery PMIC driver is compiled in for this target.
+static inline bool battery_has_driver(void)
+{
+    return battery_driver_part_code() != NULL;
+}
 
 void battery_update_status(void);
 void battery_get_status(battery_status_s *out); 

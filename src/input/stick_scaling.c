@@ -10,6 +10,7 @@
 
 #include "hal/mutex_hal.h"
 #include "utilities/settings.h"
+#include "devices/rgb.h"
 
 #include "settings_shared_types.h"
 #include <math.h>
