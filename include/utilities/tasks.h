@@ -26,6 +26,7 @@ typedef struct
     uint64_t last_run_us; // Last time this operation was run
     uint64_t optional_interval_us; // Interval for optional tasks
     uint8_t  type_mask; // task_type_t to form the mask
+    uint32_t required_done_flag; // Bit set in tasks_sm when this required task completes a cycle
     task_fn_t fn;
 } task_s;
 
@@ -40,6 +41,9 @@ void tasks_mark_sent_isr(void);
 void tasks_mark_sent(void);
 
 void tasks_run(void);
+
+// True once every registered required task has run since the last tasks_mark_sent().
+bool tasks_get_required_done(void);
 
 #ifdef __cplusplus
 }

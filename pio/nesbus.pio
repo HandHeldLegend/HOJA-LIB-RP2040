@@ -1,0 +1,111 @@
+;
+; Copyright (c) Hand Held Legend, LLC 2026
+;
+
+; Emulation of a 4021 (x2) shift register
+.program nesbus_pio
+
+.wrap_target
+
+PUBLIC data_entry:
+  mov x, ~null  ; Make X FIFO safe
+  pull noblock  ; Push TX FIFO to OSR if it exists, otherwise it will copy X to OSR
+  mov x, OSR    ; Copy OSR contents to X
+  set y, 31     ; Reset Y scratch
+  out pins, 1
+
+data_output:  
+  ; Wait for clock to go low
+  wait 0 pin, 0
+  ; Wait for clock to go high
+  wait 1 pin, 0
+
+  ; Put first bit 
+  out pins, 1
+
+  mov isr, y   ; Set ISR to Y scratch
+  push noblock ; Do not block when pushing to FIFO
+
+  jmp y-- data_output
+  jmp data_output
+
+PUBLIC latch:
+  ; Wait for latch to be low
+  wait 0 pin, 0
+  ; Wait for latch to be high
+  wait 1 pin, 0
+
+  ; Set IRQ immediately
+  irq nowait 0
+  irq nowait 1
+
+  ; Return back to the start
+  jmp latch
+.wrap
+
+% c-sdk {
+#include "hardware/irq.h"
+
+typedef struct
+{
+    PIO pio;
+    uint sm_data;
+    uint offset_data;
+    uint jump_data;
+    uint sm_latch;
+    uint offset_latch;
+    uint running;
+} nesbus_pio_sm_s;
+
+static void nesbus_pio_init(nesbus_pio_sm_s *nsm, irq_handler_t irq_handler, uint latch, uint data, uint clock) {
+    uint offset = 0;
+    pio_claim_free_sm_and_add_program(&nesbus_pio_program, &nsm->pio, &nsm->sm_data, &offset);
+
+    pio_sm_config data_c  = nesbus_pio_program_get_default_config(offset);
+    pio_sm_config latch_c = nesbus_pio_program_get_default_config(offset);
+
+    nsm->offset_data = offset;
+    nsm->jump_data = pio_encode_jmp(offset + nesbus_pio_offset_data_entry);
+
+    // Set the GPIO functions (connect PIO to the pad)
+    pio_gpio_init(nsm->pio, data);
+    pio_gpio_init(nsm->pio, latch);
+    pio_gpio_init(nsm->pio, clock);
+
+    // Claim latch SM
+    nsm->sm_latch = pio_claim_unused_sm(nsm->pio, true);
+
+    // Set up Latch SM config 
+    sm_config_set_in_pins(&latch_c, latch);
+    sm_config_set_clkdiv(&latch_c, 2);
+
+    pio_sm_init(nsm->pio, nsm->sm_latch, offset+nesbus_pio_offset_latch, &latch_c);
+    pio_sm_set_consecutive_pindirs(nsm->pio, nsm->sm_latch, latch, 1, false);
+    pio_sm_set_enabled(nsm->pio, nsm->sm_latch, true);
+
+    // Set up ISR 
+    uint irq_num = pio_get_irq_num(nsm->pio, 0);
+    pio_set_irq0_source_enabled(nsm->pio, pis_interrupt0, true);
+    irq_set_exclusive_handler(irq_num, irq_handler);
+    irq_set_priority(irq_num, 0);
+    irq_set_enabled(irq_num, true);
+
+    // Set up Data SM config
+    sm_config_set_out_pins(&data_c, data, 1);
+    sm_config_set_in_pins(&data_c, clock);
+
+    sm_config_set_clkdiv(&data_c, 2);
+    // MSB first: matches padding-high bitfield layout (A is first bit on the wire)
+    sm_config_set_out_shift(&data_c, false, false, 32);
+
+    
+    pio_sm_set_consecutive_pindirs(nsm->pio, nsm->sm_data, data, 1, true);
+    pio_sm_set_consecutive_pindirs(nsm->pio, nsm->sm_data, clock, 1, false);
+
+    pio_sm_init(nsm->pio, nsm->sm_data, offset, &data_c);
+    pio_sm_set_enabled(nsm->pio, nsm->sm_data, true);
+
+    nsm->running = 1;
+}
+
+%}

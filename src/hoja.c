@@ -265,6 +265,8 @@ void _hoja_init_core_tasks(void)
 
   const boot_info_s *boot = boot_get_info();
 
+  tasks_register(&_task_hover);
+
   switch(boot->reportformat)
   {
     default:
@@ -292,7 +294,7 @@ void _hoja_init_core_tasks(void)
   tasks_register(&_task_flash);
   tasks_register(&_task_idle);
   tasks_register(&_task_macros);
-  tasks_register(&_task_hover);
+  
   tasks_register(&_task_rgb);
   tasks_register(&_task_sysmon);
   tasks_register(&_task_watchdog);

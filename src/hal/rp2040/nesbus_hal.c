@@ -1,12 +1,14 @@
 #include "hal/nesbus_hal.h"
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
-#include "generated/nserial.pio.h"
+#include "generated/nesbus.pio.h"
 #include "input_shared_types.h"
 #include "hoja.h"
 
 #include "input/mapper.h"
 #include "transport/transport_nesbus.h"
+
+#include "utilities/crosscore_utils.h"
 
 #include "board_config.h"
 
@@ -14,6 +16,8 @@
 
 // PIO block + GPIO pins come from hoja_config_s.nesbus, resolved at init.
 #define PIO_IN_USE _nspi_pio
+
+
 
 typedef struct
 {
@@ -60,46 +64,36 @@ typedef struct
 } nes_hal_input_s;
 
 volatile nes_hal_input_s tmpnes  = {.value = 0};
-volatile snes_hal_input_s tmpsnes  = {.value = 0xFFFF0000};
+
+nesbus_pio_sm_s k_nesbus_sm = {0};
 
 #define INPUT_POLL_RATE 1000 // 1ms
 
-static bool _nspi_running;
-static uint _nspi_irq;
-static PIO  _nspi_pio;
-static uint _nspi_sm;       // data shift SM
-static uint _nspi_latch_sm; // latch-detect SM (same PIO + program)
-static uint _nspi_offset;
-static volatile uint32_t _nspi_buffer = 0xFFFFFFFF;
-static bool _nspi_snesdetected = false;
+HOJA_CROSSCORE_SNAPSHOT_TYPE(nesbus, uint32_t);
+hoja_snapshot_nesbus_t _ss_nesbus;
 
-volatile bool _nspi_clear = true;
+volatile uint32_t _nesbus_write_data = 0xFFFFFFFF;
 
+bool _nesbus_snesmode = false;
 
-static void _nspi_isr_handler(void)
+void _nesbus_set_inputbits(uint32_t bitcount)
 {
-    
-    if (pio_interrupt_get(PIO_IN_USE, 0))
-    {
-        pio_interrupt_clear(PIO_IN_USE, 0);
-        pio_sm_exec_wait_blocking(_nspi_pio, _nspi_sm, pio_encode_jmp(_nspi_offset + nserial_offset_dumpy));
+    if(bitcount<20 && bitcount > 0) _nesbus_snesmode |= true;
+}
 
-        uint32_t count = 31 - pio_sm_get_blocking(PIO_IN_USE, _nspi_sm);
-        if(count == 31) 
-        {
-            // Do nothing
-        }
-        else if(count >= 12) 
-        {
-            _nspi_snesdetected = true;
-        }
-        _nspi_clear = true;
-    }
+static void _nesbus_isr_handler(void)
+{
+  if (pio_interrupt_get(k_nesbus_sm.pio, 0))
+  {
+    pio_sm_set_enabled(k_nesbus_sm.pio, k_nesbus_sm.sm_data, false);
+    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.jump_data);
+    pio_sm_set_enabled(k_nesbus_sm.pio, k_nesbus_sm.sm_data, true);
+    pio_interrupt_clear(k_nesbus_sm.pio, 0);
+  }
 }
 
 void transport_nesbus_stop()
 {
-
 }
 
 bool transport_nesbus_init(core_params_s *params)
@@ -108,32 +102,7 @@ bool transport_nesbus_init(core_params_s *params)
 
     const hoja_nesbus_cfg_s *cfg = &hoja_config_get()->nesbus;
 
-    // Dynamically grab a PIO block + state machine (data shifter) with room for
-    // the program, then claim a second SM on the same block for latch detection.
-    if(!pio_claim_free_sm_and_add_program(&nserial_program, &_nspi_pio, &_nspi_sm, &_nspi_offset))
-        return false;
-
-    int latch_sm = pio_claim_unused_sm(_nspi_pio, false);
-    if(latch_sm < 0)
-    {
-        pio_remove_program_and_unclaim_sm(&nserial_program, _nspi_pio, _nspi_sm, _nspi_offset);
-        return false;
-    }
-    _nspi_latch_sm = (uint)latch_sm;
-
-    // IRQ line depends on which PIO block we were given.
-    _nspi_irq = (uint)pio_get_irq_num(_nspi_pio, 0);
-
-    pio_set_irq0_source_enabled(PIO_IN_USE, pis_interrupt0, true);
-    irq_set_exclusive_handler(_nspi_irq, _nspi_isr_handler);
-
-    nserial_program_init(_nspi_pio, _nspi_sm, _nspi_offset, cfg->data_pin, cfg->clock_pin);
-    nserial_program_latch_init(_nspi_pio, _nspi_latch_sm, _nspi_offset, cfg->latch_pin);
-
-    pio_sm_put_blocking(_nspi_pio, _nspi_sm, 0x00);
-
-    irq_set_enabled(_nspi_irq, true);
-    _nspi_running = true;
+    nesbus_pio_init(&k_nesbus_sm, _nesbus_isr_handler, cfg->latch_pin, cfg->data_pin, cfg->clock_pin);
     return true;
 }
 
@@ -142,7 +111,7 @@ void transport_nesbus_task(uint64_t timestamp)
     
     static interval_s interval = {0};
 
-    if(!_nspi_running)
+    if(!k_nesbus_sm.running)
     {
         return;
     }
@@ -153,6 +122,9 @@ void transport_nesbus_task(uint64_t timestamp)
         {
             mapper_input_s input = mapper_get_input();
 
+            static snes_hal_input_s tmpsnes  = {.value = 0xFFFFFFFF};
+            static volatile nes_hal_input_s tmpnes  = {.value = 0xFFFFFFFF};
+
             static uint32_t pack = 0;
 
             bool dpad[4] = {input.presses[SNES_CODE_DOWN], input.presses[SNES_CODE_RIGHT],
@@ -160,7 +132,7 @@ void transport_nesbus_task(uint64_t timestamp)
 
             dpad_translate_input(dpad);
 
-            if(_nspi_snesdetected)
+            if(_nesbus_snesmode)
             {
                 tmpsnes.a = !input.presses[SNES_CODE_A];
                 tmpsnes.b = !input.presses[SNES_CODE_B];
@@ -177,8 +149,7 @@ void transport_nesbus_task(uint64_t timestamp)
                 tmpsnes.dright = !dpad[1];
                 tmpsnes.dleft  = !dpad[2];
                 tmpsnes.dup    = !dpad[3];
-
-                pack = tmpsnes.value;
+                _nesbus_write_data = tmpsnes.value;
             }
             else
             {
@@ -192,17 +163,14 @@ void transport_nesbus_task(uint64_t timestamp)
                 tmpnes.dright = !dpad[1];
                 tmpnes.dleft  = !dpad[2];
                 tmpnes.dup    = !dpad[3];
-
-                pack = tmpnes.value;
+                _nesbus_write_data = tmpnes.value;
             }
-
-            if(_nspi_clear)
-            {
-                _nspi_buffer = pack;
-                pio_sm_drain_tx_fifo(_nspi_pio, _nspi_sm);
-                pio_sm_put_blocking(_nspi_pio, _nspi_sm, _nspi_buffer);
-                _nspi_clear = false;
-            }
+        }
+        
+        //pio_sm_drain_tx_fifo(k_nesbus_sm.pio, k_nesbus_sm.sm_data);
+        if(pio_sm_is_tx_fifo_empty(k_nesbus_sm.pio, k_nesbus_sm.sm_data))
+        {
+            pio_sm_put(k_nesbus_sm.pio, k_nesbus_sm.sm_data, _nesbus_write_data);
         }
     }
 }

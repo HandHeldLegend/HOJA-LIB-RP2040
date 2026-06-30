@@ -40,6 +40,9 @@ typedef struct
     uint64_t cycle_last_reset_us;
     uint64_t cycle_deadline_us; 
     uint64_t cycle_reset_deadline_us;
+
+    uint32_t required_flags_mask;
+    uint32_t required_flags_done;
 } tasks_sm_s; 
 
 static tasks_sm_s _tasks_sm;
@@ -68,6 +71,7 @@ static void _tasks_reset_sm(void)
     _tasks_sm.cycle_reset_deadline_us  = now_us + TASK_FORCE_RESET_US;
 
     _tasks_sm.required_completed = 0;
+    _tasks_sm.required_flags_done = 0;
 
     _tasks_phase = TASK_PHASE_REQUIRED;
 }
@@ -202,6 +206,8 @@ void tasks_register(task_s *task)
 
     if(task->type_mask & TASK_TYPE_REQUIRED)
     {
+        task->required_done_flag = (1u << _tasks_sm.required_count);
+        _tasks_sm.required_flags_mask |= task->required_done_flag;
         _task_try_add(_tasks_sm.required, &_tasks_sm.required_count, task);
     }
 
@@ -233,6 +239,17 @@ void tasks_mark_sent(void)
     _tasks_reset_sm();
 }
 
+bool tasks_get_required_done(void)
+{
+    if(_tasks_sm.required_flags_mask == 0)
+    {
+        return true;
+    }
+
+    return (_tasks_sm.required_flags_done & _tasks_sm.required_flags_mask)
+        == _tasks_sm.required_flags_mask;
+}
+
 void tasks_run(void)
 {
     task_s *t;
@@ -245,42 +262,34 @@ void tasks_run(void)
         _tasks_sent_isr_signal = false;
     }
 
+    if(_tasks_phase == TASK_PHASE_REQUIRED)
+    {
+        if(_tasks_sm.required_completed < _tasks_sm.required_count)
+        {
+            t = _tasks_sm.required[_tasks_sm.required_completed];
+            _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
+            _tasks_sm.required_flags_done |= t->required_done_flag;
+            _tasks_sm.required_completed++;
+        }
+        else
+        {
+            if (_tasks_sm.optional_count > 0)
+            {
+                uint64_t now_us = sys_hal_now_us();
+                _tasks_optional_run(_tasks_sm.optional, _tasks_sm.optional_count, now_us);
+            }
+            _tasks_phase = TASK_PHASE_RECURRING;
+        }
+    }
+
     _tasks_rapid_run();
 
-    switch(_tasks_phase)
+    if(_tasks_phase == TASK_PHASE_RECURRING)
     {
-        case TASK_PHASE_REQUIRED:
-        {
-            if(_tasks_sm.required_completed < _tasks_sm.required_count)
-            {
-                t = _tasks_sm.required[_tasks_sm.required_completed];
-                _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
-                _tasks_sm.required_completed++;
-                return;
-            }
-            else
-            {
-                // All required tasks done. Run the single most-overdue optional
-                // task (if any have exceeded their interval) before moving on.
-                if (_tasks_sm.optional_count > 0)
-                {
-                    uint64_t now_us = sys_hal_now_us();
-                    _tasks_optional_run(_tasks_sm.optional, _tasks_sm.optional_count, now_us);
-                }
-                _tasks_phase = TASK_PHASE_RECURRING;
-                return;
-            }
-        }
-        break;
+        if (_tasks_sm.recurring_count == 0) return;
 
-        case TASK_PHASE_RECURRING:
-        {
-            if (_tasks_sm.recurring_count == 0) break;
-
-            t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
-            if(!_tasks_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
-            _tasks_sm.recurring_completed = (_tasks_sm.recurring_completed + 1) % _tasks_sm.recurring_count;
-        }
-        break;
+        t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
+        if(!_tasks_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
+        _tasks_sm.recurring_completed = (_tasks_sm.recurring_completed + 1) % _tasks_sm.recurring_count;
     }
 }
