@@ -13,38 +13,35 @@
 // ---------- //
 
 #define nesbus_pio_wrap_target 0
-#define nesbus_pio_wrap 16
+#define nesbus_pio_wrap 13
 #define nesbus_pio_pio_version 0
 
 #define nesbus_pio_offset_data_entry 0u
-#define nesbus_pio_offset_latch 12u
+#define nesbus_pio_offset_latch 9u
 
 static const uint16_t nesbus_pio_program_instructions[] = {
             //     .wrap_target
     0xa02b, //  0: mov    x, ~null
     0x8080, //  1: pull   noblock
     0xa027, //  2: mov    x, osr
-    0xe05f, //  3: set    y, 31
-    0x6001, //  4: out    pins, 1
-    0x2020, //  5: wait   0 pin, 0
-    0x20a0, //  6: wait   1 pin, 0
-    0x6001, //  7: out    pins, 1
-    0xa0c2, //  8: mov    isr, y
-    0x8000, //  9: push   noblock
-    0x0085, // 10: jmp    y--, 5
-    0x0005, // 11: jmp    5
-    0x2020, // 12: wait   0 pin, 0
-    0x20a0, // 13: wait   1 pin, 0
-    0xc000, // 14: irq    nowait 0
-    0xc001, // 15: irq    nowait 1
-    0x000c, // 16: jmp    12
+    0x6001, //  3: out    pins, 1
+    0x2020, //  4: wait   0 pin, 0
+    0x20a0, //  5: wait   1 pin, 0
+    0x6001, //  6: out    pins, 1
+    0x0084, //  7: jmp    y--, 4
+    0x0004, //  8: jmp    4
+    0x2020, //  9: wait   0 pin, 0
+    0x20a0, // 10: wait   1 pin, 0
+    0xc000, // 11: irq    nowait 0
+    0xc001, // 12: irq    nowait 1
+    0x0009, // 13: jmp    9
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program nesbus_pio_program = {
     .instructions = nesbus_pio_program_instructions,
-    .length = 17,
+    .length = 14,
     .origin = -1,
     .pio_version = nesbus_pio_pio_version,
 #if PICO_PIO_VERSION > 0
@@ -64,7 +61,10 @@ typedef struct
     PIO pio;
     uint sm_data;
     uint offset_data;
-    uint jump_data;
+    uint jump_instr_data;
+    uint sety_instr_data;
+    uint movy_instr_data;
+    uint push_instr_data;
     uint sm_latch;
     uint offset_latch;
     uint running;
@@ -75,7 +75,10 @@ static void nesbus_pio_init(nesbus_pio_sm_s *nsm, irq_handler_t irq_handler, uin
     pio_sm_config data_c  = nesbus_pio_program_get_default_config(offset);
     pio_sm_config latch_c = nesbus_pio_program_get_default_config(offset);
     nsm->offset_data = offset;
-    nsm->jump_data = pio_encode_jmp(offset + nesbus_pio_offset_data_entry);
+    nsm->jump_instr_data = pio_encode_jmp(offset + nesbus_pio_offset_data_entry);
+    nsm->sety_instr_data = pio_encode_set(pio_y, 31);
+    nsm->movy_instr_data = pio_encode_mov(pio_isr, pio_y);
+    nsm->push_instr_data = pio_encode_push(false, true);
     // Set the GPIO functions (connect PIO to the pad)
     pio_gpio_init(nsm->pio, data);
     pio_gpio_init(nsm->pio, latch);

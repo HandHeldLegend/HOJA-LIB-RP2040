@@ -25,7 +25,8 @@ typedef struct
     {
         struct
         {
-            uint32_t padding : 20;
+            uint32_t padding : 16;
+            uint32_t blank : 4;
             uint32_t r   : 1;
             uint32_t l   : 1;
             uint32_t x   : 1;
@@ -63,8 +64,6 @@ typedef struct
     };
 } nes_hal_input_s;
 
-volatile nes_hal_input_s tmpnes  = {.value = 0};
-
 nesbus_pio_sm_s k_nesbus_sm = {0};
 
 #define INPUT_POLL_RATE 1000 // 1ms
@@ -74,11 +73,12 @@ hoja_snapshot_nesbus_t _ss_nesbus;
 
 volatile uint32_t _nesbus_write_data = 0xFFFFFFFF;
 
-bool _nesbus_snesmode = false;
+bool _nesbus_snesmode = true;
 
 void _nesbus_set_inputbits(uint32_t bitcount)
 {
-    if(bitcount<20 && bitcount > 0) _nesbus_snesmode |= true;
+    if(bitcount<20 && bitcount > 0) _nesbus_snesmode = true;
+    else _nesbus_snesmode = false;
 }
 
 static void _nesbus_isr_handler(void)
@@ -86,9 +86,13 @@ static void _nesbus_isr_handler(void)
   if (pio_interrupt_get(k_nesbus_sm.pio, 0))
   {
     pio_sm_set_enabled(k_nesbus_sm.pio, k_nesbus_sm.sm_data, false);
-    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.jump_data);
+    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.movy_instr_data);
+    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.push_instr_data);
+    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.sety_instr_data);
+    pio_sm_exec(k_nesbus_sm.pio, k_nesbus_sm.sm_data, k_nesbus_sm.jump_instr_data);
     pio_sm_set_enabled(k_nesbus_sm.pio, k_nesbus_sm.sm_data, true);
     pio_interrupt_clear(k_nesbus_sm.pio, 0);
+    _nesbus_set_inputbits(pio_sm_get_blocking(k_nesbus_sm.pio, k_nesbus_sm.sm_data));
   }
 }
 
@@ -96,11 +100,16 @@ void transport_nesbus_stop()
 {
 }
 
+static snes_hal_input_s tmpsnes  = {.value = 0xFFFFFFFF};
+static nes_hal_input_s tmpnes  = {.value = 0xFFFFFFFF};
+
 bool transport_nesbus_init(core_params_s *params)
 {
     if(params->core_report_format != CORE_REPORTFORMAT_SNES) return false;
 
     const hoja_nesbus_cfg_s *cfg = &hoja_config_get()->nesbus;
+    tmpsnes.padding = 0;
+    tmpnes.padding = 0;
 
     nesbus_pio_init(&k_nesbus_sm, _nesbus_isr_handler, cfg->latch_pin, cfg->data_pin, cfg->clock_pin);
     return true;
@@ -122,8 +131,7 @@ void transport_nesbus_task(uint64_t timestamp)
         {
             mapper_input_s input = mapper_get_input();
 
-            static snes_hal_input_s tmpsnes  = {.value = 0xFFFFFFFF};
-            static volatile nes_hal_input_s tmpnes  = {.value = 0xFFFFFFFF};
+            
 
             static uint32_t pack = 0;
 

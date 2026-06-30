@@ -11,7 +11,6 @@ PUBLIC data_entry:
   mov x, ~null  ; Make X FIFO safe
   pull noblock  ; Push TX FIFO to OSR if it exists, otherwise it will copy X to OSR
   mov x, OSR    ; Copy OSR contents to X
-  set y, 31     ; Reset Y scratch
   out pins, 1
 
 data_output:  
@@ -22,9 +21,6 @@ data_output:
 
   ; Put first bit 
   out pins, 1
-
-  mov isr, y   ; Set ISR to Y scratch
-  push noblock ; Do not block when pushing to FIFO
 
   jmp y-- data_output
   jmp data_output
@@ -51,7 +47,10 @@ typedef struct
     PIO pio;
     uint sm_data;
     uint offset_data;
-    uint jump_data;
+    uint jump_instr_data;
+    uint sety_instr_data;
+    uint movy_instr_data;
+    uint push_instr_data;
     uint sm_latch;
     uint offset_latch;
     uint running;
@@ -65,7 +64,10 @@ static void nesbus_pio_init(nesbus_pio_sm_s *nsm, irq_handler_t irq_handler, uin
     pio_sm_config latch_c = nesbus_pio_program_get_default_config(offset);
 
     nsm->offset_data = offset;
-    nsm->jump_data = pio_encode_jmp(offset + nesbus_pio_offset_data_entry);
+    nsm->jump_instr_data = pio_encode_jmp(offset + nesbus_pio_offset_data_entry);
+    nsm->sety_instr_data = pio_encode_set(pio_y, 31);
+    nsm->movy_instr_data = pio_encode_mov(pio_isr, pio_y);
+    nsm->push_instr_data = pio_encode_push(false, true);
 
     // Set the GPIO functions (connect PIO to the pad)
     pio_gpio_init(nsm->pio, data);
