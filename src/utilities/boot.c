@@ -377,6 +377,7 @@ static void boot_apply_wlan_force(boot_info_s *info)
     case CORE_REPORTFORMAT_GAMECUBE:
     case CORE_REPORTFORMAT_SINPUT:
     case CORE_REPORTFORMAT_N64:
+    case CORE_REPORTFORMAT_SWPRO:
         info->transport = GAMEPAD_TRANSPORT_WLAN;
         break;
 

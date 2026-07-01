@@ -39,9 +39,15 @@
 
 #define NS_WLAN_SWITCH_FULL_REPORT_ID 0x30
 
+#define WLAN_RX_IDLE_SHUTDOWN_US (4ULL * 1000ULL * 1000ULL)
+
 static struct udp_pcb *_wlan_pcb = NULL;
 static core_params_s *_wlan_core_params = NULL;
 static bool _wlan_running = false;
+static volatile bool _wlan_rx_pending = false;
+static uint64_t _wlan_last_rx_us = 0;
+static bool _wlan_rx_seen = false;
+static bool _wlan_idle_shutdown_sent = false;
 
 static dongle_cfg_gamepad_s _wlan_dgp_cfg = {0};
 static dongle_pkt_s _wlan_rx_pkt = {0};
@@ -184,7 +190,39 @@ static void _wlan_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     pbuf_copy_partial(p, &_wlan_rx_pkt, sizeof(dongle_pkt_s), 0);
     pbuf_free(p);
 
+    _wlan_rx_pending = true;
+
     dongle_api_gamepad_udp_rx(&_wlan_rx_pkt);
+}
+
+static void _wlan_service_rx_activity(uint64_t timestamp)
+{
+    if (!_wlan_rx_pending)
+        return;
+
+    _wlan_rx_pending = false;
+    _wlan_last_rx_us = timestamp;
+    _wlan_rx_seen = true;
+}
+
+static void _wlan_check_rx_idle_shutdown(uint64_t timestamp)
+{
+    if (!_wlan_rx_seen || _wlan_idle_shutdown_sent)
+        return;
+
+    if (_wlan_last_rx_us == 0)
+        return;
+
+    if (timestamp - _wlan_last_rx_us < WLAN_RX_IDLE_SHUTDOWN_US)
+        return;
+
+    _wlan_idle_shutdown_sent = true;
+
+    tp_evt_s evt = {
+        .evt = TP_EVT_POWERCOMMAND,
+        .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN},
+    };
+    transport_evt_cb(evt);
 }
 
 // --- dongle_api_gamepad_hook_* ---
@@ -337,6 +375,10 @@ void dongle_api_gamepad_hook_reset_network(void)
 void transport_wlan_stop(void)
 {
     _wlan_running = false;
+    _wlan_rx_pending = false;
+    _wlan_last_rx_us = 0;
+    _wlan_rx_seen = false;
+    _wlan_idle_shutdown_sent = false;
     _wlan_notify_disconnected();
     _wlan_stack_teardown();
     _wlan_core_params = NULL;
@@ -355,18 +397,22 @@ bool transport_wlan_init(core_params_s *params)
 
     dongle_api_gamepad_wlan_init(&_wlan_dgp_cfg);
 
+    _wlan_rx_pending = false;
+    _wlan_last_rx_us = 0;
+    _wlan_rx_seen = false;
+    _wlan_idle_shutdown_sent = false;
     _wlan_running = true;
     return true;
 }
 
 void transport_wlan_task(uint64_t timestamp)
 {
-    (void)timestamp;
-
     if (!_wlan_running)
         return;
 
+    _wlan_service_rx_activity(timestamp);
     dongle_api_gamepad_wlan_task();
+    _wlan_check_rx_idle_shutdown(timestamp);
 }
 
 static uint32_t _wlan_hal_probe_wireless(void)
