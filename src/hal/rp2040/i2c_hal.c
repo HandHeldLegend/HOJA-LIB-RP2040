@@ -16,17 +16,6 @@ static void _i2c_hal_drain_abort(i2c_hw_t *hw)
 
 i2c_inst_t *_i2c_instances[2] = {i2c0, i2c1}; // Numerical accessible array to spi hardware
 uint32_t _i2c_instances_bauds[2] = {400*1000, 400*1000}; // Baud rates defaulted to 400Khz
-auto_init_mutex(_i2c_safe_mutex);             // Mutex to allow thread-safe access to peripheral
-
-void _i2c_safe_enter_blocking()
-{
-  // mutex_enter_blocking(&_i2c_safe_mutex);
-}
-
-void _i2c_safe_exit()
-{
-  // mutex_exit(&_i2c_safe_mutex);
-}
 
 bool i2c_hal_init(uint8_t instance, uint32_t sda, uint32_t scl, uint32_t baudrate_khz)
 {
@@ -52,8 +41,6 @@ int i2c_hal_write_timeout_us_odbaud(uint8_t instance, uint8_t addr, const uint8_
     return -1;
   int ret = 0;
 
-  _i2c_safe_enter_blocking();
-
   uint32_t baud_original = _i2c_instances_bauds[instance];
   if(baud_khz_override)
   {
@@ -66,8 +53,6 @@ int i2c_hal_write_timeout_us_odbaud(uint8_t instance, uint8_t addr, const uint8_
   {
     i2c_set_baudrate(_i2c_instances[instance], baud_original);
   }
-
-  _i2c_safe_exit();
 
   return ret;
 }
@@ -82,8 +67,6 @@ int i2c_hal_read_timeout_us_odbaud(uint8_t instance, uint8_t addr, uint8_t *dst,
   if (instance >= I2C_HAL_MAX_INSTANCES)
     return -1;
   int ret = 0;
-
-  _i2c_safe_enter_blocking();
 
   uint32_t baud_original = _i2c_instances_bauds[instance];
   if(baud_khz_override)
@@ -103,7 +86,6 @@ int i2c_hal_read_timeout_us_odbaud(uint8_t instance, uint8_t addr, uint8_t *dst,
     i2c_set_baudrate(_i2c_instances[instance], baud_original);
   }
 
-  _i2c_safe_exit();
 
   return ret;
 }
@@ -119,9 +101,7 @@ int i2c_hal_write_blocking(uint8_t instance, uint8_t addr, const uint8_t *src, s
     return -1;
   int ret = 0;
 
-  _i2c_safe_enter_blocking();
   ret = i2c_write_blocking(_i2c_instances[instance], addr, src, len, nostop);
-  _i2c_safe_exit();
 
   return ret;
 }
@@ -134,10 +114,8 @@ int i2c_hal_write_read_timeout_us(uint8_t instance, uint8_t addr, const uint8_t 
     return -1;
   int ret = 0;
 
-  _i2c_safe_enter_blocking();
   ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, wr_len, true, timeout_us);
   ret = i2c_hal_read_timeout_us(instance, addr, dst, dst_len, false, timeout_us);
-  _i2c_safe_exit();
 
   return ret;
 }
@@ -150,11 +128,9 @@ int i2c_hal_write_read_blocking(uint8_t instance, uint8_t addr, const uint8_t *s
     return -1;
   int ret = 0;
 
-  _i2c_safe_enter_blocking();
   ret = i2c_write_blocking(_i2c_instances[instance], addr, src, wr_len, true);
   ret = i2c_read_blocking(_i2c_instances[instance], addr, dst, dst_len, false);
   _i2c_hal_drain_abort(_i2c_instances[instance]->hw);
-  _i2c_safe_exit();
 
   return ret;
 }

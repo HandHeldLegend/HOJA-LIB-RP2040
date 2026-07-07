@@ -184,9 +184,17 @@ bool _core_format_init(void)
 
   if (!core_init())
   {
-    rgb_set_pulsing(COLOR_ORANGE);
+    rgb_set_pulsing(COLOR_RED);
     return false;
   }
+
+  const boot_info_s *boot = boot_get_info();
+  if (boot && (boot->flags & COREBOOT_FLAG_ALTFLASH))
+  {
+    rgb_set_pulsing(COLOR_ORANGE);
+    return true;
+  }
+
   rgb_init(-1, -1);
 
   return true;

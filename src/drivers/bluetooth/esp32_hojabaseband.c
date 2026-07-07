@@ -599,7 +599,10 @@ void transport_bt_task(uint64_t timestamp)
     static i2cinput_input_s input_data  = {0};
 
     if(!_bt_esp32_params) return;
-    
+
+    if (_bt_esp32_params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+        return;
+
     static bool read_write = true;
 
     if(interval_run(timestamp, 650, &interval))

@@ -166,6 +166,9 @@ bool core_init(void)
         return false;
     }
 
+    if (_core_params.core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+        return transport_init(&_core_params);
+
     switch(_core_params.core_report_format)
     {
         case CORE_REPORTFORMAT_SWPRO:
