@@ -20,6 +20,9 @@ __attribute__((weak)) battery_status_s battery_driver_get_status(void) { battery
 __attribute__((weak)) bool battery_driver_set_charge_rate(uint16_t rate_ma) { (void)rate_ma; return false; }
 __attribute__((weak)) bool battery_driver_set_ship_mode(void) { return false; }
 __attribute__((weak)) const char *battery_driver_part_code(void) { return NULL; }
+__attribute__((weak)) bool battery_driver_pack_present(void) { return true; }
+
+static bool _battery_pack_present = true;
 
 // A driver is present iff it supplies a part code (weak default returns NULL).
 static inline bool _battery_present(void) { return battery_driver_part_code() != NULL; }
@@ -104,6 +107,7 @@ battery_result_t battery_init(void)
     if(!battery_driver_init())
         return BATTERY_RESULT_FAILED;
 
+    _battery_pack_present = battery_driver_pack_present();
     _battery_set_connected(true);
     _battery_init_done = true;
 
@@ -118,9 +122,17 @@ battery_result_t battery_set_charge_rate(uint16_t rate_ma)
     if(!_battery_present())
         return BATTERY_RESULT_NO_DRIVER;
 
+    if (!_battery_pack_present && rate_ma > 0)
+        rate_ma = 0;
+
     return battery_driver_set_charge_rate(rate_ma)
          ? BATTERY_RESULT_OK
          : BATTERY_RESULT_FAILED;
+}
+
+bool battery_pack_present(void)
+{
+    return _battery_pack_present;
 }
 
 // Enable PMIC ship mode (power off with power conservation). Always safe to

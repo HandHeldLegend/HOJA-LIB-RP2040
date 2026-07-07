@@ -47,6 +47,8 @@ battery_status_s battery_driver_get_status(void);
 bool             battery_driver_set_charge_rate(uint16_t rate_ma);
 bool             battery_driver_set_ship_mode(void);
 const char      *battery_driver_part_code(void);
+// False when the PMIC is present but no battery pack is detected (e.g. open NTC).
+bool             battery_driver_pack_present(void);
 
 // True when a board battery PMIC driver is compiled in for this target.
 static inline bool battery_has_driver(void)
@@ -60,6 +62,9 @@ void battery_set_critical_shutdown(void);
 // Always safe to call; skips PMIC init on wired-bus boot transports.
 battery_result_t battery_init(void); 
 battery_result_t battery_set_charge_rate(uint16_t rate_ma); 
-battery_result_t battery_set_ship_mode(void); 
+battery_result_t battery_set_ship_mode(void);
+
+// True after init when a battery pack is detected on the PMIC.
+bool battery_pack_present(void);
 
 #endif

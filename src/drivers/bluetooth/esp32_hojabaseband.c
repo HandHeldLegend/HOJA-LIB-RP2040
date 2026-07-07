@@ -516,9 +516,17 @@ bool transport_bt_init(core_params_s *params)
     #if defined(BLUETOOTH_DRIVER_BATMON_ENABLE) && (BLUETOOTH_DRIVER_BATMON_ENABLE==1)
         #if !defined(BLUETOOTH_DRIVER_BATMON_ADC_GPIO)
         #error "BLUETOOTH_DRIVER_BATMON_ADC_GPIO must be defined if BLUETOOTH_DRIVER_BATMON_ENABLE==1"
-        #else 
-        data_out[3] = true;
-        data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
+        #else
+        if (battery_pack_present())
+        {
+            data_out[3] = true;
+            data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
+        }
+        else
+        {
+            data_out[3] = false;
+            data_out[4] = 0;
+        }
         #endif
     #else 
         data_out[3] = false;
