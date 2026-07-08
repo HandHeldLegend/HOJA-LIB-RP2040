@@ -15,6 +15,8 @@
 #include "utilities/interval.h"
 #include "utilities/crosscore_utils.h"
 
+#include "devices/battery.h"
+
 #include "hoja.h"
 #include "hoja_bsp.h"
 
@@ -276,36 +278,33 @@ bool _joybus_n64_hal_init()
 core_params_s *_n64_hal_params = NULL;
 transport_autoinit_sm_s *_n64_hal_tpsm = NULL;
 
-void _jb64_handle_connection(bool connected)
+// --- Connection lifecycle -------------------------------------------------
+// A console poll reports player 1 + connected. After 4s with no poll we drop to
+// player 0 + disconnected, and after 8s we power the device off (on boards with
+// a ship-mode capable PMIC).
+#define N64_DISCONNECT_US (4u * 1000u * 1000u)
+#define N64_SHUTDOWN_US   (8u * 1000u * 1000u)
+
+static uint64_t _n64_last_poll_us  = 0;
+static bool     _n64_timer_started = false;
+static bool     _n64_connected     = false;
+
+static void _n64_set_connected(bool connected)
 {
-  // Handle connection state if it changes
-  static uint8_t connectstate = 0;
-  bool emit = false;
-  tp_connectionchange_t c = TP_CONNECTION_NONE;
+  if(connected == _n64_connected) return;
 
-  if(!connectstate && connected)
-  {
-    c = TP_CONNECTION_CONNECTED;
-    connectstate = 1;
-    emit = true;
-  }
-  else if(connectstate && !connected)
-  {
-    c = TP_CONNECTION_DISCONNECTED;
-    connectstate = 0;
-    emit = true;
-    _n64_reset_state();
-    //sleep_ms(8);
-  }
+  _n64_connected = connected;
 
-  tp_evt_s evt = {.evt_connectionchange = {
-    .connection = c
-  }};
+  tp_evt_s conn = {
+    .evt = TP_EVT_CONNECTIONCHANGE,
+    .evt_connectionchange = {
+      .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED}};
+  transport_evt_cb(conn);
 
-  if(emit)
-  {
-    transport_evt_cb(evt);
-  }
+  tp_evt_s player = {
+    .evt = TP_EVT_PLAYERLED,
+    .evt_playernumber = {.player_number = connected ? 1 : 0}};
+  transport_evt_cb(player);
 }
 
 /***********************************************/
@@ -324,7 +323,9 @@ void transport_jb64_stop()
   pio_remove_program_and_unclaim_sm(&joybus_program, PIO_IN_USE_N64, PIO_SM, _n64_offset);
 
   // Notify transport about disconnection before clearing params
-  _jb64_handle_connection(false);
+  _n64_set_connected(false);
+  _n64_timer_started = false;
+  _n64_last_poll_us  = 0;
 
   // Reset all internal state
   _workingCmd     = 0x00;
@@ -340,6 +341,10 @@ bool transport_jb64_init(core_params_s *params)
 {
   if(params->core_report_format != CORE_REPORTFORMAT_N64) return false;
   _n64_hal_params = params;
+
+  _n64_last_poll_us  = 0;
+  _n64_timer_started = false;
+  _n64_connected     = false;
 
   _joybus_n64_hal_init();
   return true;
@@ -366,7 +371,6 @@ void transport_jb64_task(uint64_t timestamp)
   if(!_n64_hal_params) return;
 
   static interval_s interval = {0};
-  static interval_s interval_reset = {0};
 
   if(interval_run(timestamp, _n64_hal_params->core_pollrate_us, &interval))
   {
@@ -396,18 +400,39 @@ void transport_jb64_task(uint64_t timestamp)
     }
   }
 
-  // 1 second timeout
-  if(interval_resettable_run(timestamp, 5*1000*1000, _n64_sent_poll, &interval_reset))
+  if(_n64_sent_poll)
   {
-    _jb64_handle_connection(false);
+    _n64_last_poll_us  = timestamp;
+    _n64_timer_started = true;
+    _n64_set_connected(true);
+    _jbgc_autoinit_finalize(true);
+    _n64_sent_poll = false;
+  }
+
+  // Seed the timeout window from the first tick so a controller that is never
+  // polled (e.g. plugged into a powered-off console) still shuts down on time.
+  if(!_n64_timer_started)
+  {
+    _n64_timer_started = true;
+    _n64_last_poll_us  = timestamp;
+    return;
+  }
+
+  uint64_t elapsed = timestamp - _n64_last_poll_us;
+
+  // 4s with no poll -> player 0 + disconnected (and reset the bus state machine).
+  if(_n64_connected && (elapsed >= N64_DISCONNECT_US))
+  {
+    _n64_set_connected(false);
+    _n64_reset_state();
     _jbgc_autoinit_finalize(false);
   }
 
-  if(_n64_sent_poll) 
+  // 8s with no poll -> power off, but only where ship mode can actually cut
+  // power; otherwise hoja_shutdown() would reboot-loop (e.g. USB dev boards).
+  if((elapsed >= N64_SHUTDOWN_US) && battery_has_driver())
   {
-    _jb64_handle_connection(true);
-    _jbgc_autoinit_finalize(true);
-    _n64_sent_poll = false;
+    hoja_deinit(hoja_shutdown);
   }
 }
 

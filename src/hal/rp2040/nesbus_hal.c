@@ -9,6 +9,10 @@
 #include "transport/transport_nesbus.h"
 
 #include "utilities/crosscore_utils.h"
+#include "utilities/interval.h"
+
+#include "transport/transport.h"
+#include "devices/battery.h"
 
 #include "board_config.h"
 
@@ -75,6 +79,40 @@ volatile uint32_t _nesbus_write_data = 0xFFFFFFFF;
 
 bool _nesbus_snesmode = true;
 
+// --- Connection lifecycle -------------------------------------------------
+// When the console reads the controller (latch ISR) we report player 1 +
+// connected. After 4s with no read we drop to player 0 + disconnected, and
+// after 8s we power the device off (on boards with a ship-mode capable PMIC).
+#define NESBUS_DISCONNECT_US (4u * 1000u * 1000u)
+#define NESBUS_SHUTDOWN_US   (8u * 1000u * 1000u)
+
+// Set in the latch ISR whenever the console reads the controller. Consumed by
+// the task as a connection heartbeat.
+volatile bool _nesbus_polled = false;
+
+static uint64_t _nesbus_last_poll_us = 0;
+static bool     _nesbus_timer_started = false;
+static bool     _nesbus_connected = false;
+
+static void _nesbus_set_connected(bool connected)
+{
+    if (connected == _nesbus_connected)
+        return;
+
+    _nesbus_connected = connected;
+
+    tp_evt_s conn = {
+        .evt = TP_EVT_CONNECTIONCHANGE,
+        .evt_connectionchange = {
+            .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED}};
+    transport_evt_cb(conn);
+
+    tp_evt_s player = {
+        .evt = TP_EVT_PLAYERLED,
+        .evt_playernumber = {.player_number = connected ? 1 : 0}};
+    transport_evt_cb(player);
+}
+
 void _nesbus_set_inputbits(uint32_t bitcount)
 {
     if(bitcount<20 && bitcount > 0) _nesbus_snesmode = true;
@@ -93,6 +131,7 @@ static void _nesbus_isr_handler(void)
     pio_sm_set_enabled(k_nesbus_sm.pio, k_nesbus_sm.sm_data, true);
     pio_interrupt_clear(k_nesbus_sm.pio, 0);
     _nesbus_set_inputbits(pio_sm_get_blocking(k_nesbus_sm.pio, k_nesbus_sm.sm_data));
+    _nesbus_polled = true; // Console polled us -> connection heartbeat
   }
 }
 
@@ -111,6 +150,11 @@ bool transport_nesbus_init(core_params_s *params)
     tmpsnes.padding = 0;
     tmpnes.padding = 0;
 
+    _nesbus_polled = false;
+    _nesbus_last_poll_us = 0;
+    _nesbus_timer_started = false;
+    _nesbus_connected = false;
+
     nesbus_pio_init(&k_nesbus_sm, _nesbus_isr_handler, cfg->latch_pin, cfg->data_pin, cfg->clock_pin);
     return true;
 }
@@ -120,11 +164,7 @@ void transport_nesbus_task(uint64_t timestamp)
     
     static interval_s interval = {0};
 
-    if(!k_nesbus_sm.running)
-    {
-        return;
-    }
-    else
+    if(k_nesbus_sm.running)
     {
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
@@ -180,6 +220,38 @@ void transport_nesbus_task(uint64_t timestamp)
         {
             pio_sm_put(k_nesbus_sm.pio, k_nesbus_sm.sm_data, _nesbus_write_data);
         }
+    }
+
+    // Console read = connection heartbeat.
+    if(_nesbus_polled)
+    {
+        _nesbus_polled = false;
+        _nesbus_last_poll_us = timestamp;
+        _nesbus_timer_started = true;
+        _nesbus_set_connected(true);
+    }
+
+    // Seed the timeout window from the first tick so a controller that is never
+    // read (e.g. plugged into a powered-off console) still shuts down on time.
+    if(!_nesbus_timer_started)
+    {
+        _nesbus_timer_started = true;
+        _nesbus_last_poll_us = timestamp;
+        return;
+    }
+
+    uint64_t elapsed = timestamp - _nesbus_last_poll_us;
+
+    if(_nesbus_connected && (elapsed >= NESBUS_DISCONNECT_US))
+    {
+        _nesbus_set_connected(false);
+    }
+
+    // Only power off where ship mode can actually cut power; otherwise
+    // hoja_shutdown() would reboot-loop (e.g. dev boards powered over USB).
+    if((elapsed >= NESBUS_SHUTDOWN_US) && battery_has_driver())
+    {
+        hoja_deinit(hoja_shutdown);
     }
 }
 

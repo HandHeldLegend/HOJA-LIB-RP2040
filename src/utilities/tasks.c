@@ -37,10 +37,14 @@ typedef struct
     task_s   *rapid[TASKS_MAX_COUNT];
     uint8_t   rapid_count;
 
+    task_s   *motion[TASKS_MAX_COUNT];
+    uint8_t   motion_count;
+
     uint64_t cycle_last_reset_us;
     uint64_t cycle_deadline_us; 
     uint64_t cycle_reset_deadline_us;
 
+    uint8_t  flag_bit_count; // Shared bit allocator for required + motion guaranteed-run flags
     uint32_t required_flags_mask;
     uint32_t required_flags_done;
 } tasks_sm_s; 
@@ -151,6 +155,47 @@ static void _tasks_rapid_run(void)
     }
 }
 
+// Motion tasks are guaranteed exactly one read at the start of every cycle
+// (this read also gates the outbound packet via the required-flag mechanism),
+// then take additional reads on a fixed absolute-time grid so that any samples
+// taken after the guaranteed one are evenly spaced. On fast cycles (e.g. 1kHz)
+// the grid deadline lands past the cycle end, so only the guaranteed read runs;
+// on slow cycles (e.g. 8ms) several evenly-spaced reads occur per cycle.
+static void _tasks_motion_run(uint64_t now_us)
+{
+    for(int i = 0; i < _tasks_sm.motion_count; i++)
+    {
+        task_s *t = _tasks_sm.motion[i];
+
+        // Guaranteed once-per-cycle read. The flag is set unconditionally (even
+        // when a shutdown lock makes the task non-runnable) so the packet send
+        // is never blocked waiting on a read that can't happen.
+        if(!(_tasks_sm.required_flags_done & t->required_done_flag))
+        {
+            _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE); // anchors last_run_us to the packet-aligned read
+            _tasks_sm.required_flags_done |= t->required_done_flag;
+            continue;
+        }
+
+        if(t->motion_interval_us == 0) continue;
+
+        // Additional evenly-spaced reads on an absolute grid.
+        uint64_t next_us = t->last_run_us + t->motion_interval_us;
+        if(now_us >= next_us)
+        {
+            _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);
+            // Advance the grid rather than re-anchoring to "now" so spacing does
+            // not drift with call jitter. Resync if we fell more than one
+            // interval behind (avoids a burst of catch-up reads).
+            t->last_run_us = next_us;
+            if(now_us - t->last_run_us >= t->motion_interval_us)
+            {
+                t->last_run_us = now_us;
+            }
+        }
+    }
+}
+
 static bool _tasks_try_run(task_s *task, bool update_max_runtime)
 {
     if(!_tasks_runnable(task)) return false;
@@ -197,6 +242,15 @@ static void _task_try_add(task_s *task_list[TASKS_MAX_COUNT], uint8_t *task_coun
     (*task_count)++;
 }
 
+static uint32_t _tasks_alloc_done_flag(task_s *task)
+{
+    uint32_t flag = (1u << _tasks_sm.flag_bit_count);
+    _tasks_sm.flag_bit_count++;
+    task->required_done_flag = flag;
+    _tasks_sm.required_flags_mask |= flag;
+    return flag;
+}
+
 void tasks_register(task_s *task)
 {
     if (!task || !task->fn)
@@ -206,9 +260,16 @@ void tasks_register(task_s *task)
 
     if(task->type_mask & TASK_TYPE_REQUIRED)
     {
-        task->required_done_flag = (1u << _tasks_sm.required_count);
-        _tasks_sm.required_flags_mask |= task->required_done_flag;
+        _tasks_alloc_done_flag(task);
         _task_try_add(_tasks_sm.required, &_tasks_sm.required_count, task);
+    }
+
+    if(task->type_mask & TASK_TYPE_MOTION)
+    {
+        // Motion guaranteed reads participate in the packet-gating flag set so
+        // the outbound report waits for at least one fresh sample per cycle.
+        _tasks_alloc_done_flag(task);
+        _task_try_add(_tasks_sm.motion, &_tasks_sm.motion_count, task);
     }
 
     if(task->type_mask & TASK_TYPE_RECURRING)
@@ -260,6 +321,13 @@ void tasks_run(void)
     {
         _tasks_reset_sm();
         _tasks_sent_isr_signal = false;
+    }
+
+    // Motion runs every call: guaranteed read on the first call of a new cycle,
+    // then evenly-spaced grid reads as time allows within the cycle.
+    if(_tasks_sm.motion_count > 0)
+    {
+        _tasks_motion_run(sys_hal_now_us());
     }
 
     if(_tasks_phase == TASK_PHASE_REQUIRED)

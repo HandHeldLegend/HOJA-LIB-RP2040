@@ -19,6 +19,8 @@
 #include "utilities/interval.h"
 #include "utilities/crosscore_utils.h"
 
+#include "devices/battery.h"
+
 typedef enum
 {
   GCUBE_CMD_PROBE = 0x00,
@@ -322,41 +324,42 @@ void _jbgc_handle_rumble()
 {
 }
 
-void _jbgc_handle_connection(bool connected)
+// --- Connection lifecycle -------------------------------------------------
+// A console poll reports player 1 + connected. After 4s with no poll we drop to
+// player 0 + disconnected, and after 8s we power the device off (on boards with
+// a ship-mode capable PMIC).
+#define GC_DISCONNECT_US (4u * 1000u * 1000u)
+#define GC_SHUTDOWN_US   (8u * 1000u * 1000u)
+
+static uint64_t _gc_last_poll_us  = 0;
+static bool     _gc_timer_started = false;
+static bool     _gc_connected     = false;
+
+static void _gc_set_connected(bool connected)
 {
-  // Handle connection state if it changes
-  static uint8_t connectstate = 0;
-  bool emit = false;
-  tp_connectionchange_t c = TP_CONNECTION_NONE;
+  if (connected == _gc_connected) return;
 
-  if (!connectstate && connected)
-  {
-    c = TP_CONNECTION_CONNECTED;
-    connectstate = 1;
-    emit = true;
-  }
-  else if (connectstate && !connected)
-  {
-    c = TP_CONNECTION_DISCONNECTED;
-    connectstate = 0;
-    emit = true;
-    _gamecube_reset_state();
-    sleep_ms(8);
-  }
+  _gc_connected = connected;
 
-  tp_evt_s evt = {.evt_connectionchange = {
-                      .connection = c}};
+  tp_evt_s conn = {
+    .evt = TP_EVT_CONNECTIONCHANGE,
+    .evt_connectionchange = {
+      .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED}};
+  transport_evt_cb(conn);
 
-  if (emit)
-  {
-    transport_evt_cb(evt);
-  }
+  tp_evt_s player = {
+    .evt = TP_EVT_PLAYERLED,
+    .evt_playernumber = {.player_number = connected ? 1 : 0}};
+  transport_evt_cb(player);
 }
 
 /***********************************************/
 /********* Transport Defines *******************/
 void transport_jbgc_stop()
 {
+  _gc_set_connected(false);
+  _gc_timer_started = false;
+  _gc_last_poll_us  = 0;
 }
 
 //bool transport_jbgc_autoinit(transport_autoinit_result_t cb, core_params_s *params)
@@ -370,6 +373,10 @@ bool transport_jbgc_init(core_params_s *params)
     return false;
   _gc_hal_params = params;
 
+  _gc_last_poll_us  = 0;
+  _gc_timer_started = false;
+  _gc_connected     = false;
+
   if(!_joybus_gc_hal_init())
     return false;
 
@@ -382,7 +389,6 @@ void transport_jbgc_task(uint64_t timestamp)
     return;
 
   static interval_s interval = {0};
-  static interval_s interval_reset = {0};
 
   if (interval_run(timestamp, _gc_hal_params->core_pollrate_us, &interval))
   {
@@ -411,15 +417,38 @@ void transport_jbgc_task(uint64_t timestamp)
     }
   }
 
-  if (interval_resettable_run(timestamp, 1000000, _gc_got_data, &interval_reset))
-  {
-    _jbgc_handle_connection(false);
-  }
-
   if (_gc_got_data)
   {
-    _jbgc_handle_connection(true);
+    _gc_last_poll_us  = timestamp;
+    _gc_timer_started = true;
+    _gc_set_connected(true);
     _gc_got_data = false;
+  }
+
+  // Seed the timeout window from the first tick so a controller that is never
+  // polled (e.g. plugged into a powered-off console) still shuts down on time.
+  if (!_gc_timer_started)
+  {
+    _gc_timer_started = true;
+    _gc_last_poll_us  = timestamp;
+    return;
+  }
+
+  uint64_t elapsed = timestamp - _gc_last_poll_us;
+
+  // 4s with no poll -> player 0 + disconnected (and reset the bus state machine).
+  if (_gc_connected && (elapsed >= GC_DISCONNECT_US))
+  {
+    _gc_set_connected(false);
+    _gamecube_reset_state();
+    sleep_ms(8);
+  }
+
+  // 8s with no poll -> power off, but only where ship mode can actually cut
+  // power; otherwise hoja_shutdown() would reboot-loop (e.g. USB dev boards).
+  if ((elapsed >= GC_SHUTDOWN_US) && battery_has_driver())
+  {
+    hoja_deinit(hoja_shutdown);
   }
 }
 

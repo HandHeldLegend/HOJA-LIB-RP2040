@@ -235,10 +235,16 @@ static task_s _task_flash = {
   .type_mask = (TASK_TYPE_OPTIONAL)
 };
 
+// Even-spacing interval for extra motion reads within a cycle. Chosen so an
+// ~8ms cycle yields 3 evenly-spaced reads (0, ~2.67ms, ~5.33ms) while a 1kHz
+// (1ms) cycle only ever takes the guaranteed once-per-cycle read.
+#define MOTION_TASK_INTERVAL_US 2667
+
 static task_s _task_motion = {
   .fn = imu_task,
   .name = "imu",
-  .type_mask = (TASK_TYPE_REQUIRED)
+  .motion_interval_us = MOTION_TASK_INTERVAL_US,
+  .type_mask = (TASK_TYPE_MOTION)
 };
 
 static task_s _task_haptics = {

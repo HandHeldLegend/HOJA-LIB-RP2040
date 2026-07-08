@@ -17,6 +17,7 @@ typedef enum
     TASK_TYPE_OPTIONAL  = 0b00000100, // One optional task runs per task period
     TASK_TYPE_RAPID     = 0b00001000, // Runs every tasks_run() call
     TASK_TYPE_SHUTDOWN  = 0b00010000, // Task is enabled during shutdown lock
+    TASK_TYPE_MOTION    = 0b00100000, // Guaranteed once per cycle, then evenly spaced by motion_interval_us
 } task_type_t;
 
 typedef struct
@@ -25,8 +26,9 @@ typedef struct
     uint64_t max_runtime_us;
     uint64_t last_run_us; // Last time this operation was run
     uint64_t optional_interval_us; // Interval for optional tasks
+    uint64_t motion_interval_us; // Even-spacing interval for motion tasks (extra reads within a cycle)
     uint8_t  type_mask; // task_type_t to form the mask
-    uint32_t required_done_flag; // Bit set in tasks_sm when this required task completes a cycle
+    uint32_t required_done_flag; // Bit set in tasks_sm when this required/motion task completes its guaranteed run for the cycle
     task_fn_t fn;
 } task_s;
 
