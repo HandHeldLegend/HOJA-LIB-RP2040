@@ -161,7 +161,7 @@ void hoja_shutdown()
 
   for (;;)
   {
-    sys_hal_sleep_ms(1000);
+    sys_hal_sleep_ms(5000);
     sys_hal_reboot();
   }
 }

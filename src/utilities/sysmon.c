@@ -61,6 +61,8 @@ void sysmon_task(uint64_t timestamp)
 {
     if(_shutdown_lockout) return;
 
+    if(!_sysbattery.connected) return;
+
     if(_shutdown_timeout_initiated)
     {
         static uint64_t critical_deadline_us = 0;

@@ -5,7 +5,7 @@
 #define SHUTDOWN_HOLD_TIME 3 // Seconds
 #define SHUTDOWN_HOLD_US   ((uint64_t)SHUTDOWN_HOLD_TIME * 1000000ULL)
 
-bool _shutdown_ready = false;
+volatile bool _shutdown_ready = false;
 
 void _shutdown_finalize()
 {
@@ -77,11 +77,14 @@ void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
         // Only shut down after ship-mode deinit completes and the combo is released.
         if (_shutdown_ready && !pressed)
         {
-            _shutdown_ready = false;
-            hoja_shutdown();
+            // Only shut down when we release button
+            if(_shutdown_ready && !input->button_shipping)
+            {
+                _shutdown_ready = false;
+                hoja_shutdown();
+            }
+            return;
         }
-        return;
-    }
 
     if (pressed)
     {

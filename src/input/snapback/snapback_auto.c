@@ -17,7 +17,7 @@
 // 'fall' before we activate
 #define TRIGGER_THRESHOLD 3
 #define SNAPBACK_WIDTH_MAX 30
-#define SNAPBACK_HEIGHT_MAX 2075
+#define SNAPBACK_HEIGHT_MAX 1985
 #define SNAPBACK_STORE_HEIGHT 650
 #define SNAPBACK_DEADZONE 650
 #define SNAPBACK_DISTANCE_THRESHOLD 550
@@ -57,6 +57,7 @@ bool _sbautocenter_trigger_detect(sb_auto_axis_s *axis, int x, int y)
         axis->stored_y = -7777;
         return true;
     }
+    return false;
 }
 
 /**
@@ -105,7 +106,7 @@ void _sbauto_add_axis(int16_t x, int16_t y, uint16_t in_distance, uint16_t *out_
         else a->trigger = 0;
 
         // Check if we should release
-        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) /*|| (distance >= SNAPBACK_HEIGHT_MAX)*/ )
+        if( (a->trigger_width >= SNAPBACK_WIDTH_MAX) || (distance >= SNAPBACK_HEIGHT_MAX) )
         {
             //release
             a->rising = false;
