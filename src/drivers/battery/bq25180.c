@@ -78,20 +78,12 @@ static bool bq25180_is_present(void)
 {
     uint8_t i2c = _bus();
 
-    uint8_t _getstatus[1] = {BQ25180_REG_FLAG_0};
+    uint8_t _getstatus[1] = {BQ25180_REG_MASK_ID};
     uint8_t _readstatus[1] = {0x00};
     int ret = i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
 
     if(ret==1)
     {
-        bq25180_flags_0_s s = {.flags = _readstatus[0]};
-        
-        if(s.buvlo_fault_flag)
-        {
-            // Battery is too low or not detected
-            return false;
-        }
-        
         return true;
     }
     // Communication failure with PMIC
