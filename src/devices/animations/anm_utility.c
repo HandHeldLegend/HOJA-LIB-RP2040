@@ -1,6 +1,7 @@
 #include "devices/animations/anm_utility.h"
 #include "devices/animations/anm_handler.h"
 #include "devices/rgb.h"
+#include "hoja.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
@@ -110,37 +111,43 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             out[i].color = 0;
         }
 
-        #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-        for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+        const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+
+        if(rcfg->player_group_index >= 0)
         {
-            uint8_t w = rgb_led_groups[HOJA_RGB_PLAYER_GROUP_IDX][i];
+            for(int i = 0; i < RGB_PLAYER_GROUP_SIZE; i++)
+            {
+                int8_t w = rgb_led_groups[rcfg->player_group_index][i];
+                if(w < 0) continue;
 
-            out[w].r = (in[w].r * 8 + 127) >> 8;
-            out[w].r += dither_amt;
+                out[w].r = (in[w].r * 8 + 127) >> 8;
+                out[w].r += dither_amt;
 
-            out[w].g = (in[w].g * 8 + 127) >> 8;
-            out[w].g += dither_amt;
+                out[w].g = (in[w].g * 8 + 127) >> 8;
+                out[w].g += dither_amt;
 
-            out[w].b = (in[w].b * 8 + 127) >> 8;
-            out[w].b += dither_amt;
+                out[w].b = (in[w].b * 8 + 127) >> 8;
+                out[w].b += dither_amt;
+            }
         }
-        #endif 
 
-        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-        for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+        if(rcfg->notification_group_index >= 0)
         {
-            uint8_t w = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+            for(int i = 0; i < rcfg->notification_group_size && i < RGB_MAX_LEDS_PER_GROUP; i++)
+            {
+                int8_t w = rgb_led_groups[rcfg->notification_group_index][i];
+                if(w < 0) continue;
 
-            out[w].r = (in[w].r * 8 + 127) >> 8;
-            out[w].r += dither_amt;
+                out[w].r = (in[w].r * 8 + 127) >> 8;
+                out[w].r += dither_amt;
 
-            out[w].g = (in[w].g * 8 + 127) >> 8;
-            out[w].g += dither_amt;
+                out[w].g = (in[w].g * 8 + 127) >> 8;
+                out[w].g += dither_amt;
 
-            out[w].b = (in[w].b * 8 + 127) >> 8;
-            out[w].b += dither_amt;
+                out[w].b = (in[w].b * 8 + 127) >> 8;
+                out[w].b += dither_amt;
+            }
         }
-        #endif 
 
         repeating = (repeating+1)%DITHER_MAX_LOOP;
         return;

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "settings_shared_types.h"
+#include "transport/transport_bt.h"
 
 #if __has_include("timestamp.h")
     #include "timestamp.h"
@@ -47,7 +48,7 @@ typedef struct
 {
     uint8_t input_type; // 0=unused, 1=digital, 2=hover, 3=joystick
     uint8_t input_name[8]; // Char name of input
-    uint8_t rgb_group; // Which RGB group is correlated with this input for reactive mode (Results are -1, 0 is unused)
+    uint8_t rgb_group; // Which RGB group is correlated with this input via key_mappings (Results are -1, 0 is unused)
 } inputInfoSlot_s;
 
 #define INPUTINFOSLOT_SIZE sizeof(inputInfoSlot_s)
@@ -102,9 +103,12 @@ typedef struct
     uint16_t    external_version_number;
     uint8_t     bluetooth_bdr_supported;
     uint8_t     bluetooth_ble_supported;
-    uint8_t     bluetooth_status;
+    uint8_t     wireless_part_status;
     uint8_t     fcc_id[24];
+    uint8_t     wlan_supported;        // 1 when RPI RM2 WLAN dongle transport is available
 } bluetoothInfoStatic_s;
+
+_Static_assert(sizeof(bluetoothInfoStatic_s) == 55, "bluetoothInfoStatic_s layout must match config app");
 
 typedef struct 
 {
@@ -128,12 +132,17 @@ typedef struct
 #define STATINFO_BLUETOOTH_SIZE         sizeof(bluetoothInfoStatic_s)
 #define STATINFO_RGB_SIZE               sizeof(rgbInfoStatic_s)
 
-extern const deviceInfoStatic_s     device_static; 
+/** wireless_part_status values (matches transport TRANSPORT_WIRELESS_PART_*). */
+#define WIRELESS_PART_STATUS_NA         TRANSPORT_WIRELESS_PART_NA
+#define WIRELESS_PART_STATUS_ERROR      TRANSPORT_WIRELESS_PART_ERROR
+#define WIRELESS_PART_STATUS_OK         TRANSPORT_WIRELESS_PART_OK
+
+extern deviceInfoStatic_s           device_static; 
 extern analogInfoStatic_s           analog_static; 
-extern const imuInfoStatic_s        imu_static; 
+extern imuInfoStatic_s              imu_static; 
 extern batteryInfoStatic_s          battery_static; 
 extern const hapticInfoStatic_s     haptic_static;
-extern const inputInfoStatic_s      input_static;
+extern inputInfoStatic_s          input_static;
 extern bluetoothInfoStatic_s        bluetooth_static;
 extern rgbInfoStatic_s              rgb_static;
 

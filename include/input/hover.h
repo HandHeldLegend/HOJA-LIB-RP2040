@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "input_shared_types.h"
+#include "settings_shared_types.h"
 
 void hover_task(uint64_t timestamp);
 mapper_input_s hover_access_boot();

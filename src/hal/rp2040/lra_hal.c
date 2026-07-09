@@ -2,6 +2,8 @@
 #include "hal/gpio_hal.h"
 #include "board_config.h"
 
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL)
+
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -17,13 +19,12 @@
 #include "hardware/dma.h"
 
 #include "devices/haptics.h"
-#include "switch/switch_haptics.h"
 
 #include "utilities/pcm.h"
-#include "utilities/erm_simulator.h"
 
-// Helper driver is specific to this HAL
-#if defined(HOJA_HAPTIC_HELPER_DRIVER) && (HOJA_HAPTIC_HELPER_DRIVER==HAPTIC_HELPER_DRIVER_DRV2605L)
+#include "hoja.h"
+
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
     #include "drivers/haptic/drv2605l.h"
 #endif
 
@@ -34,18 +35,18 @@
 
 uint dma_reset;
 
-#if defined(HOJA_HAPTICS_CHAN_A_PIN)
-    uint dma_cc_l, dma_trigger_l, dma_sample;
-    uint pwm_slice_l;
-#endif
+// Channel A is mandatory for the LRA HAL; channel B is optional and gated at
+// runtime by _chan_b_enable. PWM slices + DMA channels are claimed dynamically
+// at init. The GPIO pins + dual-channel flag come from hoja_config_s.haptics.
+uint dma_cc_l, dma_trigger_l, dma_sample;
+uint pwm_slice_l;
 
-#if defined(HOJA_HAPTICS_CHAN_B_PIN)
-    #ifndef HOJA_HAPTICS_CHAN_A_PIN
-        #error "To use channel B, HOJA_HAPTICS_CHAN_A_PIN must be defined too." 
-    #endif 
-    uint dma_cc_r, dma_trigger_r, dma_reset_r;
-    uint pwm_slice_r;
-#endif
+uint dma_cc_r, dma_trigger_r, dma_reset_r;
+uint pwm_slice_r;
+
+static uint8_t _chan_a_pin    = 0;
+static uint8_t _chan_b_pin    = 0;
+static bool    _chan_b_enable = false;
 
 uint32_t dma_trigger_start_mask = 0;
 volatile uint32_t *dma_trigger_start_ptr = &dma_trigger_start_mask;
@@ -66,59 +67,54 @@ static volatile bool ready_next_sine = false;
 static void __isr __time_critical_func(_dma_handler)()
 {
     audio_buffer_idx = 1-audio_buffer_idx;
-    #if defined(HOJA_HAPTICS_CHAN_A_PIN)
-        //dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
-        dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
-    
+    //dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
+    dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
 
-        // Trigger right channel if we have one
-        #ifdef HOJA_HAPTICS_CHAN_B_PIN
-            dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
-        #endif
-    
-        dma_start_channel_mask(dma_trigger_start_mask);
-        ready_next_sine = true;
-        dma_hw->ints1 = 1u << dma_trigger_l;
-    #endif
+    // Trigger right channel if we have one
+    if(_chan_b_enable)
+        dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
+
+    dma_start_channel_mask(dma_trigger_start_mask);
+    ready_next_sine = true;
+    dma_hw->ints1 = 1u << dma_trigger_l;
     uint8_t available_buffer = 1 - audio_buffer_idx;
 }
 
 void lra_hal_stop()
 {
-    #if defined(HOJA_HAPTICS_CHAN_A_PIN)
-        dma_channel_abort(dma_cc_l);
-        dma_channel_abort(dma_trigger_l);
-        dma_channel_abort(dma_sample);
-        dma_channel_abort(dma_reset);
-        pwm_set_enabled(pwm_slice_l, false);
-    #endif
+    dma_channel_abort(dma_cc_l);
+    dma_channel_abort(dma_trigger_l);
+    dma_channel_abort(dma_sample);
+    dma_channel_abort(dma_reset);
+    pwm_set_enabled(pwm_slice_l, false);
 
-    #if defined(HOJA_HAPTICS_CHAN_B_PIN)
+    if(_chan_b_enable)
+    {
         dma_channel_abort(dma_cc_r);
         dma_channel_abort(dma_trigger_r);
         pwm_set_enabled(pwm_slice_r, false);
-    #endif
+    }
 }
 
 bool lra_hal_init(uint8_t intensity)
 {
     static bool hal_init = false;
 
+    const lra_hal_cfg_s *cfg = &hoja_config_get()->haptics;
+    _chan_a_pin    = cfg->channel_a_pin;
+    _chan_b_pin    = cfg->channel_b_pin;
+    _chan_b_enable = cfg->channel_b_enable;
+
     // Initialize the PCM
     pcm_init(intensity);
-
-    // Initialize ERM simulator
-    erm_simulator_init();
 
     if(hal_init) return true;
     hal_init = true;
 
-    // Optional init driver
-    #if defined(HOJA_HAPTIC_HELPER_DRIVER_INIT)
-    HOJA_HAPTIC_HELPER_DRIVER_INIT();
-    #else 
-        #warning "No haptics helper driver defined. Using HAL only."
-    #endif
+#if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
+    if(!drv2605l_init(cfg->drv2605l.i2c_instance, cfg->drv2605l.od_clamp))
+        return false;
+#endif
 
     // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
@@ -133,11 +129,12 @@ bool lra_hal_init(uint8_t intensity)
 
     uint32_t pwm_enable_mask = 0;
 
-    #ifdef HOJA_HAPTICS_CHAN_A_PIN
+    // ---- Channel A (mandatory) ----
+    {
         dma_sample = dma_claim_unused_channel(true);
-        gpio_set_function(HOJA_HAPTICS_CHAN_A_PIN, GPIO_FUNC_PWM);
+        gpio_set_function(_chan_a_pin, GPIO_FUNC_PWM);
 
-        pwm_slice_l = pwm_gpio_to_slice_num(HOJA_HAPTICS_CHAN_A_PIN);
+        pwm_slice_l = pwm_gpio_to_slice_num(_chan_a_pin);
         pwm_init(pwm_slice_l, &config, false);
 
         pwm_enable_mask         |= (1U<<pwm_slice_l);
@@ -214,14 +211,14 @@ bool lra_hal_init(uint8_t intensity)
         // clear audio buffer
         memset(audio_buffer, 0, BUFFER_SIZE);
         //memset(audio_buffers[1], 0, BUFFER_SIZE);
-        
-    #endif
+    }
 
-    #ifdef HOJA_HAPTICS_CHAN_B_PIN
-        #warning "HAPTICS CHANNEL B IS ENABLED"
-        gpio_set_function(HOJA_HAPTICS_CHAN_B_PIN, GPIO_FUNC_PWM);
+    // ---- Channel B (optional, dual-channel LRA) ----
+    if(_chan_b_enable)
+    {
+        gpio_set_function(_chan_b_pin, GPIO_FUNC_PWM);
 
-        pwm_slice_r = pwm_gpio_to_slice_num(HOJA_HAPTICS_CHAN_B_PIN);
+        pwm_slice_r = pwm_gpio_to_slice_num(_chan_b_pin);
         pwm_init(pwm_slice_r, &config, false);
 
         pwm_enable_mask         |= (1U<<pwm_slice_r);
@@ -259,9 +256,7 @@ bool lra_hal_init(uint8_t intensity)
                             &single_sample_ptr,                       // read from location containing the address of single_sample
                             REPETITION_RATE * BUFFER_SIZE,            // trigger once per audio sample per repetition rate
                             false);
-
-        
-    #endif
+    }
 
     pwm_set_mask_enabled(pwm_enable_mask);
     dma_start_channel_mask(dma_trigger_start_mask);
@@ -272,19 +267,15 @@ bool lra_hal_init(uint8_t intensity)
 // Get which half of the buffer is safe to write to
 bool get_inactive_buffer_half() 
 {
-    #ifdef HOJA_HAPTICS_CHAN_A_PIN
     // Get current DMA read address
     uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>1);
-    
+
     // If DMA is reading from first half, return pointer to second half
     if (current_trans_count >= PCM_BUFFER_SIZE) {
         return true;
     } else {
         return false;
     }
-    #else 
-    return false;
-    #endif
 }
 
 volatile bool _erm_simulation_enabled = false;
@@ -319,3 +310,5 @@ void lra_hal_set_standard(uint8_t intensity, bool brake)
 {
     pcm_erm_set(intensity, brake); // Set ERM state with brake off
 }
+
+#endif // HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL

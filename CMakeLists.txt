@@ -1,10 +1,17 @@
 add_library(hoja_lib INTERFACE)
 
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NS-LIB-HID")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/SINPUT-LIB-HID")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HOJA-LIB-DONGLE")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HHL-TINYUSB-DRIVERS")
+
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
 file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
 file(GLOB_RECURSE MACROS_C "${CMAKE_CURRENT_LIST_DIR}/src/input/macros/*.c")
 file(GLOB_RECURSE SNAPBACK_C "${CMAKE_CURRENT_LIST_DIR}/src/input/snapback/*.c")
+file(GLOB_RECURSE CORES_C "${CMAKE_CURRENT_LIST_DIR}/src/cores/*.c")
+file(GLOB_RECURSE TRANSPORTS_C "${CMAKE_CURRENT_LIST_DIR}/src/transport/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
@@ -18,23 +25,14 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/static_config.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/erm_simulator.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/sysmon.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/transport.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/tasks.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
   ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/bluetooth.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/wlan.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_commands.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_spi.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_haptics.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/switch/switch_motion.c 
 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
@@ -47,29 +45,15 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/idle_manager.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/hover.c 
 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/desc_bos.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput_usbd.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/ginput_usbd.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/swpro.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/xinput.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/sinput.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/gcinput.c 
-
   ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/wired.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/gamecube.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/n64.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/wired/nesbus.c 
 
   ${MACROS_C} 
   ${DRIVERS_C}
   ${HAL_C}
   ${RGB_C}
   ${SNAPBACK_C}
+  ${CORES_C}
+  ${TRANSPORTS_C}
 )
 
 target_include_directories(hoja_lib INTERFACE
@@ -122,6 +106,11 @@ target_link_libraries(hoja_lib INTERFACE
 
   tinyusb_device
   tinyusb_board
+
+  ns_lib_hid
+  sinput_lib_hid
+  hoja_lib_dongle
+  hhl_tinyusb_drivers
 )
 
 if(HOJA_USE_BT_HAL)
@@ -133,7 +122,7 @@ endif()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
-pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/nserial.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
+pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/nesbus.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 pico_generate_pio_header(hoja_lib ${CMAKE_CURRENT_LIST_DIR}/pio/joybus.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/include/generated)
 
 

@@ -20,22 +20,28 @@ void macro_tourney(uint64_t timestamp, mapper_input_s *input)
 {
     static interval_s interval = {0};
     static bool holding = false;
-    static uint32_t iterations = 0;
-    static bool lockout = false;
-    
+
+    const hoja_config_s *cfg = hoja_config_get();
+    if(!cfg || cfg->tourney_macro_code == INPUT_CODE_UNUSED)
+        return;
+
+    const mapper_input_code_t code = cfg->tourney_macro_code;
+    if(code < 0 || code >= INPUT_CODE_MAX)
+        return;
 
     if(interval_run(timestamp, PAIRING_TOURNEY_INTERVAL_US, &interval))
     {
-        if(!holding && input->button_sync)
+        const bool pressed = input->presses[code];
+
+        if(!holding && pressed)
         {
             holding = true;
         }
-        else if(holding && !input->button_sync)
+        else if(holding && !pressed)
         {
             holding = false;
             tourney_mode_enabled = !tourney_mode_enabled;
-            //button_tourney_lockout_enable(tourney_mode_enabled);
-            hoja_set_ss_notif(tourney_mode_enabled ? COLOR_GREEN : COLOR_RED);
+            rgb_send_notification(tourney_mode_enabled ? COLOR_GREEN : COLOR_RED);
         }
     }
 }

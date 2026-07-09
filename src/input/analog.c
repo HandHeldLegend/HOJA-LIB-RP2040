@@ -23,10 +23,8 @@
 
 #include "utilities/interval.h"
 
-#include "switch/switch_analog.h"
-
 #include "utilities/settings.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
 
 #include "board_config.h"
 
@@ -129,7 +127,7 @@ void analog_access_safe(analog_data_s *out, analog_access_t type)
 void _capture_center_offsets();
 void analog_init()
 {
-    switch_analog_calibration_init();
+    //switch_analog_calibration_init();
 
     if(analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
     {

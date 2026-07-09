@@ -12,7 +12,7 @@
 
 #include "utilities/hooks.h"
 
-#define SAMPLES_BIT_SHIFT   5
+#define SAMPLES_BIT_SHIFT   3
 #define SAMPLES_PER_CHANNEL (1<<SAMPLES_BIT_SHIFT)
 
 // DMA buffer only needed if not RP2350

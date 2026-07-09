@@ -1,4 +1,5 @@
 #include "input/macros/macro_pcmdebug.h"
+#include "input/mapper.h"
 #include "utilities/interval.h"
 #include "utilities/pcm.h"
 #include "board_config.h"
@@ -32,45 +33,45 @@ void macro_pcmdebug(uint64_t timestamp, mapper_input_s *input)
     if(interval_run(timestamp, 8000, &interval))
     {
         // Only run if select is pressed
-        if(!MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_SELECT)) return;
+        if(!MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_SELECT)) return;
 
 
-        if(MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_LEFT) && !dl)
+        if(MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_LEFT) && !dl)
         {
             dl = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO, -_inc_val_pcm);
         }
-        else if (!MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_LEFT) && dl)
+        else if (!MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_LEFT) && dl)
         {
             dl = false;
         }
 
-        if(MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_RIGHT) && !dr)
+        if(MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_RIGHT) && !dr)
         {
             dr = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_LO,_inc_val_pcm);
         }
-        else if (!MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_RIGHT) && dr)
+        else if (!MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_RIGHT) && dr)
         {
             dr = false;
         }
 
-        if(MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_DOWN) && !tl)
+        if(MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_DOWN) && !tl)
         {
             tl = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, -_inc_val_pcm);
         }
-        else if (!MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_DOWN) && tl)
+        else if (!MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_DOWN) && tl)
         {
             tl = false;
         }
 
-        if(MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_UP) && !tr)
+        if(MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_UP) && !tr)
         {
             tr = true;
             pcm_debug_adjust_param(PCM_DEBUG_PARAM_MIN_HI, _inc_val_pcm);
         }
-        else if (!MAPPER_BUTTON_DOWN(input->inputs, INPUT_CODE_UP) && tr)
+        else if (!MAPPER_BUTTON_DOWN(input->presses, INPUT_CODE_UP) && tr)
         {
             tr = false;
         }

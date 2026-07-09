@@ -6,7 +6,6 @@
 #include "devices_shared_types.h"
 #include "board_config.h"
 #include "utilities/settings.h"
-#include "switch/switch_haptics.h"
 
 #if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER==HAPTICS_DRIVER_LRA_HAL)
 #include "hal/lra_hal.h"
@@ -15,6 +14,7 @@
 #endif
 
 #include "usb/webusb.h"
+#include "utilities/pcm.h"
 
 volatile uint32_t _haptic_test_remaining = 0;
 webreport_cmd_confirm_t _test_cb = NULL;
@@ -31,6 +31,17 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
         _test_cb = cb;
         break;
     }
+}
+
+void haptics_set_ns_hd(ns_haptics_packet_raw_s *in)
+{
+    haptic_packet_s translated = {0};
+
+    pcm_ns_to_fp(in, &translated);
+
+    #if defined(HOJA_HAPTICS_PUSH_AMFM)
+    HOJA_HAPTICS_PUSH_AMFM(&translated);
+    #endif
 }
 
 void haptics_set_hd(haptic_packet_s *packet)
@@ -57,7 +68,7 @@ bool haptics_init()
     }
 
     // Initialize the haptics
-    switch_haptics_init();
+    //switch_haptics_init();
 
     #if defined(HOJA_HAPTICS_INIT)
     return HOJA_HAPTICS_INIT(haptic_config->haptic_strength);

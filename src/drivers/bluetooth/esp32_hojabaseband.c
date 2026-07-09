@@ -1,4 +1,9 @@
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
 #include "drivers/bluetooth/esp32_hojabaseband.h"
+
+#include "transport/transport.h"
 
 #include <string.h>
 #include <stddef.h>
@@ -16,11 +21,10 @@
 #include "utilities/interval.h"
 #include "utilities/settings.h"
 
-#include "usb/sinput.h"
+#include "transport/transport_bt.h"
 
-#include "switch/switch_haptics.h"
-
-#include "board_config.h"
+#include "ns_lib_haptics.h"
+#include "sinput_lib.h"
 
 #include "input/mapper.h"
 #include "input/imu.h"
@@ -29,15 +33,12 @@
 
 #if defined(HOJA_USB_MUX_DRIVER) && (HOJA_USB_MUX_DRIVER==USB_MUX_DRIVER_PI3USB4000A)
     #include "drivers/mux/pi3usb4000a.h"
-#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #error "HOJA_USB_MUX_DRIVER must be defined for the ESP32 bluetooth driver" 
 #endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
-    #include "drivers/bluetooth/esp32_hojabaseband.h"
-#endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+    #include "drivers/bluetooth/esp32_hojabaseband.h"
 
 // Size of messages we send OUT
 #define HOJA_I2C_MSG_SIZE_OUT 32
@@ -49,6 +50,8 @@
 #define BT_FLASH_BRIGHTNESS 20
 
 #define BT_HOJABB_I2CINPUT_ADDRESS 0x76
+
+core_params_s *_bt_esp32_params = NULL;
 
 typedef struct
 {
@@ -327,13 +330,17 @@ void _btinput_message_parse(uint8_t *data)
             _current_connected = (int8_t) status.data[0];
             if (_current_connected > 0)
             {
-                // Connected OK
-                hoja_set_connected_status(_current_connected);
+                tp_evt_s evt_conn = {.evt = TP_EVT_CONNECTIONCHANGE, .evt_connectionchange = {.connection = TP_CONNECTION_CONNECTED}};
+                transport_evt_cb(evt_conn);
+
+                tp_evt_s player_conn = {.evt = TP_EVT_PLAYERLED, .evt_playernumber = {.player_number = _current_connected}};
+                transport_evt_cb(player_conn);
             }
             else
             {
                 // Disconnected
-                hoja_set_connected_status(CONN_STATUS_DISCONNECTED);
+                tp_evt_s evt_conn = {.evt = TP_EVT_CONNECTIONCHANGE, .evt_connectionchange = {.connection = TP_CONNECTION_DISCONNECTED}};
+                transport_evt_cb(evt_conn);
             }
         }
     }
@@ -347,34 +354,27 @@ void _btinput_message_parse(uint8_t *data)
 
         if (power_code == POWER_CODE_OFF)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 0;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s shutdown_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN}};
+            transport_evt_cb(shutdown_evt);
         }
         else if (power_code == POWER_CODE_RESET)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 1;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s reboot_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_REBOOT}};
+            transport_evt_cb(reboot_evt);
         }
         else if(power_code == POWER_CODE_CRITICAL)
         {
-            if(_bluetooth_cb)
-            {
-                btcb_msg.data[0] = 2;
-                _bluetooth_cb(&btcb_msg);
-            }
+            tp_evt_s crit_evt = {.evt = TP_EVT_POWERCOMMAND, .evt_powercommand = {.power_command = TP_POWERCOMMAND_LOWPOWER}};
+            transport_evt_cb(crit_evt);
         }
     }
     break;
 
     case I2C_STATUS_HAPTIC_SWITCH:
     {
-        switch_haptics_rumble_translate(&(status.data[0]));
+        // ESP32 forwards the 4-byte Switch HD-rumble word; NS-LIB decodes it and
+        // dispatches through ns_api_hook_set_haptic_packet_raw -> haptics_set_ns_hd.
+        ns_haptics_rumble_translate(&(status.data[0]));
     }
     break;
 
@@ -382,13 +382,28 @@ void _btinput_message_parse(uint8_t *data)
     {
         uint8_t l = status.data[0];
         uint8_t r = status.data[1];
-        haptics_set_std(l>r? l : r, false);
+        
+        tp_evt_s rumble = {
+            .evt = TP_EVT_ERMRUMBLE,
+            .evt_ermrumble = {
+            .left=l, .right=r,
+            .leftbrake=!l?true:false, .rightbrake=!r?true:false
+        }};
+
+        transport_evt_cb(rumble);
     }
     break;
 
     case I2C_STATUS_HAPTIC_SINPUT:
     {
-        sinput_cmd_haptics(&(status.data[0]));
+        // ESP32 forwards the SInput haptic payload (type byte + stereo data).
+        // Wrap it in a minimal output report so sinput_api_output_tunnel routes
+        // to sinput_api_hook_set_haptics / set_rumble.
+        uint8_t out_report[19];
+        out_report[0] = SINPUT_OUTPUT_ID_CMDDAT;
+        out_report[1] = 0x01; // SINPUT_COMMAND_HAPTIC
+        memcpy(&out_report[2], status.data, sizeof(out_report) - 2);
+        sinput_api_output_tunnel(out_report, sizeof(out_report));
     }
     break;
     }
@@ -409,15 +424,79 @@ void esp32hoja_init_load()
 
 bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
 {
+    
+}
+
+void esp32hoja_stop()
+{
+    _esp32hoja_enable_uart(false);
+    _esp32hoja_enable_chip(false);
+}
+
+void esp32hoja_task(uint64_t timestamp)
+{
+    
+}
+
+int esp32hoja_hwtest()
+{
+
+}
+
+uint32_t esp32hoja_get_fwversion()
+{
+    
+}
+
+void transport_bt_stop()
+{
+
+}
+
+// ESP32 baseband always expects live gyro/accel in the standard input packet.
+// There is no separate I2C motion-enable command — turn IMU reads on here.
+static void _esp32_bt_enable_imu(void)
+{
+    if (imu_driver_channel_count() == 0)
+        return;
+
+    imu_config->imu_disabled = 0;
+    imu_set_read_mode(IMU_MODE_STANDARD);
+}
+
+bool transport_bt_init(core_params_s *params)
+{
+    _bt_esp32_params = params;
+
+    if (!_bt_esp32_params)
+        return false;
+
     #if defined(HOJA_USB_MUX_INIT)
     HOJA_USB_MUX_INIT();
     #endif
 
-    if(evt_cb)
-        _bluetooth_cb = evt_cb;
+    uint8_t esp32_legacy_mode = 0;
 
-    uint8_t pair_flag = (pairing_mode ? 0b10000000 : 0);
-    uint8_t out_mode = pair_flag | (uint8_t) device_mode;
+    if(params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+    {
+        esp32hoja_init_load();
+        return true;
+    }
+
+    // ESP32 baseband wire protocol uses the same mode indices as core_reportformat_t.
+    switch (params->core_report_format)
+    {
+        case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_SINPUT:
+        esp32_legacy_mode = (uint8_t)params->core_report_format;
+        break;
+
+        default:
+        return false;
+    }
+
+    uint8_t pair_flag = ((params->core_boot_flags & COREBOOT_FLAG_PAIR) ? 0b10000000 : 0);
+    uint8_t out_mode = pair_flag | esp32_legacy_mode;
 
     #if defined(HOJA_BT_LOGGING_DEBUG) && (HOJA_BT_LOGGING_DEBUG==1)
     _esp32hoja_enable_uart(true);
@@ -437,9 +516,17 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     #if defined(BLUETOOTH_DRIVER_BATMON_ENABLE) && (BLUETOOTH_DRIVER_BATMON_ENABLE==1)
         #if !defined(BLUETOOTH_DRIVER_BATMON_ADC_GPIO)
         #error "BLUETOOTH_DRIVER_BATMON_ADC_GPIO must be defined if BLUETOOTH_DRIVER_BATMON_ENABLE==1"
-        #else 
-        data_out[3] = true;
-        data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
+        #else
+        if (battery_pack_present())
+        {
+            data_out[3] = true;
+            data_out[4] = BLUETOOTH_DRIVER_BATMON_ADC_GPIO;
+        }
+        else
+        {
+            data_out[3] = false;
+            data_out[4] = 0;
+        }
         #endif
     #else 
         data_out[3] = false;
@@ -472,21 +559,11 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     data_out[15] = GET_GREEN(col);
     data_out[16] = GET_BLUE(col);
 
-    // New VID/PID section for SInput mode
-    uint16_t vid = 0;
-    uint16_t pid = 0;
-
-    #if defined(HOJA_USB_VID)
-    vid = HOJA_USB_VID;
-    #else
-    vid = 0x2E8A; // Raspberry Pi
-    #endif
-    
-    #if defined(HOJA_USB_PID)
-    pid = HOJA_USB_PID; // board_config PID
-    #else
-    pid = 0x10C6; // Hoja Gamepad
-    #endif
+    // New VID/PID section for SInput mode. Pulled from the hoja config, with
+    // library fallbacks (Raspberry Pi VID / Hoja PID) when the board leaves 0.
+    const hoja_config_s *dev_cfg = hoja_config_get();
+    uint16_t vid = (dev_cfg && dev_cfg->usb_vid) ? dev_cfg->usb_vid : 0x2E8A;
+    uint16_t pid = (dev_cfg && dev_cfg->usb_pid) ? dev_cfg->usb_pid : 0x10C6;
 
     data_out[17] = (vid >> 8);
     data_out[18] = (vid & 0xFF);
@@ -496,17 +573,10 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     // end VID/PID section
 
     // Stupid workaround for SuperGamepad+ :)
-    #if defined(HOJA_SINPUT_GAMEPAD_SUBTYPE)
-    data_out[21] = HOJA_SINPUT_GAMEPAD_SUBTYPE;
-    #endif
+    data_out[21] = dev_cfg ? dev_cfg->sinput.gamepad_subtype : 0;
 
     // Local MAC
-    data_out[22] = gamepad_config->switch_mac_address[0];
-    data_out[23] = gamepad_config->switch_mac_address[1];
-    data_out[24] = gamepad_config->switch_mac_address[2];
-    data_out[25] = gamepad_config->switch_mac_address[3];
-    data_out[26] = gamepad_config->switch_mac_address[4];
-    data_out[27] = gamepad_config->switch_mac_address[5] + (uint8_t) hoja_get_status().gamepad_mode;
+    memcpy(&data_out[22], _bt_esp32_params->transport_dev_mac, 6);
 
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
@@ -518,20 +588,21 @@ bool esp32hoja_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
     {
         return false;
     }
-    else return true;
+
+    _esp32_bt_enable_imu();
+    return true;
 }
 
-void esp32hoja_stop()
-{
-    _esp32hoja_enable_uart(false);
-    _esp32hoja_enable_chip(false);
-}
-
-void esp32hoja_task(uint64_t timestamp)
+void transport_bt_task(uint64_t timestamp)
 {
     static interval_s       interval    = {0};
     static i2cinput_input_s input_data  = {0};
-    
+
+    if(!_bt_esp32_params) return;
+
+    if (_bt_esp32_params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+        return;
+
     static bool read_write = true;
 
     if(interval_run(timestamp, 650, &interval))
@@ -549,10 +620,10 @@ void esp32hoja_task(uint64_t timestamp)
             input_data.buttons_all      = 0;//buttons.buttons_all;
             input_data.buttons_system   = 0;//buttons.buttons_system;
 
-            switch(hoja_get_status().gamepad_mode)
+            switch(_bt_esp32_params->core_report_format)
             {
                 default:
-                case GAMEPAD_MODE_SWPRO:
+                case CORE_REPORTFORMAT_SWPRO:
                 int lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]); 
                 int ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);   
                 int rx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]); 
@@ -597,7 +668,7 @@ void esp32hoja_task(uint64_t timestamp)
                 input_data.rt = 0;
                 break;
 
-                case GAMEPAD_MODE_SINPUT:
+                case CORE_REPORTFORMAT_SINPUT:
                 int slx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LX_LEFT], input.inputs[SINPUT_CODE_LX_RIGHT]);
                 int sly = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_LY_DOWN], input.inputs[SINPUT_CODE_LY_UP]);   
                 int srx = mapper_joystick_concat(2048, input.inputs[SINPUT_CODE_RX_LEFT], input.inputs[SINPUT_CODE_RX_RIGHT]);
@@ -729,14 +800,11 @@ void esp32hoja_task(uint64_t timestamp)
     }
 }
 
-int esp32hoja_hwtest()
-{
-
-}
-
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
-uint32_t esp32hoja_get_fwversion()
+static uint16_t _esp32_static_cached_version = 0;
+
+static uint32_t _esp32_bt_probe_version(void)
 {
     uint32_t ret_info = 0x00;
 
@@ -752,13 +820,14 @@ uint32_t esp32hoja_get_fwversion()
         data_out[0] = I2C_CMD_FIRMWARE_VERSION;
 
         int stat = i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_out, HOJA_I2C_MSG_SIZE_OUT, false, 10000);
+        (void)stat;
         sys_hal_sleep_ms(4);
         int read = i2c_hal_read_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, BT_HOJABB_I2CINPUT_ADDRESS, data_in, HOJA_I2C_MSG_SIZE_IN, false, 10000);
 
         if (read == HOJA_I2C_MSG_SIZE_IN)
         {
-            uint16_t version = (data_in[1] << 8) | (data_in[2]);
-            ret_info |= version;
+            uint16_t version = (uint16_t)((data_in[1] << 8) | data_in[2]);
+            ret_info = version;
 
             _esp32hoja_enable_chip(false);
             return ret_info;
@@ -768,5 +837,76 @@ uint32_t esp32hoja_get_fwversion()
     _esp32hoja_enable_chip(false);
     return 0x00;
 }
+
+void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
+{
+    if (caps == NULL)
+    {
+        return;
+    }
+
+    caps->bdr_supported = 1;
+    caps->ble_supported = 0;
+    caps->external_update_supported = 1;
+}
+
+uint8_t transport_bt_static_part_status(void)
+{
+    uint32_t version = _esp32_bt_probe_version();
+    _esp32_static_cached_version = (uint16_t)version;
+    return version > 0u ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
+}
+
+uint16_t transport_bt_static_external_version(void)
+{
+    return _esp32_static_cached_version;
+}
+
+const char *bluetooth_driver_part_code(void)
+{
+    return "ESP32";
+}
+
+// -------------------------------------------------------------------------
+// Optional ESP32 fuel gauge driver
+//
+// When a board uses the ESP32 baseband for bluetooth it may *optionally* route
+// fuel-gauge duties to the ESP32 module instead of a dedicated gauge IC, by
+// selecting HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32. The strong
+// fuelgauge_driver_* overrides below are then compiled in (the gate also shapes
+// hoja_config_s so no `.fuelgauge` config member is required for this driver).
+// -------------------------------------------------------------------------
+
+#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32)
+
+static uint8_t _esp32_fuelgauge_percent   = 100;
+static bool    _esp32_fuelgauge_connected = true;
+
+void esp32hoja_fuelgauge_report(uint8_t percent, bool connected)
+{
+    _esp32_fuelgauge_percent   = (percent > 100) ? 100 : percent;
+    _esp32_fuelgauge_connected = connected;
+}
+
+bool fuelgauge_driver_init(uint16_t capacity_mah)
+{
+    (void)capacity_mah;
+    return true;
+}
+
+fuelgauge_status_s fuelgauge_driver_get_status(void)
+{
+    fuelgauge_status_s status = {0};
+    status.connected = _esp32_fuelgauge_connected;
+    status.percent   = _esp32_fuelgauge_percent;
+    return status;
+}
+
+const char *fuelgauge_driver_part_code(void)
+{
+    return "ESP32";
+}
+
+#endif // HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32
 
 #endif

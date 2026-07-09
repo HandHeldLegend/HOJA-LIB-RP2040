@@ -1,8 +1,5 @@
 #include "hoja.h"
-
-#include "usb/usb.h"
 #include "usb/webusb.h"
-#include "wired/wired.h"
 
 #include "hal/sys_hal.h"
 #include "hal/flash_hal.h"
@@ -10,6 +7,10 @@
 #include "hal/spi_hal.h"
 
 #include "board_config.h"
+
+#include "cores/cores.h"
+#include "transport/transport.h"
+#include "transport/transport_usb.h"
 
 #include "utilities/callback.h"
 #include "utilities/settings.h"
@@ -25,21 +26,79 @@
 #include "input/hover.h"
 #include "input/stick_scaling.h"
 
+#include "hardware/sync.h"
+#include "devices/fuelgauge.h"
+#include "utilities/tasks.h"
+
 #include "devices/battery.h"
 #include "devices/rgb.h"
-#include "devices/bluetooth.h"
-#include "devices/wlan.h"
-#include "wired/wired.h"
+
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
+
+static const hoja_config_s *_hoja_config = NULL;
+
+const hoja_config_s *hoja_config_get(void)
+{
+  return _hoja_config;
+}
+
+static void _i2c_hal_init_one(uint8_t hw_instance, const hoja_i2c_instance_cfg_s *inst)
+{
+  if(!inst || !inst->enabled)
+    return;
+  uint32_t baud_khz = inst->baudrate_khz ? inst->baudrate_khz : HOJA_I2C_DEFAULT_BAUDRATE_KHZ;
+  i2c_hal_init(hw_instance, inst->sda_gpio, inst->scl_gpio, baud_khz);
+}
+
+static void _spi_hal_init_one(uint8_t hw_instance, const hoja_spi_instance_cfg_s *inst)
+{
+  if(!inst || !inst->enabled)
+    return;
+  spi_hal_init(hw_instance, inst->clk_gpio, inst->miso_gpio, inst->mosi_gpio);
+}
+
+static void _peripheral_hal_init_from_config(void)
+{
+  const hoja_config_s *cfg = hoja_config_get();
+  if(!cfg)
+    return;
+
+#if defined(HOJA_BSP_HAS_SPI) && (HOJA_BSP_HAS_SPI > 0)
+  #if (HOJA_BSP_HAS_SPI >= 1)
+    _spi_hal_init_one(0, &cfg->spi.instance_0);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 2)
+    _spi_hal_init_one(1, &cfg->spi.instance_1);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 3)
+    _spi_hal_init_one(2, &cfg->spi.instance_2);
+  #endif
+  #if (HOJA_BSP_HAS_SPI >= 4)
+    _spi_hal_init_one(3, &cfg->spi.instance_3);
+  #endif
+#endif
+
+#if defined(HOJA_BSP_HAS_I2C) && (HOJA_BSP_HAS_I2C > 0)
+  #if (HOJA_BSP_HAS_I2C >= 1)
+    _i2c_hal_init_one(0, &cfg->i2c.instance_0);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 2)
+    _i2c_hal_init_one(1, &cfg->i2c.instance_1);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 3)
+    _i2c_hal_init_one(2, &cfg->i2c.instance_2);
+  #endif
+  #if (HOJA_BSP_HAS_I2C >= 4)
+    _i2c_hal_init_one(3, &cfg->i2c.instance_3);
+  #endif
+#endif
+}
 
 bool _hoja_null_cb(uint64_t timestamp)
 {
   return false;
 }
-
-sent_callback_t _hoja_mode_task_cb = _hoja_null_cb;
-callback_t _hoja_mode_stop_cb = NULL;
 
 __attribute__((weak)) void cb_hoja_init()
 {
@@ -51,8 +110,10 @@ __attribute__((weak)) void cb_hoja_shutdown()
 
 }
 
-__attribute__((weak)) bool cb_hoja_boot(boot_input_s *boot)
+__attribute__((weak)) bool cb_hoja_boot_custom_face_mode(const mapper_input_s *in, core_reportformat_t *format_out)
 {
+  (void)in;
+  (void)format_out;
   return false;
 }
 
@@ -78,32 +139,23 @@ void hoja_deinit(callback_t cb)
     return;
   _deinit_lockout = true;
 
-  // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
+  tasks_mark_shutdown();
+  sysmon_shutdown();
 
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
+  // Stop our current loop function
+  core_deinit();
 
   haptics_stop();
 
-  hoja_set_connected_status(CONN_STATUS_SHUTDOWN);
-
-#if defined(HOJA_RGB_DRIVER)
-  rgb_deinit(cb);
-#else
-  cb();
-#endif
+  if(!rgb_deinit(cb))
+  {
+    cb();
+  }
 }
 
 void hoja_shutdown()
 {
-  // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
-
   cb_hoja_shutdown();
-
-  
 
   battery_set_ship_mode();
 
@@ -116,249 +168,166 @@ void hoja_shutdown()
 
 void hoja_restart()
 {
-  // Stop our current loop function
-  _hoja_mode_task_cb = NULL;
-
-  // Stop current mode if we have a functions
-  if (_hoja_mode_stop_cb)
-    _hoja_mode_stop_cb();
-
+  core_deinit();
   sys_hal_reboot();
 }
 
-rgb_s _gamepad_mode_color_get(gamepad_mode_t mode)
-{
-  switch (mode)
-  {
-  case GAMEPAD_MODE_SWPRO:
-    return COLOR_WHITE;
-    break;
-
-  case GAMEPAD_MODE_SINPUT:
-    return COLOR_BLUE;
-    break;
-
-  case GAMEPAD_MODE_XINPUT:
-    return COLOR_GREEN;
-    break;
-
-  case GAMEPAD_MODE_GAMECUBE:
-    return COLOR_PURPLE;
-    break;
-
-  case GAMEPAD_MODE_GCUSB:
-    return COLOR_CYAN;
-    break;
-
-  case GAMEPAD_MODE_N64:
-    return COLOR_YELLOW;
-    break;
-
-  case GAMEPAD_MODE_SNES:
-    return COLOR_RED;
-    break;
-
-  default:
-    return COLOR_ORANGE;
-    break;
-  }
-}
-
-volatile hoja_status_s _hoja_status = {
-    .connection_status = CONN_STATUS_INIT,
-    .notification_color = 0,
-    .gamepad_color = 0,
-    .gamepad_method = 0,
-    .gamepad_mode = 0,
-    .init_status = false};
-
-void hoja_set_connected_status(connection_status_t status)
-{
-  _hoja_status.connection_status = status;
-}
-
-void hoja_set_notification_status(rgb_s color)
-{
-  _hoja_status.notification_color = color;
-}
-
-void hoja_clr_ss_notif()
-{
-  _hoja_status.ss_notif_pending = false;
-}
-
-void hoja_set_ss_notif(rgb_s color)
-{
-  _hoja_status.ss_notif_pending = true;
-  _hoja_status.ss_notif_color = color;
-}
-
-void hoja_set_debug_data(uint8_t data)
-{
-  _hoja_status.debug_data = data;
-}
-
-hoja_status_s hoja_get_status()
-{
-  return _hoja_status;
-}
-
-gamepad_mode_t thisMode = GAMEPAD_MODE_SWPRO;
-gamepad_method_t thisMethod = GAMEPAD_METHOD_AUTO;
-bool thisPair = false;
-
 // Replace with proper boot function later TODO
-bool _gamepad_mode_init(gamepad_mode_t mode, gamepad_method_t method, bool pair)
+bool _core_format_init(void)
 {
-  if (method == GAMEPAD_METHOD_AUTO)
-  {
-    battery_status_s status;
-    battery_get_status(&status);
-
-    // PMIC unused
-    if (!status.connected)
-    {
-      method = GAMEPAD_METHOD_USB;
-    }
-    else
-    {
-      if (!status.plugged)
-      {
-        switch (mode)
-        {
-        case GAMEPAD_MODE_SWPRO:
-        case GAMEPAD_MODE_SINPUT:
-        case GAMEPAD_MODE_XINPUT:
-          method = GAMEPAD_METHOD_BLUETOOTH;
-          break;
-
-        default:
-          method = GAMEPAD_METHOD_USB;
-          break;
-        }
-      }
-      else
-      {
-        method = GAMEPAD_METHOD_USB;
-      }
-    }
-  }
-
-  // debug
-  //method = GAMEPAD_METHOD_WLAN;
-  //mode = GAMEPAD_MODE_SINPUT;
-
-  _hoja_status.gamepad_mode = mode;
-  _hoja_status.gamepad_method = method;
-  _hoja_status.gamepad_color = _gamepad_mode_color_get(mode);
-
-  hoja_set_connected_status(CONN_STATUS_CONNECTING); // Pending
-  hoja_set_ss_notif(_hoja_status.gamepad_color);
-  
-
-  switch (method)
-  {
-  default:
-  case GAMEPAD_METHOD_USB:
-    battery_set_charge_rate(200);
-    _hoja_mode_task_cb = usb_mode_task;
-    _hoja_mode_stop_cb = usb_mode_stop;
-    usb_mode_start(mode);
-    break;
-
-  case GAMEPAD_METHOD_WIRED:
-    battery_set_charge_rate(0);
-    _hoja_mode_task_cb = wired_mode_task;
-    wired_mode_start(mode);
-    break;
-
-  case GAMEPAD_METHOD_BLUETOOTH:
-    battery_set_charge_rate(250);
-    _hoja_mode_task_cb = bluetooth_mode_task;
-    _hoja_mode_stop_cb = bluetooth_mode_stop;
-    bluetooth_mode_start(mode, pair);
-    break;
-
-  case GAMEPAD_METHOD_WLAN:
-    battery_set_charge_rate(100);
-    _hoja_mode_task_cb = wlan_mode_task;
-    wlan_mode_start(mode, pair);
-    break;
-  }
-
   // Reload our remap
   mapper_init();
+  rgb_init(-1, -1);
 
   // Reload stick config
   stick_scaling_init();
+
+  if (!core_init())
+  {
+    rgb_set_pulsing(COLOR_RED);
+    return false;
+  }
+
+  const boot_info_s *boot = boot_get_info();
+  if (boot && (boot->flags & COREBOOT_FLAG_ALTFLASH))
+  {
+    rgb_set_pulsing(COLOR_ORANGE);
+    return true;
+  }
+
+  rgb_init(-1, -1);
+
   return true;
 }
 
-#include "hardware/sync.h"
+static task_s _task_core = {
+  .fn = core_task,
+  .name = "core",
+  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_rgb = {
+  .fn = rgb_task,
+  .name = "rgb",
+#if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+  .optional_interval_us = RGB_TASK_INTERVAL,
+#endif
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_hover = {
+  .fn = hover_task,
+  .name = "hover",
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_macros = {
+  .fn = macros_task,
+  .name = "macros",
+  .optional_interval_us = 8000,
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_flash = {
+  .fn = flash_hal_task,
+  .name = "flash",
+  .optional_interval_us = 16000,
+  .type_mask = (TASK_TYPE_OPTIONAL)
+};
+
+// Even-spacing interval for extra motion reads within a cycle. Chosen so an
+// ~8ms cycle yields 3 evenly-spaced reads (0, ~2.67ms, ~5.33ms) while a 1kHz
+// (1ms) cycle only ever takes the guaranteed once-per-cycle read.
+#define MOTION_TASK_INTERVAL_US 2667
+
+static task_s _task_motion = {
+  .fn = imu_task,
+  .name = "imu",
+  .motion_interval_us = MOTION_TASK_INTERVAL_US,
+  .type_mask = (TASK_TYPE_MOTION)
+};
+
+static task_s _task_haptics = {
+  .fn = haptics_task,
+  .name = "haptics",
+  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_RECURRING)
+};
+
+static task_s _task_sysmon = {
+  .fn = sysmon_task,
+  .name = "sysmon",
+  .optional_interval_us = SYSMON_TASK_INTERVAL_US,
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
+};
+
+static task_s _task_idle = {
+  .fn = idle_manager_task,
+  .name = "idle",
+  .optional_interval_us = IDLE_TASK_INTERVAL_US,
+  .type_mask = (TASK_TYPE_OPTIONAL)
+};
+
+static task_s _task_watchdog = {
+  .fn = sys_hal_tick,
+  .name = "wd",
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
+};
+
+void _hoja_init_core_tasks(void)
+{
+  tasks_reset();
+
+  const boot_info_s *boot = boot_get_info();
+
+  tasks_register(&_task_hover);
+
+  switch(boot->reportformat)
+  {
+    default:
+    tasks_register(&_task_haptics);
+    break;
+
+    case CORE_REPORTFORMAT_XINPUT:
+    case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_GAMECUBE:
+    case CORE_REPORTFORMAT_N64:
+    tasks_register(&_task_haptics);
+    break;
+
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_SWPRO:
+    tasks_register(&_task_haptics);
+    tasks_register(&_task_motion);
+    break;
+
+    case CORE_REPORTFORMAT_SNES:
+    break;
+  }
+
+  // Tasks for all modes
+  tasks_register(&_task_flash);
+  tasks_register(&_task_idle);
+  tasks_register(&_task_macros);
+  
+  tasks_register(&_task_rgb);
+  tasks_register(&_task_sysmon);
+  tasks_register(&_task_watchdog);
+  tasks_register(&_task_core);
+}
 
 // Core 1 task loop entrypoint
 void _hoja_task_1()
 {
   static uint64_t c1_timestamp = 0;
 
-  // init gamepad mode on core 1
-  _gamepad_mode_init(thisMode, thisMethod, thisPair);
+  // init core on core 1
+  _core_format_init();
+
+  _hoja_init_core_tasks();
 
   for (;;)
   {
-    // Get current system timestamp
-    sys_hal_time_us(&c1_timestamp);
-
-    // RGB task
-    rgb_task(c1_timestamp);
-
-    // Read inputs
-    hover_task(c1_timestamp);
-
-    // Process any macros
-    macros_task(c1_timestamp);
-
-    // Handle haptics
-    haptics_task(c1_timestamp);
-
-    bool sent_clear = false;
-
-    if(!_deinit_lockout)
-    {
-      // Flash task
-      flash_hal_task();
-
-      if (webusb_outputting_check())
-      {
-        // Optional web Input
-        webusb_send_rawinput(c1_timestamp);
-        sent_clear = true;
-      }
-      else if (_hoja_mode_task_cb)
-      {
-        sent_clear = _hoja_mode_task_cb(c1_timestamp);
-      }
-
-      
-
-      // System Monitor task (battery/fuel gauge)
-      sysmon_task(c1_timestamp);
-
-      // Update sys tick
-      sys_hal_tick();
-
-      // Idle manager
-      idle_manager_task(c1_timestamp);
-
-      imu_task(c1_timestamp);
-
-      if(sent_clear)
-      { // Refresh some data
-        // IMU task
-        
-        sent_clear = false;
-      }
-    }
+    tasks_run();
   }
 }
 
@@ -376,8 +345,9 @@ void _hoja_task_0()
 
     if(!_deinit_lockout)
     {
-      // Analog task
-      if(analog_static.axis_lx)
+      // Analog task (any stick half-axis present)
+      if(analog_static.axis_lx || analog_static.axis_ly
+      || analog_static.axis_rx || analog_static.axis_ry)
         analog_task(c0_timestamp);
     }
   }
@@ -388,28 +358,7 @@ bool _system_requirements_init()
   // System hal init
   sys_hal_init();
 
-// SPI 0
-#if defined(HOJA_SPI_0_ENABLE) && (HOJA_SPI_0_ENABLE == 1)
-  spi_hal_init(0, HOJA_SPI_0_GPIO_CLK, HOJA_SPI_0_GPIO_MISO, HOJA_SPI_0_GPIO_MOSI);
-#endif
-
-// I2C 0
-#if defined(HOJA_I2C_0_ENABLE) && (HOJA_I2C_0_ENABLE == 1)
-  uint32_t baudrate_khz_i2c0 = 400; // Default baudrate
-#if defined(HOJA_I2C_0_BAUDRATE_KHZ)
-  baudrate_khz_i2c0 = HOJA_I2C_0_BAUDRATE_KHZ;
-#endif
-  i2c_hal_init(0, HOJA_I2C_0_GPIO_SDA, HOJA_I2C_0_GPIO_SCL, baudrate_khz_i2c0);
-#endif
-
-// I2C 1
-#if defined(HOJA_I2C_1_ENABLE) && (HOJA_I2C_1_ENABLE == 1)
-  uint32_t baudrate_khz_i2c1 = 400; // Default baudrate
-#if defined(HOJA_I2C_1_BAUDRATE_KHZ)
-  baudrate_khz_i2c1 = HOJA_I2C_1_BAUDRATE_KHZ;
-#endif
-  i2c_hal_init(1, HOJA_I2C_1_GPIO_SDA, HOJA_I2C_1_GPIO_SCL, baudrate_khz_i2c1);
-#endif
+  _peripheral_hal_init_from_config();
 
   // Static config
   static_config_init();
@@ -423,31 +372,17 @@ bool _system_requirements_init()
   return true;
 }
 
-bool _system_devices_init(gamepad_method_t method, gamepad_mode_t mode)
+bool _system_devices_init(void)
 {
-  // Battery
-  if(method!=GAMEPAD_METHOD_WIRED)
-    battery_init();
+  boot_init();
 
-  // Fuel gauge
-  fuelgauge_init(1200);
-
-  // System Monitor
+  battery_init();
+  fuelgauge_init();
   sysmon_init();
-
-  // Haptics
   haptics_init();
 
-  int bright = -1;
-
-  if (method == GAMEPAD_METHOD_BLUETOOTH || method == GAMEPAD_METHOD_WIRED)
-  {
-    const int halfbright = (RGB_BRIGHTNESS_MAX / 3);
-    bright = rgb_config->rgb_brightness > halfbright ? halfbright : rgb_config->rgb_brightness;
-  }
-
-  // RGB
-  rgb_init(-1, bright);
+  mapper_init();
+  rgb_init(-1, -1);
   return true;
 }
 
@@ -464,14 +399,14 @@ bool _system_input_init()
   return true;
 }
 
-void hoja_init()
+void hoja_init(const hoja_config_s *config)
 {
+  _hoja_config = config;
+
   _system_requirements_init();
   _system_input_init();
 
-  boot_get_mode_method(&thisMode, &thisMethod, &thisPair);
-
-  _system_devices_init(thisMethod, thisMode);
+  _system_devices_init();
 
   // Init tasks finally
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);

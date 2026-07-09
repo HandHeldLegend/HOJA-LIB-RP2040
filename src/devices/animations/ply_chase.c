@@ -16,12 +16,10 @@ bool    _chase_dir = true;
 
 bool ply_chase_handler(rgb_s *output, rgb_s set_color)
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX)
-
     bool returnValue = false;
 
     // Clear all player LEDs
-    for(int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(int i = 0; i < RGB_PLAYER_GROUP_SIZE; i++)
     {
         if(i != _current_chase_led)
             output[i].color = 0x00;
@@ -35,9 +33,9 @@ bool ply_chase_handler(rgb_s *output, rgb_s set_color)
     {
         if(_chase_dir)
         {
-            if(_current_chase_led >= (HOJA_RGB_PLAYER_GROUP_SIZE-1))
+            if(_current_chase_led >= (RGB_PLAYER_GROUP_SIZE-1))
             {
-                _current_chase_led = HOJA_RGB_PLAYER_GROUP_SIZE - 2;
+                _current_chase_led = RGB_PLAYER_GROUP_SIZE - 2;
                 _chase_dir = false;
                 returnValue = true;
             }
@@ -57,9 +55,6 @@ bool ply_chase_handler(rgb_s *output, rgb_s set_color)
     }
 
     return returnValue;
-
-    #endif
-
 }
 
 #endif

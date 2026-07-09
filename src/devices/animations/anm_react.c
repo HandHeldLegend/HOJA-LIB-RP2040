@@ -7,16 +7,62 @@
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 
+#include "hoja.h"
 #include "board_config.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
-uint32_t _color_fades[MAPPER_INPUT_COUNT] = {0};
-uint16_t _max_values[MAPPER_INPUT_COUNT] = {0};
+uint32_t _color_fades[RGB_MAX_GROUPS] = {0};
+uint16_t _max_values[RGB_MAX_GROUPS] = {0};
 uint32_t _color_fade_step = 0;
+uint16_t _analog_smoothed[RGB_MAX_GROUPS] = {0};
+uint16_t _analog_release_step = 0;
 rgb_s color_black = {.color = 0x00};
 
-int8_t _rgb_react_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
+static inline uint16_t _smooth_analog_group_input(uint8_t group_idx, uint16_t target)
+{
+    uint16_t current = _analog_smoothed[group_idx];
+
+    if(target > current)
+    {
+        // Instant attack: jump to target brightness immediately.
+        current = target;
+    }
+    else if(target < current)
+    {
+        uint16_t step = _analog_release_step;
+        if(current <= step)
+            current = target;
+        else
+        {
+            uint16_t next = current - step;
+            current = (next < target) ? target : next;
+        }
+    }
+
+    _analog_smoothed[group_idx] = current;
+    return current;
+}
+
+static inline uint16_t _normalize_analog_input(uint16_t input_value, uint8_t input_type)
+{
+    uint16_t val = input_value & 0x1FFF;
+
+    if(input_type == MAPPER_INPUT_TYPE_JOYSTICK)
+    {
+        if(val > 2048)
+            val = 2048;
+
+        // Joystick channels are half-range (0-2048). Scale to 0-4095 so
+        // smoothing/fade behavior matches hover analog channels.
+        return (uint16_t)(((uint32_t)val * 4095U) / 2048U);
+    }
+
+    if(val > 4095)
+        val = 4095;
+
+    return val;
+}
 
 static inline void _handle_analog_input(uint16_t input_value, const uint8_t group_idx, rgb_s *output) {
     // Cap input value to 12-bit range (0-4095)
@@ -64,7 +110,7 @@ static inline void _handle_analog_input(uint16_t input_value, const uint8_t grou
 
     // Write color to output according to group
     for(int i = 0; i < RGB_MAX_LEDS_PER_GROUP; i++) {
-        int8_t idx_out = _rgb_react_group_leds[group_idx][i];
+        int8_t idx_out = rgb_led_groups[group_idx][i];
         if(idx_out < 0) {
             continue;
         }
@@ -75,10 +121,22 @@ static inline void _handle_analog_input(uint16_t input_value, const uint8_t grou
 bool anm_react_get_state(rgb_s *output)
 {
     _color_fade_step = anm_utility_get_time_fixedpoint();
+
+    uint32_t step = (4095U * _color_fade_step) / RGB_FADE_FIXED_MULT;
+    if(step == 0)
+        step = 1;
+
+    _analog_release_step = (uint16_t)step;
+
     // Reset our static state from stored rgb group data
-    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
     {
         _color_fades[i] = RGB_FADE_FIXED_MULT;
+    }
+
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        _analog_smoothed[i] = 0;
     }
 
     for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
@@ -99,28 +157,52 @@ uint16_t _parse_distance(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2)
 bool anm_react_handler(rgb_s* output)
 {
     mapper_input_s input = mapper_get_translated_input();
-    
-    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
-    {
-        uint8_t group = input_static.input_info[i].rgb_group;
-        if(group > 0)
-        {
-            group-=1;
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
+    // Walk the board's key_mappings: each maps an input code to the group it
+    // illuminates.
+    for(int s = 0; s < rcfg->key_mapping_count && s < RGB_MAX_KEY_MAPPINGS; s++)
+    {
+        mapper_input_code_t i = rcfg->key_mappings[s].input;
+        uint8_t group = rcfg->key_mappings[s].group;
+
+        if(i < 0 || i >= MAPPER_INPUT_COUNT)
+            continue;
+        if(group >= rgb_group_count)
+            continue;
+
+        {
             switch(i)
             {
                 case INPUT_CODE_LX_RIGHT:
                 uint16_t d1 = _parse_distance(input.inputs[INPUT_CODE_LX_LEFT], input.inputs[INPUT_CODE_LX_RIGHT], input.inputs[INPUT_CODE_LY_UP], input.inputs[INPUT_CODE_LY_DOWN]);
+                if(input_static.input_info[i].input_type == MAPPER_INPUT_TYPE_JOYSTICK)
+                {
+                    d1 = _normalize_analog_input(d1, MAPPER_INPUT_TYPE_JOYSTICK);
+                    d1 = _smooth_analog_group_input(group, d1);
+                }
                 _handle_analog_input(d1, group, output);
                 break;
 
                 case INPUT_CODE_RX_RIGHT:
                 uint16_t d2 = _parse_distance(input.inputs[INPUT_CODE_RX_LEFT], input.inputs[INPUT_CODE_RX_RIGHT], input.inputs[INPUT_CODE_RY_UP], input.inputs[INPUT_CODE_RY_DOWN]);
+                if(input_static.input_info[i].input_type == MAPPER_INPUT_TYPE_JOYSTICK)
+                {
+                    d2 = _normalize_analog_input(d2, MAPPER_INPUT_TYPE_JOYSTICK);
+                    d2 = _smooth_analog_group_input(group, d2);
+                }
                 _handle_analog_input(d2, group, output);
                 break;
 
                 default:
-                _handle_analog_input(input.inputs[i] & 0x1FFF, group, output);
+                uint16_t raw = input.inputs[i] & 0x1FFF;
+                uint8_t input_type = input_static.input_info[i].input_type;
+                if((input_type == MAPPER_INPUT_TYPE_HOVER) || (input_type == MAPPER_INPUT_TYPE_JOYSTICK))
+                {
+                    raw = _normalize_analog_input(raw, input_type);
+                    raw = _smooth_analog_group_input(group, raw);
+                }
+                _handle_analog_input(raw, group, output);
                 break;
             }
         }

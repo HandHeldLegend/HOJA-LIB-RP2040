@@ -18,14 +18,13 @@ typedef enum
     CFG_BLOCK_MAX,
 } cfg_block_t;
 
-#define CFG_BLOCK_GAMEPAD_VERSION   0x12
+#define CFG_BLOCK_GAMEPAD_VERSION   0x14
 
 // Remap config is replaced by hover cfg
-//#define CFG_BLOCK_REMAP_VERSION     0x13
 #define CFG_BLOCK_HOVER_VERSION     0x14
 
-#define CFG_BLOCK_ANALOG_VERSION    0x13 // Migrate from 0x11
-#define CFG_BLOCK_RGB_VERSION       0x11
+#define CFG_BLOCK_ANALOG_VERSION    0x13 
+#define CFG_BLOCK_RGB_VERSION       0x12
 
 // Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
@@ -34,9 +33,9 @@ typedef enum
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
 
-// Battery cfg is removed
-//#define CFG_BLOCK_BATTERY_VERSION   0x12
-#define CFG_BLOCK_INPUT_VERSION     0x13
+#define CFG_BLOCK_INPUT_VERSION     0x14
+
+#define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 
 typedef enum 
 {
@@ -196,17 +195,20 @@ typedef struct
 typedef struct 
 {
     uint8_t  gamepad_config_version;
-    uint8_t  gamepad_default_mode;
-    uint8_t  switch_mac_address[6]; // Mac address used to connect to Switch (BASE DEVICE MAC)
+    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 6=SINPUT)
+    uint8_t  gamepad_mac_address[6]; // Device BASE MAC Address
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
     uint32_t gamepad_color_grip_left;
     uint32_t gamepad_color_grip_right;
-    uint8_t  host_mac_switch[6]; // Mac address of the Switch we are paired to
-    uint8_t  host_mac_sinput[6]; // Mac address of the SInput device we are paired to
-    uint8_t  webusb_enable_popup; // Whether or not the WebUSB toast should show
-    uint8_t  reserved[27];
+    uint8_t  host_mac_switch[6];    // Mac address of the Switch we are paired to
+    uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
+    uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
+    uint16_t wlan_dongle_key;       // WLAN dongle pairing pin (0000-9999)
+    uint8_t  reserved[25];
 } gamepadConfig_s;
+
+_Static_assert(sizeof(gamepadConfig_s) == 64, "gamepadConfig_s must remain 64 bytes");
 
 // Calibration data used for analog inputs (non-joystick)
 typedef struct 
@@ -252,6 +254,15 @@ typedef struct
     uint8_t reserved[787];
 } inputConfig_s;
 
+typedef struct
+{
+    uint8_t switchpair_config_version;
+    uint8_t link_key[16];
+    uint8_t reserved[47];
+} switchpairConfig_s;
+
+
+
 #pragma pack(pop)
 
 // Byte sizes of our various blocks
@@ -273,10 +284,12 @@ typedef struct
 // #define BATTERY_CFB_SIZE    sizeof(batteryConfig_s) // 16
 #define INPUT_CFB_SIZE      sizeof(inputConfig_s) // 2048
 
+#define SWITCHPAIR_CFB_SIZE sizeof(switchpairConfig_s) // 64
+
 // Byte size of all combined blocks
 #define TOTAL_CFB_SIZE (GAMEPAD_CFB_SIZE+HOVER_CFB_SIZE+RGB_CFB_SIZE+\
                         ANALOG_CFB_SIZE+TRIGGER_CFB_SIZE+IMU_CFB_SIZE+HAPTIC_CFB_SIZE+\
-                        USER_CFB_SIZE+INPUT_CFB_SIZE)
+                        USER_CFB_SIZE+INPUT_CFB_SIZE+SWITCHPAIR_CFB_SIZE)
 
                         
 

@@ -2,18 +2,48 @@
 #include "devices/rgb.h"
 #include "utilities/interval.h"
 #include "utilities/settings.h"
-#include "utilities/crosscore_snapshot.h"
+#include "utilities/crosscore_utils.h"
+#include "utilities/boot.h"
 #include "hoja.h"
 #include "board_config.h"
-
-#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
-    #include "drivers/battery/bq25180.h"
-#endif
 
 SNAPSHOT_TYPE(battery, battery_status_s);
 snapshot_battery_t _battery_snap;
 bool _battery_init_done = false;
 volatile bool _shipping_lockout = false;
+
+// Weak driver contract defaults. A board that selects no battery driver links
+// these, making every battery call a safe no-op. The selected driver (compiled
+// in by the HOJA_BATTERY_DRIVER gate) overrides them with strong definitions.
+__attribute__((weak)) bool battery_driver_init(void) { return false; }
+__attribute__((weak)) battery_status_s battery_driver_get_status(void) { battery_status_s s = {0}; return s; }
+__attribute__((weak)) bool battery_driver_set_charge_rate(uint16_t rate_ma) { (void)rate_ma; return false; }
+__attribute__((weak)) bool battery_driver_set_ship_mode(void) { return false; }
+__attribute__((weak)) const char *battery_driver_part_code(void) { return NULL; }
+__attribute__((weak)) bool battery_driver_pack_present(void) { return true; }
+
+static bool _battery_pack_present = true;
+
+// A driver is present iff it supplies a part code (weak default returns NULL).
+static inline bool _battery_present(void) { return battery_driver_part_code() != NULL; }
+
+static bool _battery_boot_wants_init(void)
+{
+    const boot_info_s *boot = boot_get_info();
+    if (!boot)
+        return true;
+
+    switch (boot->transport)
+    {
+    case GAMEPAD_TRANSPORT_NESBUS:
+    case GAMEPAD_TRANSPORT_JOYBUS64:
+    case GAMEPAD_TRANSPORT_JOYBUSGC:
+        return false;
+
+    default:
+        return true;
+    }
+}
 
 void _battery_set_connected(bool connected)
 {
@@ -47,10 +77,8 @@ void battery_update_status(void)
 
     battery_status_s status = {0};
 
-    #if defined(HOJA_BATTERY_GET_STATUS)
     if(_battery_init_done)
-        status = HOJA_BATTERY_GET_STATUS();
-    #endif
+        status = battery_driver_get_status();
 
     snapshot_battery_write(&_battery_snap, &status);
 }
@@ -60,66 +88,63 @@ void battery_get_status(battery_status_s *out)
     snapshot_battery_read(&_battery_snap, out);
 }
 
-// Init battery PMIC, returns battery_init_t status
-bool battery_init(void)
+// Init battery PMIC. Always safe to call.
+battery_result_t battery_init(void)
 {
+    if (!_battery_boot_wants_init())
+        return BATTERY_RESULT_SKIPPED;
+
+    _battery_init_done = false;
+
     // Reset connected status
     _battery_set_connected(false);
 
-    bool present = false;
+    // No battery driver compiled in for this board.
+    if(!_battery_present())
+        return BATTERY_RESULT_NO_DRIVER;
 
-    #if defined(HOJA_BATTERY_PRESENT)
-    present = HOJA_BATTERY_PRESENT();
-    #endif
+    // init() also performs hardware presence detection.
+    if(!battery_driver_init())
+        return BATTERY_RESULT_FAILED;
 
-    // PMIC is not present or not responding
-    if(!present) return false;
-
+    _battery_pack_present = battery_driver_pack_present();
     _battery_set_connected(true);
-
-    bool init = false;
-
-    #if defined(HOJA_BATTERY_INIT)
-    init = HOJA_BATTERY_INIT();
-    #endif
-
-    // PMIC initialization failure
-    if(!init) return false;
-
     _battery_init_done = true;
 
     // Get initial status
     battery_update_status();
-    return true;
+    return BATTERY_RESULT_OK;
 }
 
-// Set PMIC charge rate.
-bool battery_set_charge_rate(uint16_t rate_ma)
+// Set PMIC charge rate. Always safe to call.
+battery_result_t battery_set_charge_rate(uint16_t rate_ma)
 {
-    battery_status_s tmp;
-    //snapshot_battery_read(&_battery_snap, &tmp);
-    //if(!tmp.connected) return false;
+    if(!_battery_present())
+        return BATTERY_RESULT_NO_DRIVER;
 
-    #if defined(HOJA_BATTERY_SET_CHARGE_RATE)
-    return HOJA_BATTERY_SET_CHARGE_RATE(rate_ma);
-    #else 
-    return false;
-    #endif 
+    if (!_battery_pack_present && rate_ma > 0)
+        rate_ma = 0;
+
+    return battery_driver_set_charge_rate(rate_ma)
+         ? BATTERY_RESULT_OK
+         : BATTERY_RESULT_FAILED;
 }
 
-// Enable PMIC ship mode (power off with power conservation).
-void battery_set_ship_mode()
+bool battery_pack_present(void)
+{
+    return _battery_pack_present;
+}
+
+// Enable PMIC ship mode (power off with power conservation). Always safe to
+// call; returns BATTERY_RESULT_NO_DRIVER when there's no PMIC to power down.
+battery_result_t battery_set_ship_mode()
 {
     _shipping_lockout = true;
 
-    //battery_status_s tmp;
-    //snapshot_battery_read(&_battery_snap, &tmp);
+    if(!_battery_present())
+        return BATTERY_RESULT_NO_DRIVER;
 
-    // Always try
-    //if(!tmp.connected) return;
-
-    #if defined(HOJA_BATTERY_SET_SHIP_MODE)
-    HOJA_BATTERY_SET_SHIP_MODE();
-    #endif
-    return;
+    return battery_driver_set_ship_mode()
+         ? BATTERY_RESULT_OK
+         : BATTERY_RESULT_FAILED;
 }

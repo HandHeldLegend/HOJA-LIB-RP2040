@@ -1,12 +1,9 @@
 #include "input/macros.h"
-#include "utilities/interval.h"
-#include "input/mapper.h"
+#include "input/hover.h"
 
 #include "input/macros/macro_shutdown.h"
 #include "input/macros/macro_pairing.h"
 #include "input/macros/macro_tourney.h"
-
-#include "devices/battery.h"
 
 #include "board_config.h"
 
@@ -16,24 +13,14 @@
 
 void macros_task(uint64_t timestamp)
 {
-    static mapper_input_s input = {0};
-    static interval_s interval = {0};
-    static bool first_run = false;
+    mapper_input_s input = {0};
+    hover_access_safe(&input);
 
-    if(interval_run(timestamp, 1000, &interval))
-    {
-        input = mapper_get_translated_input();
-        first_run = true;
-    }
-
-    // Only run macros on successful button read
-    if(!first_run) return;
-
-    #if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER>0)
+    // Disabled when hoja_config_s.shipping_macro_code[0] is INPUT_CODE_UNUSED.
     macro_shutdown(timestamp, &input);
-    #endif
 
-    #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
+    #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER > 0)
+    // Disabled when hoja_config_s.sync_macro_code[0] is INPUT_CODE_UNUSED.
     macro_pairing(timestamp, &input);
     #endif
 
@@ -41,8 +28,6 @@ void macros_task(uint64_t timestamp)
     macro_pcmdebug(timestamp, &input);
     #endif
 
-    #if defined(HOJA_DISABLE_TOURNEY_MACRO) && (HOJA_DISABLE_TOURNEY_MACRO==1)
-    #else
+    // Disabled when hoja_config_s.tourney_macro_code is INPUT_CODE_UNUSED.
     macro_tourney(timestamp, &input);
-    #endif
 }

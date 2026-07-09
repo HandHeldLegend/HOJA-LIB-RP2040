@@ -13,6 +13,7 @@
 #include "devices/bluetooth.h"
 
 #include "utilities/static_config.h"
+#include "utilities/boot.h"
 #include "hal/flash_hal.h"
 
 #include "input/stick_scaling.h"
@@ -22,6 +23,7 @@
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
+#include "devices/animations/anm_authentic.h"
 
 #define BLOCK_CHUNK_MAX 32
 #define BLOCK_REPORT_ID_IDX 0 // We typically don't use this
@@ -42,38 +44,40 @@ imuConfig_s         *imu_config        = NULL;
 hapticConfig_s      *haptic_config     = NULL;
 userConfig_s        *user_config       = NULL;
 inputConfig_s       *input_config      = NULL;
+switchpairConfig_s  *switchpair_config = NULL;
 
 void settings_init()
 {
     flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
 
-    gamepad_config     = (gamepadConfig_s *)  &live_settings.gamepad_configuration_block;
-    hover_config       = (hoverConfig_s *)    &live_settings.hover_configuration_block;
-    rgb_config         = (rgbConfig_s *)      &live_settings.rgb_configuration_block;
-    analog_config      = (analogConfig_s *)   &live_settings.analog_configuration_block;
-    trigger_config     = (triggerConfig_s *)  &live_settings.trigger_configuration_block;
-    imu_config         = (imuConfig_s *)      &live_settings.imu_configuration_block;
-    haptic_config      = (hapticConfig_s *)   &live_settings.haptic_configuration_block;
-    user_config        = (userConfig_s *)     &live_settings.user_configuration_block;
-    input_config       = (inputConfig_s *)    &live_settings.input_configuration_block;
+    gamepad_config     = (gamepadConfig_s *)    &live_settings.gamepad_configuration_block;
+    hover_config       = (hoverConfig_s *)      &live_settings.hover_configuration_block;
+    rgb_config         = (rgbConfig_s *)        &live_settings.rgb_configuration_block;
+    analog_config      = (analogConfig_s *)     &live_settings.analog_configuration_block;
+    trigger_config     = (triggerConfig_s *)    &live_settings.trigger_configuration_block;
+    imu_config         = (imuConfig_s *)        &live_settings.imu_configuration_block;
+    haptic_config      = (hapticConfig_s *)     &live_settings.haptic_configuration_block;
+    user_config        = (userConfig_s *)       &live_settings.user_configuration_block;
+    input_config       = (inputConfig_s *)      &live_settings.input_configuration_block;
+    switchpair_config  = (switchpairConfig_s *) &live_settings.switchpair_configuration_block;
 
     // Debug mac address if zero
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
     {
         gamepad_config->gamepad_config_version = CFG_BLOCK_GAMEPAD_VERSION;
-        gamepad_config->gamepad_default_mode   = GAMEPAD_MODE_SWPRO;
+        gamepad_config->gamepad_default_mode   = CORE_REPORTFORMAT_SWPRO;
 
         for(uint8_t i = 0; i < 6; i++)
         {
             uint8_t rand = sys_hal_random() & 0xFF;
             if(!rand) rand++;
-            gamepad_config->switch_mac_address[i] = rand;
+            gamepad_config->gamepad_mac_address[i] = rand;
         }
 
         // Always unset the first bit in octet 0
-        if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+        if((gamepad_config->gamepad_mac_address[0] & 0x01) != 0)
         {
-            gamepad_config->switch_mac_address[0]-=1;
+            gamepad_config->gamepad_mac_address[0]-=1;
         }
 
         gamepad_config->gamepad_color_body = 0x2D2D2D;
@@ -81,16 +85,24 @@ void settings_init()
         gamepad_config->gamepad_color_grip_left = 0xFFFFFF;
         gamepad_config->gamepad_color_grip_right = 0xFFFFFF;
 
+        // Unset paired device addresses and Switch link key
+        memset(gamepad_config->host_mac_switch, 0, 6);
+        memset(gamepad_config->host_mac_sinput, 0, 6);
+
+        // Reset wlan key
+        gamepad_config->wlan_dongle_key = 0;
+
+        // Reset WebUSB popup Setting
+        gamepad_config->webusb_enable_popup = 0;
+
         // Commit changes
         settings_commit_blocks();
     }
 
-    if(gamepad_config->webusb_enable_popup==0xFF) gamepad_config->webusb_enable_popup = 0;
-
     // Always unset the first bit in octet 0
-    if((gamepad_config->switch_mac_address[0] & 0x01) != 0)
+    if((gamepad_config->gamepad_mac_address[0] & 0x01) != 0)
     {
-        gamepad_config->switch_mac_address[0]-=1;
+        gamepad_config->gamepad_mac_address[0]-=1;
         settings_commit_blocks();
     }
 
@@ -126,8 +138,17 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
         break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
-            // Enable bluetooth upload
-            bluetooth_mode_start(GAMEPAD_MODE_LOAD, false);
+        {
+            // Persist a boot flag and reboot into ESP32 baseband firmware-update
+            // mode (ALTFLASH). This runs inside the USB transport's own RX
+            // callback, so we must NOT hoja_deinit() here (that tears down the
+            // transport we're executing inside). Reboot immediately instead,
+            // like GAMEPAD_CMD_RESET_TO_BOOTLOADER; the watchdog reboot preserves
+            // the boot-memory scratch register, so we come up in ALTFLASH.
+            boot_memory_s mem = {.baseband_update = true};
+            boot_set_memory(&mem);
+            sys_hal_reboot();
+        }
         break;
 
         case GAMEPAD_CMD_SAVE_ALL:
@@ -203,6 +224,11 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_GAMEPAD:
             write_to_ptr = live_settings.gamepad_configuration_block;
+            if (completed)
+            {
+                gamepad_config->wlan_dongle_key =
+                    (uint16_t)(gamepad_config->wlan_dongle_key % 10000u);
+            }
         break;
 
         case CFG_BLOCK_HOVER:
@@ -247,11 +273,17 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
         case CFG_BLOCK_INPUT:
             write_to_ptr = live_settings.input_configuration_block;
             if(completed)
+            {
                 mapper_init();
+                anm_authentic_refresh();
+            }
         break;
     }
 
     if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
+
+    if(block == CFG_BLOCK_INPUT && write)
+        anm_authentic_refresh();
 }
 
 uint8_t _sdata[64] = {0};

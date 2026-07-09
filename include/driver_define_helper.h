@@ -2,7 +2,7 @@
 #define DRIVER_DEFINE_HELPER_H
 
 #include <stdint.h>
-#include "input/mapper.h"
+#include <stdbool.h>
 
     typedef enum {
         INPUT_TYPE_UNUSED,
@@ -53,19 +53,31 @@
     #define HOJA_ENABLE_INPUT(code) | HOJA_MASK(code)
     
     // IMU Drivers
+    // Legacy per-channel/per-bus selectors (used by not-yet-migrated boards).
     #define IMU_DRIVER_LSM6DSR_SPI 1
     #define IMU_DRIVER_LSM6DSR_I2C 2
+    // Unified LSM6DSR driver: bus (SPI/I2C) is chosen per-channel in the cfg.
+    #define IMU_DRIVER_LSM6DSR     3
+    // Override: board supplies its own IMU driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_IMU_CFG_TYPE) for the override hook.
+    #define IMU_DRIVER_CUSTOM      0xFF
 
     // Haptic helper Drivers 
     #define HAPTIC_HELPER_DRIVER_DRV2605L 1
 
     // Battery Drivers
     #define BATTERY_DRIVER_BQ25180 1
+    // Override: board supplies its own battery driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_BATTERY_CFG_TYPE) for the override hook.
+    #define BATTERY_DRIVER_CUSTOM  0xFF
 
     // Fuel Gauge Drivers
     #define FUELGAUGE_DRIVER_ADC 1
     #define FUELGAUGE_DRIVER_ESP32 2
     #define FUELGAUGE_DRIVER_BQ27621G1 3
+    // Override: board supplies its own fuel gauge driver + cfg type out-of-tree.
+    // See hoja.h (HOJA_FUELGAUGE_CFG_TYPE) for the override hook.
+    #define FUELGAUGE_DRIVER_CUSTOM 0xFF
 
     // WLAN Drivers
     #define WLAN_DRIVER_HAL 1
@@ -85,6 +97,9 @@
     #define RGB_ORDER_GRB 1
     #define RGB_MAX_LEDS_PER_GROUP 4
     #define RGB_MAX_GROUP_NAME_LEN 8
+    #define RGB_MAX_GROUPS 32           // Hard ceiling on RGB groups
+    #define RGB_MAX_KEY_MAPPINGS 32   // Hard ceiling on input->group key mapping slots
+    #define RGB_PLAYER_GROUP_SIZE 4     // Player-number indicator groups are always 4 LEDs
 
     // Drivers for haptics
     #define HAPTICS_DRIVER_LRA_HAL 1
@@ -94,17 +109,47 @@
     #define HAPTICS_DUPLEX_HALF 1
     #define HAPTICS_DUPLEX_FULL 2
 
+    // TRANSPORT DRIVERS
+
     // NESBus Drivers
     #define NESBUS_DRIVER_HAL 1
 
-    // Joybus Drivers
+    // Joybus64 Drivers
     #define JOYBUS_N64_DRIVER_HAL 1
 
+    // JoysbusGC Drivers
     #define JOYBUS_GC_DRIVER_HAL 1
+
+    // Bluetooth Drivers
+    #define BT_DRIVER_HAL 1
+    #define BT_DRIVER_ESP32HOJA 2
+
+    // Older board_config.h files declared HOJA_BLUETOOTH_DRIVER instead of
+    // HOJA_TRANSPORT_BT_DRIVER. Values match (BLUETOOTH_DRIVER_* == BT_DRIVER_*).
+    #if !defined(HOJA_TRANSPORT_BT_DRIVER) && defined(HOJA_BLUETOOTH_DRIVER)
+    #define HOJA_TRANSPORT_BT_DRIVER HOJA_BLUETOOTH_DRIVER
+    #endif
+
+    // USB Drivers
+    #define USB_DRIVER_HAL 1
+
+    // WLAN Drivers
+    #define WLAN_DRIVER_HAL 1
 
     // Button layout for SEWN types
     #define SEWN_LAYOUT_ABXY 0 // Xbox Style
     #define SEWN_LAYOUT_BAYX 1 // Nintendo Style
     #define SEWN_LAYOUT_AXBY 2 // GameCube Style
+
+    // Boot: hover face buttons use relative analog strength (see
+    // boot_pick_strongest_analog4) when all four face inputs are HOVER type.
+    // Winner must exceed the second-highest face reading by at least this much (12-bit raw).
+    #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
+    #define HOJA_BOOT_ANALOG_FACE_DELTA 200
+    #endif
+    // Winner must reach at least this raw value to count as intentional (noise floor).
+    #ifndef HOJA_BOOT_ANALOG_FACE_MIN
+    #define HOJA_BOOT_ANALOG_FACE_MIN 350
+    #endif
 
 #endif

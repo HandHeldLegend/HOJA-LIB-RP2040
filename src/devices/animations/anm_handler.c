@@ -10,10 +10,15 @@
 
 #include "devices/rgb.h"
 #include "hal/rgb_hal.h"
+
+#include "transport/transport.h"
+#include "cores/cores.h"
+
 #include "utilities/settings.h"
 
 // Primary animation modes
 #include "devices/animations/anm_none.h"
+#include "devices/animations/anm_authentic.h"
 #include "devices/animations/anm_breathe.h"
 #include "devices/animations/anm_fairy.h"
 #include "devices/animations/anm_rainbow.h"
@@ -31,6 +36,8 @@
 #include "devices/animations/or_flash.h"
 #include "devices/animations/or_indicate.h"
 
+#include "devices/animations/rgb_modes.h"
+
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
 #define ALL_LEDS_SIZE (sizeof(uint32_t) * RGB_DRIVER_LED_COUNT)
@@ -39,26 +46,14 @@
 #define FADE_LENGTH_FRAMES  ((FADE_LENGTH_MS*1000) / RGB_TASK_INTERVAL)
 #define FADE_STEP_FIXED     RGB_FLOAT_TO_FIXED(1.0f / FADE_LENGTH_FRAMES)
 
-// This function handles animation transition, and returns the proper rgb array pointer
 typedef bool (*rgb_anim_fn)(rgb_s *);
 typedef void (*rgb_anim_stop_fn)(void);
 
-rgb_anim_fn         _ani_main_fn = NULL; // The main operating function of the current rgb mode
-rgb_anim_fn         _ani_fn_get_state = NULL; // Get the current state of the active mode
-rgb_anim_stop_fn    _ani_fn_stop = NULL; // Call this to stop/pause the rgb state
-
-rgb_anim_fn         _ani_override_fn = NULL; // Override function
+rgb_anim_fn         _ani_main_fn = NULL;
+rgb_anim_fn         _ani_fn_get_state = NULL;
+rgb_anim_stop_fn    _ani_fn_stop = NULL;
+rgb_anim_fn         _ani_override_fn = NULL;
 rgb_anim_stop_fn    _ani_override_stop_fn = NULL;
-
-typedef enum 
-{
-    RGB_ANIM_NONE,      // Show stored colors static
-    RGB_ANIM_RAINBOW,   // Fade through the RGB rainbow
-    RGB_ANIM_REACT,     // React to user input
-    RGB_ANIM_FAIRY,     // Play a random animation between user preset colors
-    RGB_ANIM_BREATHE,   // Looping animation using stored colors
-    RGB_ANIM_IDLE,      // Idle animation where no LEDs are shown
-} rgb_anim_t;
 
 typedef enum 
 {
@@ -88,18 +83,26 @@ void _ani_queue_fade_start()
     _fade_progress = 0;
     _fade = true;
 
-    static bool first_boot = false;
-    if(!first_boot)
+    static bool first_boot = true;
+    if(first_boot)
     {
-        // Set notif to black if it exists
-        #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-        for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+        first_boot = false;
+
+        // On first boot, fade the notification LED up from black — except in
+        // Authentic mode, where get_state already placed the user-config color.
+        if(rgb_config->rgb_mode != RGB_ANIM_AUTHENTIC)
         {
-            uint8_t group_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
-            _fade_end[group_idx].color = 0;
-            
+            const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+            if(rcfg->notification_group_index >= 0)
+            {
+                for(int i = 0; i < rcfg->notification_group_size && i < RGB_MAX_LEDS_PER_GROUP; i++)
+                {
+                    int8_t group_idx = rgb_led_groups[rcfg->notification_group_index][i];
+                    if(group_idx >= 0)
+                        _fade_end[group_idx].color = 0;
+                }
+            }
         }
-        #endif
     }
 }
 
@@ -148,9 +151,12 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     _current_mode = rgb_mode;
 
     switch(rgb_mode)
-    {        
-        // RGB_ANIM_NONE
-        default:
+    {
+        case RGB_ANIM_AUTHENTIC:
+            _ani_main_fn = anm_authentic_handler;
+            _ani_fn_get_state = anm_authentic_get_state;
+        break;
+
         case RGB_ANIM_NONE:
             _ani_main_fn = anm_none_handler;
             _ani_fn_get_state = anm_none_get_state;
@@ -175,69 +181,86 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
             _ani_main_fn = anm_idle_handler;
             _ani_fn_get_state = anm_idle_get_state;
         break;
+
+        default:
+            _ani_main_fn = anm_none_handler;
+            _ani_fn_get_state = anm_none_get_state;
+        break;
     }
 
     _ani_queue_fade_start();
 }
 
-bool _notification_single_shot = false;
-rgb_s _notification_single_shot_color = {0};
-
 void _notification_manager(rgb_s *output)
 {
-    #if defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    rgb_s notif_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+    if(rcfg->notification_group_index < 0) return;
+
+    const int8_t notif_group = rcfg->notification_group_index;
+    uint8_t notif_size = rcfg->notification_group_size;
+    if(notif_size > RGB_MAX_LEDS_PER_GROUP) notif_size = RGB_MAX_LEDS_PER_GROUP;
+
+    rgb_s notif_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
 
     // Get the current notif LEDs
-    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+    for(int i = 0; i < notif_size; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[notif_group][i];
         notif_leds[i] = output[this_idx];
     }
 
-
-    hoja_status_s this_status = hoja_get_status();
-
-    if(this_status.ss_notif_pending)
+    rgb_s ss_color;
+    rgb_s pulse_color;
+    if(rgb_get_notification(&ss_color))
     {
-        if(ply_blink_handler_ss(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.ss_notif_color))
+        if(ply_blink_handler_ss(notif_leds, notif_size, ss_color))
         {
-            hoja_clr_ss_notif();
+            rgb_clear_notification();
         }
     }
-    else if(this_status.notification_color.color != 0)
+    else if(rgb_get_pulsing(&pulse_color))
     {
-        if(ply_blink_handler(notif_leds, HOJA_RGB_NOTIF_GROUP_SIZE, this_status.notification_color))
+        if(ply_blink_handler(notif_leds, notif_size, pulse_color))
         {
 
         }
     }
 
     // Write the player LED colors to the output
-    for(int i = 0; i < HOJA_RGB_NOTIF_GROUP_SIZE; i++)
+    for(int i = 0; i < notif_size; i++)
     {
-        uint8_t this_idx = rgb_led_groups[HOJA_RGB_NOTIF_GROUP_IDX][i];
+        uint8_t this_idx = rgb_led_groups[notif_group][i];
         output[this_idx] = notif_leds[i];
     }
-    
-    #endif
 }
 
 void _player_connection_manager(rgb_s *output) 
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) || defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    static bool allow_update = true;
-    static hoja_status_s status = {0};
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
-    #if defined(HOJA_RGB_PLAYER_GROUP_IDX) 
-    rgb_s player_leds[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
-    uint8_t player_leds_count = HOJA_RGB_PLAYER_GROUP_SIZE;
-    uint8_t player_group_idx = HOJA_RGB_PLAYER_GROUP_IDX;
-    #elif defined(HOJA_RGB_NOTIF_GROUP_IDX)
-    rgb_s player_leds[HOJA_RGB_NOTIF_GROUP_SIZE] = {0};
-    uint8_t player_leds_count = HOJA_RGB_NOTIF_GROUP_SIZE;
-    uint8_t player_group_idx = HOJA_RGB_NOTIF_GROUP_IDX;
-    #endif
+    // Prefer the dedicated player group (4-LED chase); otherwise fall back to the
+    // notification group (blink). If neither exists there's nothing to drive.
+    int8_t  player_group_idx;
+    uint8_t player_leds_count;
+    bool    use_chase;
+
+    if(rcfg->player_group_index >= 0)
+    {
+        player_group_idx  = rcfg->player_group_index;
+        player_leds_count = RGB_PLAYER_GROUP_SIZE;
+        use_chase         = true;
+    }
+    else if(rcfg->notification_group_index >= 0)
+    {
+        player_group_idx  = rcfg->notification_group_index;
+        player_leds_count = rcfg->notification_group_size;
+        use_chase         = false;
+    }
+    else return;
+
+    if(player_leds_count > RGB_MAX_LEDS_PER_GROUP) player_leds_count = RGB_MAX_LEDS_PER_GROUP;
+
+    rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
 
     // Get the current player LEDs
     for(int i = 0; i < player_leds_count; i++)
@@ -246,34 +269,27 @@ void _player_connection_manager(rgb_s *output)
         player_leds[i] = output[this_idx];
     }
 
-    switch(status.connection_status)
+    switch(transport_current_connection())
     {
-        case CONN_STATUS_INIT:
-            // Clear all player LEDs
-            for(int i = 0; i < player_leds_count; i++)
-            {
-                player_leds[i].color = 0;
-            }
-        break;
-
-        case CONN_STATUS_DISCONNECTED:
-        case CONN_STATUS_CONNECTING:
-            #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE >= 4)
-            allow_update = ply_chase_handler(player_leds, status.gamepad_color);
-            #else 
-            allow_update = ply_blink_handler(player_leds, player_leds_count, status.gamepad_color);
-            #endif
+        case TP_CONNSTAT_IDLE:
+        case TP_CONNSTAT_UNDEFINED:
+            if(use_chase)
+                ply_chase_handler(player_leds, core_current_color_get());
+            else
+                ply_blink_handler(player_leds, player_leds_count, core_current_color_get());
         break;
 
         default:
-            allow_update = ply_idle_handler(player_leds, status.connection_status);
+            // Reactive mode can leave player LEDs black if the player group
+            // is not actively driven by input. Seed player LEDs with the
+            // configured player-group color before applying the player mask.
+            for(int i = 0; i < player_leds_count; i++)
+            {
+                player_leds[i] = rgb_colors_safe[player_group_idx];
+            }
+            ply_idle_handler(player_leds, transport_current_player_number());
         break;
     }  
-
-    if(allow_update)
-    {
-        status = hoja_get_status();
-    }
 
     // Write the player LED colors to the output
     for(int i = 0; i < player_leds_count; i++)
@@ -281,7 +297,6 @@ void _player_connection_manager(rgb_s *output)
         uint8_t this_idx = rgb_led_groups[player_group_idx][i];
         output[this_idx] = player_leds[i];
     }
-    #endif
 }
 
 volatile bool _anm_idle_active = false;

@@ -1,14 +1,13 @@
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+#include "btstack_config.h"
 #include "hal/bluetooth_hal.h"
-
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
-
 #include "pico/stdlib.h"
 #include "pico/rand.h"
 #include "pico/multicore.h"
 #include "pico/cyw43_arch.h"
 #include "pico/btstack_chipset_cyw43.h"
-#include "btstack_config.h"
-
 #include "btstack.h"
 #include "btstack_run_loop.h"
 #include "btstack_event.h"
@@ -16,130 +15,27 @@
 
 #include <string.h>
 
-#include "switch/switch_commands.h"
+#include "transport/transport_bt.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
-#include "utilities/interval.h"
+#include "utilities/tasks.h"
 #include "utilities/sysmon.h"
 #include "devices/rgb.h"
-#include "usb/swpro.h"
-#include "usb/sinput.h"
+
 #include "hal/sys_hal.h"
+#include "transport/transport.h"
 
 #include "hoja.h"
+#include "cores/cores.h"
+#include "utilities/crosscore_utils.h"
 
-#define BT_HAL_TARGET_POLLING_RATE_MS 6
+#define BT_HAL_TARGET_POLLING_RATE_MS 8
+#define BT_HAL_INBOUND_FIFO_LEN 32
 
-volatile uint32_t _current_polling_rate = 8;
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
 
-static const uint8_t switch_bt_report_descriptor[] = {
-    0x05, 0x01,       // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x05,       // Usage (Game Pad)
-    0xA1, 0x01,       // Collection (Application)
-    0x06, 0x01, 0xFF, //   Usage Page (Vendor Defined 0xFF01)
-
-    0x85, 0x21, //   Report ID (33)
-    0x09, 0x21, //   Usage (0x21)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x30, //   Report Count (48)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                //   Position)
-
-    0x85, 0x30, //   Report ID (48)
-    0x09, 0x30, //   Usage (0x30)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x30, //   Report Count (48)
-    0x81, 0x02, //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                //   Position)
-
-    0x85, 0x31,       //   Report ID (49)
-    0x09, 0x31,       //   Usage (0x31)
-    0x75, 0x08,       //   Report Size (8)
-    0x96, 0x69, 0x01, //   Report Count (361)
-    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                      //   Position)
-
-    0x85, 0x32,       //   Report ID (50)
-    0x09, 0x32,       //   Usage (0x32)
-    0x75, 0x08,       //   Report Size (8)
-    0x96, 0x69, 0x01, //   Report Count (361)
-    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                      //   Position)
-
-    0x85, 0x33,       //   Report ID (51)
-    0x09, 0x33,       //   Usage (0x33)
-    0x75, 0x08,       //   Report Size (8)
-    0x96, 0x69, 0x01, //   Report Count (361)
-    0x81, 0x02,       //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                      //   Position)
-
-    0x85, 0x3F,                   //   Report ID (63)
-    0x05, 0x09,                   //   Usage Page (Button)
-    0x19, 0x01,                   //   Usage Minimum (0x01)
-    0x29, 0x10,                   //   Usage Maximum (0x10)
-    0x15, 0x00,                   //   Logical Minimum (0)
-    0x25, 0x01,                   //   Logical Maximum (1)
-    0x75, 0x01,                   //   Report Size (1)
-    0x95, 0x10,                   //   Report Count (16)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                                  //   Position)
-    0x05, 0x01,                   //   Usage Page (Generic Desktop Ctrls)
-    0x09, 0x39,                   //   Usage (Hat switch)
-    0x15, 0x00,                   //   Logical Minimum (0)
-    0x25, 0x07,                   //   Logical Maximum (7)
-    0x75, 0x04,                   //   Report Size (4)
-    0x95, 0x01,                   //   Report Count (1)
-    0x81, 0x42,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null
-                                  //   State)
-    0x05, 0x09,                   //   Usage Page (Button)
-    0x75, 0x04,                   //   Report Size (4)
-    0x95, 0x01,                   //   Report Count (1)
-    0x81, 0x01,                   //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No
-                                  //   Null Position)
-    0x05, 0x01,                   //   Usage Page (Generic Desktop Ctrls)
-    0x09, 0x30,                   //   Usage (X)
-    0x09, 0x31,                   //   Usage (Y)
-    0x09, 0x33,                   //   Usage (Rx)
-    0x09, 0x34,                   //   Usage (Ry)
-    0x16, 0x00, 0x00,             //   Logical Minimum (0)
-    0x27, 0xFF, 0xFF, 0x00, 0x00, //   Logical Maximum (65534)
-    0x75, 0x10,                   //   Report Size (16)
-    0x95, 0x04,                   //   Report Count (4)
-    0x81, 0x02,                   //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null
-                                  //   Position)
-    0x06, 0x01, 0xFF,             //   Usage Page (Vendor Defined 0xFF01)
-
-    0x85, 0x01, //   Report ID (1)
-    0x09, 0x01, //   Usage (0x01)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x30, //   Report Count (48)
-    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
-                //   Null Position,Non-volatile)
-
-    0x85, 0x10, //   Report ID (16)
-    0x09, 0x10, //   Usage (0x10)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x09, //   Report Count (9)
-    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
-                //   Null Position,Non-volatile)
-
-    0x85, 0x11, //   Report ID (17)
-    0x09, 0x11, //   Usage (0x11)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x30, //   Report Count (48)
-    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
-                //   Null Position,Non-volatile)
-
-    0x85, 0x12, //   Report ID (18)
-    0x09, 0x12, //   Usage (0x12)
-    0x75, 0x08, //   Report Size (8)
-    0x95, 0x30, //   Report Count (48)
-    0x91, 0x02, //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No
-                //   Null Position,Non-volatile)
-    0xC0,       // End Collection
-};
+volatile bool _pairing_mode = false;
 
 static const char hid_device_name[] = "Wireless Gamepad";
 static const char service_name[] = "Wireless Gamepad";
@@ -148,13 +44,41 @@ static uint8_t pnp_service_buffer[700] = {0};
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static uint16_t hid_cid = 0;
 
-static uint32_t last_hid_report_timestamp_ms = 0;
-static interval_s hid_report_interval = {0};
-// Timer structure for scheduling delayed HID report requests
-static btstack_timer_source_t hid_timer;
+static btstack_timer_source_t hid_report_timer;
+static bool hid_report_timer_active = false;
+
+typedef struct
+{
+    uint8_t len;
+    uint8_t data[64];
+} bt_hal_inbound_report_s;
+
+HOJA_CROSSCORE_FIFO_TYPE(bt_inbound, bt_hal_inbound_report_s, BT_HAL_INBOUND_FIFO_LEN);
+static hoja_fifo_bt_inbound_t _bt_inbound_fifo;
+
+/** True when persisted pairing bytes are not blank (0x0000) or erased (0xFFFF…) sentinel. */
+static bool _bluetooth_hal_is_stored_identity_valid(const uint8_t *bytes)
+{
+    if (bytes[0] == 0xFF && bytes[1] == 0xFF)
+    {
+        return false;
+    }
+    if (!bytes[0] && !bytes[1])
+    {
+        return false;
+    }
+    return true;
+}
+
+static inline void _bluetooth_hal_reverse_bytes(const uint8_t *in, uint8_t *out, size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        out[i] = in[len - 1 - i];
+    }
+}
 
 // Compare addresses and return true if they are the same
-bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
+bool _bluetooth_hal_is_mac_addr_same(const bd_addr_t addr1, const bd_addr_t addr2)
 {
     for (int i = 0; i < 6; i++)
     {
@@ -166,71 +90,139 @@ bool _compare_mac_addr(const bd_addr_t addr1, const bd_addr_t addr2)
     return true;
 }
 
-bool _bluetooth_hal_hid_tunnel(uint8_t report_id, const void *report, uint16_t len)
+bool _bluetooth_hal_is_lk_addr_same(uint8_t lk1[16], uint8_t lk2[16])
 {
-    uint8_t new_report[66] = {0};
-    new_report[0] = 0xA1; // Type of input report
-    new_report[1] = report_id;
-    memcpy(&(new_report[2]), report, len);
-
-    if (hid_cid)
+    for (int i = 0; i < 16; i++)
     {
-        hid_device_send_interrupt_message(hid_cid, new_report, len + 2);
+        if (lk1[i] != lk2[i])
+        {
+            return false;
+        }
     }
-
     return true;
 }
 
+static inline void _bluetooth_hal_hid_tunnel(const void *report, uint16_t len)
+{
+    uint8_t new_report[66] = {0};
+    new_report[0] = 0xA1; // Type of input report
+
+    // Byte 1 is the report ID
+    memcpy(&(new_report[1]), report, len);
+
+    if (hid_cid)
+    {
+        hid_device_send_interrupt_message(hid_cid, new_report, len + 1);
+        tasks_mark_sent_isr();
+    }
+}
+
+uint8_t _output_report_data[64] = {0};
+
+static void _bt_hal_queue_inbound_report(const uint8_t *report, uint16_t len)
+{
+    if (!report || len == 0)
+    {
+        return;
+    }
+
+    bt_hal_inbound_report_s inbound = {0};
+    if (len > sizeof(inbound.data))
+    {
+        len = sizeof(inbound.data);
+    }
+
+    memcpy(inbound.data, report, len);
+    inbound.len = (uint8_t)len;
+    (void)hoja_fifo_bt_inbound_push(&_bt_inbound_fifo, &inbound);
+}
+
+/** Interrupt-channel DATA output (report id separate from payload). */
 static void _bt_hid_report_handler(uint16_t cid,
                                    hid_report_type_t report_type,
                                    uint16_t report_id,
                                    int report_size, uint8_t *report)
 {
-    if (report_type == HID_REPORT_TYPE_OUTPUT)
+    if (report_type != HID_REPORT_TYPE_OUTPUT)
     {
-        if (cid == hid_cid)
-        {
-            printf("REPORT? %x, c: %d\n", report_id, hid_cid);
-            uint8_t tmp[64] = {0};
-
-            tmp[0] = report_id;
-
-            switch (hoja_get_status().gamepad_mode)
-            {
-            default:
-                if (report_id == SW_OUT_ID_RUMBLE)
-                {
-                    switch_haptics_rumble_translate(&report[1]);
-                }
-                else if (report_id == SW_OUT_ID_RUMBLE_CMD)
-                {
-                    // switch_haptics_rumble_translate(&report[1]);
-                    memcpy(&tmp[1], report, report_size);
-                    switch_commands_future_handle(report_id, tmp, report_size + 1);
-                }
-                break;
-
-            case GAMEPAD_MODE_SINPUT:
-                if (report_id == REPORT_ID_SINPUT_OUTPUT_CMDDAT)
-                {
-                    sinput_hid_handle_command_future(report);
-                }
-                break;
-            }
-        }
+        return;
     }
+    if (cid != hid_cid)
+    {
+        return;
+    }
+    if (!report || report_size == 0)
+    {
+        return;
+    }
+
+    _output_report_data[0] = (uint8_t)report_id;
+
+    if (report_size > 63)
+    {
+        report_size = 63;
+    }
+
+    memcpy(&_output_report_data[1], report, (size_t)report_size);
+    _bt_hal_queue_inbound_report(_output_report_data, (uint16_t)(report_size + 1));
 }
 
-volatile bool _pairing_mode = false;
-volatile bool _interval_reset = false;
+/** Control-channel SET_REPORT output (report id is report[0]). Used by Switch. */
+static void _bt_hid_set_report_handler(uint16_t cid,
+                                       hid_report_type_t report_type,
+                                       int report_size,
+                                       uint8_t *report)
+{
+    if (report_type != HID_REPORT_TYPE_OUTPUT)
+    {
+        return;
+    }
+    if (cid != hid_cid)
+    {
+        return;
+    }
+    if (!report || report_size <= 0)
+    {
+        return;
+    }
 
-// Timer handler to request can send now event after delay
-static void hid_timer_handler(btstack_timer_source_t *ts) {
-    // Avoid compiler warning for unused parameter
-    (void)ts;
-    
-    // Request another CAN_SEND_NOW event
+    _bt_hal_queue_inbound_report(report, (uint16_t)report_size);
+}
+
+
+
+static void _bt_hal_hid_report_timer_stop(void)
+{
+    if (!hid_report_timer_active)
+    {
+        return;
+    }
+
+    btstack_run_loop_remove_timer(&hid_report_timer);
+    hid_report_timer_active = false;
+}
+
+static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
+{
+    if (!hid_cid || !_connected)
+    {
+        return;
+    }
+
     hid_device_request_can_send_now_event(hid_cid);
+
+    btstack_run_loop_set_timer(ts, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_add_timer(ts);
+}
+
+static void _bt_hal_hid_report_timer_start(void)
+{
+    _bt_hal_hid_report_timer_stop();
+
+    btstack_run_loop_set_timer_handler(&hid_report_timer, &_bt_hal_hid_report_timer_handler);
+    btstack_run_loop_set_timer(&hid_report_timer, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_add_timer(&hid_report_timer);
+    hid_report_timer_active = true;
 }
 
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
@@ -246,34 +238,88 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING)
                 return;
 
-            if (!hid_cid)
+            if(hid_cid) return;
+
+
+            if (_pairing_mode)
             {
-                if (_pairing_mode)
+                gap_discoverable_control(1);
+                return;
+            }
+            else
+            {
+                switch (core_current_reportformat())
                 {
-                    gap_delete_all_link_keys();
-                    gap_discoverable_control(1);
-                }
-                else
-                {
-                    switch(hoja_get_status().gamepad_mode)
+                default:
+                case CORE_REPORTFORMAT_SWPRO:
+                    link_key_type_t read_type;
+                    link_key_t read_key;
+
+                    bool overwrite_key = false;
+
+                    if (!_bluetooth_hal_is_stored_identity_valid(switchpair_config->link_key))
                     {
-                        default:
-                        case GAMEPAD_MODE_SWPRO:
-                            if (gamepad_config->host_mac_switch[0] != 0xFF && gamepad_config->host_mac_switch[1] != 0xFF)
-                            {
-                                hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
-                            }
-
-                        break;
-
-                        case GAMEPAD_MODE_SINPUT:
-                            if (gamepad_config->host_mac_sinput[0] != 0xFF && gamepad_config->host_mac_sinput[1] != 0xFF)
-                            {
-                                hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
-                            }
-                        break;
+                        gap_discoverable_control(1);
+                        return;
                     }
+
+                    if (gap_get_link_key_for_bd_addr(gamepad_config->host_mac_switch, read_key, &read_type))
+                    {
+                        //printf("BTStack Stored Link Key:\n");
+                        link_key_t read_key_be;
+                        _bluetooth_hal_reverse_bytes(read_key, read_key_be, 16);
+
+                        if (!_bluetooth_hal_is_lk_addr_same(read_key_be, switchpair_config->link_key))
+                        {
+                            overwrite_key = true;
+                        }
+                    }
+                    else
+                    {
+                        overwrite_key = true;
+                    }
+
+                    if(overwrite_key)
+                    {
+                        link_key_t link_key_le;
+                        _bluetooth_hal_reverse_bytes(switchpair_config->link_key, link_key_le, 16);
+                        gap_store_link_key_for_bd_addr(gamepad_config->host_mac_switch, link_key_le,
+                                          UNAUTHENTICATED_COMBINATION_KEY_GENERATED_FROM_P192);
+                    }
+
+                    hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
+
+                    break;
+
+                case CORE_REPORTFORMAT_SINPUT:
+                    if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
+                    {
+                        hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
+                    }
+                    break;
                 }
+            }
+            break;
+
+        case HCI_EVENT_LINK_KEY_NOTIFICATION:
+            if(core_current_reportformat() == CORE_REPORTFORMAT_SWPRO)
+            {
+                bd_addr_t addr;
+                hci_event_link_key_request_get_bd_addr(packet, addr);
+
+                link_key_t link_key_be;
+                link_key_t link_key_le;
+
+                /* BTstack reports link keys in little-endian format for legacy reasons. */
+                memcpy(link_key_le, &packet[8], 16);
+
+                /* Store a big-endian copy so the flash contents and debug logs stay human-readable. */
+                _bluetooth_hal_reverse_bytes(link_key_le, link_key_be, 16);
+
+                ns_usbpair_s usbpair = {0};
+                memcpy(usbpair.host_mac, addr, 6);
+                memcpy(usbpair.link_key, link_key_be, 16);
+                ns_api_hook_set_usbpair(usbpair);
             }
             break;
 
@@ -303,19 +349,19 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 uint8_t *addr_location = NULL;
 
-                switch(hoja_get_status().gamepad_mode)
+                switch (core_current_reportformat())
                 {
-                    default:
-                    case GAMEPAD_MODE_SWPRO:
-                        addr_location = gamepad_config->host_mac_switch;
+                default:
+                case CORE_REPORTFORMAT_SWPRO:
+                    addr_location = gamepad_config->host_mac_switch;
                     break;
 
-                    case GAMEPAD_MODE_SINPUT:
-                        addr_location = gamepad_config->host_mac_sinput;
+                case CORE_REPORTFORMAT_SINPUT:
+                    addr_location = gamepad_config->host_mac_sinput;
                     break;
                 }
 
-                bool comp = _compare_mac_addr(addr, addr_location);
+                bool comp = _bluetooth_hal_is_mac_addr_same(addr, addr_location);
                 if (!comp)
                 {
                     // New address, save
@@ -326,66 +372,37 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 printf("HID Connected\n");
                 _connected = true;
-                hid_device_request_can_send_now_event(hid_cid);
-                
+                _bt_hal_hid_report_timer_start();
+
                 break;
             case HID_SUBEVENT_CONNECTION_CLOSED:
                 printf("HID Disconnected\n");
-                
+
+                _bt_hal_hid_report_timer_stop();
                 _connected = false;
                 _hidreportclear = false;
                 hid_cid = 0;
-                sysmon_set_critical_shutdown();
+                tp_evt_s pevt = {
+                    .evt = TP_EVT_POWERCOMMAND,
+                    .evt_powercommand = {.power_command=TP_POWERCOMMAND_SHUTDOWN}
+                };
+                transport_evt_cb(pevt);
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid)
                 {
-                    static uint64_t tmpstamp = 0;
-                    sys_hal_time_us(&tmpstamp);
+                    core_report_s report = {0};
 
-                    uint32_t current_time_ms = btstack_run_loop_get_time_ms();
-                    uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
-
-                    if(time_elapsed >= _current_polling_rate)
+                    if (core_get_generated_report(&report))
                     {
-                        switch(hoja_get_status().gamepad_mode)
-                        {
-                            default:
-                            swpro_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
-                            break;
-
-                            case GAMEPAD_MODE_SINPUT:
-                            sinput_hid_report(tmpstamp, _bluetooth_hal_hid_tunnel);
-                        }
-                        
-                        last_hid_report_timestamp_ms = current_time_ms;
-                        hid_device_request_can_send_now_event(hid_cid);
-                    }
-                    else 
-                    {
-                        // Not enough time has passed, schedule another send event after delay
-                        uint32_t time_elapsed = current_time_ms - last_hid_report_timestamp_ms;
-                        uint32_t delay = BT_HAL_TARGET_POLLING_RATE_MS - time_elapsed;
-                        btstack_run_loop_set_timer(&hid_timer, delay);
-                        btstack_run_loop_set_timer_handler(&hid_timer, &hid_timer_handler);
-                        btstack_run_loop_add_timer(&hid_timer);
+                        _bluetooth_hal_hid_tunnel(report.data, report.size);
                     }
                 }
                 break;
             case HID_SUBEVENT_SNIFF_SUBRATING_PARAMS:
-            {
-                uint16_t max = hid_subevent_sniff_subrating_params_get_host_max_latency(packet);
-                uint16_t ms = (uint16_t)((max * 625) / 1000);
-                _current_polling_rate = ms;
-                if(!ms) _current_polling_rate = 1;
-                _interval_reset = true;
-                uint16_t min = hid_subevent_sniff_subrating_params_get_host_min_timeout(packet);
                 rgb_set_idle(true);
-                hoja_set_notification_status(COLOR_GREEN);
-                
-                //printf("Sniff: %d, %d\n", max, min);
-            }
-            break;
+                rgb_set_pulsing(COLOR_GREEN);
+                break;
 
             default:
                 break;
@@ -397,56 +414,45 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
     }
 }
 
-bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_cb)
+core_params_s *_bt_hal_params = NULL;
+const core_hid_device_t *_bt_hal_hid = NULL;
+volatile bool _bt_init = false;
+
+// MODIFIED BTSTACK FUNCTION DEF
+int hid_report_size_valid(uint16_t cid, int report_id, hid_report_type_t report_type, int report_size){
+    if (!report_size) return 0;
+    return 1;
+}
+
+/***********************************************/
+/********* Transport Defines *******************/
+void transport_bt_stop()
 {
-    uint16_t this_vid = 0;
-    uint16_t this_pid = 0;
-    const char *this_name = NULL;
-    const uint8_t *this_descriptor = NULL;
-    uint16_t this_descriptor_size = 0;
+    //if(_bt_init)
+    //    cyw43_arch_deinit();
+    //_bt_init = false;
+}
 
-    switch (device_mode)
-    {
-        default:
-            _current_polling_rate = 8;
-            this_name = "Pro Controller";
-            this_vid = 0x057E;
-            this_pid = 0x2009;
-            this_descriptor = switch_bt_report_descriptor;
-            this_descriptor_size = sizeof(switch_bt_report_descriptor);
-            break;
+bool transport_bt_init(core_params_s *params)
+{
+    _bt_hal_params = params;
 
-        case GAMEPAD_MODE_SINPUT:
-            _current_polling_rate = 5;
-            this_name = device_static.name;
-
-            #if defined(HOJA_USB_VID)
-            this_vid = HOJA_USB_VID;
-            #else
-            this_vid = 0x2E8A;
-            #endif 
-
-            #if defined(HOJA_USB_PID)
-            this_pid = HOJA_USB_PID, // board_config PID
-            #else
-            this_pid = 0x10C6, // Hoja Gamepad
-            #endif
-
-            this_descriptor = sinput_hid_report_descriptor;
-            this_descriptor_size = sizeof(sinput_hid_report_descriptor);
-            break;
-    }
-
-    // If the init fails it returns true lol
-    if (cyw43_arch_init())
-    {
+    if (!_bt_hal_params || !_bt_hal_params->hid_device)
         return false;
+
+    _bt_hal_hid = _bt_hal_params->hid_device;
+
+    while (cyw43_arch_init())
+    {
+        sys_hal_sleep_ms(1000);
     }
+
+    _bt_init = true;
 
     gap_set_bondable_mode(1);
 
     gap_set_class_of_device(0x2508);
-    gap_set_local_name(this_name);
+    gap_set_local_name(_bt_hal_hid->name);
 
     uint16_t link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH | LM_LINK_POLICY_ENABLE_SNIFF_MODE;
 
@@ -466,19 +472,19 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     sdp_init();
 
     hid_sdp_record_t hid_sdp_record = {
-        .hid_device_subclass = 0x2508, // Device Subclass HID
-        .hid_country_code = 33,        // Country Code
-        .hid_virtual_cable = 1,        // HID Virtual Cable
-        .hid_remote_wake = 1,          // HID Remote Wake
-        .hid_reconnect_initiate = 1,   // HID Reconnect Initiate
-        .hid_normally_connectable = 0, // HID Normally Connectable
-        .hid_boot_device = 0,          // HID Boot Device
+        .hid_device_subclass = 0x2508,      // Device Subclass HID
+        .hid_country_code = 33,             // Country Code
+        .hid_virtual_cable = 1,             // HID Virtual Cable
+        .hid_remote_wake = 1,               // HID Remote Wake
+        .hid_reconnect_initiate = 1,        // HID Reconnect Initiate
+        .hid_normally_connectable = 0,      // HID Normally Connectable
+        .hid_boot_device = 0,               // HID Boot Device
         .hid_ssr_host_max_latency = 0xFFFF, // = x * 0.625ms
         .hid_ssr_host_min_timeout = 0xFFFF,
         .hid_supervision_timeout = 3200,             // HID Supervision Timeout
-        .hid_descriptor = this_descriptor,           // HID Descriptor
-        .hid_descriptor_size = this_descriptor_size, // HID Descriptor Length
-        .device_name = this_name}; // Device Name
+        .hid_descriptor         = _bt_hal_params->hid_device->hid_report_descriptor,           // HID Descriptor
+        .hid_descriptor_size    = _bt_hal_params->hid_device->hid_report_descriptor_len,  // HID Descriptor Length
+        .device_name = _bt_hal_hid->name};                   // Device Name
 
     // Register SDP services
 
@@ -490,54 +496,82 @@ bool bluetooth_hal_init(int device_mode, bool pairing_mode, bluetooth_cb_t evt_c
     memset(pnp_service_buffer, 0, sizeof(pnp_service_buffer));
 
     device_id_create_sdp_record(pnp_service_buffer, sdp_create_service_record_handle(), DEVICE_ID_VENDOR_ID_SOURCE_USB,
-                                this_vid, this_pid, 0x0100);
+                                _bt_hal_hid->vid, _bt_hal_hid->pid, 0x0100);
     //_create_sdp_pnp_record(pnp_service_buffer,
     //    DEVICE_ID_VENDOR_ID_SOURCE_BLUETOOTH, 0x057E, 0x2009, 0x0100);
     sdp_register_service(pnp_service_buffer);
 
     // HID Device
-    hid_device_init(0, this_descriptor_size,
-                    this_descriptor);
+    hid_device_init(0, _bt_hal_hid->hid_report_descriptor_len,
+                    _bt_hal_hid->hid_report_descriptor);
+
+    hid_device_accept_truncated_hid_reports(true);
 
     hci_event_callback_registration.callback = &_bt_hal_packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
     hid_device_register_packet_handler(&_bt_hal_packet_handler);
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
+    hid_device_register_set_report_callback(&_bt_hid_set_report_handler);
 
-    _pairing_mode = pairing_mode;
+    _pairing_mode = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
 
     hci_power_control(HCI_POWER_ON);
 
-    uint8_t mac_tmp[6] = {0};
-    memcpy(mac_tmp, gamepad_config->switch_mac_address, 6);
-    mac_tmp[5] +=  (uint8_t) hoja_get_status().gamepad_mode;
-    hci_set_bd_addr(mac_tmp);
+    hci_set_bd_addr(_bt_hal_params->transport_dev_mac);
 
     // btstack_run_loop_execute();
     return true;
 }
 
-void bluetooth_hal_stop()
+void transport_bt_task(uint64_t timestamp)
 {
-    cyw43_arch_deinit();
+    (void)timestamp;
+
+    bt_hal_inbound_report_s inbound;
+    if (hoja_fifo_bt_inbound_pop(&_bt_inbound_fifo, &inbound))
+    {
+        core_report_tunnel_cb(inbound.data, inbound.len);
+    }
 }
 
-void bluetooth_hal_task(uint64_t timestamp)
-{
-    // Do nothing
-}
-
-uint32_t bluetooth_hal_get_fwversion()
+static uint32_t _bt_hal_probe_wireless(void)
 {
     // If the init fails it returns true lol
     if (cyw43_arch_init())
     {
-        return 0x00; // Return 0 for nothing
+        return 0x00;
     }
 
     cyw43_arch_deinit();
-    return 1; // PASS
+    return 1;
+}
+
+void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
+{
+    if (caps == NULL)
+    {
+        return;
+    }
+
+    caps->bdr_supported = 1;
+    caps->ble_supported = 0;
+    caps->external_update_supported = 0;
+}
+
+uint8_t transport_bt_static_part_status(void)
+{
+    return _bt_hal_probe_wireless() > 0u ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
+}
+
+uint16_t transport_bt_static_external_version(void)
+{
+    return 0;
+}
+
+const char *bluetooth_driver_part_code(void)
+{
+    return "RPI RM2";
 }
 
 #endif

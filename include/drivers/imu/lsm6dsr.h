@@ -1,8 +1,6 @@
 #ifndef DRIVERS_IMU_LSM6DSR_H
 #define DRIVERS_IMU_LSM6DSR_H
 
-#include "input/imu.h"
-
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -84,102 +82,46 @@
 
 
 
-// Driver channel configs
-// Maximum 2 channels
+// Bus a given LSM6DSR channel is wired on.
+typedef enum
+{
+    LSM6DSR_BUS_SPI = 0,
+    LSM6DSR_BUS_I2C = 1,
+} lsm6dsr_bus_t;
 
-#if defined(HOJA_IMU_CHAN_A_DRIVER) && (HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR_SPI)
+// Per-sensor (gyro or accelerometer) settings for one channel. Currently just
+// per-axis output inversion; split this way so future sensor-specific options
+// (range, filtering, etc.) have an obvious home.
+typedef struct
+{
+    bool invert_x;
+    bool invert_y;
+    bool invert_z;
+} lsm6dsr_sensor_cfg_s;
 
-    // Requires SPI to function
-    #if (HOJA_BSP_HAS_SPI==0)
-        #error "LSM6DSR driver requires SPI." 
-    #endif
+// Per-channel configuration. Only the fields relevant to the chosen bus are
+// used (SPI: spi_instance + cs_gpio; I2C: i2c_instance + select).
+typedef struct
+{
+    lsm6dsr_bus_t bus;          // SPI or I2C
+    uint8_t  spi_instance;      // SPI bus instance (bus == SPI)
+    uint32_t cs_gpio;           // SPI chip-select GPIO (bus == SPI)
+    uint8_t  i2c_instance;      // I2C bus instance (bus == I2C)
+    uint8_t  select;            // I2C address select 0/1 (bus == I2C)
+    lsm6dsr_sensor_cfg_s gyro;  // gyroscope settings
+    lsm6dsr_sensor_cfg_s accel; // accelerometer settings
+} lsm6dsr_channel_cfg_s;
 
-    #ifndef HOJA_IMU_CHAN_A_CS_PIN
-        #error "HOJA_IMU_CHAN_A_CS_PIN undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_A_SPI_INSTANCE
-        #error "HOJA_IMU_CHAN_A_SPI_INSTANCE undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_A_INVERT_FLAGS
-        #error "HOJA_IMU_CHAN_A_INVERT_FLAGS undefined in board_config.h. 6 bits, one per axis. Gyro XYZ, Acc XYZ" 
-    #endif
-
-    #ifdef HOJA_IMU_CHAN_A_READ
-        #error "HOJA_IMU_CHAN_A_READ define conflict."
-    #endif
-
-    #define HOJA_IMU_CHAN_A_READ(out)   lsm6dsr_spi_read(out, HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE, HOJA_IMU_CHAN_A_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_A_INIT()      lsm6dsr_spi_init(HOJA_IMU_CHAN_A_CS_PIN, HOJA_IMU_CHAN_A_SPI_INSTANCE);
-#endif
-
-#if defined(HOJA_IMU_CHAN_B_DRIVER) && (HOJA_IMU_CHAN_B_DRIVER==IMU_DRIVER_LSM6DSR_SPI)
-    #ifndef HOJA_IMU_CHAN_B_CS_PIN
-        #error "HOJA_IMU_CHAN_B_CS_PIN undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_B_SPI_INSTANCE
-        #error "HOJA_IMU_CHAN_B_SPI_INSTANCE undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_B_INVERT_FLAGS
-        #error "HOJA_IMU_CHAN_B_INVERT_FLAGS undefined in board_config.h. 6 bits, one per axis. Gyro XYZ, Acc XYZ" 
-    #endif
-
-    #ifdef HOJA_IMU_CHAN_B_READ
-        #error "HOJA_IMU_CHAN_B_READ define conflict."
-    #endif
-
-    #define HOJA_IMU_CHAN_B_READ(out)   lsm6dsr_spi_read(out, HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE, HOJA_IMU_CHAN_B_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_B_INIT()      lsm6dsr_spi_init(HOJA_IMU_CHAN_B_CS_PIN, HOJA_IMU_CHAN_B_SPI_INSTANCE);
-#endif
-
-#if defined(HOJA_IMU_CHAN_A_DRIVER) && (HOJA_IMU_CHAN_A_DRIVER==IMU_DRIVER_LSM6DSR_I2C)
-    #ifndef HOJA_IMU_CHAN_A_I2C_INSTANCE
-        #error "HOJA_IMU_CHAN_A_I2C_INSTANCE undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_A_SELECT
-        #error "HOJA_IMU_CHAN_A_SELECT undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_A_INVERT_FLAGS
-        #error "HOJA_IMU_CHAN_A_INVERT_FLAGS undefined in board_config.h. 6 bits, one per axis. Gyro XYZ, Acc XYZ" 
-    #endif
-
-    #ifdef HOJA_IMU_CHAN_A_READ
-        #error "HOJA_IMU_CHAN_A_READ define conflict."
-    #endif
-
-    #define HOJA_IMU_CHAN_A_READ(out)   lsm6dsr_i2c_read(out, HOJA_IMU_CHAN_A_SELECT, HOJA_IMU_CHAN_A_I2C_INSTANCE, HOJA_IMU_CHAN_A_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_A_INIT()      lsm6dsr_i2c_init(HOJA_IMU_CHAN_A_SELECT, HOJA_IMU_CHAN_A_I2C_INSTANCE)
-#endif
-
-#if defined(HOJA_IMU_CHAN_B_DRIVER) && (HOJA_IMU_CHAN_B_DRIVER==IMU_DRIVER_LSM6DSR_I2C)
-    #ifndef HOJA_IMU_CHAN_B_I2C_INSTANCE
-        #error "HOJA_IMU_CHAN_B_I2C_INSTANCE undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_B_SELECT
-        #error "HOJA_IMU_CHAN_B_SELECT undefined in board_config.h" 
-    #endif
-
-    #ifndef HOJA_IMU_CHAN_B_INVERT_FLAGS
-        #error "HOJA_IMU_CHAN_B_INVERT_FLAGS undefined in board_config.h. 6 bits, one per axis. Gyro XYZ, Acc XYZ" 
-    #endif
-
-    #ifdef HOJA_IMU_CHAN_B_READ
-        #error "HOJA_IMU_CHAN_B_READ define conflict."
-    #endif
-
-    #define HOJA_IMU_CHAN_B_READ(out)   lsm6dsr_i2c_read(out, HOJA_IMU_CHAN_B_SELECT, HOJA_IMU_CHAN_B_I2C_INSTANCE, HOJA_IMU_CHAN_B_INVERT_FLAGS)
-    #define HOJA_IMU_CHAN_B_INIT()      lsm6dsr_i2c_init(HOJA_IMU_CHAN_B_SELECT, HOJA_IMU_CHAN_B_I2C_INSTANCE)
-#endif
-
-int lsm6dsr_spi_init(uint32_t cs_gpio, uint8_t spi_instance);
-int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_t invert_flags);
-int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance);
-int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, uint8_t invert_flags);
+// Driver-specific configuration for the LSM6DSR IMU.
+// When HOJA_IMU_DRIVER == IMU_DRIVER_LSM6DSR, hoja_config_s embeds one of these
+// as its `.imu` member; the board fills it in (main.c) and the driver reads it
+// via hoja_config_get()->imu. Up to two physical sensors are averaged; set
+// channel_count to 1 to use channel_a only.
+typedef struct
+{
+    uint8_t channel_count;          // 1 or 2 physical IMUs
+    lsm6dsr_channel_cfg_s channel_a;
+    lsm6dsr_channel_cfg_s channel_b;
+} lsm6dsr_cfg_s;
 
 #endif

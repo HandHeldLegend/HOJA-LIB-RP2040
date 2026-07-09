@@ -4,42 +4,46 @@
 #include "hal/sys_hal.h"
 #include "utilities/interval.h"
 #include "utilities/hwtest.h"
-#include "utilities/crosscore_snapshot.h"
-#include "board_config.h"
-
-#if defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_BQ27621G1)
-    #include "drivers/fuelgauge/bq27621g1.h"
-#elif defined(HOJA_FUELGAUGE_DRIVER) && (HOJA_FUELGAUGE_DRIVER==FUELGAUGE_DRIVER_ADC)
-    #include "drivers/fuelgauge/adc_fuelgauge.h"
-#endif
+#include "utilities/crosscore_utils.h"
 
 SNAPSHOT_TYPE(fuelgauge, fuelgauge_status_s);
 snapshot_fuelgauge_t _fuelgauge_snap;
+
+// Weak driver contract defaults. A board with no fuel gauge driver selected
+// links these, making every fuel gauge call a safe no-op. The selected driver
+// (compiled in by the HOJA_FUELGAUGE_DRIVER gate) overrides them.
+__attribute__((weak)) bool fuelgauge_driver_init(uint16_t capacity_mah) { (void)capacity_mah; return false; }
+__attribute__((weak)) fuelgauge_status_s fuelgauge_driver_get_status(void) { fuelgauge_status_s s = {0}; return s; }
+__attribute__((weak)) const char *fuelgauge_driver_part_code(void) { return NULL; }
+
+// A driver is present iff it supplies a part code (weak default returns NULL).
+static inline bool _fuelgauge_present(void) { return fuelgauge_driver_part_code() != NULL; }
 
 void fuelgauge_update_status(void)
 {
     fuelgauge_status_s status = {0};
 
-    #if defined(HOJA_FUELGAUGE_GET_STATUS)
-    status = HOJA_FUELGAUGE_GET_STATUS();
+    if(_fuelgauge_present())
+    {
+        status = fuelgauge_driver_get_status();
 
-    if(status.percent>=55)
-    {
-        status.simple = BATTERY_LEVEL_HIGH;
+        if(status.percent>=55)
+        {
+            status.simple = BATTERY_LEVEL_HIGH;
+        }
+        else if (status.percent>=15)
+        {
+            status.simple = BATTERY_LEVEL_MID;
+        }
+        else if (status.percent >= 5)
+        {
+            status.simple = BATTERY_LEVEL_LOW;
+        }
+        else 
+        {
+            status.simple = BATTERY_LEVEL_CRITICAL;
+        }
     }
-    else if (status.percent>=15)
-    {
-        status.simple = BATTERY_LEVEL_MID;
-    }
-    else if (status.percent >= 5)
-    {
-        status.simple = BATTERY_LEVEL_LOW;
-    }
-    else 
-    {
-        status.simple = BATTERY_LEVEL_CRITICAL;
-    }
-    #endif
 
     if(!status.connected) 
     {
@@ -63,42 +67,28 @@ void _fuelgauge_set_connected(bool connected)
     snapshot_fuelgauge_write(&_fuelgauge_snap, &tmp);
 }
 
-void _fuelgauge_set_percent(uint8_t percent)
-{
-    fuelgauge_status_s tmp;
-    snapshot_fuelgauge_read(&_fuelgauge_snap, &tmp);
-    tmp.percent = percent;
-    tmp.simple = 4;
-    snapshot_fuelgauge_write(&_fuelgauge_snap, &tmp);
-}
-
-bool fuelgauge_init(uint16_t capacity_mah) 
+// Init fuel gauge. Always safe to call; the return value reports whether a
+// driver was assigned and whether the gauge initialized.
+fuelgauge_result_t fuelgauge_init(void)
 {
     _fuelgauge_set_connected(false);
 
-    bool present = false;
+    // No fuel gauge driver compiled in for this board.
+    if(!_fuelgauge_present())
+    {
+        fuelgauge_update_status();
+        return FUELGAUGE_RESULT_NO_DRIVER;
+    }
 
-    #if defined(HOJA_FUELGAUGE_PRESENT)
-    present = HOJA_FUELGAUGE_PRESENT();
-    #endif
+    const hoja_config_s *config = hoja_config_get();
+    uint16_t capacity_mah = config ? config->battery_capacity_mah : 0;
 
-    // Fuel gauge isn't present or not responding
-    if(!present) return false;
+    // init() also performs hardware presence detection.
+    if(!fuelgauge_driver_init(capacity_mah))
+        return FUELGAUGE_RESULT_FAILED;
 
-    bool init = false;
+    // Pull initial status (percent + connected) from the driver.
+    fuelgauge_update_status();
 
-    #if defined(HOJA_FUELGAUGE_INIT)
-    HOJA_FUELGAUGE_INIT(capacity_mah);
-    #endif 
-
-    // Fuel gauge init failure
-    if(!init) return false;
-
-    // Get initial percentage
-    uint8_t percent = 100;
-    #if defined(HOJA_FUELGAUGE_GETPERCENT)
-    percent = HOJA_FUELGAUGE_GETPERCENT();
-    #endif 
-
-    _fuelgauge_set_percent(percent);
+    return FUELGAUGE_RESULT_OK;
 }

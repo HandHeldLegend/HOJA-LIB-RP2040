@@ -1,11 +1,13 @@
 #include "devices/rgb.h"
 
 #include <math.h>
+#include <string.h>
 
-#include "utilities/interval.h"
 #include "utilities/settings.h"
+#include "utilities/boot.h"
 #include "input/idle_manager.h"
 
+#include "hoja.h"
 #include "board_config.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER==RGB_DRIVER_HAL)
@@ -14,15 +16,23 @@
 
 #include "devices/animations/anm_handler.h"
 #include "devices/animations/anm_utility.h"
+#include "devices/animations/anm_authentic.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-int8_t rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s  rgb_colors_safe[RGB_MAX_GROUPS] = {0};
+// Group LED membership + group count are loaded from hoja_config_s.rgb at init.
+int8_t  rgb_led_groups[RGB_MAX_GROUPS][RGB_MAX_LEDS_PER_GROUP] = {0};
+rgb_s   rgb_colors_safe[RGB_MAX_GROUPS] = {0};
+uint8_t rgb_group_count = 0;
 
 // Perform a fade animation to black, then call our callback
-void rgb_deinit(callback_t cb)
+bool rgb_deinit(callback_t cb)
 {
+    #if defined(HOJA_RGB_DRIVER)
     anm_handler_shutdown(cb);
+    return true;
+    #else
+    return false;
+    #endif
 }
 
 const rgb_s _rainbow[] = COLORS_RAINBOW; 
@@ -36,7 +46,71 @@ float _exponentialRamp(float input) {
     const float exponent = 1.5f; // Higher values increase steepness
     return powf(input, exponent);
 }
+#else
+bool rgb_deinit(callback_t cb)
+{
+    (void)cb;
+    return false;
+}
 #endif
+
+static void _rgb_clear_notification(void)
+{
+
+}
+
+static bool _pulsing_color_set = false;
+static rgb_s _pulsing_color = COLOR_BLACK;
+static bool _notif_color_set = false;
+static rgb_s _notif_color = COLOR_BLACK;
+
+bool rgb_get_pulsing(rgb_s *out)
+{
+    *out = _pulsing_color;
+    return _pulsing_color_set;
+}
+
+void rgb_set_pulsing(rgb_s color)
+{
+    _pulsing_color = color;
+    _pulsing_color_set = true;
+}
+
+void rgb_clear_pulsing(void)
+{
+    _pulsing_color_set = false;
+    _pulsing_color = COLOR_BLACK;
+}
+
+bool rgb_get_notification(rgb_s *out)
+{
+    *out = _notif_color;
+    return _notif_color_set;
+}
+
+void rgb_send_notification(rgb_s color)
+{
+    _notif_color = color;
+    _notif_color_set = true;
+}
+
+void rgb_clear_notification(void)
+{
+    _notif_color_set = false;
+    _notif_color = COLOR_BLACK;
+}
+
+static bool _rgb_transport_is_wireless(gamepad_transport_t transport)
+{
+    return transport == GAMEPAD_TRANSPORT_BLUETOOTH
+        || transport == GAMEPAD_TRANSPORT_WLAN;
+}
+
+static uint16_t _rgb_cap_brightness_wireless(uint16_t brightness)
+{
+    const uint16_t cap = (uint16_t)(RGB_BRIGHTNESS_MAX / 3);
+    return brightness > cap ? cap : brightness;
+}
 
 void rgb_set_idle(bool enable)
 {
@@ -49,6 +123,24 @@ void rgb_init(int mode, int brightness)
 {
     idle_manager_heartbeat();
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
+    // Load the board's group layout from the config. Disabled slots (empty name)
+    // are skipped; count is inferred from the highest enabled index.
+    const hoja_rgb_cfg_s *rgb_cfg = &hoja_config_get()->rgb;
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
+            rgb_led_groups[i][j] = -1;
+    }
+    rgb_group_count = 0;
+    for(int i = 0; i < RGB_MAX_GROUPS; i++)
+    {
+        if(!rgb_group_cfg_enabled(&rgb_cfg->groups[i]))
+            continue;
+        memcpy(rgb_led_groups[i], rgb_cfg->groups[i].leds, RGB_MAX_LEDS_PER_GROUP * sizeof(int8_t));
+        if((uint8_t)(i + 1) > rgb_group_count)
+            rgb_group_count = (uint8_t)(i + 1);
+    }
+
     uint8_t set_mode = 0;
     uint16_t set_brightness = 0;
     uint16_t loaded_brightness = 0;
@@ -76,6 +168,8 @@ void rgb_init(int mode, int brightness)
     if(brightness < 0)
     {
         loaded_brightness = rgb_config->rgb_brightness;
+        if (_rgb_transport_is_wireless(boot_get_info()->transport))
+            loaded_brightness = _rgb_cap_brightness_wireless(loaded_brightness);
     }
     else {
         loaded_brightness = brightness;
@@ -91,7 +185,7 @@ void rgb_init(int mode, int brightness)
     {
         rgb_config->rgb_config_version = CFG_BLOCK_RGB_VERSION;
 
-        rgb_config->rgb_brightness = 2800;
+        rgb_config->rgb_brightness = (4096 * 60) / 100; // 60%
         loaded_brightness = rgb_config->rgb_brightness;
 
         rgb_config->rgb_mode = 0;
@@ -106,12 +200,12 @@ void rgb_init(int mode, int brightness)
         }
 
         #if defined(HOJA_RGB_GROUP_DEFAULTS)
-        rgb_s default_colors[HOJA_RGB_GROUPS_NUM] = HOJA_RGB_GROUP_DEFAULTS;
-        for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+        rgb_s default_colors[RGB_MAX_GROUPS] = HOJA_RGB_GROUP_DEFAULTS;
+        for(int i = 0; i < rgb_group_count; i++)
         {
             rgb_s col_tmp = default_colors[i];
             rgb_config->rgb_colors[i] = anm_utility_pack_local_color(col_tmp);
-        }   
+        }
         #endif
 
         rgb_config->rgb_speed = 650;
@@ -144,22 +238,21 @@ void rgb_init(int mode, int brightness)
         _rgb_ll_init = true;
     }
 
+    // Mapper profile + report format must be current before the first fade so Authentic
+    // mode resolves era colors instead of gray fallbacks.
+    anm_authentic_refresh();
+
     anm_handler_setup_mode(set_mode, set_brightness, set_speed);
 
     #endif
 }
 
 // One tick of RGB logic
-// only performs actions if necessary
 void rgb_task(uint64_t timestamp)
 {
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
-    static interval_s interval = {0};
-
-    if (interval_run(timestamp, RGB_TASK_INTERVAL, &interval))
-    {
-        anm_handler_tick();
-    }
+    (void) timestamp;
+    anm_handler_tick();
     #endif
 }
 

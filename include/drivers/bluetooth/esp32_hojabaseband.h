@@ -9,6 +9,7 @@
 #include "hoja_bsp.h"
 
 #include "devices/bluetooth.h"
+#include "devices/fuelgauge.h"
 
 #include "input/imu.h"
 #include "input/analog.h"
@@ -17,7 +18,7 @@
     #error "ESP32 Hoja Baseband driver requires I2C!" 
 #endif
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #if !defined(BLUETOOTH_DRIVER_I2C_INSTANCE)
         #error "BLUETOOTH_DRIVER_I2C_INSTANCE is undefined in board_config.h"
     #endif
@@ -52,6 +53,15 @@ void esp32hoja_task(uint64_t timestamp);
 int esp32hoja_hwtest();
 
 uint32_t esp32hoja_get_fwversion();
+
+// Optional fuel gauge driver bundled with the ESP32 baseband. A board using the
+// ESP32 bluetooth driver may route fuel-gauge duties to the ESP32 module by
+// selecting HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32 in board_config.h.
+// In that case this file provides the strong fuelgauge_driver_* overrides.
+// Entirely optional; boards with their own gauge select a different driver.
+
+// Feed latest state-of-charge in from the ESP32 telemetry path.
+void esp32hoja_fuelgauge_report(uint8_t percent, bool connected);
 
 #endif
 #endif 

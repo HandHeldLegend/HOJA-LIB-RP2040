@@ -9,13 +9,12 @@
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
-//int _rgb_group_leds[HOJA_RGB_GROUPS_NUM][RGB_MAX_LEDS_PER_GROUP] = HOJA_RGB_GROUPINGS;
-rgb_s _rgb_groups[HOJA_RGB_GROUPS_NUM];
+rgb_s _rgb_groups[RGB_MAX_GROUPS];
 bool _none_init = false;
 
 void _unpack_groups_to_leds(rgb_s *output)
 {
-    for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+    for(int i = 0; i < rgb_group_count; i++)
     {
         for(int j = 0; j < RGB_MAX_LEDS_PER_GROUP; j++)
         {
@@ -36,7 +35,7 @@ void _unpack_groups_to_leds(rgb_s *output)
 bool anm_none_get_state(rgb_s *output)
 {
     // Reset our static state from stored rgb group data
-    for(int i = 0; i < HOJA_RGB_GROUPS_NUM; i++)
+    for(int i = 0; i < rgb_group_count; i++)
     {
         rgb_s tmp_color = rgb_colors_safe[i];
         // Load our colors from the settings

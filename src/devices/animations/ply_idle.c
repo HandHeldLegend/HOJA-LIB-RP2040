@@ -14,9 +14,8 @@
 #define PLAYER_NUM_CHANGE_STEP_FIXED RGB_FLOAT_TO_FIXED(1.0f /  ANM_UTILITY_GET_FRAMES_FROM_MS(500) )
 uint32_t _player_change_blend = RGB_FADE_FIXED_MULT;
 
-#if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE>0)
-bool _off_flags[HOJA_RGB_PLAYER_GROUP_SIZE] = {0};
-#endif
+// Player-number indicator groups are always RGB_PLAYER_GROUP_SIZE (4) LEDs.
+bool _off_flags[RGB_PLAYER_GROUP_SIZE] = {0};
 
 const rgb_s _player_num_colors[] = {
     COLOR_RED,
@@ -31,16 +30,13 @@ const rgb_s _player_num_colors[] = {
 
 bool ply_idle_handler(rgb_s *output, int player_num)
 {
-    #if defined(HOJA_RGB_PLAYER_GROUP_SIZE) && (HOJA_RGB_PLAYER_GROUP_SIZE>0)
     static int player_internal = -1;
 
     if(player_internal != player_num)
     {
         player_internal = player_num;
 
-        #if (HOJA_RGB_PLAYER_GROUP_SIZE == 4)
-        // If we have 4 LEDs in the player group,
-        // we can set each led to represent a player number
+        // 4 LEDs in the player group, so each led represents a player number bit.
         uint8_t setup = 0b0000;
         switch(player_internal)
         {
@@ -74,25 +70,16 @@ bool ply_idle_handler(rgb_s *output, int player_num)
                 break;
         }
 
-        for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+        for (int i = 0; i < RGB_PLAYER_GROUP_SIZE; i++)
         {
             if(!(setup & (1 << i))) 
                 _off_flags[i] = true;
             else 
                 _off_flags[i] = false;
         }
-        #else
-        for (int i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
-        {
-            if(player_num > 0)
-                _off_flags[i] = false;
-            else 
-                _off_flags[i] = true;
-        }
-        #endif
     }
 
-    for(uint8_t i = 0; i < HOJA_RGB_PLAYER_GROUP_SIZE; i++)
+    for(uint8_t i = 0; i < RGB_PLAYER_GROUP_SIZE; i++)
     {
         if(_off_flags[i])
             output[i].color = 0;
@@ -101,8 +88,6 @@ bool ply_idle_handler(rgb_s *output, int player_num)
     // Otherwise we do nothing (passthrough)
 
     return true;
-
-    #endif
 }
 
 #endif

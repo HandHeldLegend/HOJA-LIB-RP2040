@@ -12,6 +12,7 @@
 #include "hoja.h"
 
 #include "board_config.h"
+#include "ns_lib_haptics.h"
 
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
@@ -22,11 +23,11 @@
 
 
 
-bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode) 
+bool bluetooth_mode_start(core_reportformat_t format, bool pairing_mode) 
 {
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER>0)
 
-    if(mode==GAMEPAD_MODE_LOAD)
+    if(format == CORE_REPORTFORMAT_UNDEFINED)
     {
         #if defined(HOJA_BLUETOOTH_INIT_LOAD)
         HOJA_BLUETOOTH_INIT_LOAD();
@@ -44,7 +45,7 @@ bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode)
 
     // All other bluetooth modes init normally
     #if defined(HOJA_BLUETOOTH_INIT)
-    return HOJA_BLUETOOTH_INIT(mode, pairing_mode, bluetooth_callback_handler);
+    return HOJA_BLUETOOTH_INIT(format, pairing_mode, bluetooth_callback_handler);
     #else 
     return false;
     #endif
@@ -58,7 +59,15 @@ void bluetooth_mode_stop()
     #endif
 }
 
+void _bluetooth_send_packet(uint8_t *data, uint16_t len)
+{
 
+}
+
+void bluetooth_input_cb(uint8_t *data, uint16_t len)
+{
+    
+}
 
 bool bluetooth_mode_task(uint64_t timestamp)
 {
@@ -105,7 +114,12 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
 
         case BTCB_HD_RUMBLE:
-            switch_haptics_rumble_translate(&(msg->data[0]));
+            ns_haptics_rumble_translate(&(msg->data[0]));
         break;
     }
+}
+
+__attribute__((weak)) const char *bluetooth_driver_part_code(void)
+{
+    return NULL;
 }

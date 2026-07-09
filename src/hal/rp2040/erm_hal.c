@@ -19,9 +19,10 @@
 #include "hardware/dma.h"
 
 #include "devices/haptics.h"
-#include "switch/switch_haptics.h"
 
-#if defined(HOJA_HAPTICS_CHAN_A_PIN)
+#include "hoja.h"
+
+#if defined(HOJA_HAPTICS_DRIVER) && (HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_ERM_HAL)
 
 uint erm_slice_l;
 uint erm_slice_l_chan;
@@ -31,6 +32,11 @@ uint32_t _pwm_minimum = 0;
 uint32_t _pwm_rise_amt_per_tick = 0;
 uint32_t _pwm_fall_amt_per_tick = 0;
 
+// Drive pin + optional active-brake line come from hoja_config_s.haptics.
+static uint8_t _erm_chan_a_pin  = 0;
+static uint8_t _erm_brake_pin   = 0;
+static bool    _erm_brake_enable = false;
+
 #define ERM_TICK_INTERVAL_US   100
 #define ERM_PWM_WRAP        0xFFFF
 
@@ -38,17 +44,8 @@ uint32_t _pwm_fall_amt_per_tick = 0;
 // DO NOT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING
 #define ERM_PWM_SAFE_MAX    20000
 
-#if defined(HOJA_HAPTICS_MAX)
-    #define ERM_PWM_SCALED_MAX      (uint32_t) (HOJA_HAPTICS_MAX * (float) ERM_PWM_SAFE_MAX)
-#else 
-    #define ERM_PWM_SCALED_MAX  ERM_PWM_SAFE_MAX
-#endif
-
-#if defined(HOJA_HAPTICS_MIN)
-    #define ERM_PWM_SCALED_MIN      (uint32_t) (HOJA_HAPTICS_MIN * (float) ERM_PWM_SAFE_MAX)
-#else
-    #define ERM_PWM_SCALED_MIN  0
-#endif
+// Resolved at init: ERM_PWM_SAFE_MAX scaled by haptics.intensity_max (0 = full).
+static uint32_t _erm_pwm_scaled_max = ERM_PWM_SAFE_MAX;
 
 #define ERM_STEPS 1000
 
@@ -61,20 +58,31 @@ void erm_hal_stop()
 {
     _erm_shutdown = true;
     pwm_set_enabled(erm_slice_l, false);
-    gpio_hal_init(HOJA_HAPTICS_CHAN_A_PIN, false, false);
-    gpio_hal_write(HOJA_HAPTICS_CHAN_A_PIN, false);
-    #if defined(HOJA_HAPTICS_BRAKE_PIN)
-    gpio_hal_init(HOJA_HAPTICS_BRAKE_PIN, false, false);
-    gpio_hal_write(HOJA_HAPTICS_BRAKE_PIN, true);
-    #endif
+    gpio_hal_init(_erm_chan_a_pin, false, false);
+    gpio_hal_write(_erm_chan_a_pin, false);
+    if(_erm_brake_enable)
+    {
+        gpio_hal_init(_erm_brake_pin, false, false);
+        gpio_hal_write(_erm_brake_pin, true);
+    }
 }
 
 bool erm_hal_init(uint8_t intensity)
 {
     static bool hal_init = false;
 
+    const erm_hal_cfg_s *cfg = &hoja_config_get()->haptics;
+    _erm_chan_a_pin   = cfg->channel_a_pin;
+    _erm_brake_pin    = cfg->brake_pin;
+    _erm_brake_enable = cfg->brake_enable;
+
+    // intensity_max (0..1) scales the safe maximum; 0 keeps the full range.
+    _erm_pwm_scaled_max = (cfg->intensity_max > 0.0f)
+        ? (uint32_t) (cfg->intensity_max * (float) ERM_PWM_SAFE_MAX)
+        : ERM_PWM_SAFE_MAX;
+
     float scaler = (float) intensity / 255.0f;
-    float scaled_max_pwm = (float) ERM_PWM_SCALED_MAX * scaler;
+    float scaled_max_pwm = (float) _erm_pwm_scaled_max * scaler;
     _pwm_range = (uint32_t) scaled_max_pwm;
 
     _pwm_rise_amt_per_tick = (uint32_t) (_pwm_range / ((ERM_RISE_TIME_MS * 1000) / ERM_TICK_INTERVAL_US));
@@ -82,10 +90,11 @@ bool erm_hal_init(uint8_t intensity)
 
     if(hal_init) return true;
 
-    #if defined(HOJA_HAPTICS_BRAKE_PIN)
-    gpio_hal_init(HOJA_HAPTICS_BRAKE_PIN, false, false);
-    gpio_hal_write(HOJA_HAPTICS_BRAKE_PIN, false);
-    #endif
+    if(_erm_brake_enable)
+    {
+        gpio_hal_init(_erm_brake_pin, false, false);
+        gpio_hal_write(_erm_brake_pin, false);
+    }
 
     // Initialize the PWM and DMA channels
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
@@ -94,16 +103,16 @@ bool erm_hal_init(uint8_t intensity)
     pwm_config_set_clkdiv(&config, 16);
     pwm_config_set_wrap(&config, ERM_PWM_WRAP); // Utilize full 16 bit range
 
-    gpio_set_function(HOJA_HAPTICS_CHAN_A_PIN, GPIO_FUNC_PWM);
+    gpio_set_function(_erm_chan_a_pin, GPIO_FUNC_PWM);
     
-    erm_slice_l         = pwm_gpio_to_slice_num(HOJA_HAPTICS_CHAN_A_PIN);
-    erm_slice_l_chan    = pwm_gpio_to_channel(HOJA_HAPTICS_CHAN_A_PIN);
+    erm_slice_l         = pwm_gpio_to_slice_num(_erm_chan_a_pin);
+    erm_slice_l_chan    = pwm_gpio_to_channel(_erm_chan_a_pin);
     pwm_init(erm_slice_l, &config, false);
 
     pwm_set_enabled(erm_slice_l, true);
 
     // Set the PWM level to half
-    pwm_set_gpio_level(HOJA_HAPTICS_CHAN_A_PIN, 0);
+    pwm_set_gpio_level(_erm_chan_a_pin, 0);
 
     hal_init = true;
 
@@ -168,7 +177,7 @@ void erm_hal_task(uint64_t timestamp)
 
         if(_current_level != this_level)
         {
-            pwm_set_gpio_level(HOJA_HAPTICS_CHAN_A_PIN, (uint32_t) _current_level);
+            pwm_set_gpio_level(_erm_chan_a_pin, (uint32_t) _current_level);
         }
 
         this_level = _current_level;

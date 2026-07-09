@@ -1,11 +1,13 @@
+#include "board_config.h"
+
+#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180)
+
 #include "drivers/battery/bq25180.h"
+#include "devices/battery.h"
+#include "hoja.h"
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/mutex_hal.h"
-
-#include "hoja.h"
-
-#if defined(HOJA_BATTERY_DRIVER) && (HOJA_BATTERY_DRIVER==BATTERY_DRIVER_BQ25180)
 
 #define BQ25180_SLAVE_ADDRESS 0x6A
 
@@ -14,7 +16,7 @@
 #define BQ25180_REG_SHIP_RST    0x9
 #define BQ25180_REG_SYS_REG     0xA
 #define BQ25180_REG_ICHG_CTRL   0x4
-#define BQ25180_REG_FLAG_0      0x2
+#define BQ25180_REG_IC_CTRL     0x7
 #define BQ25180_REG_MASK_ID     0xC
 
 typedef struct
@@ -53,33 +55,32 @@ typedef struct
     };
 } bq25180_status_1_s;
 
-typedef struct 
-{
-    union 
-    {
-        struct
-        {
-            uint8_t bat_ocp_fault : 1;
-            uint8_t buvlo_fault_flag : 1;
-            uint8_t vin_ovp_fault_flag : 1;
-            uint8_t thermreg_active_flag : 1;
-            uint8_t vindpm_active_flag: 1;
-            uint8_t vdppm_active_flag : 1;
-            uint8_t ilim_active_flag : 1;
-            uint8_t ts_fault_flag;
-        };
-        uint8_t flags;
-    };
-} bq25180_flags_0_s;
+static bool _charge_disabled = false;
+static bool _bq25180_pack_present = true;
 
-bool _charge_disabled = false;
-
-bool bq25180_is_present(void)
+// The board's hoja_config_s embeds our config as `.battery` (shaped by the
+// HOJA_BATTERY_DRIVER gate). Read it straight from the global config.
+static inline const bq25180_cfg_s *_cfg(void)
 {
+    const hoja_config_s *c = hoja_config_get();
+    return c ? &c->battery : NULL;
+}
+
+static inline uint8_t _bus(void)
+{
+    const bq25180_cfg_s *cfg = _cfg();
+    return cfg ? cfg->i2c_instance : 0;
+}
+
+// Hardware presence detection (internal). Folded into init() rather than
+// exposed as a separate driver entry point.
+static bool bq25180_is_present(void)
+{
+    uint8_t i2c = _bus();
 
     uint8_t _getstatus[1] = {BQ25180_REG_FLAG_0};
     uint8_t _readstatus[1] = {0x00};
-    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
+    int ret = i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 32000);
 
     if(ret==1)
     {
@@ -97,8 +98,10 @@ bool bq25180_is_present(void)
     else return false;
 }
 
-battery_status_s bq25180_get_status(void)
+battery_status_s battery_driver_get_status(void)
 {
+    uint8_t i2c = _bus();
+
     static battery_status_s status = {0};
 
     bq25180_status_0_s this_status_0 = {0};
@@ -106,7 +109,7 @@ battery_status_s bq25180_get_status(void)
 
     uint8_t _getstatus[1] = {BQ25180_REG_STATUS_0};
     uint8_t _readstatus[1] = {0};
-    int ret = i2c_hal_write_read_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 1000);
+    int ret = i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, _getstatus, 1, _readstatus, 1, 1000);
 
     if(ret==1)
     {
@@ -156,21 +159,15 @@ battery_status_s bq25180_get_status(void)
     return status;
 }
 
-bool bq25180_init()
+static bool bq25180_set_source(battery_source_t source)
 {
-    sys_hal_sleep_ms(100);
-    bq25180_set_source(BATTERY_SOURCE_AUTO);
-    bq25180_set_charge_rate(100);
-    return true;
-}
+    uint8_t i2c = _bus();
 
-bool bq25180_set_source(battery_source_t source)
-{
     // Disable pushbutton
 
     // Broken code? Causes issues with wired only with 3.3v sources
     const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, 0b00000000}; // Ship mode with wake on button press/adapter insert
-    int ret1 = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write1, 2, false);
+    int ret1 = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write1, 2, false);
 
 
     // We want to disable the onboard regulation
@@ -199,38 +196,64 @@ bool bq25180_set_source(battery_source_t source)
 
     uint8_t write[2] = {BQ25180_REG_SYS_REG, new_source};
 
-    int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
+    int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
 
     if(ret==2) return true; 
 
     return false;
 }
 
-bool bq25180_set_ship_mode()
+static bool bq25180_probe_pack_present(void)
 {
-    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000011}; // Ship mode with wake on button press/adapter insert
-    uint8_t attempts = 0;
-    while(attempts++ < 100)
-    {
-        int ret = i2c_hal_write_timeout_us(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false, 8000);
+    uint8_t i2c = _bus();
 
-        if(ret == PICO_ERROR_GENERIC)
-        {
-            //hoja_shutdown_instant();
-        }
-        else if (ret== PICO_ERROR_TIMEOUT)
-        {
-            //hoja_shutdown_instant();
-        }
-        else if (ret==2)
-        {
-        }
+    uint8_t reg = BQ25180_REG_STATUS_0;
+    uint8_t st0 = 0;
+    if (i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, &reg, 1, &st0, 1, 32000) != 1)
+        return true;
+
+    bq25180_status_0_s status_0 = {.status = st0};
+    if (status_0.ts_open_stat)
+        return false;
+
+    reg = BQ25180_REG_STATUS_1;
+    uint8_t st1 = 0;
+    if (i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, &reg, 1, &st1, 1, 32000) == 1)
+    {
+        bq25180_status_1_s status_1 = {.status = st1};
+        if (status_1.buvlo_status)
+            return false;
     }
-    
+
+    return true;
 }
 
-bool bq25180_set_charge_rate(uint16_t rate_ma)
+// No battery pack: pass-through SYS, charging off, TS faults suppressed.
+// Skips SHIP_RST — that write glitches some wired-only USB setups.
+static bool bq25180_configure_external_power(void)
 {
+    uint8_t i2c = _bus();
+
+    const uint8_t ic_ctrl[2] = {BQ25180_REG_IC_CTRL, 0x07};
+    if (i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, ic_ctrl, 2, false, 32000) != 2)
+        return false;
+
+    const uint8_t sys_reg[2] = {BQ25180_REG_SYS_REG, 0b11100001};
+    if (i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, sys_reg, 2, false, 32000) != 2)
+        return false;
+
+    _charge_disabled = true;
+    const uint8_t ichg[2] = {BQ25180_REG_ICHG_CTRL, 0b10000101};
+    if (i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, ichg, 2, false, 32000) != 2)
+        return false;
+
+    return true;
+}
+
+bool battery_driver_set_charge_rate(uint16_t rate_ma)
+{
+    uint8_t i2c = _bus();
+
     // Default is 0x5
     uint8_t code = 0x5;
     uint16_t rate = rate_ma;
@@ -242,7 +265,7 @@ bool bq25180_set_charge_rate(uint16_t rate_ma)
         _charge_disabled = true;
         write[1] = 0b10000101;
 
-        int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
+        int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
         if(ret==2) 
         {
             return true;
@@ -271,7 +294,7 @@ bool bq25180_set_charge_rate(uint16_t rate_ma)
             code = ((rate - 40) / 10) + 31;
             write[1] = code;
 
-            int ret = i2c_hal_write_blocking(HOJA_BATTERY_I2C_INSTANCE, BQ25180_SLAVE_ADDRESS, write, 2, false);
+            int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
             if(ret==2) 
             {
                 return true;
@@ -288,4 +311,60 @@ bool bq25180_set_charge_rate(uint16_t rate_ma)
     return false;
 }
 
-#endif 
+bool battery_driver_set_ship_mode(void)
+{
+    uint8_t i2c = _bus();
+
+    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
+
+    uint8_t reps = 100;
+    int ret = -1;
+
+    while(reps-- || ret < 0)
+    {
+        ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
+    }
+
+    return true;
+}
+
+bool battery_driver_init(void)
+{
+    const bq25180_cfg_s *cfg = _cfg();
+
+    // Misconfiguration guard: a board that selected this driver must supply
+    // its config. (cfg fields like i2c_instance==0 / charge_rate_ma==0 are
+    // intentionally valid, so they are not asserted here.)
+    if(cfg == NULL) return false;
+
+    // Bail out if the PMIC isn't responding on the bus.
+    if(!bq25180_is_present()) return false;
+
+    sys_hal_sleep_ms(100);
+
+    _bq25180_pack_present = bq25180_probe_pack_present();
+
+    if (!_bq25180_pack_present)
+    {
+        if (!bq25180_configure_external_power())
+            return false;
+    }
+    else
+    {
+        bq25180_set_source(BATTERY_SOURCE_AUTO);
+        battery_driver_set_charge_rate(cfg->charge_rate_ma);
+    }
+    return true;
+}
+
+const char *battery_driver_part_code(void)
+{
+    return "BQ25180";
+}
+
+bool battery_driver_pack_present(void)
+{
+    return _bq25180_pack_present;
+}
+
+#endif // HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180

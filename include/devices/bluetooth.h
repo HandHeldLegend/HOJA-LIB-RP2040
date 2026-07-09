@@ -6,8 +6,6 @@
 
 #include "devices/haptics.h"
 
-#include "switch/switch_haptics.h"
-#include <stdbool.h>
 #include "hoja_shared_types.h"
 #include "devices/devices.h"
 #include "board_config.h"
@@ -28,18 +26,23 @@ typedef struct
 
 typedef void (*bluetooth_cb_t)(bluetooth_cb_msg_s *msg);
 
-#if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_HAL)
     #include "hal/bluetooth_hal.h"
-#elif defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER==BLUETOOTH_DRIVER_ESP32HOJA)
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
 #endif
 
 void bluetooth_mode_stop();
-bool bluetooth_mode_start(gamepad_mode_t mode, bool pairing_mode);
+bool bluetooth_mode_start(core_reportformat_t format, bool pairing_mode);
 
 bool bluetooth_mode_task(uint64_t timestamp);
 
 // Pass this as our callback handler
 void bluetooth_callback_handler(bluetooth_cb_msg_s *msg);
+
+// Wireless module part number (e.g. "RPI RM2", "ESP32"). The selected
+// bluetooth/transport driver provides a strong definition; bluetooth.c ships a
+// weak default returning NULL when no driver is compiled in.
+const char *bluetooth_driver_part_code(void);
 
 #endif

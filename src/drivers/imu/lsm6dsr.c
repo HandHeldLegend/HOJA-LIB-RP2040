@@ -1,14 +1,15 @@
+#include "board_config.h"
+
+#if defined(HOJA_IMU_DRIVER) && (HOJA_IMU_DRIVER == IMU_DRIVER_LSM6DSR)
+
 #include "drivers/imu/lsm6dsr.h"
+#include "input/imu.h"
+#include "hoja.h"
 
 #include "hal/gpio_hal.h"
 #include "hal/spi_hal.h"
 #include "hal/i2c_hal.h"
 #include "hal/sys_hal.h"
-#include "board_config.h"
-
-#include "hoja.h"
-
-#ifdef IMU_DRIVER_LSM6DSR_SPI
 
 int _imu_spi_write_register(const uint8_t reg, const uint8_t data, uint32_t cs_gpio, uint8_t spi_instance)
 {
@@ -53,8 +54,7 @@ static inline int16_t _gyro_mul_clip_int16(int16_t x, float scaler) {
     return (int16_t)(result + (result >= 0 ? 0.5f : -0.5f)); // manual rounding
 }
 
-// invert_flags uses 6 bits to invert axis. GX, GY, GZ, AX, AY, AZ is the order.
-int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, uint8_t invert_flags)
+static int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, lsm6dsr_sensor_cfg_s gyro, lsm6dsr_sensor_cfg_s accel)
 {
     uint8_t i[12] = {0};
     const uint8_t reg = 0x80 | IMU_OUTX_L_G;
@@ -63,13 +63,13 @@ int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, ui
 
     float scaler = 0;
 
-    bool gx_invert = (invert_flags&0b100000) != 0;
-    bool gy_invert = (invert_flags&0b10000) != 0;
-    bool gz_invert = (invert_flags&0b1000) != 0;
+    bool gx_invert = gyro.invert_x;
+    bool gy_invert = gyro.invert_y;
+    bool gz_invert = gyro.invert_z;
 
-    bool ax_invert = (invert_flags&0b100) != 0;
-    bool ay_invert = (invert_flags&0b10) != 0;
-    bool az_invert = (invert_flags&0b1) != 0;
+    bool ax_invert = accel.invert_x;
+    bool ay_invert = accel.invert_y;
+    bool az_invert = accel.invert_z;
 
     scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[0], i[1]), SCALER_GYRO_X );
     out->gx = APPLY_INVERSION((int16_t)scaler, gx_invert);
@@ -92,7 +92,7 @@ int lsm6dsr_spi_read(imu_data_s *out, uint32_t cs_gpio, uint8_t spi_instance, ui
     return ret;
 }
 
-int lsm6dsr_spi_init(uint32_t cs_gpio, uint8_t spi_instance)
+static int lsm6dsr_spi_init(uint32_t cs_gpio, uint8_t spi_instance)
 {
     gpio_hal_init(cs_gpio, true, false);
     _imu_spi_write_register(CTRL1_XL, CTRL1_MASK, cs_gpio, spi_instance);
@@ -106,7 +106,7 @@ int lsm6dsr_spi_init(uint32_t cs_gpio, uint8_t spi_instance)
     return ret;
 }
 
-int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance)
+static int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance)
 {
     uint8_t who = 0;
     _imu_i2c_read_register(WHO_AM_I, select, i2c_instance, &who);
@@ -129,7 +129,7 @@ int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance)
     return ret;
 }
 
-int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, uint8_t invert_flags)
+static int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, lsm6dsr_sensor_cfg_s gyro, lsm6dsr_sensor_cfg_s accel)
 {
     const uint8_t addresses[2] = {0b1101011, 0b1101010};
 
@@ -141,13 +141,13 @@ int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, uint
 
     float scaler = 0;
 
-    bool gx_invert = (invert_flags&0b100000) != 0;
-    bool gy_invert = (invert_flags&0b10000) != 0;
-    bool gz_invert = (invert_flags&0b1000) != 0;
+    bool gx_invert = gyro.invert_x;
+    bool gy_invert = gyro.invert_y;
+    bool gz_invert = gyro.invert_z;
 
-    bool ax_invert = (invert_flags&0b100) != 0;
-    bool ay_invert = (invert_flags&0b10) != 0;
-    bool az_invert = (invert_flags&0b1) != 0;
+    bool ax_invert = accel.invert_x;
+    bool ay_invert = accel.invert_y;
+    bool az_invert = accel.invert_z;
 
     scaler = (float) _gyro_mul_clip_int16( _imu_concat_16(i[0], i[1]), SCALER_GYRO_X );
     out->gx = APPLY_INVERSION((int16_t)scaler, gx_invert);
@@ -168,6 +168,68 @@ int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, uint
     out->retrieved = true;
 
     return ret;
+}
+
+// ---- Strong driver contract overrides (weak-function model) ----
+
+static inline const lsm6dsr_cfg_s *_cfg(void)
+{
+    const hoja_config_s *c = hoja_config_get();
+    return c ? &c->imu : NULL;
+}
+
+static const lsm6dsr_channel_cfg_s *_channel(const lsm6dsr_cfg_s *cfg, uint8_t idx)
+{
+    return (idx == 0) ? &cfg->channel_a : &cfg->channel_b;
+}
+
+static int _channel_init(const lsm6dsr_channel_cfg_s *ch)
+{
+    if (ch->bus == LSM6DSR_BUS_I2C)
+        return lsm6dsr_i2c_init(ch->select, ch->i2c_instance);
+    return lsm6dsr_spi_init(ch->cs_gpio, ch->spi_instance);
+}
+
+static int _channel_read(const lsm6dsr_channel_cfg_s *ch, imu_data_s *out)
+{
+    if (ch->bus == LSM6DSR_BUS_I2C)
+        return lsm6dsr_i2c_read(out, ch->select, ch->i2c_instance, ch->gyro, ch->accel);
+    return lsm6dsr_spi_read(out, ch->cs_gpio, ch->spi_instance, ch->gyro, ch->accel);
+}
+
+uint8_t imu_driver_channel_count(void)
+{
+    const lsm6dsr_cfg_s *cfg = _cfg();
+    if (cfg == NULL)
+        return 0;
+    return (cfg->channel_count > 2) ? 2 : cfg->channel_count;
+}
+
+bool imu_driver_init(void)
+{
+    const lsm6dsr_cfg_s *cfg = _cfg();
+    if (cfg == NULL || cfg->channel_count == 0)
+        return false;
+
+    uint8_t count = imu_driver_channel_count();
+    for (uint8_t i = 0; i < count; i++)
+        _channel_init(_channel(cfg, i));
+
+    return true;
+}
+
+bool imu_driver_read(uint8_t channel, imu_data_s *out)
+{
+    const lsm6dsr_cfg_s *cfg = _cfg();
+    if (cfg == NULL || out == NULL || channel >= imu_driver_channel_count())
+        return false;
+
+    return _channel_read(_channel(cfg, channel), out) >= 0;
+}
+
+const char *imu_driver_part_code(void)
+{
+    return "LSM6DSR";
 }
 
 #endif

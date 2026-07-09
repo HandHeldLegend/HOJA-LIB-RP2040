@@ -1,0 +1,114 @@
+#ifndef TRANSPORT_TRANSPORT_H
+#define TRANSPORT_TRANSPORT_H 
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "hoja_shared_types.h"
+
+#include "cores/cores.h"
+
+typedef void (*transport_task_t)(uint64_t timestamp);
+
+typedef enum
+{
+    TP_CONNSTAT_UNDEFINED = -1,
+    TP_CONNSTAT_IDLE = 0,
+    TP_CONNSTAT_CONNECTED = 1,
+} transport_connection_status_t;
+
+typedef enum
+{
+    TP_EVT_PLAYERLED,
+    TP_EVT_CONNECTIONCHANGE, 
+    TP_EVT_ERMRUMBLE,
+    TP_EVT_POWERCOMMAND,
+    TP_EVT_IMUCOMMAND,
+} tp_evt_t;
+
+typedef enum 
+{
+    TP_CONNECTION_NONE,
+    TP_CONNECTION_CONNECTED,
+    TP_CONNECTION_DISCONNECTED,
+} tp_connectionchange_t;
+
+typedef enum
+{
+    TP_POWERCOMMAND_SHUTDOWN,
+    TP_POWERCOMMAND_REBOOT,
+    TP_POWERCOMMAND_LOWPOWER,
+} tp_powercommand_t;
+
+typedef enum
+{
+    TP_IMUCOMMAND_SET_MODE_OFF,
+    TP_IMUCOMMAND_SET_MODE_RAW,
+    TP_IMUCOMMAND_SET_MODE_QUATERNION,
+} tp_imucommand_t;
+
+typedef struct
+{
+    uint8_t player_number;
+} tp_evt_playerled_s;
+
+typedef struct
+{
+    tp_connectionchange_t connection;
+} tp_evt_connectionchange_s;
+
+typedef struct
+{
+    uint8_t left;
+    uint8_t right;
+    uint8_t leftbrake;
+    uint8_t rightbrake;
+} tp_evt_ermrumble_s;
+
+typedef struct 
+{
+    tp_powercommand_t power_command;
+} tp_evt_powercommand_s;
+
+typedef struct 
+{
+    tp_imucommand_t imu_command;
+} tp_evt_imucommand_s;
+
+typedef struct
+{
+    tp_evt_t evt;
+    union 
+    {
+        tp_evt_playerled_s          evt_playernumber;
+        tp_evt_connectionchange_s   evt_connectionchange;
+        tp_evt_ermrumble_s          evt_ermrumble;
+        tp_evt_powercommand_s       evt_powercommand;
+        tp_evt_imucommand_s         evt_imucommand;
+    };
+} tp_evt_s;
+
+typedef enum
+{
+    TP_AUTOINIT_IDLE,
+    TP_AUTOINIT_REQUESTED,
+    TP_AUTOINIT_SUCCESS,
+    TP_AUTOINIT_FAILURE,
+} transport_autoinit_state_t;
+
+typedef void (*transport_autoinit_result_t)(void);
+
+typedef struct 
+{
+    int phase;
+    transport_autoinit_state_t state;
+    transport_autoinit_result_t result_ready_cb;
+} transport_autoinit_sm_s;
+
+uint8_t transport_current_player_number(void);
+transport_connection_status_t transport_current_connection(void);
+
+void transport_evt_cb(tp_evt_s evt);
+bool transport_init(core_params_s *params);
+void transport_stop();
+
+#endif

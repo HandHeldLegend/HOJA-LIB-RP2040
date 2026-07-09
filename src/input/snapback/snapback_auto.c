@@ -160,6 +160,11 @@ void snapback_auto_process(analog_axis_s *input, analog_axis_s *output)
         output->x = input->x;
         output->y = input->y;
     }
+    else
+    {
+        output->x = 0;
+        output->y = 0;
+    }
 
     output->target = input->target;
 }

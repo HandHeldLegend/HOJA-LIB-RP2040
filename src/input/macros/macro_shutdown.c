@@ -1,11 +1,9 @@
 #include "input/macros/macro_shutdown.h"
 #include "devices/battery.h"
-#include "utilities/interval.h"
 #include "hoja.h"
 
 #define SHUTDOWN_HOLD_TIME 3 // Seconds
-#define SHUTDOWN_MACRO_INTERVAL_US 100000
-#define SHUTDOWN_HOLD_LOOPS ( (SHUTDOWN_HOLD_TIME*1000*1000) / SHUTDOWN_MACRO_INTERVAL_US )
+#define SHUTDOWN_HOLD_US   ((uint64_t)SHUTDOWN_HOLD_TIME * 1000000ULL)
 
 volatile bool _shutdown_ready = false;
 
@@ -14,36 +12,70 @@ void _shutdown_finalize()
     _shutdown_ready = true;
 }
 
+static bool _macro_shipping_enabled(void)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    return cfg && cfg->shipping_macro_code[0] != INPUT_CODE_UNUSED;
+}
+
+static bool _macro_code_pressed(const mapper_input_s *input, mapper_input_code_t code)
+{
+    if (code == INPUT_CODE_UNUSED || code < 0 || code >= INPUT_CODE_MAX)
+    {
+        return false;
+    }
+
+    return input->presses[code] || (input->inputs[code] > 0);
+}
+
+static bool _macro_shipping_pressed(const mapper_input_s *input)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if (!cfg || cfg->shipping_macro_code[0] == INPUT_CODE_UNUSED)
+    {
+        return false;
+    }
+
+    if (!_macro_code_pressed(input, cfg->shipping_macro_code[0]))
+    {
+        return false;
+    }
+
+    if (cfg->shipping_macro_code[1] == INPUT_CODE_UNUSED)
+    {
+        return true;
+    }
+
+    return _macro_code_pressed(input, cfg->shipping_macro_code[1]);
+}
+
 void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
 {
-    static interval_s interval = {0};
-    static bool holding = false;
-    static uint32_t iterations = 0;
-    static bool lockout = false;
-    static bool boot_wait = true;
-    static bool interval_initialized = false;
-
-    // Wait for shipping button to be released after boot
-    if(boot_wait)
+    if (!_macro_shipping_enabled())
     {
-        if(!input->button_shipping)
+        return;
+    }
+
+    static bool boot_wait = true;
+    static bool lockout = false;
+    static uint64_t hold_start_us = 0;
+
+    const bool pressed = _macro_shipping_pressed(input);
+
+    // Wait for the shipping combo to be released after boot.
+    if (boot_wait)
+    {
+        if (!pressed)
         {
             boot_wait = false;
         }
         return;
     }
 
-    // Initialize interval on first run after boot
-    if(!interval_initialized)
+    if (lockout)
     {
-        interval_resettable_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, true, &interval);
-        interval_initialized = true;
-        return;
-    }
-
-    if(interval_run(timestamp, SHUTDOWN_MACRO_INTERVAL_US, &interval))
-    {
-        if(lockout)
+        // Only shut down after ship-mode deinit completes and the combo is released.
+        if (_shutdown_ready && !pressed)
         {
             // Only shut down when we release button
             if(_shutdown_ready && !input->button_shipping)
@@ -54,26 +86,21 @@ void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
             return;
         }
 
-        if(!holding && input->button_shipping)
+    if (pressed)
+    {
+        if (hold_start_us == 0)
         {
-            holding = true;
-            iterations = 0; // Reset iterations when starting to hold
+            hold_start_us = timestamp;
         }
-        else if(holding && !input->button_shipping)
+        else if ((timestamp - hold_start_us) >= SHUTDOWN_HOLD_US)
         {
-            holding = false;
-            iterations = 0;
+            hold_start_us = 0;
+            lockout = true;
+            hoja_deinit(_shutdown_finalize);
         }
-
-        if(holding)
-        {
-            iterations++;
-            if(iterations >= SHUTDOWN_HOLD_LOOPS)
-            {
-                lockout = true;
-                // Deinit, then shut down
-                hoja_deinit(_shutdown_finalize);
-            }
-        }
+    }
+    else
+    {
+        hold_start_us = 0;
     }
 }
