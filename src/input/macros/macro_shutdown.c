@@ -77,14 +77,11 @@ void macro_shutdown(uint64_t timestamp, mapper_input_s *input)
         // Only shut down after ship-mode deinit completes and the combo is released.
         if (_shutdown_ready && !pressed)
         {
-            // Only shut down when we release button
-            if(_shutdown_ready && !input->button_shipping)
-            {
-                _shutdown_ready = false;
-                hoja_shutdown();
-            }
-            return;
+            _shutdown_ready = false;
+            hoja_shutdown();
         }
+        return;
+    }
 
     if (pressed)
     {
