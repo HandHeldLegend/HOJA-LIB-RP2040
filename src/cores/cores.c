@@ -199,6 +199,10 @@ bool core_init(void)
 
 void core_deinit()
 {
+    if(_core_params.core_transport_stop)
+        _core_params.core_transport_stop();
+
+    _core_params.core_transport_stop = NULL;
     _core_params.transport_task = NULL;
     transport_stop();
 }

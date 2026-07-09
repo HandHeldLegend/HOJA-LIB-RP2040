@@ -739,60 +739,96 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
 {
     switch(cmd)
     {
-        default:
-        cb(CFG_BLOCK_INPUT, cmd, false, NULL, 0);
+        case MAPPER_CMD_REFRESH:
+        if(_webusb_remap_preview)
+            _set_raw_output_profile(_webusb_remap_format);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        break;
+
+        case MAPPER_CMD_DEFAULT_ALL:
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
+        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
+        if(_webusb_remap_preview)
+            _set_raw_output_profile(_webusb_remap_format);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_SWITCH:
         _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_XINPUT:
         _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_SNES:
         _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_N64:
         _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_GAMECUBE:
         _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_SINPUT:
         _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SWPRO);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_XINPUT);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SNES);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_N64);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_GAMECUBE);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
         _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SINPUT);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
-    }  
 
-    cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        default:
+        cb(CFG_BLOCK_INPUT, cmd, false, NULL, 0);
+        break;
+    }
 }
 
 void mapper_init()
@@ -813,7 +849,10 @@ void mapper_init()
         _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
     }
 
-    _set_raw_output_profile(report_format);
+    if(_webusb_remap_preview)
+        _set_raw_output_profile(_webusb_remap_format);
+    else
+        _set_raw_output_profile(report_format);
 
     _minimum_d2a_value = 0;
 

@@ -13,6 +13,7 @@
 #include "devices/bluetooth.h"
 
 #include "utilities/static_config.h"
+#include "utilities/boot.h"
 #include "hal/flash_hal.h"
 
 #include "input/stick_scaling.h"
@@ -137,8 +138,17 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
         break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
-            // Enable bluetooth upload
-            //bluetooth_mode_start(CORE_REPORTFORMAT_UNDEFINED, false);
+        {
+            // Persist a boot flag and reboot into ESP32 baseband firmware-update
+            // mode (ALTFLASH). This runs inside the USB transport's own RX
+            // callback, so we must NOT hoja_deinit() here (that tears down the
+            // transport we're executing inside). Reboot immediately instead,
+            // like GAMEPAD_CMD_RESET_TO_BOOTLOADER; the watchdog reboot preserves
+            // the boot-memory scratch register, so we come up in ALTFLASH.
+            boot_memory_s mem = {.baseband_update = true};
+            boot_set_memory(&mem);
+            sys_hal_reboot();
+        }
         break;
 
         case GAMEPAD_CMD_SAVE_ALL:

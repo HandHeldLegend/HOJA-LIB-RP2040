@@ -53,7 +53,6 @@ volatile bool _usb_sendit = false;
 volatile uint8_t _usb_sent_id = 0xFF;
 
 static bool _usb_hal_mounted = false;
-
 static void _usb_hal_hid_output_report(const uint8_t *buffer, uint16_t len)
 {
     if (_usb_core_params != NULL && _usb_core_params->core_report_tunnel != NULL)

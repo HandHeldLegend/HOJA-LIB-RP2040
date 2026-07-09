@@ -432,6 +432,25 @@ static void boot_apply_persisted_memory(boot_info_s *info)
     if (boot_memory.val == 0)
         return;
 
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+    // Requested over WebUSB (config app). Mirror the physical boot combo: force
+    // the Bluetooth transport into ALTFLASH load mode so the ESP32 baseband can
+    // be reflashed.
+    if (boot_memory.baseband_update)
+    {
+        // Fully mirror the physical boot-combo result (step 2). Steps 3-7 have
+        // already run here, so reset reportformat/pairing/flags too — otherwise a
+        // resolved reportformat (e.g. SWPRO) leaks into core_current_color_get()
+        // and the status LED renders the wrong color instead of pulsing orange.
+        info->reportformat = CORE_REPORTFORMAT_UNDEFINED;
+        info->pairing = false;
+        info->baseband_bootloader = true;
+        info->flags = COREBOOT_FLAG_ALTFLASH;
+        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        return;
+    }
+#endif
+
     if (boot_memory.report_format < (uint8_t)CORE_REPORTFORMAT_MAX)
         info->reportformat = (core_reportformat_t)boot_memory.report_format;
 

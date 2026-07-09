@@ -29,7 +29,8 @@ typedef struct
             uint8_t report_format : 4;
             uint8_t gamepad_method : 4;
             uint8_t gamepad_pair : 1;
-            uint8_t reserved_1 : 7;
+            uint8_t baseband_update : 1; // Reboot into ESP32 baseband firmware-update mode
+            uint8_t reserved_1 : 6;
             uint8_t reserved_2 : 8;
         };
         uint32_t val;

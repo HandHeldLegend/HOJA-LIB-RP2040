@@ -11,6 +11,38 @@
 
 #define CORE_SLIPPI_CLAMP(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
+static bool _slippi_connected = false;
+
+static void _core_slippi_set_connected(bool connected)
+{
+    if(connected == _slippi_connected)
+        return;
+
+    _slippi_connected = connected;
+
+    transport_evt_cb((tp_evt_s){
+        .evt = TP_EVT_CONNECTIONCHANGE,
+        .evt_connectionchange = {
+            .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED,
+        },
+    });
+
+    transport_evt_cb((tp_evt_s){
+        .evt = TP_EVT_PLAYERLED,
+        .evt_playernumber = {.player_number = connected ? 1u : 0u},
+    });
+}
+
+static void _core_slippi_heartbeat(void)
+{
+    _core_slippi_set_connected(true);
+}
+
+static void _core_slippi_transport_stop(void)
+{
+    _core_slippi_set_connected(false);
+}
+
 // Descriptor pointers are populated from the driver library at init time.
 static core_hid_device_t _slippi_hid_device = {
     .config_descriptor          = NULL,
@@ -26,6 +58,8 @@ static core_hid_device_t _slippi_hid_device = {
 void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     if(len<2) return;
+
+    _core_slippi_heartbeat();
 
     uint8_t report_id = data[0];
 
@@ -131,6 +165,8 @@ bool _core_slippi_get_generated_report(core_report_s *out)
     data->trigger_l  = lt8;
     data->trigger_r  = rt8;
 
+    _core_slippi_heartbeat();
+
     return true;
 }
 
@@ -170,6 +206,7 @@ bool core_slippi_init(core_params_s *params)
     params->core_report_format       = CORE_REPORTFORMAT_SLIPPI;
     params->core_report_generator    = _core_slippi_get_generated_report;
     params->core_report_tunnel       = _core_slippi_report_tunnel_cb;
+    params->core_transport_stop      = _core_slippi_transport_stop;
 
     return transport_init(params);
 }

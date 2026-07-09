@@ -104,6 +104,22 @@ const hapticInfoStatic_s    haptic_static = {
 
 inputInfoStatic_s input_static = {0};
 
+#if defined(HOJA_RGB_CFG_PRESENT)
+static uint8_t _input_rgb_group_from_key_mappings(const hoja_rgb_cfg_s *rgb_cfg, mapper_input_code_t code)
+{
+    if(!rgb_cfg)
+        return 0;
+
+    for(int s = 0; s < rgb_cfg->key_mapping_count && s < RGB_MAX_KEY_MAPPINGS; s++)
+    {
+        if(rgb_cfg->key_mappings[s].input == code)
+            return (uint8_t)(rgb_cfg->key_mappings[s].group + 1u);
+    }
+
+    return 0;
+}
+#endif
+
 void _input_static_refresh(void)
 {
     const hoja_config_s *config = hoja_config_get();
@@ -123,7 +139,11 @@ void _input_static_refresh(void)
         inputInfoSlot_s *dst = &input_static.input_info[slot->code];
         dst->input_type = (uint8_t) slot->type;
         memcpy(dst->input_name, slot->name, HOJA_INPUT_NAME_LEN);
-        dst->rgb_group  = 0;
+#if defined(HOJA_RGB_CFG_PRESENT)
+        dst->rgb_group = _input_rgb_group_from_key_mappings(&config->rgb, slot->code);
+#else
+        dst->rgb_group = 0;
+#endif
     }
 }
 

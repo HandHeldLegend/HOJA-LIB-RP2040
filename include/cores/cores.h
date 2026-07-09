@@ -34,6 +34,7 @@ typedef bool (*core_generate_report_t)(core_report_s *out);
 typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);
 typedef void (*core_task_t)(uint64_t timestamp);
+typedef void (*core_transport_stop_t)(void);
 typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
@@ -52,6 +53,7 @@ typedef struct
     uint16_t                core_pollrate_us; // Transport methods may or may not respect this value
     core_generate_report_t  core_report_generator; // Get generated report data from this
     core_report_tunnel_t    core_report_tunnel;    // Where incoming OUTPUT reports should be sent
+    core_transport_stop_t   core_transport_stop;   // Optional teardown hook (e.g. disconnect events)
     const core_hid_device_t*      hid_device; // HID device info
     uint16_t                core_boot_flags; // See COREBOOT_FLAG_ types
 } core_params_s;
