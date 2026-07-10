@@ -21,7 +21,7 @@ typedef enum
 #define CFG_BLOCK_GAMEPAD_VERSION   0x14
 
 // Remap config is replaced by hover cfg
-#define CFG_BLOCK_HOVER_VERSION     0x14
+#define CFG_BLOCK_HOVER_VERSION     0x15
 
 #define CFG_BLOCK_ANALOG_VERSION    0x13 
 #define CFG_BLOCK_RGB_VERSION       0x12
