@@ -239,7 +239,7 @@ typedef struct
     int8_t output_code; // Code for what this outputs or is assigned to
 } inputConfigSlot_s;
 
-#define INPUT_SLOT_SIZE sizeof(input_cfg_s) 
+#define INPUT_SLOT_SIZE sizeof(inputConfigSlot_s) 
 
 typedef struct 
 {

@@ -171,8 +171,6 @@ void transport_nesbus_task(uint64_t timestamp)
         {
             mapper_input_s input = mapper_get_input();
 
-            
-
             static uint32_t pack = 0;
 
             bool dpad[4] = {input.presses[SNES_CODE_DOWN], input.presses[SNES_CODE_RIGHT],
