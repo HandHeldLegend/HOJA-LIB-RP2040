@@ -2,6 +2,7 @@
 ; Copyright (c) Hand Held Legend, LLC 2023
 ;
 
+.pio_version 0
 .program joybus
 
 ; Repeatedly get one word of data from the TX FIFO, stalling when the FIFO is

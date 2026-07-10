@@ -2,7 +2,7 @@
 ; Copyright (c) Hand Held Legend, LLC 2026
 ;
 
-
+.pio_version 0
 .program ws2812
 .side_set 1
 
