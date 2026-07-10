@@ -393,7 +393,7 @@ void transport_jbgc_task(uint64_t timestamp)
   if (interval_run(timestamp, _gc_hal_params->core_pollrate_us, &interval))
   {
     // Get input report here
-    core_report_s report;
+    static core_report_s report;
     if (core_get_generated_report(&report))
     {
 

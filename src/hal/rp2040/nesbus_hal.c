@@ -169,9 +169,8 @@ void transport_nesbus_task(uint64_t timestamp)
         // Update NESBus data at our input poll rate
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
-            mapper_input_s input = mapper_get_input();
-
-            
+            static mapper_input_s input = {0};
+            input = mapper_get_input();
 
             static uint32_t pack = 0;
 

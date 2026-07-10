@@ -375,7 +375,7 @@ void transport_jb64_task(uint64_t timestamp)
   if(interval_run(timestamp, _n64_hal_params->core_pollrate_us, &interval))
   {
     // Get input report here
-    core_report_s report;
+    static core_report_s report;
     if(core_get_generated_report(&report))
     {
       snapshot_n64input_write(&_n64_hal_snap, (core_n64_report_s*)report.data);
