@@ -40,6 +40,8 @@ __attribute__((weak)) const char *imu_driver_part_code(void) { return NULL; }
 
 #define IMU_CALIBRATE_CYCLES 2000
 #define IMU_READ_RATE 3000
+/** Free-running quaternion integrate period (independent of USB/BT report cadence). */
+#define IMU_QUAT_INTEGRATE_US 2000
 
 // Access IMU config union members macro
 #define CH_A_GYRO_OFFSET(axis) (imu_config->imu_a_gyro_offsets[axis])
@@ -307,6 +309,8 @@ void imu_set_read_mode(imu_mode_t mode)
     break;
 
   case IMU_MODE_QUATERNION:
+    // Clear state + prev_timestamp so the first integrate after enable is not a huge Δt.
+    ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
     _imu_fn = imu_forced_task_quaternion;
     break;
   }
@@ -315,6 +319,8 @@ void imu_set_read_mode(imu_mode_t mode)
 // IMU forced task (for gated/syncronized reads)
 void imu_forced_task_standard(uint64_t now_us)
 {
+  (void)now_us;
+
   if (imu_driver_channel_count() == 0)
     return;
 
@@ -323,10 +329,16 @@ void imu_forced_task_standard(uint64_t now_us)
 
 void imu_forced_task_quaternion(uint64_t now_us)
 {
+  static interval_s quat_interval = {0};
+
   if (imu_driver_channel_count() == 0)
     return;
 
-  _imu_read_quaternion(sys_hal_now_us());
+  // Self-pace at 2 ms even when motion ticks are report-aligned.
+  if (!interval_run(now_us, IMU_QUAT_INTEGRATE_US, &quat_interval))
+    return;
+
+  _imu_read_quaternion(now_us);
 }
 
 // IMU module operational task
