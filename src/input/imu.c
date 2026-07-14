@@ -77,6 +77,45 @@ int16_t _imu_average_value(int16_t first, int16_t second)
   return total;
 }
 
+static uint8_t _imu_clamp_sensitivity(uint8_t pct)
+{
+  if (pct < IMU_SENSITIVITY_MIN)
+    return IMU_SENSITIVITY_MIN;
+  if (pct > IMU_SENSITIVITY_MAX)
+    return IMU_SENSITIVITY_MAX;
+  return pct;
+}
+
+static inline int16_t _imu_mul_clip_int16(int16_t value, uint8_t sensitivity_pct)
+{
+  float result = (float)value * ((float)_imu_clamp_sensitivity(sensitivity_pct) / (float)IMU_SENSITIVITY_UNITY);
+  if (result > 32767.0f)
+    result = 32767.0f;
+  else if (result < -32768.0f)
+    result = -32768.0f;
+  return (int16_t)(result + (result >= 0 ? 0.5f : -0.5f));
+}
+
+static void _imu_apply_sensitivity(imu_data_s *sample)
+{
+  sample->gx = _imu_mul_clip_int16(sample->gx, imu_config->imu_gyro_sensitivity[0]);
+  sample->gy = _imu_mul_clip_int16(sample->gy, imu_config->imu_gyro_sensitivity[1]);
+  sample->gz = _imu_mul_clip_int16(sample->gz, imu_config->imu_gyro_sensitivity[2]);
+
+  sample->ax = _imu_mul_clip_int16(sample->ax, imu_config->imu_accel_sensitivity[0]);
+  sample->ay = _imu_mul_clip_int16(sample->ay, imu_config->imu_accel_sensitivity[1]);
+  sample->az = _imu_mul_clip_int16(sample->az, imu_config->imu_accel_sensitivity[2]);
+}
+
+static void _imu_default_sensitivity(void)
+{
+  for (int i = 0; i < 3; i++)
+  {
+    imu_config->imu_gyro_sensitivity[i] = IMU_GYRO_SENSITIVITY_DEFAULT;
+    imu_config->imu_accel_sensitivity[i] = IMU_ACCEL_SENSITIVITY_DEFAULT;
+  }
+}
+
 static void _imu_read_quaternion(uint64_t timestamp)
 {
   ns_gyrodata_s this_imu[3] = {0};
@@ -121,6 +160,8 @@ static void _imu_read_quaternion(uint64_t timestamp)
     this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
     this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
     this_imu[2].timestamp_us = timestamp;
+
+    _imu_apply_sensitivity((imu_data_s *)&this_imu[2]);
   }
 
   ns_motion_update_quaternion(&_imu_quat_state, &_imu_quat_integrator, &this_imu[2], _imu_gyro_rad_per_lsb);
@@ -171,6 +212,8 @@ static void _imu_read_standard(uint64_t timestamp)
     this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
     this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
     this_imu[2].timestamp = timestamp;
+
+    _imu_apply_sensitivity(&this_imu[2]);
   }
 
   snapshot_imu_write(&_imu_snap, &this_imu[2]);
@@ -366,6 +409,7 @@ bool imu_init()
     memset(&imu_config->imu_a_accel_config, 0, 3);
     memset(&imu_config->imu_b_gyro_offsets, 0, 3);
     memset(&imu_config->imu_b_accel_config, 0, 3);
+    _imu_default_sensitivity();
   }
 
   // 2000 DPS

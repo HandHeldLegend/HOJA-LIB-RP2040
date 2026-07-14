@@ -29,7 +29,7 @@ typedef enum
 // Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
 
-#define CFG_BLOCK_IMU_VERSION       0x11
+#define CFG_BLOCK_IMU_VERSION       0x12
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
 
@@ -112,6 +112,13 @@ typedef struct
     uint8_t     reserved[5];
 } hapticConfig_s;
 
+// Sensitivity stored as percent units: 100 = 1.00x. Valid range 50..200 (0.50x..2.00x).
+#define IMU_SENSITIVITY_MIN     50
+#define IMU_SENSITIVITY_MAX     200
+#define IMU_SENSITIVITY_UNITY   100
+#define IMU_GYRO_SENSITIVITY_DEFAULT    120
+#define IMU_ACCEL_SENSITIVITY_DEFAULT   100
+
 typedef struct 
 {
     uint8_t     imu_config_version;
@@ -120,7 +127,9 @@ typedef struct
     int8_t      imu_b_gyro_offsets[3];
     int8_t      imu_b_accel_config[3];
     uint8_t     imu_disabled;
-    uint8_t     reserved[18];
+    uint8_t     imu_gyro_sensitivity[3];   // X, Y, Z — default 120 (1.20x)
+    uint8_t     imu_accel_sensitivity[3];  // X, Y, Z — default 100 (1.00x)
+    uint8_t     reserved[12];
 } imuConfig_s;
 
 // Trigger config is now unused
