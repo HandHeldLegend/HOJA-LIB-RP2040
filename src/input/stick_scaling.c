@@ -423,6 +423,8 @@ void stick_scaling_calibrate_start(bool start)
         // Reset all to default
         _zero_distances(analog_config->joy_config_l);
         _zero_distances(analog_config->joy_config_r);
+        analog_config->l_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+        analog_config->r_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
 
         rgb_set_pulsing(COLOR_RED);
 
