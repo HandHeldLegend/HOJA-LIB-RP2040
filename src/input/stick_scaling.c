@@ -447,6 +447,12 @@ void stick_scaling_default_check()
         analog_config->analog_calibration_set = 0;
     }
 
+    // Unset flash (0x00 / 0xFF) -> unity curve. Do not bump analog_config_version.
+    if (analog_config->l_exp_scaler == 0 || analog_config->l_exp_scaler == 0xFF)
+        analog_config->l_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+    if (analog_config->r_exp_scaler == 0 || analog_config->r_exp_scaler == 0xFF)
+        analog_config->r_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+
     if (analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
     {
         analog_config->analog_config_version = CFG_BLOCK_ANALOG_VERSION;
@@ -478,6 +484,9 @@ void stick_scaling_default_check()
 
         analog_config->l_snapback_type = 0; // Default LPF
         analog_config->r_snapback_type = 0; // Default LPF
+
+        analog_config->l_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+        analog_config->r_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
 
         // Set to default left setup
         _set_default_configslot(analog_config->joy_config_l);

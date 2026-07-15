@@ -159,6 +159,17 @@ typedef struct
 
 #define JOY_CFG_SIZE sizeof(joyConfigSlot_s)
 
+// Exponential stick curve: stored as offset uint8 (1..251).
+// User sensitivity 50..300 maps to exponent 0.50..3.00 via (stored + 49) / 100.
+// 1 -> 50 (0.50), 51 -> 100 (1.00), 251 -> 300 (3.00).
+#define ANALOG_EXP_STORED_MIN       1
+#define ANALOG_EXP_STORED_MAX       251
+#define ANALOG_EXP_STORED_DEFAULT   51   // 100 (1.00)
+#define ANALOG_EXP_SENSITIVITY_OFFSET 49
+#define ANALOG_EXP_SENSITIVITY_MIN  50
+#define ANALOG_EXP_SENSITIVITY_MAX  300
+#define ANALOG_EXP_SENSITIVITY_DEFAULT 100
+
 typedef struct 
 {
         uint8_t     analog_config_version; 
@@ -181,9 +192,9 @@ typedef struct
         uint16_t    r_deadzone_outer; 
         uint16_t    l_snapback_intensity; 
         uint16_t    r_snapback_intensity;
-        uint16_t    l_threshold; // Analog->Digital threshold for left joystick
-        uint16_t    r_threshold; // Analog->Digital threshold for right joystick
-        uint8_t     reserved[324];
+        uint8_t     l_exp_scaler; // Offset-encoded exponent (see ANALOG_EXP_*)
+        uint8_t     r_exp_scaler;
+        uint8_t     reserved[326];
 } analogConfig_s; // 1024 bytes
 
 #define ACFGSIZE sizeof(analogConfig_s)
