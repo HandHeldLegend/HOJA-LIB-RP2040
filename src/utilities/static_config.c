@@ -49,12 +49,6 @@ deviceInfoStatic_s    device_static = {
 
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)
 
-#if defined(HOJA_ANALOG_INVERT_ALLOWED)
-    #define ANALOG_INVERT_ALLOWED 1
-#else 
-    #define ANALOG_INVERT_ALLOWED 0
-#endif
-
 analogInfoStatic_s analog_static = {
     .axis_lx = 0,
     .axis_ly = 0,
@@ -268,7 +262,14 @@ void _analog_static_setup()
         _analog_static_set_from_slot(INPUT_CODE_RY_UP,    (input_type_t) slots[INPUT_CODE_RY_UP].input_type);
     }
 
-    analog_static.invert_allowed = ANALOG_INVERT_ALLOWED;
+    // Prefer hoja_config; keep HOJA_ANALOG_INVERT_ALLOWED as a legacy board gate.
+    analog_static.invert_allowed = 0;
+    if(cfg && cfg->analog_invert_allowed)
+        analog_static.invert_allowed = 1;
+#if defined(HOJA_ANALOG_INVERT_ALLOWED)
+    else if(HOJA_ANALOG_INVERT_ALLOWED)
+        analog_static.invert_allowed = 1;
+#endif
 }
 
 #define BLOCK_CHUNK_MAX 32

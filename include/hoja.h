@@ -273,6 +273,10 @@ typedef struct
     hoja_rgb_cfg_s        rgb;
 #endif
 
+    // When non-zero, the config app may edit per-axis joystick invert bits
+    // (lx/ly/rx/ry_invert in analogConfig_s). Defaults to 0 (disabled).
+    uint8_t analog_invert_allowed;
+
     // Physical input labels/types and per-mode default input->output maps.
     hoja_input_cfg_s              inputs;
     hoja_input_mode_defaults_s    defaults_switch;

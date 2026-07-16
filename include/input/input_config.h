@@ -25,10 +25,12 @@ typedef struct
 
 // One default mapping for a gamepad mode: physical input -> protocol output.
 // Unlisted inputs stay at that mode's *_CODE_UNUSED value.
+// static_output of 0 uses the framework default (full-scale digital-to-analog).
 typedef struct
 {
     mapper_input_code_t input;
     int8_t              output;
+    uint16_t            static_output;
 } hoja_input_default_map_s;
 
 typedef struct
@@ -38,10 +40,12 @@ typedef struct
 
 // Shorthand for designated initializers in main.c:
 // INPUT_DEFAULT(INPUT_CODE_SOUTH, SWITCH_CODE_A)
-#define INPUT_DEFAULT(in, out)  { .input = (in), .output = (out) }
+// INPUT_DEFAULT_VAL(INPUT_CODE_LT, GAMECUBE_CODE_L_ANALOG, 2048)
+#define INPUT_DEFAULT(in, out)          { .input = (in), .output = (out), .static_output = 0 }
+#define INPUT_DEFAULT_VAL(in, out, val) { .input = (in), .output = (out), .static_output = (val) }
 // Terminates the sparse .maps list; zero padding would otherwise look like
 // INPUT_CODE_SOUTH -> output 0.
-#define INPUT_DEFAULTS_END      { .input = INPUT_CODE_MAX, .output = 0 }
+#define INPUT_DEFAULTS_END      { .input = INPUT_CODE_MAX, .output = 0, .static_output = 0 }
 
 static inline bool hoja_input_slot_enabled(const hoja_input_slot_cfg_s *slot)
 {

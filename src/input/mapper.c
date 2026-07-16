@@ -587,11 +587,21 @@ static int8_t default_codes_gamecube[MAPPER_INPUT_COUNT];
 static int8_t default_codes_xinput[MAPPER_INPUT_COUNT];
 static int8_t default_codes_sinput[MAPPER_INPUT_COUNT];
 
-static void _mapper_apply_default_maps(int8_t *dest, int8_t unused_code,
+static uint16_t default_static_switch[MAPPER_INPUT_COUNT];
+static uint16_t default_static_snes[MAPPER_INPUT_COUNT];
+static uint16_t default_static_n64[MAPPER_INPUT_COUNT];
+static uint16_t default_static_gamecube[MAPPER_INPUT_COUNT];
+static uint16_t default_static_xinput[MAPPER_INPUT_COUNT];
+static uint16_t default_static_sinput[MAPPER_INPUT_COUNT];
+
+static void _mapper_apply_default_maps(int8_t *dest, uint16_t *static_dest, int8_t unused_code,
                                        const hoja_input_mode_defaults_s *maps)
 {
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
         dest[i] = unused_code;
+        static_dest[i] = 0;
+    }
 
     for(int i = 0; i < HOJA_INPUT_MAX_DEFAULT_MAPS; i++)
     {
@@ -601,6 +611,7 @@ static void _mapper_apply_default_maps(int8_t *dest, int8_t unused_code,
         if(in <= INPUT_CODE_UNUSED)
             continue;
         dest[in] = maps->maps[i].output;
+        static_dest[in] = maps->maps[i].static_output;
     }
 }
 
@@ -610,12 +621,12 @@ static void _mapper_refresh_default_codes(void)
     if(!cfg)
         return;
 
-    _mapper_apply_default_maps(default_codes_switch,   SWITCH_CODE_UNUSED,   &cfg->defaults_switch);
-    _mapper_apply_default_maps(default_codes_snes,      SNES_CODE_UNUSED,     &cfg->defaults_snes);
-    _mapper_apply_default_maps(default_codes_n64,       N64_CODE_UNUSED,      &cfg->defaults_n64);
-    _mapper_apply_default_maps(default_codes_gamecube,  GAMECUBE_CODE_UNUSED, &cfg->defaults_gamecube);
-    _mapper_apply_default_maps(default_codes_xinput,    XINPUT_CODE_UNUSED,   &cfg->defaults_xinput);
-    _mapper_apply_default_maps(default_codes_sinput,    SINPUT_CODE_UNUSED,   &cfg->defaults_sinput);
+    _mapper_apply_default_maps(default_codes_switch,   default_static_switch,   SWITCH_CODE_UNUSED,   &cfg->defaults_switch);
+    _mapper_apply_default_maps(default_codes_snes,     default_static_snes,     SNES_CODE_UNUSED,     &cfg->defaults_snes);
+    _mapper_apply_default_maps(default_codes_n64,      default_static_n64,      N64_CODE_UNUSED,      &cfg->defaults_n64);
+    _mapper_apply_default_maps(default_codes_gamecube, default_static_gamecube, GAMECUBE_CODE_UNUSED, &cfg->defaults_gamecube);
+    _mapper_apply_default_maps(default_codes_xinput,   default_static_xinput,   XINPUT_CODE_UNUSED,   &cfg->defaults_xinput);
+    _mapper_apply_default_maps(default_codes_sinput,   default_static_sinput,   SINPUT_CODE_UNUSED,   &cfg->defaults_sinput);
 }
 
 static uint8_t _lhapticmode = 0;
@@ -634,7 +645,8 @@ const mapper_override_s _mapper_overrides[4] = HOJA_MAPPER_OVERRIDE_SLOTS;
 const mapper_override_s _mapper_overrides[4] = {0};
 #endif
 
-static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *output_codes, uint8_t *output_types)
+static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8_t *output_codes,
+                                        const uint16_t *static_outputs, uint8_t *output_types)
 {
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
@@ -649,7 +661,10 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
         }
         else 
         {
-            cfg_slots[i].static_output = 0xFFF+1; // Max 
+            // Board default static_output when set; otherwise full-scale D2A.
+            cfg_slots[i].static_output = (static_outputs && static_outputs[i])
+                ? static_outputs[i]
+                : (0xFFF+1);
             cfg_slots[i].threshold_delta = 2048;
         }
 
@@ -747,12 +762,12 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_DEFAULT_ALL:
-        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
-        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
-        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
-        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
-        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
-        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, default_static_switch, _switch_output_types);
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, default_static_xinput, _xinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, default_static_snes, _snes_output_types);
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, default_static_n64, _n64_output_types);
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, default_static_gamecube, _gamecube_output_types);
+        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, default_static_sinput, _sinput_output_types);
         if(_webusb_remap_preview)
             _set_raw_output_profile(_webusb_remap_format);
         anm_authentic_refresh();
@@ -760,37 +775,37 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_DEFAULT_SWITCH:
-        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, default_static_switch, _switch_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_XINPUT:
-        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, default_static_xinput, _xinput_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_SNES:
-        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, default_static_snes, _snes_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_N64:
-        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, default_static_n64, _n64_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_GAMECUBE:
-        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, default_static_gamecube, _gamecube_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_DEFAULT_SINPUT:
-        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, default_static_sinput, _sinput_output_types);
         anm_authentic_refresh();
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
@@ -841,12 +856,12 @@ void mapper_init()
     if(input_config->input_config_version != CFG_BLOCK_INPUT_VERSION)
     {
         input_config->input_config_version = CFG_BLOCK_INPUT_VERSION;
-        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, _switch_output_types);
-        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, _snes_output_types);
-        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, _n64_output_types);
-        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, _gamecube_output_types);
-        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, _xinput_output_types);
-        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, _sinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_switch, default_codes_switch, default_static_switch, _switch_output_types);
+        _mapper_set_defaults(input_config->input_profile_snes, default_codes_snes, default_static_snes, _snes_output_types);
+        _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, default_static_n64, _n64_output_types);
+        _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, default_static_gamecube, _gamecube_output_types);
+        _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, default_static_xinput, _xinput_output_types);
+        _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, default_static_sinput, _sinput_output_types);
     }
 
     if(_webusb_remap_preview)
