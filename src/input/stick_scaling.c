@@ -30,12 +30,49 @@
 #define NORMALIZE(value, min, max) (((value) - (min)) / ((max) - (min)))
 #define MAX_ANGLE_ADJUSTMENT 10
 #define MINIMUM_REQUIRED_DISTANCE 1000
+#define ANALOG_EXP_MIGRATION_MAGIC_0 'E'
+#define ANALOG_EXP_MIGRATION_MAGIC_1 'X'
+#define ANALOG_EXP_MIGRATION_MAGIC_2 'P'
+#define ANALOG_EXP_MIGRATION_MAGIC_3 '1'
 
 bool _sticks_calibrating = false;
 uint8_t _l_count = 8;
 uint8_t _r_count = 8;
 
 MUTEX_HAL_INIT(_stick_scaling_mutex);
+
+static bool _analog_exp_migration_done(void)
+{
+    return analog_config->reserved[0] == ANALOG_EXP_MIGRATION_MAGIC_0 &&
+           analog_config->reserved[1] == ANALOG_EXP_MIGRATION_MAGIC_1 &&
+           analog_config->reserved[2] == ANALOG_EXP_MIGRATION_MAGIC_2 &&
+           analog_config->reserved[3] == ANALOG_EXP_MIGRATION_MAGIC_3;
+}
+
+static void _analog_exp_mark_migration_done(void)
+{
+    analog_config->reserved[0] = ANALOG_EXP_MIGRATION_MAGIC_0;
+    analog_config->reserved[1] = ANALOG_EXP_MIGRATION_MAGIC_1;
+    analog_config->reserved[2] = ANALOG_EXP_MIGRATION_MAGIC_2;
+    analog_config->reserved[3] = ANALOG_EXP_MIGRATION_MAGIC_3;
+}
+
+// Temporary one-time migration for the bad post-update curve default:
+// left stick at 0.51 (stored 1) and right stick at 1.00 (stored 51).
+static void _analog_exp_post_update_fix(void)
+{
+    if (_analog_exp_migration_done())
+        return;
+
+    if (analog_config->l_exp_scaler == 1 &&
+        analog_config->r_exp_scaler == ANALOG_EXP_STORED_DEFAULT)
+    {
+        analog_config->l_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+        analog_config->r_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+    }
+
+    _analog_exp_mark_migration_done();
+}
 
 /**
  * @brief Normalizes an angle (in degrees) to the range [0.0, 360.0).
@@ -454,6 +491,8 @@ void stick_scaling_default_check()
         analog_config->l_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
     if (analog_config->r_exp_scaler == 0 || analog_config->r_exp_scaler == 0xFF)
         analog_config->r_exp_scaler = ANALOG_EXP_STORED_DEFAULT;
+
+    _analog_exp_post_update_fix();
 
     if (analog_config->analog_config_version != CFG_BLOCK_ANALOG_VERSION)
     {
