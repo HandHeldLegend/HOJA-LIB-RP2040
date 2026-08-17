@@ -19,6 +19,13 @@
 #define BQ25180_REG_IC_CTRL     0x7
 #define BQ25180_REG_MASK_ID     0xC
 
+#define BQ25180_ICHG_CHG_DIS    0x80 // ICHG_CTRL bit 7: 1 = charging disabled
+
+#define BQ25180_I2C_TIMEOUT_US  32000
+// Time for the BAT node to settle after a charge enable/disable before BUVLO
+// reflects the new state. Only paid twice, during init.
+#define BQ25180_BUVLO_SETTLE_MS 25
+
 typedef struct
 {
     union
@@ -56,7 +63,7 @@ typedef struct
 } bq25180_status_1_s;
 
 static bool _charge_disabled = false;
-static bool _bq25180_pack_present = true;
+static battery_pack_t _bq25180_pack_state = BATTERY_PACK_UNKNOWN;
 
 // The board's hoja_config_s embeds our config as `.battery` (shaped by the
 // HOJA_BATTERY_DRIVER gate). Read it straight from the global config.
@@ -70,6 +77,17 @@ static inline uint8_t _bus(void)
 {
     const bq25180_cfg_s *cfg = _cfg();
     return cfg ? cfg->i2c_instance : 0;
+}
+
+static bool _reg_read(uint8_t reg, uint8_t *out)
+{
+    return i2c_hal_write_read_timeout_us(_bus(), BQ25180_SLAVE_ADDRESS, &reg, 1, out, 1, BQ25180_I2C_TIMEOUT_US) == 1;
+}
+
+static bool _reg_write(uint8_t reg, uint8_t value)
+{
+    const uint8_t write[2] = {reg, value};
+    return i2c_hal_write_timeout_us(_bus(), BQ25180_SLAVE_ADDRESS, write, 2, false, BQ25180_I2C_TIMEOUT_US) == 2;
 }
 
 // Hardware presence detection (internal). Folded into init() rather than
@@ -195,29 +213,59 @@ static bool bq25180_set_source(battery_source_t source)
     return false;
 }
 
-static bool bq25180_probe_pack_present(void)
+// Toggle charging via ICHG_CTRL bit 7, preserving the current rate code.
+static bool _charge_enable_set(uint8_t ichg_ctrl, bool enable)
 {
-    uint8_t i2c = _bus();
+    uint8_t value = enable ? (ichg_ctrl & (uint8_t)~BQ25180_ICHG_CHG_DIS)
+                           : (ichg_ctrl | BQ25180_ICHG_CHG_DIS);
+    return _reg_write(BQ25180_REG_ICHG_CTRL, value);
+}
 
-    uint8_t reg = BQ25180_REG_STATUS_0;
-    uint8_t st0 = 0;
-    if (i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, &reg, 1, &st0, 1, 32000) != 1)
-        return true;
+// Let the BAT node settle, then sample BUVLO out of STATUS_1.
+static bool _buvlo_read_settled(bool *out)
+{
+    sys_hal_sleep_ms(BQ25180_BUVLO_SETTLE_MS);
 
-    bq25180_status_0_s status_0 = {.status = st0};
-    if (status_0.ts_open_stat)
+    uint8_t st1 = 0;
+    if (!_reg_read(BQ25180_REG_STATUS_1, &st1))
         return false;
 
-    reg = BQ25180_REG_STATUS_1;
-    uint8_t st1 = 0;
-    if (i2c_hal_write_read_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, &reg, 1, &st1, 1, 32000) == 1)
-    {
-        bq25180_status_1_s status_1 = {.status = st1};
-        if (status_1.buvlo_status)
-            return false;
-    }
-
+    bq25180_status_1_s status_1 = {.status = st1};
+    *out = status_1.buvlo_status ? true : false;
     return true;
+}
+
+// Battery pack detection, per TI: sample BUVLO with charging enabled, then
+// again with charging disabled. A real pack holds the BAT node up either way,
+// so BUVLO reads the same across the toggle; with nothing on BAT the rail
+// follows the charger and the bit changes. ICHG_CTRL is left as it was found —
+// init() applies the final charge configuration after this runs.
+//
+// If any step of the sequence fails the result is UNKNOWN, never a guess: the
+// caller is told detection did not complete rather than being handed an answer
+// that looks positive.
+static battery_pack_t bq25180_probe_pack_state(void)
+{
+    uint8_t ichg_ctrl = 0;
+    if (!_reg_read(BQ25180_REG_ICHG_CTRL, &ichg_ctrl))
+        return BATTERY_PACK_UNKNOWN;
+
+    bool buvlo_charging = false;
+    bool buvlo_idle = false;
+
+    bool ok = _charge_enable_set(ichg_ctrl, true)
+           && _buvlo_read_settled(&buvlo_charging)
+           && _charge_enable_set(ichg_ctrl, false)
+           && _buvlo_read_settled(&buvlo_idle);
+
+    if (!_reg_write(BQ25180_REG_ICHG_CTRL, ichg_ctrl))
+        return BATTERY_PACK_UNKNOWN; // Could not restore; do not trust the reads
+
+    if (!ok)
+        return BATTERY_PACK_UNKNOWN;
+
+    return (buvlo_charging == buvlo_idle) ? BATTERY_PACK_PRESENT
+                                          : BATTERY_PACK_ABSENT;
 }
 
 // No battery pack: pass-through SYS, charging off, TS faults suppressed.
@@ -334,9 +382,12 @@ bool battery_driver_init(void)
 
     sys_hal_sleep_ms(100);
 
-    _bq25180_pack_present = bq25180_probe_pack_present();
+    _bq25180_pack_state = bq25180_probe_pack_state();
 
-    if (!_bq25180_pack_present)
+    // Only a positive "no pack" switches the PMIC to external-power mode.
+    // UNKNOWN takes the normal path, since cutting charging on a device that
+    // does have a pack is the worse outcome.
+    if (_bq25180_pack_state == BATTERY_PACK_ABSENT)
     {
         if (!bq25180_configure_external_power())
             return false;
@@ -354,9 +405,9 @@ const char *battery_driver_part_code(void)
     return "BQ25180";
 }
 
-bool battery_driver_pack_present(void)
+battery_pack_t battery_driver_pack_state(void)
 {
-    return _bq25180_pack_present;
+    return _bq25180_pack_state;
 }
 
 #endif // HOJA_BATTERY_DRIVER == BATTERY_DRIVER_BQ25180

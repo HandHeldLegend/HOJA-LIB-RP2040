@@ -20,6 +20,17 @@ typedef enum
     BATTERY_SOURCE_BATTERY,
 } battery_source_t;
 
+// Whether a physical battery pack is fitted. Detection can legitimately fail to
+// complete, and that is carried as its own state rather than being collapsed
+// into present/absent -- callers that act on this must decide for themselves
+// what UNKNOWN means for them.
+typedef enum
+{
+    BATTERY_PACK_UNKNOWN = 0, // Detection did not run, or did not complete
+    BATTERY_PACK_ABSENT,      // Positively detected: no pack fitted
+    BATTERY_PACK_PRESENT,     // Positively detected: pack fitted
+} battery_pack_t;
+
 // Outcome of a battery operation. Battery functions are always safe to call;
 // the return value tells the caller whether anything actually happened, so
 // callers never need to guard on driver presence themselves.
@@ -47,8 +58,9 @@ battery_status_s battery_driver_get_status(void);
 bool             battery_driver_set_charge_rate(uint16_t rate_ma);
 bool             battery_driver_set_ship_mode(void);
 const char      *battery_driver_part_code(void);
-// False when the PMIC is present but no battery pack is detected (e.g. open NTC).
-bool             battery_driver_pack_present(void);
+// Pack presence as determined during init. Drivers that cannot complete
+// detection report BATTERY_PACK_UNKNOWN rather than guessing.
+battery_pack_t   battery_driver_pack_state(void);
 
 // True when a board battery PMIC driver is compiled in for this target.
 static inline bool battery_has_driver(void)
@@ -64,7 +76,8 @@ battery_result_t battery_init(void);
 battery_result_t battery_set_charge_rate(uint16_t rate_ma); 
 battery_result_t battery_set_ship_mode(void);
 
-// True after init when a battery pack is detected on the PMIC.
-bool battery_pack_present(void);
+// Pack presence as of the last init. BATTERY_PACK_UNKNOWN until a successful
+// init establishes it (and for boot transports that skip PMIC init entirely).
+battery_pack_t battery_pack_state(void);
 
 #endif

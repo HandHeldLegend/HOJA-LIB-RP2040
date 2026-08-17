@@ -83,11 +83,18 @@ typedef struct
 {
     uint16_t    battery_capacity_mah;
     uint8_t     battery_part_number[24];
+    // A battery pack implies a PMIC, so pack presence is reported as part of
+    // the PMIC state rather than as its own field:
+    // 0=no PMIC driver, 1=PMIC not responding, 2=PMIC ok + pack present,
+    // 3=PMIC ok + no pack detected, 4=PMIC ok + pack detection inconclusive
     uint8_t     pmic_status;
     uint8_t     pmic_part_number[24];
     uint8_t     fuelgauge_status;
     uint8_t     fuelgauge_part_number[24];
 } batteryInfoStatic_s;
+
+// Wire layout shared with the config app: append only, never insert.
+_Static_assert(sizeof(batteryInfoStatic_s) == 76, "batteryInfoStatic_s layout changed");
 
 typedef struct 
 {

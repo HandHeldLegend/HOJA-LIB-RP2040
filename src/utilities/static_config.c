@@ -65,7 +65,8 @@ imuInfoStatic_s imu_static = {0};
 
 // All battery static fields are populated at runtime in
 // _battery_static_refresh(): capacity + battery_part_number from the hoja
-// config, pmic/fuelgauge part numbers from their assigned drivers.
+// config, pmic/fuelgauge part numbers from their assigned drivers. The status
+// bytes are filled when the block is read out.
 batteryInfoStatic_s battery_static = {
     .battery_capacity_mah = 0,
     .battery_part_number  = "N/A",
@@ -519,8 +520,19 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
 
             if(battery_driver_part_code() == NULL)
                 battery_static.pmic_status = 0; // No PMIC driver compiled in
+            else if(!batstat.connected)
+                battery_static.pmic_status = 1; // PMIC expected, but not answering
             else
-                battery_static.pmic_status = batstat.connected ? 2 : 1;
+            {
+                // Pack detection runs during PMIC init, so it only carries
+                // meaning once the PMIC has answered on the bus.
+                switch(battery_pack_state())
+                {
+                    case BATTERY_PACK_PRESENT: battery_static.pmic_status = 2; break;
+                    case BATTERY_PACK_ABSENT:  battery_static.pmic_status = 3; break;
+                    default:                   battery_static.pmic_status = 4; break;
+                }
+            }
 
             _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
         break;

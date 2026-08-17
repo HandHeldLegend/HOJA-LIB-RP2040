@@ -20,9 +20,9 @@ __attribute__((weak)) battery_status_s battery_driver_get_status(void) { battery
 __attribute__((weak)) bool battery_driver_set_charge_rate(uint16_t rate_ma) { (void)rate_ma; return false; }
 __attribute__((weak)) bool battery_driver_set_ship_mode(void) { return false; }
 __attribute__((weak)) const char *battery_driver_part_code(void) { return NULL; }
-__attribute__((weak)) bool battery_driver_pack_present(void) { return true; }
+__attribute__((weak)) battery_pack_t battery_driver_pack_state(void) { return BATTERY_PACK_UNKNOWN; }
 
-static bool _battery_pack_present = true;
+static battery_pack_t _battery_pack_state = BATTERY_PACK_UNKNOWN;
 
 // A driver is present iff it supplies a part code (weak default returns NULL).
 static inline bool _battery_present(void) { return battery_driver_part_code() != NULL; }
@@ -96,8 +96,10 @@ battery_result_t battery_init(void)
 
     _battery_init_done = false;
 
-    // Reset connected status
+    // Reset connected status. Pack state goes back to unknown so a failed
+    // re-init cannot leave a stale answer behind.
     _battery_set_connected(false);
+    _battery_pack_state = BATTERY_PACK_UNKNOWN;
 
     // No battery driver compiled in for this board.
     if(!_battery_present())
@@ -107,7 +109,7 @@ battery_result_t battery_init(void)
     if(!battery_driver_init())
         return BATTERY_RESULT_FAILED;
 
-    _battery_pack_present = battery_driver_pack_present();
+    _battery_pack_state = battery_driver_pack_state();
     _battery_set_connected(true);
     _battery_init_done = true;
 
@@ -122,7 +124,10 @@ battery_result_t battery_set_charge_rate(uint16_t rate_ma)
     if(!_battery_present())
         return BATTERY_RESULT_NO_DRIVER;
 
-    if (!_battery_pack_present && rate_ma > 0)
+    // Only a positive "no pack" forces charging off. UNKNOWN keeps the
+    // configured rate: refusing to charge a pack that is actually fitted is the
+    // worse failure, and the PMIC tolerates charging into an absent pack.
+    if (_battery_pack_state == BATTERY_PACK_ABSENT && rate_ma > 0)
         rate_ma = 0;
 
     return battery_driver_set_charge_rate(rate_ma)
@@ -130,9 +135,9 @@ battery_result_t battery_set_charge_rate(uint16_t rate_ma)
          : BATTERY_RESULT_FAILED;
 }
 
-bool battery_pack_present(void)
+battery_pack_t battery_pack_state(void)
 {
-    return _battery_pack_present;
+    return _battery_pack_state;
 }
 
 // Enable PMIC ship mode (power off with power conservation). Always safe to
