@@ -11,7 +11,7 @@
 
 // --- NEW CONFIGURABLE PARAMETERS ---
 #define BLEND_TIME_US 4000.0f  // Time in microseconds to fully transition (e.g., 4ms)
-#define SNAPBACK_ZONE_RADIUS 1400 // Radius of the "Filter Zone" (signed range -2048 to 2048)
+#define SNAPBACK_ZONE_RADIUS 1800 // Radius of the "Filter Zone" (signed range -2048 to 2048)
 
 static inline int32_t _lpf_float_to_q16(float x) {
     return (int32_t)(x * (1 << Q16_SHIFT) + 0.5f);
