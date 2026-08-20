@@ -79,8 +79,10 @@ static void _usb_hal_on_sof(uint32_t frame_count)
     case 8:
         ms_counter++;
         {
+            // 8/8/9ms per 3 reports = 25ms, exactly two reports per 60fps
+            // frame. ms_counter is reset on fire, so the period is threshold+1.
             uint8_t trigger_threshold = (sequence_step == 2) ? 8 : 7;
-            if (ms_counter >= trigger_threshold)
+            if (ms_counter > trigger_threshold)
             {
                 ms_counter = 0;
                 sequence_step = (sequence_step + 1) % 3;
