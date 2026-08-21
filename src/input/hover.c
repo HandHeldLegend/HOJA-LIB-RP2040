@@ -174,10 +174,23 @@ void hover_init(void)
     for(int i = 0; i < _used_hover_slots; i++)
     {
         uint8_t slot = _hover_slot_reader_idx[i];
+        hoverSlot_s *cfg = &hover_config->config[slot];
         const uint16_t half = (1000);
         if(_hover_inverts[slot]) {
             _boot_capture.inputs[slot] = 0xFFF - _boot_capture.inputs[slot];
         }
+
+        // Scale exactly as the runtime path does, so an idle channel reads 0.
+        // Without this the capture kept the raw post-invert reading (measured
+        // 1801 on an idle latte_pro trigger), which made every boot combo
+        // referencing a hover slot read as held, and left the analog face/dpad
+        // comparisons working on resting offsets rather than actual travel.
+        _boot_capture.inputs[slot] = _hover_scale_input(
+            _boot_capture.inputs[slot],
+            cfg->min,
+            HOVER_DEFAULT_DEADZONE,
+            _hover_scalers[slot]
+        );
 
         _boot_capture.presses[slot] = (_boot_capture.inputs[slot] > half);
     }
