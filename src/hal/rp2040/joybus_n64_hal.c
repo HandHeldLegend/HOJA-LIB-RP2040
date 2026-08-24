@@ -26,8 +26,21 @@ typedef enum
     N64_CMD_POLL    = 0x01,
     N64_CMD_READMEM = 0x02,
     N64_CMD_WRITEMEM = 0x03,
+    N64_CMD_GAMEID = 0x1D,
     N64_CMD_RESET = 0xFF
 } n64_cmd_t;
+
+// PixelFX N64Digital "Game ID" packet (https://gitlab.com/pixelfx-public/n64-game-id).
+// Sent by the console on port 0 as 0x1D followed by a 10-byte payload:
+//   [0..3] ROM CRC1   [4..7] ROM CRC2   [8] media format   [9] country code
+// An all-zero payload clears the currently identified game -- which is what we
+// see here, since nothing on our end consumes the ID.
+//
+// N64Digital is a passive bus sniffer and expects no reply. We answer anyway
+// (see the handler below); that is tested working on hardware, so it stays.
+#define N64_GAMEID_PAYLOAD_BYTES 10
+// Compared as a last index, matching the PAK_MSG_BYTES convention below.
+#define N64_CMD_GAMEID_BYTES     (N64_GAMEID_PAYLOAD_BYTES - 1)
 
 SNAPSHOT_TYPE(n64input, core_n64_report_s);
 snapshot_n64input_t _n64_hal_snap;
@@ -192,6 +205,28 @@ void __time_critical_func(_n64_command_handler)()
       else _byteCount++;
 
     }
+    else if(_workingCmd == N64_CMD_GAMEID)
+    {
+      // Must drain every byte the PIO pushes. The RX FIFO is only 4 deep and
+      // autopush stalls the state machine on a full FIFO, so skipping the read
+      // wedges the bus partway through this command.
+      _n64_hal_in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
+
+      if(_byteCount >= N64_CMD_GAMEID_BYTES)
+      {
+        _workingCmd = 0;
+        _byteCount = 0;
+        joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
+
+        // End receive so we respond
+        c = _delay_cycles_memread;
+        while(c--)
+          asm("nop");
+
+        _n64_send_probe();
+      }
+      else _byteCount++;
+    }
     // Single byte commands and setup
     // for future handling
     else
@@ -201,6 +236,10 @@ void __time_critical_func(_n64_command_handler)()
         switch (_workingCmd)
         {
         default:
+            break;
+
+        // N64Digital Game ID packet -- payload drained above, no state needed
+        case N64_CMD_GAMEID:
             break;
 
         // Read from mem pak
@@ -251,6 +290,12 @@ static void __time_critical_func(_n64_isr_handler)(void)
 void _n64_reset_state()
 {
   joybus_program_init(PIO_IN_USE_N64, PIO_SM, _n64_offset, _n64_data_pin, &_n64_c);
+
+  // Re-init clears the FIFOs, so the partially-parsed command we were tracking
+  // has to go with them or every following byte is read as command payload.
+  _workingCmd = 0;
+  _byteCount  = 0;
+  _crc_reply  = 0;
 }
 
 bool _joybus_n64_hal_init()
