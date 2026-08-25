@@ -26,21 +26,15 @@ typedef enum
     N64_CMD_POLL    = 0x01,
     N64_CMD_READMEM = 0x02,
     N64_CMD_WRITEMEM = 0x03,
+    // Listed for identification only -- deliberately not handled, so it takes
+    // the unknown-command drop path below. PixelFX N64Digital "Game ID": 0x1D
+    // followed by 10 bytes (ROM CRC1[4], CRC2[4], media format, country code;
+    // all-zero clears it). N64Digital is a passive bus sniffer that expects no
+    // reply, and nothing on our end consumes a game ID.
+    // https://gitlab.com/pixelfx-public/n64-game-id
     N64_CMD_GAMEID = 0x1D,
     N64_CMD_RESET = 0xFF
 } n64_cmd_t;
-
-// PixelFX N64Digital "Game ID" packet (https://gitlab.com/pixelfx-public/n64-game-id).
-// Sent by the console on port 0 as 0x1D followed by a 10-byte payload:
-//   [0..3] ROM CRC1   [4..7] ROM CRC2   [8] media format   [9] country code
-// An all-zero payload clears the currently identified game -- which is what we
-// see here, since nothing on our end consumes the ID.
-//
-// N64Digital is a passive bus sniffer and expects no reply. We answer anyway
-// (see the handler below); that is tested working on hardware, so it stays.
-#define N64_GAMEID_PAYLOAD_BYTES 10
-// Compared as a last index, matching the PAK_MSG_BYTES convention below.
-#define N64_CMD_GAMEID_BYTES     (N64_GAMEID_PAYLOAD_BYTES - 1)
 
 SNAPSHOT_TYPE(n64input, core_n64_report_s);
 snapshot_n64input_t _n64_hal_snap;
@@ -224,28 +218,6 @@ void __time_critical_func(_n64_command_handler)()
       else _byteCount++;
 
     }
-    else if(_workingCmd == N64_CMD_GAMEID)
-    {
-      // Must drain every byte the PIO pushes. The RX FIFO is only 4 deep and
-      // autopush stalls the state machine on a full FIFO, so skipping the read
-      // wedges the bus partway through this command.
-      _n64_hal_in_buffer[_byteCount] = pio_sm_get(PIO_IN_USE_N64, PIO_SM);
-
-      if(_byteCount >= N64_CMD_GAMEID_BYTES)
-      {
-        _workingCmd = 0;
-        _byteCount = 0;
-        joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
-
-        // End receive so we respond
-        c = _delay_cycles_memread;
-        while(c--)
-          asm("nop");
-
-        _n64_send_probe();
-      }
-      else _byteCount++;
-    }
     // Single byte commands and setup
     // for future handling
     else
@@ -256,14 +228,11 @@ void __time_critical_func(_n64_command_handler)()
         {
         // Unknown command. Its payload would otherwise be parsed as further
         // commands, which can produce spurious responses, so drop the rest of
-        // the frame instead.
+        // the frame instead and let the end-of-frame watcher resync us.
+        // N64_CMD_GAMEID is the one seen in practice.
         default:
             _n64_drop_frame = true;
             _workingCmd     = 0;
-            break;
-
-        // N64Digital Game ID packet -- payload drained above, no state needed
-        case N64_CMD_GAMEID:
             break;
 
         // Read from mem pak
