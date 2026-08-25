@@ -95,6 +95,13 @@ decr:
 // leaving too few slots for the watcher. So try each block for combined
 // capacity first, and only then fall back to the decoder alone -- in which case
 // the transport still works, just without bus healing.
+//
+// That fallback should be unreachable as things stand: the pair is 32 slots (one
+// whole block), and the library's only other PIO programs are nesbus (17) and
+// ws2812 (4), which together fit the remaining block on RP2040 with room spare.
+// If a fourth PIO program is ever added, re-check this -- degrading to
+// decoder-alone is silent, and the symptom is simply that unimplemented commands
+// stop being healed.
 static inline bool joybus_claim_pio(PIO *pio_out, uint *sm_out, uint *offset_out,
                                     uint *eof_sm_out, uint *eof_offset_out,
                                     bool *eof_active_out)
