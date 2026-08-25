@@ -95,9 +95,15 @@ void _gamecube_send_poll()
   pio_sm_put_blocking(GC_PIO_IN_USE, PIO_SM, ALIGNED_JOYBUS_8(out.analog_trigger_r));
 }
 
+// Set when the console sends a command we do not implement. We cannot know its
+// payload length, so we swallow bytes until the end-of-frame watcher tells us
+// the frame is over. See _gamecube_eof_handler().
+volatile static bool _gc_drop_frame = false;
+
 void _gamecube_reset_state()
 {
   joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, _gc_data_pin, &_gamecube_c);
+  _gc_drop_frame = false;
 }
 
 #define BYTECOUNT_DEFAULT 2
@@ -106,6 +112,13 @@ void _gamecube_reset_state()
 volatile int _byteCounter = BYTECOUNT_UNKNOWN;
 volatile uint8_t _workingCmd = 0x00;
 volatile uint8_t _workingMode = 0x03;
+
+
+// End-of-frame watcher SM (joybus_eof in joybus.pio). Optional: if the PIO
+// block has no room we run without bus healing rather than failing to init.
+static uint _gc_eof_sm     = 0;
+static uint _gc_eof_offset = 0;
+static bool _gc_eof_active = false;
 
 // Constants for default cycles and clock speeds
 #define DEFAULT_CYCLES 80        // 80 was the tested working from old FW
@@ -120,6 +133,15 @@ void __time_critical_func(_gamecube_command_handler)()
   bool ret = false;
   uint8_t dat = 0;
   uint16_t c;
+
+  // Swallowing an unrecognised command. Drain and discard; the watcher clears
+  // this when the frame ends, so the payload length does not matter.
+  if (_gc_drop_frame)
+  {
+    (void)pio_sm_get(GC_PIO_IN_USE, PIO_SM);
+    _gc_got_data = true;
+    return;
+  }
 
   // Single byte commands handle here
   if (_byteCounter == BYTECOUNT_UNKNOWN)
@@ -150,9 +172,17 @@ void __time_critical_func(_gamecube_command_handler)()
     {
       _byteCounter = BYTECOUNT_SWISS;
     }
-    else
+    else if (_workingCmd == GCUBE_CMD_POLL || _workingCmd == GCUBE_CMD_ORIGINEXT)
     {
       _byteCounter = BYTECOUNT_DEFAULT;
+    }
+    else
+    {
+      // Unknown command. Guessing a payload length parses its payload as
+      // further commands, which can produce spurious responses, so drop the
+      // rest of the frame instead and let the watcher resync us.
+      _gc_drop_frame = true;
+      ret = true;
     }
   }
   else
@@ -223,13 +253,40 @@ void __time_critical_func(_gamecube_command_handler)()
   }
 }
 
+// Raised by the watcher SM ~7us after a frame's stop bit.
+//
+// Commands we answer resync themselves: joybus_jump_output() forces the decoder
+// out of the bit loop, discarding the stop bit, and the output routine jumps
+// back to the receive entry point. Commands we do NOT answer leave the decoder
+// to sample that stop bit as the first bit of a phantom byte and wait for seven
+// more, which then arrive from the next frame -- byte alignment is off by one
+// bit from there on. Healing here lands inside the inter-frame gap, so the next
+// command arrives correctly aligned.
+static void __time_critical_func(_gamecube_eof_handler)(void)
+{
+  // Nothing in flight means we either answered the frame or the bus is idle.
+  if (!_gc_drop_frame && _byteCounter == BYTECOUNT_UNKNOWN) return;
+
+  _gc_drop_frame = false;
+  _byteCounter   = BYTECOUNT_UNKNOWN;
+
+  joybus_program_reset(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
+}
+
 static void __time_critical_func(_gamecube_isr_handler)(void)
 {
   irq_set_enabled(_gamecube_irq, false);
+  // Byte first: if both are pending, that byte belongs to the frame that just
+  // ended and must be consumed before we resync.
   if (pio_interrupt_get(GC_PIO_IN_USE, 0))
   {
     pio_interrupt_clear(GC_PIO_IN_USE, 0);
     _gamecube_command_handler();
+  }
+  if (_gc_eof_active && pio_interrupt_get(GC_PIO_IN_USE, 1))
+  {
+    pio_interrupt_clear(GC_PIO_IN_USE, 1);
+    _gamecube_eof_handler();
   }
   irq_set_enabled(_gamecube_irq, true);
 }
@@ -238,8 +295,11 @@ bool _joybus_gc_hal_init()
 {
   _gc_data_pin = hoja_config_get()->joybus.data_pin;
 
-  // Dynamically grab a PIO block + state machine with room for the program.
-  if(!pio_claim_free_sm_and_add_program(&joybus_program, &_gc_pio, &_gc_sm, &_gamecube_offset))
+  // Grab a PIO block + state machine, preferring one that also fits the
+  // end-of-frame watcher (see joybus_claim_pio). Watcher is optional: a board
+  // whose PIO blocks are too full loses bus healing, not the transport.
+  if(!joybus_claim_pio(&_gc_pio, &_gc_sm, &_gamecube_offset,
+                       &_gc_eof_sm, &_gc_eof_offset, &_gc_eof_active))
   {
     rgb_set_pulsing(COLOR_RED);
     return false;
@@ -250,12 +310,17 @@ bool _joybus_gc_hal_init()
   _gamecube_irq = (uint)pio_get_irq_num(_gc_pio, 0);
 
   pio_set_irq0_source_enabled(GC_PIO_IN_USE, pis_interrupt0, true);
+  if (_gc_eof_active)
+    pio_set_irq0_source_enabled(GC_PIO_IN_USE, pis_interrupt1, true);
 
   irq_set_exclusive_handler(_gamecube_irq, _gamecube_isr_handler);
 
   irq_set_priority(_gamecube_irq, 0);
 
   joybus_program_init(GC_PIO_IN_USE, PIO_SM, _gamecube_offset, _gc_data_pin, &_gamecube_c);
+  if (_gc_eof_active)
+    joybus_eof_program_init(_gc_pio, _gc_eof_sm, _gc_eof_offset, _gc_data_pin);
+
   irq_set_enabled(_gamecube_irq, true);
   _gc_running = true;
 
