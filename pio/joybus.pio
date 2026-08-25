@@ -18,8 +18,10 @@ bytestart:
   set x, 7 ; Set x scratch register as bit counter to allow 8 loops
 bitloop:
   wait 1 pin, 0     ; Wait for line HIGH
-  wait 0 pin, 0 [7]
-  nop
+  ; Sample 8 cycles (2us) after the falling edge. This was [7] plus a nop;
+  ; folding them into one delay slot is cycle-identical and frees an
+  ; instruction for the joybus_eof program below.
+  wait 0 pin, 0 [8]
   ; Get the level and put it into ISR
   in pins, 1
   ; Decrement x and jump to bitloop if we aren't at 0 yet
@@ -53,8 +55,91 @@ do_end_check:
     jmp joybusin
 .wrap
 
+; ---------------------------------------------------------------------------
+; End-of-frame watcher.
+;
+; A pure observer: it never drives the line and never touches pindirs, so it
+; shares the data pin with the decoder SM above. Keep it in the SAME PIO block
+; as `joybus` so both raise the same NVIC IRQ and one handler sees both.
+;
+; Inside a frame the line is never released high for longer than ~3us (a '1'
+; bit is 1us low + 3us high). Once the frame's stop bit has passed, the line
+; stays high until the next frame begins. So a high period longer than any
+; possible intra-frame gap means the frame is over -- detected ~7us after the
+; stop bit, far ahead of the next command even when the console sends them a
+; few hundred microseconds apart.
+.program joybus_eof
+
+.wrap_target
+    wait 0 pin, 0       ; block until there is bus activity at all
+arm:
+    set y, 13           ; ~7us: 14 iterations x 2 cycles at 4MHz
+count:
+    jmp pin, decr       ; line still high?
+    jmp arm             ; it fell again -> more bits coming, re-arm
+decr:
+    jmp y--, count
+    irq nowait 1        ; held high past any intra-frame gap -> frame ended
+.wrap                   ; -> `wait 0`, which blocks until the NEXT frame, so
+                        ;    exactly one IRQ per frame however long the bus idles
+
 % c-sdk {
 #include "hardware/clocks.h"
+
+// Claim a PIO block with room for BOTH the decoder and the end-of-frame
+// watcher, plus a state machine for each. They must share a block so both raise
+// the same NVIC line and a single handler services them.
+//
+// A plain pio_claim_free_sm_and_add_program() would happily drop the decoder
+// into a block another peripheral has already partly filled (WS2812 RGB, say),
+// leaving too few slots for the watcher. So try each block for combined
+// capacity first, and only then fall back to the decoder alone -- in which case
+// the transport still works, just without bus healing.
+//
+// That fallback should be unreachable as things stand: the pair is 32 slots (one
+// whole block), and the library's only other PIO programs are nesbus (17) and
+// ws2812 (4), which together fit the remaining block on RP2040 with room spare.
+// If a fourth PIO program is ever added, re-check this -- degrading to
+// decoder-alone is silent, and the symptom is simply that unimplemented commands
+// stop being healed.
+static inline bool joybus_claim_pio(PIO *pio_out, uint *sm_out, uint *offset_out,
+                                    uint *eof_sm_out, uint *eof_offset_out,
+                                    bool *eof_active_out)
+{
+    *eof_active_out = false;
+
+    for (uint i = 0; i < NUM_PIOS; i++)
+    {
+        PIO pio = pio_get_instance(i);
+
+        if (!pio_can_add_program(pio, &joybus_program)) continue;
+        uint offset = pio_add_program(pio, &joybus_program);
+
+        if (pio_can_add_program(pio, &joybus_eof_program))
+        {
+            int sm     = pio_claim_unused_sm(pio, false);
+            int eof_sm = (sm >= 0) ? pio_claim_unused_sm(pio, false) : -1;
+
+            if (eof_sm >= 0)
+            {
+                *pio_out        = pio;
+                *sm_out         = (uint)sm;
+                *offset_out     = offset;
+                *eof_sm_out     = (uint)eof_sm;
+                *eof_offset_out = pio_add_program(pio, &joybus_eof_program);
+                *eof_active_out = true;
+                return true;
+            }
+
+            if (sm >= 0) pio_sm_unclaim(pio, (uint)sm);
+        }
+
+        // No room for both here -- put it back and try the next block.
+        pio_remove_program(pio, &joybus_program, offset);
+    }
+
+    return pio_claim_free_sm_and_add_program(&joybus_program, pio_out, sm_out, offset_out);
+}
 
 static inline void joybus_jump_output(PIO pio, uint sm, uint offset)
 {
@@ -66,6 +151,23 @@ static inline void joybus_program_reset(PIO pio, uint sm, uint offset)
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_clear_fifos(pio, sm);
     pio_sm_exec(pio, sm, pio_encode_jmp(offset + joybus_offset_joybusin));
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+// Observer-only init: no OUT/SET pin mapping and no pio_gpio_init, since the
+// decoder SM already owns the pad. PIO input sampling sees the pin regardless.
+static inline void joybus_eof_program_init(PIO pio, uint sm, uint offset, uint pin)
+{
+    pio_sm_config c = joybus_eof_program_get_default_config(offset);
+
+    // Same 4MHz timebase as the decoder, so the loop math above holds.
+    float div = clock_get_hz(clk_sys) / (4000000);
+    sm_config_set_clkdiv(&c, div);
+
+    sm_config_set_in_pins(&c, pin);  // for `wait n pin, 0`
+    sm_config_set_jmp_pin(&c, pin);  // for `jmp pin`
+
+    pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }
 
