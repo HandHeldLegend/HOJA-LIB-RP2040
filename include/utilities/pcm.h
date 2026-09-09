@@ -12,9 +12,8 @@
 #define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
 
 #define PCM_BUFFER_SIZE         64
-#define PCM_SAMPLES_PER_PAIR    62
-#define PCM_SAMPLE_CHUNK_3      (PCM_SAMPLES_PER_PAIR / 3)
-#define PCM_SAMPLE_CHUNK_2      (PCM_SAMPLES_PER_PAIR / 2)
+// Official firmware writes 0x14 PCM samples per AmFm pair (sub_221394).
+#define PCM_SAMPLES_PER_GRAIN   20
 
 #define PCM_WRAP_VAL            4096
 #define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL / 2)

@@ -8,7 +8,6 @@
 
 #include "utilities/pcm_samples.h"
 #include "utilities/settings.h"
-#include "utilities/crosscore_utils.h"
 
 #include "hoja.h"
 
@@ -169,32 +168,56 @@ bool pcm_raw_queue_pop(int16_t *out)
     return true;
 }
 
-#define PCM_AMFM_QUEUE_SIZE 128 // Adjust size as needed
+// Official ring holds 8 AmFm pairs (160 PCM / 20). Extra slots absorb
+// host bursts until we report fill on input-report byte 12.
+#define PCM_AMFM_QUEUE_SIZE 32
 
 typedef struct
 {
     haptic_processed_s buffer[PCM_AMFM_QUEUE_SIZE];
-    uint8_t sample_count[PCM_AMFM_QUEUE_SIZE];
     uint8_t head;
     uint8_t tail;
     uint8_t count;
 } pcm_amfm_queue_t;
 
-pcm_amfm_queue_t _pcm_amfm_queue = {0};
+static pcm_amfm_queue_t _pcm_amfm_queue = {0};
+MUTEX_HAL_INIT(_pcm_amfm_mtx);
 
-SNAPSHOT_TYPE(haptic_packet, haptic_packet_s);
-snapshot_haptic_packet_t _haptic_snap;
-
-// Initialize the queue
-void pcm_amfm_queue_init()
+static void pcm_amfm_queue_init(void)
 {
+    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
     _pcm_amfm_queue.head = 0;
     _pcm_amfm_queue.tail = 0;
     _pcm_amfm_queue.count = 0;
+    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
 }
 
-#define DEFAULT_HI (uint16_t)(((75.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
-#define DEFAULT_LO (uint16_t)(((35.0f * PCM_SINE_TABLE_SIZE) / PCM_SAMPLE_RATE) * PCM_FREQUENCY_SHIFT_FIXED + 0.5)
+static void pcm_amfm_push_pair_locked(const haptic_processed_s *pair)
+{
+    if (_pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE)
+    {
+        _pcm_amfm_queue.head = (uint8_t)((_pcm_amfm_queue.head + 1u) % PCM_AMFM_QUEUE_SIZE);
+        _pcm_amfm_queue.count--;
+    }
+    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail] = *pair;
+    _pcm_amfm_queue.tail = (uint8_t)((_pcm_amfm_queue.tail + 1u) % PCM_AMFM_QUEUE_SIZE);
+    _pcm_amfm_queue.count++;
+}
+
+static bool pcm_amfm_try_pop_pair(haptic_processed_s *out)
+{
+    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
+    if (_pcm_amfm_queue.count == 0)
+    {
+        MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
+        return false;
+    }
+    *out = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head];
+    _pcm_amfm_queue.head = (uint8_t)((_pcm_amfm_queue.head + 1u) % PCM_AMFM_QUEUE_SIZE);
+    _pcm_amfm_queue.count--;
+    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
+    return true;
+}
 
 void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
 {
@@ -210,48 +233,36 @@ void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
     out->count = in->sample_count;
 }
 
-// Push new packet with all pairs to snapshot
-// Returns true if successful
 bool pcm_amfm_push(haptic_packet_s *packet)
 {
-    const uint16_t default_hi = DEFAULT_HI; // 75Hz
-    const uint16_t default_lo = DEFAULT_LO; // 35Hz
-
-    // Set default frequency increment values for all pairs
-    for(int i = 0; i < packet->count && i < 3; i++)
+    if (!packet)
     {
-        if(packet->pairs[i].hi_frequency_increment < default_hi)
-            packet->pairs[i].hi_frequency_increment = default_hi;
-        if(packet->pairs[i].lo_frequency_increment < default_lo)
-            packet->pairs[i].lo_frequency_increment = default_lo;
+        return false;
     }
 
-    static uint64_t counter = 0;
-    counter++;
-
-    packet->counter = counter;
-
-    snapshot_haptic_packet_write(&_haptic_snap, packet);
+    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
+    if (packet->count == 0)
+    {
+        _pcm_amfm_queue.head = 0;
+        _pcm_amfm_queue.tail = 0;
+        _pcm_amfm_queue.count = 0;
+        haptic_processed_s silent = {0};
+        pcm_amfm_push_pair_locked(&silent);
+    }
+    else
+    {
+        uint8_t n = packet->count;
+        if (n > 3)
+        {
+            n = 3;
+        }
+        for (uint8_t i = 0; i < n; i++)
+        {
+            pcm_amfm_push_pair_locked(&packet->pairs[i]);
+        }
+    }
+    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
     return true;
-}
-
-// Pop packet from snapshot
-bool pcm_amfm_pop(haptic_packet_s *out)
-{
-    snapshot_haptic_packet_read(&_haptic_snap, out);
-    return true;
-}
-
-// Helper function to check if queue is empty
-bool pcm_amfm_is_empty()
-{
-    return _pcm_amfm_queue.count == 0;
-}
-
-// Helper function to check if queue is full
-bool pcm_amfm_is_full()
-{
-    return _pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE;
 }
 
 typedef struct 
@@ -544,10 +555,22 @@ void pcm_erm_set(uint8_t intensity, bool brake)
     _pcm_erm_state.apply_brake = brake;
 }
 
-static inline bool _is_haptic_packet_different(haptic_packet_s *a, haptic_packet_s *b)
+static void pcm_latch_pair(const haptic_processed_s *v,
+                           uint32_t *hi_freq_inc, uint32_t *lo_freq_inc,
+                           uint32_t *hi_amp_scaler, uint32_t *lo_amp_scaler,
+                           uint32_t *target_dc_offset)
 {
-    if(a->counter != b->counter) return true;
-    return false;
+    *hi_freq_inc = v->hi_frequency_increment;
+    *lo_freq_inc = v->lo_frequency_increment;
+
+    *hi_amp_scaler = (v->hi_amplitude_fixed) ?
+        ((v->hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _hi_amp_scaler_fixed_min : 0;
+    *lo_amp_scaler = (v->lo_amplitude_fixed) ?
+        ((v->lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _lo_amp_scaler_fixed_min : 0;
+
+    uint32_t hi_peak = (*hi_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+    uint32_t lo_peak = (*lo_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
+    *target_dc_offset = (hi_peak + lo_peak);
 }
 
 // Generate PCM_BUFFER_SIZE samples of PCM data
@@ -556,10 +579,9 @@ void pcm_generate_buffer(uint32_t *buffer)
     // --- Persistent State ---
     static uint32_t phase_hi = 0;
     static uint32_t phase_lo = 0;
-    
-    static haptic_packet_s current_packet     = {0};
-    static uint8_t         current_pair_idx   = 0;
-    static uint16_t        samples_remaining  = 0; // Tracks duration of current pair
+
+    static haptic_processed_s current_pair = {0};
+    static uint16_t        samples_remaining  = 0;
     static bool            is_active          = false;
 
     // Synthesis Parameters (Latch these to prevent mid-sample clicking)
@@ -579,71 +601,28 @@ void pcm_generate_buffer(uint32_t *buffer)
     // 2. Synthesis Loop (64 Samples)
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
-        // Check if we need to load a new pair or a new packet
-        // We do this inside the loop to ensure sample-accurate timing 
-        // even if a pair duration doesn't align perfectly with the 64-sample buffer boundary
         if (samples_remaining == 0)
         {
-            haptic_packet_s inbound_packet = {0};
-            pcm_amfm_pop(&inbound_packet);
-
-            // CASE A: New data has arrived (Counter mismatch)
-            if (_is_haptic_packet_different(&inbound_packet, &current_packet))
+            haptic_processed_s inbound = {0};
+            if (pcm_amfm_try_pop_pair(&inbound))
             {
-                current_packet     = inbound_packet;
-                current_pair_idx   = 0;
-                is_active          = (current_packet.count > 0);
-            }
-            // CASE B: Current packet sequence still has pairs left
-            else if (is_active && (current_pair_idx < (current_packet.count - 1)))
-            {
-                current_pair_idx++;
-            }
-            // CASE C: We are at the end of a sequence (Hold/Idle)
-            else 
-            {
-                // If the last pair was 0 amplitude, we are truly inactive
-                if (current_packet.pairs[current_pair_idx].hi_amplitude_fixed == 0 && 
-                    current_packet.pairs[current_pair_idx].lo_amplitude_fixed == 0)
-                {
-                    is_active = false;
-                }
-                // We keep samples_remaining at 0 here so we check for new packets 
-                // every sample until one arrives.
+                current_pair = inbound;
+                is_active = (current_pair.hi_amplitude_fixed != 0 ||
+                             current_pair.lo_amplitude_fixed != 0);
             }
 
-            // Update local synthesis parameters from the current pair
             if (is_active)
             {
-                haptic_processed_s *v = &current_packet.pairs[current_pair_idx];
-                
-                hi_freq_inc = v->hi_frequency_increment;
-                lo_freq_inc = v->lo_frequency_increment;
-
-                // Scaling logic from oldpcm
-                hi_amp_scaler = (v->hi_amplitude_fixed) ? 
-                    ((v->hi_amplitude_fixed * _hi_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _hi_amp_scaler_fixed_min : 0;
-                
-                lo_amp_scaler = (v->lo_amplitude_fixed) ? 
-                    ((v->lo_amplitude_fixed * _lo_amp_scaler_fixed) >> PCM_AMPLITUDE_BIT_SCALE) + _lo_amp_scaler_fixed_min : 0;
-
-                uint32_t hi_peak = (hi_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-                uint32_t lo_peak = (lo_amp_scaler * PCM_WRAP_HALF_VAL) >> PCM_AMPLITUDE_BIT_SCALE;
-                target_dc_offset = (hi_peak + lo_peak);
-
-                // Determine how many samples this specific pair should last
-                // If count is 3, we use the smaller chunk sizes to fit the 8ms window
-                if (current_packet.count == 3) samples_remaining = 63/3;
-                else if (current_packet.count == 2) samples_remaining = 63/2;
-                else samples_remaining = 63;
+                pcm_latch_pair(&current_pair, &hi_freq_inc, &lo_freq_inc,
+                               &hi_amp_scaler, &lo_amp_scaler, &target_dc_offset);
+                samples_remaining = PCM_SAMPLES_PER_GRAIN;
             }
-            else 
+            else
             {
                 hi_amp_scaler = 0;
                 lo_amp_scaler = 0;
                 target_dc_offset = 0;
-                // Avoid infinite loop if inactive
-                samples_remaining = PCM_BUFFER_SIZE; 
+                samples_remaining = PCM_BUFFER_SIZE;
             }
         }
 
