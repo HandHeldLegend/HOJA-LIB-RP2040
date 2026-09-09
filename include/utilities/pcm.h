@@ -12,8 +12,10 @@
 #define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
 
 #define PCM_BUFFER_SIZE         64
-// Official firmware writes 0x14 PCM samples per AmFm pair (sub_221394).
-#define PCM_SAMPLES_PER_GRAIN   20
+// Official firmware writes 0x14 software PCM samples per AmFm pair (sub_221394).
+// Those samples run at ~3.2 kHz (timer2 1.25 ms * 4 samples in PlayVibration),
+// so one grain is ~6.25 ms. At our 8 kHz PWM that is 50 samples, not 20.
+#define PCM_SAMPLES_PER_GRAIN   50
 
 #define PCM_WRAP_VAL            4096
 #define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL / 2)

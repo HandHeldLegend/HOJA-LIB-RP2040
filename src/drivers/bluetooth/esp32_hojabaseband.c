@@ -372,9 +372,9 @@ void _btinput_message_parse(uint8_t *data)
 
     case I2C_STATUS_HAPTIC_SWITCH:
     {
-        // ESP32 forwards the 4-byte Switch HD-rumble word; NS-LIB decodes it and
-        // dispatches through ns_api_hook_set_haptic_packet_raw -> haptics_set_ns_hd.
-        ns_haptics_rumble_translate(&(status.data[0]));
+        // I2C status.data is 19 bytes. Use both rumble words when present;
+        // a zero right word is a stop-pack and merge treats that side as silent.
+        ns_haptics_rumble_translate_stereo(&status.data[0], &status.data[4]);
     }
     break;
 

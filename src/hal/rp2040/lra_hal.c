@@ -264,37 +264,55 @@ bool lra_hal_init(uint8_t intensity)
     return true;
 }
 
-// Get which half of the buffer is safe to write to
-bool get_inactive_buffer_half() 
+// True when DMA is playing the first 64 samples, so the second half is safe
+// to write. dma_sample.read_addr can sit on a ring boundary and miss a half.
+// dma_trigger_l counts PWM wraps for the whole 128-sample ring (4 reps each).
+static bool get_inactive_buffer_half(void)
 {
-    // Get current DMA read address
-    uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>1);
-
-    // If DMA is reading from first half, return pointer to second half
-    if (current_trans_count >= PCM_BUFFER_SIZE) {
-        return true;
-    } else {
-        return false;
-    }
+    uint32_t remaining = dma_hw->ch[dma_trigger_l].transfer_count;
+    uint32_t half_wraps = (uint32_t)REPETITION_RATE * (uint32_t)PCM_BUFFER_SIZE;
+    return remaining > half_wraps;
 }
 
 volatile bool _erm_simulation_enabled = false;
 void lra_hal_task(uint64_t timestamp)
 {
+    static bool started = false;
     static bool inactive_half = true;
+    static uint64_t last_flip_us = 0;
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
 
-    bool inactive_this = get_inactive_buffer_half();
+    if (!started)
+    {
+        started = true;
+        last_flip_us = timestamp;
+        pcm_generate_buffer(buffered);
+        memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
+        pcm_generate_buffer(buffered);
+        memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
+        pcm_generate_buffer(buffered);
+        inactive_half = get_inactive_buffer_half();
+        return;
+    }
 
-    if(inactive_this != inactive_half)
+    bool inactive_this = get_inactive_buffer_half();
+    bool flipped = (inactive_this != inactive_half);
+    // A missed half-flip looks like 1-skip-1 at an 8 ms menu rate.
+    if (!flipped && ((timestamp - last_flip_us) > 9000u))
+    {
+        flipped = true;
+        inactive_this = !inactive_half;
+    }
+
+    if (flipped)
     {
         inactive_half = inactive_this;
+        last_flip_us = timestamp;
 
-        if(inactive_half)
-            memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
-            
-        else 
-            memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
+        if (inactive_half)
+            memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
+        else
+            memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
 
         pcm_generate_buffer(buffered);
     }

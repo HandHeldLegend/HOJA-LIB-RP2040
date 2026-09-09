@@ -168,13 +168,27 @@ bool pcm_raw_queue_pop(int16_t *out)
     return true;
 }
 
-// Official ring holds 8 AmFm pairs (160 PCM / 20). Extra slots absorb
-// host bursts until we report fill on input-report byte 12.
-#define PCM_AMFM_QUEUE_SIZE 32
+// Official software PCM ring is 160 samples, 20 per pair (8 grains).
+// vibrationProcess refuses a pair when GetFreePcmSampleCount() <= 19.
+#define PCM_AMFM_QUEUE_SIZE 8
+#define PCM_OFFICIAL_SAMPLES_PER_GRAIN 20
+#define PCM_OFFICIAL_RING_SAMPLES 160
+#define PCM_OFFICIAL_HOLD_GRAINS 201
+
+static uint8_t _pcm_vibrator_strobe = 0;
+static volatile uint8_t _pcm_vibrator_nibble = 0;
+// Live unpack zeros the GetNextVibration grain counter (cuts sustain).
+static volatile bool _pcm_cut_hold = false;
 
 typedef struct
 {
-    haptic_processed_s buffer[PCM_AMFM_QUEUE_SIZE];
+    haptic_processed_s pair;
+    bool note_on;
+} pcm_amfm_item_t;
+
+typedef struct
+{
+    pcm_amfm_item_t buffer[PCM_AMFM_QUEUE_SIZE];
     uint8_t head;
     uint8_t tail;
     uint8_t count;
@@ -183,28 +197,59 @@ typedef struct
 static pcm_amfm_queue_t _pcm_amfm_queue = {0};
 MUTEX_HAL_INIT(_pcm_amfm_mtx);
 
+static void pcm_vibrator_refresh_nibble_locked(void)
+{
+    uint16_t used = (uint16_t)_pcm_amfm_queue.count * PCM_OFFICIAL_SAMPLES_PER_GRAIN;
+    uint8_t fill;
+
+    if ((used * 4u) < PCM_OFFICIAL_RING_SAMPLES)
+    {
+        fill = (uint8_t)((used * 4u) / PCM_OFFICIAL_SAMPLES_PER_GRAIN);
+    }
+    else
+    {
+        fill = 7;
+    }
+    if (fill > 7)
+    {
+        fill = 7;
+    }
+    _pcm_vibrator_nibble = (uint8_t)(fill | ((_pcm_vibrator_strobe ? 1u : 0u) << 3));
+}
+
 static void pcm_amfm_queue_init(void)
 {
     MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
     _pcm_amfm_queue.head = 0;
     _pcm_amfm_queue.tail = 0;
     _pcm_amfm_queue.count = 0;
+    _pcm_vibrator_strobe = 0;
+    _pcm_cut_hold = false;
+    pcm_vibrator_refresh_nibble_locked();
     MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
 }
 
-static void pcm_amfm_push_pair_locked(const haptic_processed_s *pair)
+// Official vibrationProcess: if the ring cannot take this pair, drop it
+// and the rest of that report.
+static bool pcm_amfm_push_pair_locked(const haptic_processed_s *pair, bool note_on)
 {
     if (_pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE)
     {
-        _pcm_amfm_queue.head = (uint8_t)((_pcm_amfm_queue.head + 1u) % PCM_AMFM_QUEUE_SIZE);
-        _pcm_amfm_queue.count--;
+        return false;
     }
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail] = *pair;
+    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail].pair = *pair;
+    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail].note_on = note_on;
     _pcm_amfm_queue.tail = (uint8_t)((_pcm_amfm_queue.tail + 1u) % PCM_AMFM_QUEUE_SIZE);
     _pcm_amfm_queue.count++;
+    return true;
 }
 
-static bool pcm_amfm_try_pop_pair(haptic_processed_s *out)
+static uint32_t pcm_pair_energy(const haptic_processed_s *pair)
+{
+    return (uint32_t)pair->hi_amplitude_fixed + (uint32_t)pair->lo_amplitude_fixed;
+}
+
+static bool pcm_amfm_try_pop_pair(haptic_processed_s *out, bool *note_on)
 {
     MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
     if (_pcm_amfm_queue.count == 0)
@@ -212,11 +257,23 @@ static bool pcm_amfm_try_pop_pair(haptic_processed_s *out)
         MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
         return false;
     }
-    *out = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head];
+    *out = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].pair;
+    *note_on = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].note_on;
     _pcm_amfm_queue.head = (uint8_t)((_pcm_amfm_queue.head + 1u) % PCM_AMFM_QUEUE_SIZE);
     _pcm_amfm_queue.count--;
+    // GetNextVibration sets strobe when used < 5 (ring nearly empty).
+    if (_pcm_amfm_queue.count == 0)
+    {
+        _pcm_vibrator_strobe = 1;
+    }
+    pcm_vibrator_refresh_nibble_locked();
     MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
     return true;
+}
+
+uint8_t ns_api_hook_get_vibrator_nibble(void)
+{
+    return _pcm_vibrator_nibble;
 }
 
 void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
@@ -241,26 +298,34 @@ bool pcm_amfm_push(haptic_packet_s *packet)
     }
 
     MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
-    if (packet->count == 0)
+    // UnpackAmFmCodes clears strobe on every ingested rumble word, including
+    // a 0-sample stop. The host then sees "I just got a pack".
+    _pcm_vibrator_strobe = 0;
+
+    uint8_t n = packet->count;
+    if (n > 3)
     {
-        _pcm_amfm_queue.head = 0;
-        _pcm_amfm_queue.tail = 0;
-        _pcm_amfm_queue.count = 0;
-        haptic_processed_s silent = {0};
-        pcm_amfm_push_pair_locked(&silent);
+        n = 3;
+    }
+
+    if (n == 0)
+    {
+        // True stop: vibrationProcess adds nothing and does not reset
+        // the sustain grain counter. The ring keeps playing.
     }
     else
     {
-        uint8_t n = packet->count;
-        if (n > 3)
-        {
-            n = 3;
-        }
+        // Non-zero unpack zeros the GetNextVibration counter (cuts the tail).
+        _pcm_cut_hold = true;
         for (uint8_t i = 0; i < n; i++)
         {
-            pcm_amfm_push_pair_locked(&packet->pairs[i]);
+            if (!pcm_amfm_push_pair_locked(&packet->pairs[i], i == 0))
+            {
+                break;
+            }
         }
     }
+    pcm_vibrator_refresh_nibble_locked();
     MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
     return true;
 }
@@ -573,18 +638,36 @@ static void pcm_latch_pair(const haptic_processed_s *v,
     *target_dc_offset = (hi_peak + lo_peak);
 }
 
+static uint32_t pcm_peak_phase(void)
+{
+    return PCM_SINE_WRAPAROUND / 4u;
+}
+
+static void pcm_snap_opposite_peak(uint32_t *phase_hi, uint32_t *phase_lo,
+                                   uint32_t hi_amp, uint32_t lo_amp)
+{
+    const uint32_t quad = PCM_SINE_WRAPAROUND / 4u;
+    uint16_t idx_hi = (uint16_t)((*phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE);
+    uint16_t idx_lo = (uint16_t)((*phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE);
+    int16_t s = (hi_amp >= lo_amp) ? _pcm_sine_table[idx_hi] : _pcm_sine_table[idx_lo];
+    uint32_t peak = (s >= 0) ? (quad * 3u) : quad;
+    *phase_hi = peak;
+    *phase_lo = peak;
+}
+
 // Generate PCM_BUFFER_SIZE samples of PCM data
 void pcm_generate_buffer(uint32_t *buffer)
 {
-    // --- Persistent State ---
     static uint32_t phase_hi = 0;
     static uint32_t phase_lo = 0;
 
     static haptic_processed_s current_pair = {0};
-    static uint16_t        samples_remaining  = 0;
-    static bool            is_active          = false;
+    static uint16_t samples_remaining = 0;
+    static bool     is_active = false;
+    static bool     is_holding = false;
+    static bool     parked = true;
+    static uint16_t hold_grains = 0;
 
-    // Synthesis Parameters (Latch these to prevent mid-sample clicking)
     static uint32_t hi_freq_inc = 200;
     static uint32_t lo_freq_inc = 200;
     static uint32_t hi_amp_scaler = 0;
@@ -592,29 +675,83 @@ void pcm_generate_buffer(uint32_t *buffer)
     static uint32_t target_dc_offset = 0;
     static uint32_t dc_offset = 0;
 
-    // 1. ERM Processing (optional)
     if(_pcm_erm_state.erm_active)
     {
         _pcm_erm_handler(&_pcm_erm_state);
     }
 
-    // 2. Synthesis Loop (64 Samples)
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
+        if (is_holding && _pcm_cut_hold)
+        {
+            samples_remaining = 0;
+            is_holding = false;
+        }
+
         if (samples_remaining == 0)
         {
             haptic_processed_s inbound = {0};
-            if (pcm_amfm_try_pop_pair(&inbound))
+            bool note_on = false;
+            const bool got_pair = pcm_amfm_try_pop_pair(&inbound, &note_on);
+
+            if (got_pair)
             {
                 current_pair = inbound;
-                is_active = (current_pair.hi_amplitude_fixed != 0 ||
-                             current_pair.lo_amplitude_fixed != 0);
+                is_holding = false;
+                hold_grains = 0;
+                _pcm_cut_hold = false;
+                is_active = (pcm_pair_energy(&current_pair) != 0u);
+            }
+            else if (is_active)
+            {
+                is_holding = true;
+                hold_grains++;
+                if (hold_grains >= PCM_OFFICIAL_HOLD_GRAINS)
+                {
+                    current_pair.hi_amplitude_fixed =
+                        (uint16_t)((current_pair.hi_amplitude_fixed * 97u) / 100u);
+                    current_pair.lo_amplitude_fixed =
+                        (uint16_t)((current_pair.lo_amplitude_fixed * 97u) / 100u);
+                    if (pcm_pair_energy(&current_pair) == 0u)
+                    {
+                        is_active = false;
+                    }
+                }
             }
 
-            if (is_active)
+            if (got_pair && !is_active)
             {
+                hi_amp_scaler = 0;
+                lo_amp_scaler = 0;
+                target_dc_offset = 0;
+                dc_offset = 0;
+                phase_hi = 0;
+                phase_lo = 0;
+                parked = true;
+                samples_remaining = PCM_SAMPLES_PER_GRAIN;
+            }
+            else if (is_active)
+            {
+                const uint32_t prev_hi = hi_amp_scaler;
+                const uint32_t prev_lo = lo_amp_scaler;
                 pcm_latch_pair(&current_pair, &hi_freq_inc, &lo_freq_inc,
                                &hi_amp_scaler, &lo_amp_scaler, &target_dc_offset);
+
+                if (got_pair && note_on)
+                {
+                    if (parked || (prev_hi == 0u && prev_lo == 0u))
+                    {
+                        phase_hi = pcm_peak_phase();
+                        phase_lo = pcm_peak_phase();
+                    }
+                    else
+                    {
+                        pcm_snap_opposite_peak(&phase_hi, &phase_lo, prev_hi, prev_lo);
+                    }
+                    dc_offset = target_dc_offset;
+                    parked = false;
+                }
+
                 samples_remaining = PCM_SAMPLES_PER_GRAIN;
             }
             else
@@ -622,34 +759,30 @@ void pcm_generate_buffer(uint32_t *buffer)
                 hi_amp_scaler = 0;
                 lo_amp_scaler = 0;
                 target_dc_offset = 0;
-                samples_remaining = PCM_BUFFER_SIZE;
+                samples_remaining = 1;
             }
         }
 
-        // 3. Waveform Synthesis
         uint16_t idx_hi = (phase_hi >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
         uint16_t idx_lo = (phase_lo >> PCM_FREQUENCY_SHIFT_BITS) % PCM_SINE_TABLE_SIZE;
 
         int16_t sine_hi = _pcm_sine_table[idx_hi];
         int16_t sine_lo = _pcm_sine_table[idx_lo];
 
-        // Apply signs and scaling
         int32_t scaled_hi = ((int32_t)((sine_hi >= 0 ? sine_hi : -sine_hi) * hi_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE);
         int32_t scaled_lo = ((int32_t)((sine_lo >= 0 ? sine_lo : -sine_lo) * lo_amp_scaler) >> PCM_AMPLITUDE_BIT_SCALE);
-        
+
         if (sine_hi < 0) scaled_hi = -scaled_hi;
         if (sine_lo < 0) scaled_lo = -scaled_lo;
 
         int32_t mixed = (scaled_hi + scaled_lo);
 
-        // Ramp DC offset (Attack/Decay)
         if (dc_offset < target_dc_offset) dc_offset+=2;
         else if (dc_offset > target_dc_offset) dc_offset--;
 
         mixed += dc_offset;
         if (mixed < 0) mixed = 0;
 
-        // External/Trigger Sample Mixing
         uint32_t ext_l = 0, ext_r = 0;
         if (_external_sample_remaining_l) {
             ext_l = (uint32_t)_external_sample_l[_external_sample_size_l - _external_sample_remaining_l] * _external_sample_scaler;
@@ -660,7 +793,6 @@ void pcm_generate_buffer(uint32_t *buffer)
             _external_sample_remaining_r--;
         }
 
-        // Raw PCM Override Logic
         static bool load_new_raw = false;
         int16_t pcm_raw_val = 0;
         if (load_new_raw && pcm_raw_queue_pop(&pcm_raw_val)) {
@@ -668,13 +800,13 @@ void pcm_generate_buffer(uint32_t *buffer)
         }
         load_new_raw = !load_new_raw;
 
-        // Final Output
         buffer[i] = (((uint32_t)(mixed + ext_l)) << 16) | ((uint32_t)(mixed + ext_r));
 
-        // Advance phases and decrement timers
-        phase_hi = (phase_hi + hi_freq_inc) % PCM_SINE_WRAPAROUND;
-        phase_lo = (phase_lo + lo_freq_inc) % PCM_SINE_WRAPAROUND;
-        
+        if (hi_amp_scaler) phase_hi = (phase_hi + hi_freq_inc) % PCM_SINE_WRAPAROUND;
+        else               phase_hi = 0;
+        if (lo_amp_scaler) phase_lo = (phase_lo + lo_freq_inc) % PCM_SINE_WRAPAROUND;
+        else               phase_lo = 0;
+
         if (samples_remaining > 0) samples_remaining--;
     }
 }
