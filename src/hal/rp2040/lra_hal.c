@@ -320,13 +320,15 @@ void lra_hal_task(uint64_t timestamp)
 
 void lra_hal_push_amfm(haptic_packet_s *packet)
 {
-    _erm_simulation_enabled = false; // Unset our ERM simulation mode
+    _erm_simulation_enabled = false;
+    // pcm_amfm_push also zeros the ERM rotor so HD grains own the LRA.
     pcm_amfm_push(packet);
 }
 
 void lra_hal_set_standard(uint8_t intensity, bool brake)
 {
-    pcm_erm_set(intensity, brake); // Set ERM state with brake off
+    _erm_simulation_enabled = (intensity != 0);
+    pcm_erm_set(intensity, brake);
 }
 
 #endif // HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL

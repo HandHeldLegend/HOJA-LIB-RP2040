@@ -56,6 +56,9 @@ void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out);
 int16_t pcm_raw_queue_count();
 int16_t pcm_raw_queue_push(int16_t *data, uint16_t len);
 
+// Standard rumble (Xbox / Sinput / Switch non-HD). On LRA boards this runs a
+// mechanical ERM model: rotor speed lags the command, pitch tracks RPM, and
+// felt force is centrifugal (omega^2). Do not send this through pcm_amfm_push.
 void pcm_erm_set(uint8_t intensity, bool brake);
 
 // PCM UTILITIES FOR EASIER USE
@@ -70,6 +73,8 @@ void pcm_init(int intensity);
 void pcm_play_bump(bool arg_right, bool arg_left);
 
 void pcm_send_pulse();
+// Switch HD rumble AM/FM pairs. Cancels any in-flight ERM simulation so the
+// pair FIFO / grain playback owns the LRA.
 bool pcm_amfm_push(haptic_packet_s *packet);
 void pcm_generate_buffer(uint32_t *buffer);
 

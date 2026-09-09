@@ -217,6 +217,15 @@ static void pcm_vibrator_refresh_nibble_locked(void)
     _pcm_vibrator_nibble = (uint8_t)(fill | ((_pcm_vibrator_strobe ? 1u : 0u) << 3));
 }
 
+static void pcm_amfm_flush_locked(void)
+{
+    _pcm_amfm_queue.head = 0;
+    _pcm_amfm_queue.tail = 0;
+    _pcm_amfm_queue.count = 0;
+    _pcm_cut_hold = false;
+    pcm_vibrator_refresh_nibble_locked();
+}
+
 static void pcm_amfm_queue_init(void)
 {
     MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
@@ -276,6 +285,118 @@ uint8_t ns_api_hook_get_vibrator_nibble(void)
     return _pcm_vibrator_nibble;
 }
 
+typedef struct
+{
+    float target_percent; // Host intensity 0..1 (commanded voltage)
+    float speed;           // Rotor 0..1, lags target with inertia
+    bool  apply_brake;
+    bool  erm_active;
+} pcm_erm_state_s;
+
+// LRA boards have no spinning mass. Standard rumble is synthesized here as
+// a continuous dual-sine whose frequency and amplitude follow a rotor model.
+//
+// This path must not use pcm_amfm_push. That FIFO is Switch HD rumble: each
+// packet is 1-3 grains, the first grain is a note-on peak snap, and an empty
+// queue holds/decays for 201 grains. Feeding ERM updates through it turns a
+// motor ramp into an 8 ms click train and can sustain leftover amp after stop.
+//
+// Physical erm_hal.c slews PWM in 32 ms up / 128 ms down. That is electrical
+// current limiting, not time-to-speed. A typical rumble ERM reaches most of
+// its RPM in ~75 ms (63%) and coasts down slower. Felt vibration is m*r*w^2,
+// so the shake blooms after the pitch has already started rising.
+static haptic_processed_s _pcm_erm_pair = {0};
+static pcm_erm_state_s _pcm_erm_state = {
+    .target_percent = 0.0f,
+    .speed = 0.0f,
+    .apply_brake = false,
+    .erm_active = false,
+};
+
+static bool pcm_erm_driving(void)
+{
+    return _pcm_erm_state.erm_active || (_pcm_erm_state.speed > 0.001f);
+}
+
+static void pcm_erm_cancel(void)
+{
+    _pcm_erm_state.erm_active = false;
+    _pcm_erm_state.target_percent = 0.0f;
+    _pcm_erm_state.speed = 0.0f;
+    memset(&_pcm_erm_pair, 0, sizeof(_pcm_erm_pair));
+}
+
+// Advance rotor speed one sample. tau_up/tau_down are mechanical (63% of
+// remaining error). Tune these if spool feels too snappy or too lazy.
+static void pcm_erm_step(pcm_erm_state_s *state, float dt_s)
+{
+    const float tau_up_s = 0.075f;   // ~75 ms to 63% on spin-up
+    const float tau_down_s = 0.160f; // coast; brake divides this
+    const float brake_multiplier = 2.5f;
+
+    float tau = (state->target_percent >= state->speed) ? tau_up_s : tau_down_s;
+    if ((state->target_percent < state->speed) && state->apply_brake)
+    {
+        tau /= brake_multiplier;
+    }
+
+    float k = dt_s / tau;
+    if (k > 1.0f)
+    {
+        k = 1.0f;
+    }
+    state->speed += (state->target_percent - state->speed) * k;
+    state->speed = fmaxf(0.0f, fminf(1.0f, state->speed));
+
+    if ((state->target_percent <= 0.001f) && (state->speed <= 0.001f))
+    {
+        state->erm_active = false;
+        state->speed = 0.0f;
+        memset(&_pcm_erm_pair, 0, sizeof(_pcm_erm_pair));
+    }
+}
+
+static void pcm_erm_apply_pair(const pcm_erm_state_s *state)
+{
+    const float min_freq_lo = 40.0f;
+    const float min_freq_hi = 40.0f;
+    const float target_freq_lo = 85.0f;
+    const float target_freq_hi = 170.0f;
+    const float amp_max = 0.1f;
+
+    if (state->speed <= 0.001f)
+    {
+        memset(&_pcm_erm_pair, 0, sizeof(_pcm_erm_pair));
+        return;
+    }
+
+    float w = state->speed;
+    // freq ∝ RPM. amp = amp_max * target * (w/target)^2 so a full-on spool
+    // is centrifugal, but a held 50% command stays half strength, not 25%.
+    float felt;
+    if (state->target_percent > 0.001f)
+    {
+        felt = (w * w) / state->target_percent;
+    }
+    else
+    {
+        felt = w * w;
+    }
+    if (felt > 1.0f)
+    {
+        felt = 1.0f;
+    }
+
+    float actual_freq_lo = min_freq_lo + (target_freq_lo - min_freq_lo) * w;
+    float actual_freq_hi = min_freq_hi + (target_freq_hi - min_freq_hi) * w;
+    float actual_amp = amp_max * felt;
+
+    _pcm_erm_pair.hi_frequency_increment = pcm_frequency_to_fixedpoint_increment(actual_freq_hi);
+    _pcm_erm_pair.lo_frequency_increment = pcm_frequency_to_fixedpoint_increment(actual_freq_lo);
+    _pcm_erm_pair.hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp);
+    _pcm_erm_pair.lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp);
+}
+
 void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
 {
     for(int i = 0; i < in->sample_count; i++)
@@ -296,6 +417,10 @@ bool pcm_amfm_push(haptic_packet_s *packet)
     {
         return false;
     }
+
+    // HD rumble owns the LRA. Drop any in-flight ERM spin so a leftover
+    // motor model cannot keep synthesizing after Switch HD starts.
+    pcm_erm_cancel();
 
     MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
     // UnpackAmFmCodes clears strobe on every ingested rumble word, including
@@ -330,90 +455,6 @@ bool pcm_amfm_push(haptic_packet_s *packet)
     return true;
 }
 
-typedef struct 
-{
-    float target_percent;
-    float current_percent;
-    bool  apply_brake;
-    bool  erm_active;
-} pcm_erm_state_s;
-
-// Simulation handler where the PCM samples 
-// represent ERM vibrations
-// Simulation handler where the PCM samples 
-// represent ERM vibrations with natural motor characteristics
-// Uses unified percent control for realistic frequency/amplitude coupling
-void _pcm_erm_handler(pcm_erm_state_s *state)
-{
-    // Time constants for exponential curves (smaller = faster response)
-    const float time_constant_up   = 0.125f;  // Spin-up rate
-    const float time_constant_down = 0.125f;  // Spin-down rate (faster due to friction)
-    
-    // Brake multiplier for faster deceleration
-    const float brake_multiplier = 2.5f;
-
-    // Frequency range mapping
-    const float min_freq_lo = 40.0f;   // Minimum frequency when motor starts
-    const float min_freq_hi = 40.0f;  // Minimum frequency when motor starts
-    const float target_freq_lo = 85.0f;
-    const float target_freq_hi = 170.0f;
-    
-    // Amplitude range mapping
-    const float min_amp_lo = 0.0f;     // Zero amplitude when motor stops
-    const float min_amp_hi = 0.0f;     // Zero amplitude when motor stops  
-    const float target_amp_lo = 0.1f;
-    const float target_amp_hi = 0.1f;
-
-    // Unified motor control with exponential curves
-    float percent_diff = state->target_percent - state->current_percent;
-    if (fabs(percent_diff) > 0.001f) // Avoid unnecessary computation for tiny differences
-    {
-        float time_constant;
-        if (percent_diff > 0) {
-            // Motor spinning up - overcomes inertia
-            time_constant = time_constant_up;
-        } else {
-            // Motor spinning down - friction helps, brake can help more
-            time_constant = time_constant_down;
-            if (state->apply_brake) {
-                time_constant *= brake_multiplier;
-            }
-        }
-        
-        // Exponential approach: current += (target - current) * time_constant
-        state->current_percent += percent_diff * time_constant;
-        
-        // Clamp to target when very close (prevents oscillation)
-        if (fabs(state->target_percent - state->current_percent) < 0.005f) {
-            state->current_percent = state->target_percent;
-        }
-    }
-
-    // Ensure we don't go below zero or above 1.0
-    state->current_percent = fmaxf(0.0f, fminf(1.0f, state->current_percent));
-
-    // Calculate actual frequencies and amplitudes based on unified percent
-    // Both frequency and amplitude are naturally coupled to motor speed
-    float actual_freq_lo = min_freq_lo + (target_freq_lo - min_freq_lo) * state->current_percent;
-    float actual_freq_hi = min_freq_hi + (target_freq_hi - min_freq_hi) * state->current_percent;
-    float actual_amp_lo = min_amp_lo + (target_amp_lo - min_amp_lo) * state->current_percent;
-    float actual_amp_hi = min_amp_hi + (target_amp_hi - min_amp_hi) * state->current_percent;
-
-    haptic_packet_s packet = {0};
-    packet.count = 1;
-    packet.pairs[0].hi_frequency_increment = pcm_frequency_to_fixedpoint_increment(actual_freq_hi);
-    packet.pairs[0].lo_frequency_increment = pcm_frequency_to_fixedpoint_increment(actual_freq_lo);
-    packet.pairs[0].hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp_hi);
-    packet.pairs[0].lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp_lo);
-
-    if(state->erm_active)
-        pcm_amfm_push(&packet);
-
-    if(state->current_percent <= 0.001f) // Motor stops when percent reaches near zero
-    {
-        state->erm_active = false;
-    }
-}
 volatile bool _pcm_init_done = false;
 void pcm_init(int intensity) 
 {
@@ -595,28 +636,24 @@ void pcm_play_bump(bool arg_right, bool arg_left)
 #endif
 }
 
-pcm_erm_state_s _pcm_erm_state = {
-    .target_percent = 0.0f,
-    .current_percent = 0.0f,
-    .apply_brake = false,
-    .erm_active = false,
-};
-
 void pcm_erm_set(uint8_t intensity, bool brake)
 {
     if(!intensity)
     {
-        // If intensity is 0, reset the state
+        // Coast to zero. pcm_erm_step keeps synthesizing until speed ~ 0
+        // so we do not hit the HD 201-grain hold on leftover amplitude.
         _pcm_erm_state.target_percent = 0.0f;
     }
-    else 
+    else
     {
-        // Set the target frequency and amplitude based on intensity
         _pcm_erm_state.target_percent = (float)intensity / 255.0f;
         _pcm_erm_state.erm_active = true;
+        // Drop queued HD grains so standard rumble is not stuck behind them.
+        MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
+        pcm_amfm_flush_locked();
+        MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
     }
-    
-    // Set the brake state
+
     _pcm_erm_state.apply_brake = brake;
 }
 
@@ -655,7 +692,10 @@ static void pcm_snap_opposite_peak(uint32_t *phase_hi, uint32_t *phase_lo,
     *phase_lo = peak;
 }
 
-// Generate PCM_BUFFER_SIZE samples of PCM data
+// Mix one PWM half-buffer. Two synthesizers share the same sine mixer:
+//   ERM:  per-sample rotor step, continuous phase, no peak snap.
+//   HD:   50-sample grains from the pair FIFO; first pair of a report snaps
+//         to a peak. Empty queue holds the last pair, then 97/100 decay.
 void pcm_generate_buffer(uint32_t *buffer)
 {
     static uint32_t phase_hi = 0;
@@ -674,25 +714,61 @@ void pcm_generate_buffer(uint32_t *buffer)
     static uint32_t lo_amp_scaler = 0;
     static uint32_t target_dc_offset = 0;
     static uint32_t dc_offset = 0;
-
-    if(_pcm_erm_state.erm_active)
-    {
-        _pcm_erm_handler(&_pcm_erm_state);
-    }
+    static bool erm_playing = false;
+    const float erm_dt = 1.0f / (float)PCM_SAMPLE_RATE;
 
     for (int i = 0; i < PCM_BUFFER_SIZE; i++)
     {
-        if (is_holding && _pcm_cut_hold)
+        const bool erm_now = pcm_erm_driving();
+        if (erm_now)
+        {
+            pcm_erm_step(&_pcm_erm_state, erm_dt);
+            pcm_erm_apply_pair(&_pcm_erm_state);
+            current_pair = _pcm_erm_pair;
+            is_holding = false;
+            hold_grains = 0;
+            is_active = (pcm_pair_energy(&current_pair) != 0u);
+            if (is_active)
+            {
+                pcm_latch_pair(&current_pair, &hi_freq_inc, &lo_freq_inc,
+                               &hi_amp_scaler, &lo_amp_scaler, &target_dc_offset);
+                parked = false;
+            }
+            else
+            {
+                hi_amp_scaler = 0;
+                lo_amp_scaler = 0;
+                target_dc_offset = 0;
+            }
+            samples_remaining = 1;
+            erm_playing = true;
+        }
+        else if (erm_playing)
+        {
+            is_active = false;
+            is_holding = false;
+            hold_grains = 0;
+            memset(&current_pair, 0, sizeof(current_pair));
+            hi_amp_scaler = 0;
+            lo_amp_scaler = 0;
+            target_dc_offset = 0;
+            samples_remaining = 0;
+            erm_playing = false;
+        }
+
+        if (!erm_now && is_holding && _pcm_cut_hold)
         {
             samples_remaining = 0;
             is_holding = false;
         }
 
-        if (samples_remaining == 0)
+        if (!erm_now && samples_remaining == 0)
         {
             haptic_processed_s inbound = {0};
             bool note_on = false;
-            const bool got_pair = pcm_amfm_try_pop_pair(&inbound, &note_on);
+            bool got_pair = false;
+
+            got_pair = pcm_amfm_try_pop_pair(&inbound, &note_on);
 
             if (got_pair)
             {
@@ -719,18 +795,25 @@ void pcm_generate_buffer(uint32_t *buffer)
                 }
             }
 
-            if (got_pair && !is_active)
+            if (!is_active)
             {
                 hi_amp_scaler = 0;
                 lo_amp_scaler = 0;
                 target_dc_offset = 0;
-                dc_offset = 0;
-                phase_hi = 0;
-                phase_lo = 0;
-                parked = true;
-                samples_remaining = PCM_SAMPLES_PER_GRAIN;
+                if (got_pair)
+                {
+                    dc_offset = 0;
+                    phase_hi = 0;
+                    phase_lo = 0;
+                    parked = true;
+                    samples_remaining = PCM_SAMPLES_PER_GRAIN;
+                }
+                else
+                {
+                    samples_remaining = 1;
+                }
             }
-            else if (is_active)
+            else
             {
                 const uint32_t prev_hi = hi_amp_scaler;
                 const uint32_t prev_lo = lo_amp_scaler;
@@ -753,13 +836,6 @@ void pcm_generate_buffer(uint32_t *buffer)
                 }
 
                 samples_remaining = PCM_SAMPLES_PER_GRAIN;
-            }
-            else
-            {
-                hi_amp_scaler = 0;
-                lo_amp_scaler = 0;
-                target_dc_offset = 0;
-                samples_remaining = 1;
             }
         }
 
