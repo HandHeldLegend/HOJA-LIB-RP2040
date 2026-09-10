@@ -321,7 +321,6 @@ void lra_hal_task(uint64_t timestamp)
 void lra_hal_push_amfm(haptic_packet_s *packet)
 {
     _erm_simulation_enabled = false;
-    // pcm_amfm_push also zeros the ERM rotor so HD grains own the LRA.
     pcm_amfm_push(packet);
 }
 
