@@ -1,5 +1,5 @@
 #include "utilities/pcm.h"
-#include "hal/mutex_hal.h"
+#include "utilities/crosscore_utils.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -175,10 +175,13 @@ bool pcm_raw_queue_pop(int16_t *out)
 #define PCM_OFFICIAL_RING_SAMPLES 160
 #define PCM_OFFICIAL_HOLD_GRAINS 201
 
-static uint8_t _pcm_vibrator_strobe = 0;
-static volatile uint8_t _pcm_vibrator_nibble = 0;
+static volatile uint8_t _pcm_vibrator_strobe = 0;
 // Live unpack zeros the GetNextVibration grain counter (cuts sustain).
 static volatile bool _pcm_cut_hold = false;
+// A flush moves the ring's head, which only the consumer may do. pcm_erm_set()
+// can run in the lwIP/cyw43 background IRQ (WLAN transport), so it asks here
+// and core 1 drains on its next buffer.
+static volatile bool _pcm_amfm_flush_req = false;
 
 typedef struct
 {
@@ -186,20 +189,73 @@ typedef struct
     bool note_on;
 } pcm_amfm_item_t;
 
-typedef struct
-{
-    pcm_amfm_item_t buffer[PCM_AMFM_QUEUE_SIZE];
-    uint8_t head;
-    uint8_t tail;
-    uint8_t count;
-} pcm_amfm_queue_t;
+// Lock-free SPSC ring. pcm_amfm_push() is the sole producer (one transport is
+// live at a time) and pcm_generate_buffer() on core 1 the sole consumer, so
+// nothing on the haptics path can block or be re-entered from an IRQ.
+HOJA_CROSSCORE_FIFO_TYPE(amfm, pcm_amfm_item_t, PCM_AMFM_QUEUE_SIZE);
+static hoja_fifo_amfm_t _pcm_amfm_fifo = {0};
 
-static pcm_amfm_queue_t _pcm_amfm_queue = {0};
-MUTEX_HAL_INIT(_pcm_amfm_mtx);
-
-static void pcm_vibrator_refresh_nibble_locked(void)
+static uint8_t pcm_amfm_count(void)
 {
-    uint16_t used = (uint16_t)_pcm_amfm_queue.count * PCM_OFFICIAL_SAMPLES_PER_GRAIN;
+    unsigned int c = hoja_fifo_amfm_count(&_pcm_amfm_fifo);
+    return (c > PCM_AMFM_QUEUE_SIZE) ? (uint8_t)PCM_AMFM_QUEUE_SIZE : (uint8_t)c;
+}
+
+// Consumer side only (core 1): moves head, never tail.
+static void pcm_amfm_drain(void)
+{
+    pcm_amfm_item_t scrap;
+    while (hoja_fifo_amfm_pop(&_pcm_amfm_fifo, &scrap))
+    {
+    }
+    _pcm_cut_hold = false;
+}
+
+static void pcm_amfm_queue_init(void)
+{
+    pcm_amfm_drain();
+    _pcm_vibrator_strobe = 0;
+}
+
+// Official vibrationProcess: if the ring cannot take this pair, drop it
+// and the rest of that report.
+static bool pcm_amfm_push_pair(const haptic_processed_s *pair, bool note_on)
+{
+    pcm_amfm_item_t item;
+    item.pair = *pair;
+    item.note_on = note_on;
+    return hoja_fifo_amfm_push(&_pcm_amfm_fifo, &item);
+}
+
+static uint32_t pcm_pair_energy(const haptic_processed_s *pair)
+{
+    return (uint32_t)pair->hi_amplitude_fixed + (uint32_t)pair->lo_amplitude_fixed;
+}
+
+static bool pcm_amfm_try_pop_pair(haptic_processed_s *out, bool *note_on)
+{
+    pcm_amfm_item_t item;
+
+    if (!hoja_fifo_amfm_pop(&_pcm_amfm_fifo, &item))
+    {
+        return false;
+    }
+
+    *out = item.pair;
+    *note_on = item.note_on;
+
+    // GetNextVibration sets strobe when the ring runs dry.
+    if (pcm_amfm_count() == 0)
+    {
+        _pcm_vibrator_strobe = 1;
+    }
+    return true;
+}
+
+// Derived on read, so neither side has to publish a cached nibble.
+uint8_t ns_api_hook_get_vibrator_nibble(void)
+{
+    uint16_t used = (uint16_t)pcm_amfm_count() * PCM_OFFICIAL_SAMPLES_PER_GRAIN;
     uint8_t fill;
 
     if ((used * 4u) < PCM_OFFICIAL_RING_SAMPLES)
@@ -214,75 +270,7 @@ static void pcm_vibrator_refresh_nibble_locked(void)
     {
         fill = 7;
     }
-    _pcm_vibrator_nibble = (uint8_t)(fill | ((_pcm_vibrator_strobe ? 1u : 0u) << 3));
-}
-
-static void pcm_amfm_flush_locked(void)
-{
-    _pcm_amfm_queue.head = 0;
-    _pcm_amfm_queue.tail = 0;
-    _pcm_amfm_queue.count = 0;
-    _pcm_cut_hold = false;
-    pcm_vibrator_refresh_nibble_locked();
-}
-
-static void pcm_amfm_queue_init(void)
-{
-    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
-    _pcm_amfm_queue.head = 0;
-    _pcm_amfm_queue.tail = 0;
-    _pcm_amfm_queue.count = 0;
-    _pcm_vibrator_strobe = 0;
-    _pcm_cut_hold = false;
-    pcm_vibrator_refresh_nibble_locked();
-    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
-}
-
-// Official vibrationProcess: if the ring cannot take this pair, drop it
-// and the rest of that report.
-static bool pcm_amfm_push_pair_locked(const haptic_processed_s *pair, bool note_on)
-{
-    if (_pcm_amfm_queue.count >= PCM_AMFM_QUEUE_SIZE)
-    {
-        return false;
-    }
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail].pair = *pair;
-    _pcm_amfm_queue.buffer[_pcm_amfm_queue.tail].note_on = note_on;
-    _pcm_amfm_queue.tail = (uint8_t)((_pcm_amfm_queue.tail + 1u) % PCM_AMFM_QUEUE_SIZE);
-    _pcm_amfm_queue.count++;
-    return true;
-}
-
-static uint32_t pcm_pair_energy(const haptic_processed_s *pair)
-{
-    return (uint32_t)pair->hi_amplitude_fixed + (uint32_t)pair->lo_amplitude_fixed;
-}
-
-static bool pcm_amfm_try_pop_pair(haptic_processed_s *out, bool *note_on)
-{
-    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
-    if (_pcm_amfm_queue.count == 0)
-    {
-        MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
-        return false;
-    }
-    *out = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].pair;
-    *note_on = _pcm_amfm_queue.buffer[_pcm_amfm_queue.head].note_on;
-    _pcm_amfm_queue.head = (uint8_t)((_pcm_amfm_queue.head + 1u) % PCM_AMFM_QUEUE_SIZE);
-    _pcm_amfm_queue.count--;
-    // GetNextVibration sets strobe when used < 5 (ring nearly empty).
-    if (_pcm_amfm_queue.count == 0)
-    {
-        _pcm_vibrator_strobe = 1;
-    }
-    pcm_vibrator_refresh_nibble_locked();
-    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
-    return true;
-}
-
-uint8_t ns_api_hook_get_vibrator_nibble(void)
-{
-    return _pcm_vibrator_nibble;
+    return (uint8_t)(fill | ((_pcm_vibrator_strobe ? 1u : 0u) << 3));
 }
 
 typedef struct
@@ -371,7 +359,10 @@ static void pcm_erm_handler(pcm_erm_state_s *state)
     _pcm_erm_pair.hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp_hi);
     _pcm_erm_pair.lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(actual_amp_lo);
 
-    if (state->current_percent <= 0.001f)
+    // Stop only when the request is gone too. erm_active is written from both
+    // sides, so keying the stop on it alone can drop a rumble that arrived
+    // between the test and the clear; target_percent has a single writer.
+    if ((state->current_percent <= 0.001f) && (state->target_percent <= 0.001f))
     {
         state->erm_active = false;
         state->current_percent = 0.0f;
@@ -404,7 +395,6 @@ bool pcm_amfm_push(haptic_packet_s *packet)
     // motor output cannot keep synthesizing after Switch HD starts.
     pcm_erm_cancel();
 
-    MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
     // UnpackAmFmCodes clears strobe on every ingested rumble word, including
     // a 0-sample stop. The host then sees "I just got a pack".
     _pcm_vibrator_strobe = 0;
@@ -426,14 +416,12 @@ bool pcm_amfm_push(haptic_packet_s *packet)
         _pcm_cut_hold = true;
         for (uint8_t i = 0; i < n; i++)
         {
-            if (!pcm_amfm_push_pair_locked(&packet->pairs[i], i == 0))
+            if (!pcm_amfm_push_pair(&packet->pairs[i], i == 0))
             {
                 break;
             }
         }
     }
-    pcm_vibrator_refresh_nibble_locked();
-    MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
     return true;
 }
 
@@ -628,9 +616,9 @@ void pcm_erm_set(uint8_t intensity, bool brake)
     {
         _pcm_erm_state.target_percent = (float)intensity / 255.0f;
         _pcm_erm_state.erm_active = true;
-        MUTEX_HAL_ENTER_BLOCKING(&_pcm_amfm_mtx);
-        pcm_amfm_flush_locked();
-        MUTEX_HAL_EXIT(&_pcm_amfm_mtx);
+        // Deferred: this may be an IRQ callback on the same core that is already
+        // holding _pcm_amfm_mtx inside pcm_generate_buffer. Blocking here deadlocks.
+        _pcm_amfm_flush_req = true;
     }
 
     _pcm_erm_state.apply_brake = brake;
@@ -694,6 +682,13 @@ void pcm_generate_buffer(uint32_t *buffer)
     static uint32_t target_dc_offset = 0;
     static uint32_t dc_offset = 0;
     static bool erm_playing = false;
+
+    // Service a flush asked for from IRQ context (see pcm_erm_set).
+    if (_pcm_amfm_flush_req)
+    {
+        _pcm_amfm_flush_req = false;
+        pcm_amfm_drain();
+    }
 
     if (pcm_erm_driving())
     {
