@@ -72,7 +72,7 @@ void core_deinit();
 bool core_init(void);
 void core_task(uint64_t now_us);
 
-// gamepadConfig_s.gamepad_default_mode is stored as a core_reportformat_t value (0..6).
+// gamepadConfig_s.gamepad_default_mode is stored as a core_reportformat_t value (0..7).
 static inline core_reportformat_t core_reportformat_from_default(uint8_t stored)
 {
     if (stored >= (uint8_t)CORE_REPORTFORMAT_MAX)

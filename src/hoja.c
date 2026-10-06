@@ -296,6 +296,7 @@ void _hoja_init_core_tasks(void)
 
     case CORE_REPORTFORMAT_SINPUT:
     case CORE_REPORTFORMAT_SWPRO:
+    case CORE_REPORTFORMAT_WII:
     tasks_register(&_task_haptics);
     tasks_register(&_task_motion);
     break;

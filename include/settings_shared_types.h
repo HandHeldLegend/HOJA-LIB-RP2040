@@ -215,7 +215,7 @@ typedef struct
 typedef struct 
 {
     uint8_t  gamepad_config_version;
-    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 6=SINPUT)
+    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 7=WII)
     uint8_t  gamepad_mac_address[6]; // Device BASE MAC Address
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
@@ -225,7 +225,8 @@ typedef struct
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
     uint16_t wlan_dongle_key;       // WLAN dongle pairing pin (0000-9999)
-    uint8_t  reserved[25];
+    uint8_t  host_mac_wii[6];       // Mac address of the Wii we are paired to
+    uint8_t  reserved[19];
 } gamepadConfig_s;
 
 _Static_assert(sizeof(gamepadConfig_s) == 64, "gamepadConfig_s must remain 64 bytes");

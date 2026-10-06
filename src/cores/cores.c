@@ -16,6 +16,7 @@
 #include "cores/core_snes.h"
 #include "cores/core_n64.h"
 #include "cores/core_gamecube.h"
+#include "cores/core_wii.h"
 
 #include "devices/battery.h"
 #include "utilities/settings.h"
@@ -73,6 +74,9 @@ rgb_s core_current_color_get(void)
 
   case CORE_REPORTFORMAT_SNES:
     return COLOR_RED;
+
+  case CORE_REPORTFORMAT_WII:
+    return COLOR_PINK;
 
   default:
     return COLOR_ORANGE;
@@ -191,6 +195,9 @@ bool core_init(void)
 
         case CORE_REPORTFORMAT_SLIPPI:
         return core_slippi_init(&_core_params);
+
+        case CORE_REPORTFORMAT_WII:
+        return core_wii_init(&_core_params);
 
         default:
         return false;

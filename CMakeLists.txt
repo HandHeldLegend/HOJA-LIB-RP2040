@@ -1,6 +1,7 @@
 add_library(hoja_lib INTERFACE)
 
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NS-LIB-HID")
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NWII-LIB-HID")
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/SINPUT-LIB-HID")
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HOJA-LIB-DONGLE")
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HHL-TINYUSB-DRIVERS")
@@ -108,6 +109,7 @@ target_link_libraries(hoja_lib INTERFACE
   tinyusb_board
 
   ns_lib_hid
+  nwii_lib_hid
   sinput_lib_hid
   hoja_lib_dongle
   hhl_tinyusb_drivers

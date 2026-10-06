@@ -22,6 +22,7 @@ typedef enum
     CORE_REPORTFORMAT_N64         = 4,
     CORE_REPORTFORMAT_SNES        = 5,
     CORE_REPORTFORMAT_SINPUT      = 6,
+    CORE_REPORTFORMAT_WII         = 7,
     CORE_REPORTFORMAT_MAX,
 } core_reportformat_t;
 

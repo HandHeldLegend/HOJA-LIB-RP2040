@@ -707,6 +707,7 @@ void _set_raw_output_profile(core_reportformat_t format)
     {
         default:
         case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_WII: // Wii core reads the Switch profile
         _translated_op.input_slots = input_config->input_profile_switch;
         _translated_op.output_types = _switch_output_types;
         _translated_op.output_types_max = SWITCH_CODE_MAX;
@@ -875,6 +876,7 @@ void mapper_init()
     {
         default:
         case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_WII: // Wii core reads the Switch profile
         _standard_op.input_slots = input_config->input_profile_switch;
         _standard_op.output_types = _switch_output_types;
         _standard_op.output_types_max = SWITCH_CODE_MAX;
@@ -930,6 +932,7 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     switch(core_current_reportformat())
     {
         case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_WII:
             return input_config->input_profile_switch;
 
         case CORE_REPORTFORMAT_GAMECUBE:

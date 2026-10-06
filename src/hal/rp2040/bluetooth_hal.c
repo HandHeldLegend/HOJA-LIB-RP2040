@@ -29,8 +29,14 @@
 #include "cores/cores.h"
 #include "utilities/crosscore_utils.h"
 
+#include "nwii_lib_hid.h"
+
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
 #define BT_HAL_INBOUND_FIFO_LEN 32
+
+// A paired Wii Remote connects to the console, never the reverse, so keep paging the saved
+// Wii until it answers (it may still be booting).
+#define BT_HAL_WII_RECONNECT_MS 2000
 
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
@@ -46,6 +52,9 @@ static uint16_t hid_cid = 0;
 
 static btstack_timer_source_t hid_report_timer;
 static bool hid_report_timer_active = false;
+
+static btstack_timer_source_t wii_reconnect_timer;
+static bool wii_reconnect_timer_active = false;
 
 typedef struct
 {
@@ -225,6 +234,45 @@ static void _bt_hal_hid_report_timer_start(void)
     hid_report_timer_active = true;
 }
 
+static bool _bt_hal_is_wii(void)
+{
+    return core_current_reportformat() == CORE_REPORTFORMAT_WII;
+}
+
+static void _bt_hal_wii_reconnect_timer_stop(void)
+{
+    if (!wii_reconnect_timer_active)
+    {
+        return;
+    }
+
+    btstack_run_loop_remove_timer(&wii_reconnect_timer);
+    wii_reconnect_timer_active = false;
+}
+
+static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
+{
+    (void)ts;
+    wii_reconnect_timer_active = false;
+
+    if (hid_cid || _connected)
+    {
+        return;
+    }
+
+    hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
+}
+
+static void _bt_hal_wii_reconnect_timer_start(void)
+{
+    _bt_hal_wii_reconnect_timer_stop();
+
+    btstack_run_loop_set_timer_handler(&wii_reconnect_timer, &_bt_hal_wii_reconnect_timer_handler);
+    btstack_run_loop_set_timer(&wii_reconnect_timer, BT_HAL_WII_RECONNECT_MS);
+    btstack_run_loop_add_timer(&wii_reconnect_timer);
+    wii_reconnect_timer_active = true;
+}
+
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
 {
     UNUSED(channel);
@@ -297,7 +345,29 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                         hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
                     }
                     break;
+
+                case CORE_REPORTFORMAT_WII:
+                    // Stay discoverable either way: the Wii can still SYNC or temporarily
+                    // connect to us while we page the saved console.
+                    gap_discoverable_control(1);
+                    if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
+                    {
+                        hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
+                    }
+                    break;
                 }
+            }
+            break;
+
+        case HCI_EVENT_PIN_CODE_REQUEST:
+            // Wii SYNC pairing is legacy PIN pairing; the PIN is the Wii's address reversed
+            if (_bt_hal_is_wii())
+            {
+                bd_addr_t addr;
+                uint8_t pin[NWII_HID_PIN_LEN];
+                hci_event_pin_code_request_get_bd_addr(packet, addr);
+                nwii_hid_make_pin(addr, pin);
+                gap_pin_code_response_binary(addr, pin, NWII_HID_PIN_LEN);
             }
             break;
 
@@ -340,8 +410,16 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                     _connected = false;
                     hid_cid = 0;
+
+                    if (_bt_hal_is_wii() && !_pairing_mode &&
+                        _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
+                    {
+                        _bt_hal_wii_reconnect_timer_start();
+                    }
                     return;
                 }
+
+                _bt_hal_wii_reconnect_timer_stop();
 
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
                 bd_addr_t addr;
@@ -358,6 +436,10 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 case CORE_REPORTFORMAT_SINPUT:
                     addr_location = gamepad_config->host_mac_sinput;
+                    break;
+
+                case CORE_REPORTFORMAT_WII:
+                    addr_location = gamepad_config->host_mac_wii;
                     break;
                 }
 
@@ -449,9 +531,22 @@ bool transport_bt_init(core_params_s *params)
 
     _bt_init = true;
 
+    const bool wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
+
     gap_set_bondable_mode(1);
 
-    gap_set_class_of_device(0x2508);
+    if (wii)
+    {
+        // The Wii only does legacy PIN pairing, and authenticates on its own terms; asking for
+        // security ourselves breaks its temporary (no-pairing) connections.
+        gap_ssp_set_enable(0);
+        gap_set_security_level(LEVEL_0);
+        gap_set_class_of_device(NWII_HID_CLASS_OF_DEVICE);
+    }
+    else
+    {
+        gap_set_class_of_device(0x2508);
+    }
     gap_set_local_name(_bt_hal_hid->name);
 
     uint16_t link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH | LM_LINK_POLICY_ENABLE_SNIFF_MODE;
@@ -489,7 +584,20 @@ bool transport_bt_init(core_params_s *params)
     // Register SDP services
 
     memset(hid_service_buffer, 0, sizeof(hid_service_buffer));
-    hid_create_sdp_record(hid_service_buffer, sdp_create_service_record_handle(), &hid_sdp_record);
+    if (wii)
+    {
+        // The Wii checks the HID record attributes, so serve a real remote's record verbatim.
+        // It carries its own record handle, so it must be registered before any handle is
+        // allocated for the PnP record below.
+        const uint8_t *wii_record = NULL;
+        uint16_t wii_record_len = 0;
+        nwii_hid_get_sdp_record(&wii_record, &wii_record_len);
+        memcpy(hid_service_buffer, wii_record, wii_record_len);
+    }
+    else
+    {
+        hid_create_sdp_record(hid_service_buffer, sdp_create_service_record_handle(), &hid_sdp_record);
+    }
     //_create_sdp_hid_record(hid_service_buffer, &hid_sdp_record);
     sdp_register_service(hid_service_buffer);
 

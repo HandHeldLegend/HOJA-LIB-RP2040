@@ -117,6 +117,7 @@ bool anm_authentic_palette_color(core_reportformat_t format, int8_t output_code,
     {
         case CORE_REPORTFORMAT_SWPRO:
         case CORE_REPORTFORMAT_SNES:
+        case CORE_REPORTFORMAT_WII:
             return _nintendo_abxy_palette(output_code, out);
 
         case CORE_REPORTFORMAT_XINPUT:
