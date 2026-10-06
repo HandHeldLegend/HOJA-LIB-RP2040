@@ -34,10 +34,17 @@
 #define CORE_WII_AIM_YAW_RANGE_DEG      12.5f
 #define CORE_WII_AIM_PITCH_RANGE_DEG    10.0f
 
-// Rotation signs for the gamepad's IMU frame (+X forward, +Y left, +Z up). Flip one if the
-// pointer moves the wrong way on that axis.
+// HOJA's IMU frame is +X left, +Y forward, +Z up (NS-LIB swaps X/Y into the Switch's frame).
+// Yaw is rotation about Z and pitch about X; these signs make right / up positive.
 #define CORE_WII_AIM_YAW_SIGN           (-1.0f)
 #define CORE_WII_AIM_PITCH_SIGN         (-1.0f)
+
+// Gyro bias tracking: once both aim axes have stayed under STILL_DPS for STILL_US, the residual
+// offset is learned with time constant BIAS_TAU_S. DEADBAND_DPS hides what is left.
+#define CORE_WII_AIM_STILL_DPS          2.0f
+#define CORE_WII_AIM_STILL_US           500000
+#define CORE_WII_AIM_BIAS_TAU_S         1.0f
+#define CORE_WII_AIM_DEADBAND_DPS       0.75f
 
 // Right stick nudges the pointer in Nunchuk mode: screen-halves per second at full tilt
 #define CORE_WII_AIM_STICK_SPEED        1.5f
@@ -66,6 +73,9 @@ typedef struct
 {
     float    x;
     float    y;
+    float    bias_yaw_dps;
+    float    bias_pitch_dps;
+    uint32_t still_us;
     uint64_t last_us;
 } core_wii_aim_s;
 
@@ -87,6 +97,42 @@ static inline float _core_wii_stick_norm(uint16_t axis)
     return ((float)axis - 2048.0f) / 2048.0f;
 }
 
+static inline float _core_wii_absf(float v)
+{
+    return (v < 0.0f) ? -v : v;
+}
+
+static inline float _core_wii_deadband(float v, float band)
+{
+    if (_core_wii_absf(v) <= band)
+        return 0.0f;
+    return (v > 0.0f) ? (v - band) : (v + band);
+}
+
+// Learn the gyro's resting offset while the controller is held still, so the pointer does not
+// creep. Deliberate slow aiming never stays under the threshold long enough to be absorbed.
+static void _core_wii_aim_track_bias(float yaw_dps, float pitch_dps, float dt)
+{
+    const bool still = (_core_wii_absf(yaw_dps - _wii_aim.bias_yaw_dps) < CORE_WII_AIM_STILL_DPS) &&
+                       (_core_wii_absf(pitch_dps - _wii_aim.bias_pitch_dps) < CORE_WII_AIM_STILL_DPS);
+
+    if (!still)
+    {
+        _wii_aim.still_us = 0;
+        return;
+    }
+
+    if (_wii_aim.still_us < CORE_WII_AIM_STILL_US)
+    {
+        _wii_aim.still_us += (uint32_t)(dt * 1000000.0f);
+        return;
+    }
+
+    const float k = _core_wii_clampf(dt / CORE_WII_AIM_BIAS_TAU_S, 0.0f, 1.0f);
+    _wii_aim.bias_yaw_dps   += (yaw_dps - _wii_aim.bias_yaw_dps) * k;
+    _wii_aim.bias_pitch_dps += (pitch_dps - _wii_aim.bias_pitch_dps) * k;
+}
+
 // Integrate the gyro into a pointer position. The edges absorb further rotation, so turning
 // back from an edge recentres the cursor naturally.
 static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float stick_y, bool recenter)
@@ -104,8 +150,13 @@ static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float sti
         return;
     }
 
-    const float yaw_dps   = (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_YAW_SIGN;
-    const float pitch_dps = (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_PITCH_SIGN;
+    const float raw_yaw_dps   = (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_YAW_SIGN;
+    const float raw_pitch_dps = (float)imu->gx * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_PITCH_SIGN;
+
+    _core_wii_aim_track_bias(raw_yaw_dps, raw_pitch_dps, dt);
+
+    const float yaw_dps   = _core_wii_deadband(raw_yaw_dps - _wii_aim.bias_yaw_dps, CORE_WII_AIM_DEADBAND_DPS);
+    const float pitch_dps = _core_wii_deadband(raw_pitch_dps - _wii_aim.bias_pitch_dps, CORE_WII_AIM_DEADBAND_DPS);
 
     _wii_aim.x += (yaw_dps * dt) / CORE_WII_AIM_YAW_RANGE_DEG;
     _wii_aim.y += (pitch_dps * dt) / CORE_WII_AIM_PITCH_RANGE_DEG;
@@ -214,10 +265,10 @@ void nwii_api_hook_get_input(nwii_input_s *out)
 
     if (nunchuk_mode)
     {
-        // The gamepad is the Wii Remote: map its IMU frame (+X forward, +Y left, +Z up) onto
-        // the remote's (+X left, +Y forward, +Z up).
-        out->accel_x = _core_wii_mg(imu.ay);
-        out->accel_y = _core_wii_mg(imu.ax);
+        // The gamepad is the Wii Remote. HOJA's IMU frame (+X left, +Y forward, +Z up) already
+        // lines up with the remote's.
+        out->accel_x = _core_wii_mg(imu.ax);
+        out->accel_y = _core_wii_mg(imu.ay);
         out->accel_z = _core_wii_mg(imu.az);
 
         if (input.presses[SWITCH_CODE_R])
