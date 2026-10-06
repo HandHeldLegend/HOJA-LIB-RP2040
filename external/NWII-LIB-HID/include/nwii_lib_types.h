@@ -89,7 +89,7 @@ typedef struct
 typedef struct
 {
     bool a, b, x, y;
-    bool l, r;      ///< Digital L/R (Pro: the shoulder buttons)
+    bool l, r;      ///< Digital L/R click (the original Classic clicks at the end of the analog travel)
     bool zl, zr;
     bool plus, minus, home;
     bool up, down, left, right;
@@ -97,7 +97,7 @@ typedef struct
     uint16_t ls_y;  ///< 0..4095, 2048 centre, + up
     uint16_t rs_x;
     uint16_t rs_y;
-    uint16_t lt;    ///< 0..4095 analog L. The Pro reports full scale while L is held.
+    uint16_t lt;    ///< 0..4095 analog L. Reported as full scale while the L click is held.
     uint16_t rt;    ///< 0..4095 analog R
 } nwii_classic_s;
 

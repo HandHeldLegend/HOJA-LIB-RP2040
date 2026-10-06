@@ -211,8 +211,8 @@ mapper_output_type_t _wii_output_types[WII_CODE_MAX] = {
     MAPPER_OUTPUT_DPAD,
     MAPPER_OUTPUT_DPAD,
     MAPPER_OUTPUT_DPAD,
-    MAPPER_OUTPUT_DIGITAL, // CC L
-    MAPPER_OUTPUT_DIGITAL, // CC R
+    MAPPER_OUTPUT_HOVER, // CC L (analog; clicks at full press)
+    MAPPER_OUTPUT_HOVER, // CC R (analog; clicks at full press)
     MAPPER_OUTPUT_DIGITAL, // CC ZL
     MAPPER_OUTPUT_DIGITAL, // CC ZR
     MAPPER_OUTPUT_DIGITAL, // CC Plus
@@ -275,10 +275,12 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_DOWN]     = WII_CODE_CC_DOWN,
         [SWITCH_CODE_LEFT]     = WII_CODE_CC_LEFT,
         [SWITCH_CODE_RIGHT]    = WII_CODE_CC_RIGHT,
-        [SWITCH_CODE_L]        = WII_CODE_CC_L,
-        [SWITCH_CODE_R]        = WII_CODE_CC_R,
-        [SWITCH_CODE_ZL]       = WII_CODE_CC_ZL,
-        [SWITCH_CODE_ZR]       = WII_CODE_CC_ZR,
+        // Original Classic Controller layout: the analog L/R triggers sit on top and ZL/ZR are
+        // the inner buttons, so the gamepad's triggers drive L/R and its bumpers ZL/ZR.
+        [SWITCH_CODE_L]        = WII_CODE_CC_ZL,
+        [SWITCH_CODE_R]        = WII_CODE_CC_ZR,
+        [SWITCH_CODE_ZL]       = WII_CODE_CC_L,
+        [SWITCH_CODE_ZR]       = WII_CODE_CC_R,
         [SWITCH_CODE_PLUS]     = WII_CODE_CC_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_CC_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_CC_HOME,
@@ -295,12 +297,13 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_RY_DOWN]  = WII_CODE_CC_RY_DOWN,
     },
     // Remote held sideways with the d-pad on the left: the d-pad and left stick are rotated so
-    // pressing right moves right on screen, and B / Y land on 2 / 1.
+    // pressing right moves right on screen, and 1 / 2 land on B / A, matching their left / right
+    // positions on a sideways remote.
     [WII_PROFILE_SIDEWAYS] = {
-        [SWITCH_CODE_A]        = WII_CODE_A,
-        [SWITCH_CODE_B]        = WII_CODE_TWO,
-        [SWITCH_CODE_X]        = WII_CODE_B,
-        [SWITCH_CODE_Y]        = WII_CODE_ONE,
+        [SWITCH_CODE_A]        = WII_CODE_TWO,
+        [SWITCH_CODE_B]        = WII_CODE_ONE,
+        [SWITCH_CODE_X]        = WII_CODE_A,
+        [SWITCH_CODE_Y]        = WII_CODE_B,
         [SWITCH_CODE_UP]       = WII_CODE_RIGHT,
         [SWITCH_CODE_DOWN]     = WII_CODE_LEFT,
         [SWITCH_CODE_LEFT]     = WII_CODE_UP,

@@ -57,6 +57,9 @@
 #define CORE_WII_SHAKE_MG               3000
 #define CORE_WII_SHAKE_HALF_PERIOD_US   32000
 
+// Analog trigger level (0..4095) where the Classic Controller's L/R click
+#define CORE_WII_TRIGGER_CLICK          3900
+
 // A power button press shorter than this toggles the extension. Holding it longer is left to
 // the shutdown macro.
 #define CORE_WII_POWER_TAP_US           800000
@@ -189,7 +192,7 @@ static bool _core_wii_code_pressed(const mapper_input_s *input, mapper_input_cod
 typedef enum
 {
     CORE_WII_MODE_NUNCHUK,  // Wii Remote + Nunchuk
-    CORE_WII_MODE_CLASSIC,  // Wii Remote + Classic Controller Pro
+    CORE_WII_MODE_CLASSIC,  // Wii Remote + Classic Controller
     CORE_WII_MODE_SIDEWAYS, // Wii Remote alone, held sideways
     CORE_WII_MODE_MAX,
 } core_wii_mode_t;
@@ -200,7 +203,8 @@ static void _core_wii_set_mode(core_wii_mode_t mode)
 {
     static const nwii_extension_t extensions[CORE_WII_MODE_MAX] = {
         [CORE_WII_MODE_NUNCHUK]  = NWII_EXTENSION_NUNCHUK,
-        [CORE_WII_MODE_CLASSIC]  = NWII_EXTENSION_CLASSIC_PRO,
+        // The original Classic Controller: same buttons as the Pro, plus analog L/R triggers
+        [CORE_WII_MODE_CLASSIC]  = NWII_EXTENSION_CLASSIC,
         [CORE_WII_MODE_SIDEWAYS] = NWII_EXTENSION_NONE,
     };
     static const mapper_wii_profile_t profiles[CORE_WII_MODE_MAX] = {
@@ -215,7 +219,7 @@ static void _core_wii_set_mode(core_wii_mode_t mode)
 }
 
 // The board's power button is whatever its ship-mode macro holds. A short tap cycles
-// Nunchuk -> Classic Controller Pro -> Sideways.
+// Nunchuk -> Classic Controller -> Sideways.
 static void _core_wii_power_tap_task(void)
 {
     static bool armed = false;
@@ -358,8 +362,11 @@ void nwii_api_hook_get_input(nwii_input_s *out)
         out->classic.b     = p[WII_CODE_CC_B];
         out->classic.x     = p[WII_CODE_CC_X];
         out->classic.y     = p[WII_CODE_CC_Y];
-        out->classic.l     = p[WII_CODE_CC_L];
-        out->classic.r     = p[WII_CODE_CC_R];
+        // L/R are analog; like the original Classic Controller they click at the end of travel
+        out->classic.lt    = (input.inputs[WII_CODE_CC_L] > 4095u) ? 4095u : input.inputs[WII_CODE_CC_L];
+        out->classic.rt    = (input.inputs[WII_CODE_CC_R] > 4095u) ? 4095u : input.inputs[WII_CODE_CC_R];
+        out->classic.l     = out->classic.lt >= CORE_WII_TRIGGER_CLICK;
+        out->classic.r     = out->classic.rt >= CORE_WII_TRIGGER_CLICK;
         out->classic.zl    = p[WII_CODE_CC_ZL];
         out->classic.zr    = p[WII_CODE_CC_ZR];
         out->classic.plus  = p[WII_CODE_CC_PLUS];
@@ -474,6 +481,9 @@ bool core_wii_init(core_params_s *params)
     params->core_report_format    = CORE_REPORTFORMAT_WII;
     params->core_report_generator = _core_wii_get_generated_report;
     params->core_report_tunnel    = nwii_api_output_tunnel;
+    // The Wii reloads its system software when a title starts, drops the link and then
+    // re-initializes the remote from scratch once it reconnects
+    params->core_connected        = nwii_api_connection_reset;
 
     if ((imu_driver_channel_count() >= 1) && (imu_config->imu_disabled != 1))
     {

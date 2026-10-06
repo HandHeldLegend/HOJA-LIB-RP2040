@@ -37,7 +37,7 @@ typedef enum
 
 // The Wii profiles live in space that used to be reserved, so they get their own version byte
 // instead of bumping CFG_BLOCK_INPUT_VERSION (which would reset every other profile).
-#define CFG_INPUT_WII_PROFILE_VERSION 0x01
+#define CFG_INPUT_WII_PROFILE_VERSION 0x02
 
 #define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 

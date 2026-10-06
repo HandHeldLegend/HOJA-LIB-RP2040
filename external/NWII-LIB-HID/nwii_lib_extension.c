@@ -176,8 +176,8 @@ static void _nwii_encode_classic(const nwii_classic_s *c, uint8_t out[NWII_EXTEN
     const uint8_t rx = _nwii_scale_axis(c->rs_x, NWII_CLASSIC_RS_CENTER, NWII_CLASSIC_RS_RANGE, 31);
     const uint8_t ry = _nwii_scale_axis(c->rs_y, NWII_CLASSIC_RS_CENTER, NWII_CLASSIC_RS_RANGE, 31);
 
-    uint8_t lt = (uint8_t)(c->lt >> 7);
-    uint8_t rt = (uint8_t)(c->rt >> 7);
+    uint8_t lt = (uint8_t)(((c->lt > 4095u) ? 4095u : c->lt) >> 7);
+    uint8_t rt = (uint8_t)(((c->rt > 4095u) ? 4095u : c->rt) >> 7);
     if (c->l) lt = NWII_CLASSIC_TRIGGER_MAX;
     if (c->r) rt = NWII_CLASSIC_TRIGGER_MAX;
 

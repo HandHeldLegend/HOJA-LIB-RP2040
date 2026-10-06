@@ -35,6 +35,7 @@ typedef void (*core_report_tunnel_t)(const uint8_t *data, uint16_t len);
 typedef void (*core_transport_task_t)(uint64_t timestamp);
 typedef void (*core_task_t)(uint64_t timestamp);
 typedef void (*core_transport_stop_t)(void);
+typedef void (*core_connected_t)(void);
 typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
@@ -54,6 +55,7 @@ typedef struct
     core_generate_report_t  core_report_generator; // Get generated report data from this
     core_report_tunnel_t    core_report_tunnel;    // Where incoming OUTPUT reports should be sent
     core_transport_stop_t   core_transport_stop;   // Optional teardown hook (e.g. disconnect events)
+    core_connected_t        core_connected;        // Optional: called when a wireless host (re)connects
     const core_hid_device_t*      hid_device; // HID device info
     uint16_t                core_boot_flags; // See COREBOOT_FLAG_ types
 } core_params_s;

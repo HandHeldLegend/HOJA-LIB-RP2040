@@ -40,6 +40,10 @@
 // Wii until it answers (it may still be booting).
 #define BT_HAL_WII_RECONNECT_MS 2000
 
+// When a title starts the Wii reloads its system software and every link drops. Real remotes
+// reconnect on their own, so after a lost link keep paging for this long before powering off.
+#define BT_HAL_WII_LINK_LOST_WINDOW_MS 30000
+
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
 
@@ -58,6 +62,7 @@ static uint32_t hid_report_interval_ms = BT_HAL_TARGET_POLLING_RATE_MS;
 
 static btstack_timer_source_t wii_reconnect_timer;
 static bool wii_reconnect_timer_active = false;
+static uint32_t wii_link_lost_deadline_ms = 0; // 0 while connected or before the first link
 
 typedef struct
 {
@@ -269,6 +274,15 @@ static void _bt_hal_wii_reconnect_timer_stop(void)
     wii_reconnect_timer_active = false;
 }
 
+static void _bt_hal_shutdown(void)
+{
+    tp_evt_s pevt = {
+        .evt = TP_EVT_POWERCOMMAND,
+        .evt_powercommand = {.power_command=TP_POWERCOMMAND_SHUTDOWN}
+    };
+    transport_evt_cb(pevt);
+}
+
 static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 {
     (void)ts;
@@ -276,6 +290,15 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 
     if (hid_cid || _connected)
     {
+        return;
+    }
+
+    if (wii_link_lost_deadline_ms &&
+        (int32_t)(btstack_run_loop_get_time_ms() - wii_link_lost_deadline_ms) >= 0)
+    {
+        // The Wii never came back
+        wii_link_lost_deadline_ms = 0;
+        _bt_hal_shutdown();
         return;
     }
 
@@ -377,6 +400,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     }
                     break;
                 }
+            }
+            break;
+
+        case HCI_EVENT_DISCONNECTION_COMPLETE:
+            // A Wii that is powering off says so; follow it instead of trying to reconnect
+            if (_bt_hal_is_wii() &&
+                hci_event_disconnection_complete_get_reason(packet) ==
+                    ERROR_CODE_REMOTE_DEVICE_TERMINATED_CONNECTION_DUE_TO_POWER_OFF)
+            {
+                _bt_hal_wii_reconnect_timer_stop();
+                wii_link_lost_deadline_ms = 0;
+                _bt_hal_shutdown();
             }
             break;
 
@@ -483,6 +518,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 }
 
                 printf("HID Connected\n");
+                wii_link_lost_deadline_ms = 0;
+                if (core_current_params()->core_connected)
+                {
+                    core_current_params()->core_connected();
+                }
                 _connected = true;
                 _bt_hal_hid_report_timer_start();
 
@@ -494,11 +534,17 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _connected = false;
                 _hidreportclear = false;
                 hid_cid = 0;
-                tp_evt_s pevt = {
-                    .evt = TP_EVT_POWERCOMMAND,
-                    .evt_powercommand = {.power_command=TP_POWERCOMMAND_SHUTDOWN}
-                };
-                transport_evt_cb(pevt);
+
+                if (_bt_hal_is_wii() && _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
+                {
+                    // Likely a title launch; reconnect unless the Wii says it is powering off
+                    // (handled in HCI_EVENT_DISCONNECTION_COMPLETE)
+                    wii_link_lost_deadline_ms = btstack_run_loop_get_time_ms() + BT_HAL_WII_LINK_LOST_WINDOW_MS;
+                    _bt_hal_wii_reconnect_timer_start();
+                    break;
+                }
+
+                _bt_hal_shutdown();
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
                 if (hid_cid)

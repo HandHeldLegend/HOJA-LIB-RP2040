@@ -15,7 +15,7 @@ short tap of the power button cycles them:
 | Mode | What the Wii sees | Input profile |
 | --- | --- | --- |
 | Nunchuk | Wii Remote + Nunchuk | Wii Nunchuk profile |
-| Classic Pro | Wii Remote + Classic Controller Pro | Wii Classic profile |
+| Classic | Wii Remote + Classic Controller (analog L/R) | Wii Classic profile |
 | Sideways | Wii Remote alone, held sideways | Wii Sideways profile |
 
 In every mode the IR pointer follows the gyro, can be nudged by whatever is mapped to the pointer
@@ -69,7 +69,7 @@ tail are now the Wii profiles. Each profile is 36 slots of `inputConfigSlot_s` (
 | **1081** | 180 | **`input_profile_wii_nunchuk`** (was `input_profile_reserved_2`) |
 | **1261** | 180 | **`input_profile_wii_classic`** |
 | **1441** | 180 | **`input_profile_wii_sideways`** |
-| **1621** | 1 | **`wii_profile_version`** (0x01 once the firmware filled the Wii defaults) |
+| **1621** | 1 | **`wii_profile_version`** (0x02 once the firmware filled the Wii defaults) |
 | 1622 | 426 | `reserved` |
 
 Slot layout (unchanged): `uint16 output_mode:3, static_output:13; uint16 threshold_delta;
@@ -110,8 +110,8 @@ exactly as for other profiles.
 | 22 | `WII_CODE_CC_DOWN` | Classic Down | D-pad | Classic |
 | 23 | `WII_CODE_CC_LEFT` | Classic Left | D-pad | Classic |
 | 24 | `WII_CODE_CC_RIGHT` | Classic Right | D-pad | Classic |
-| 25 | `WII_CODE_CC_L` | Classic L | Digital | Classic |
-| 26 | `WII_CODE_CC_R` | Classic R | Digital | Classic |
+| 25 | `WII_CODE_CC_L` | Classic L (analog, clicks at full press) | Hover | Classic |
+| 26 | `WII_CODE_CC_R` | Classic R (analog, clicks at full press) | Hover | Classic |
 | 27 | `WII_CODE_CC_ZL` | Classic ZL | Digital | Classic |
 | 28 | `WII_CODE_CC_ZR` | Classic ZR | Digital | Classic |
 | 29 | `WII_CODE_CC_PLUS` | Classic + | Digital | Classic |
@@ -138,7 +138,7 @@ accepts any code in any Wii profile (for example Remote A in the Classic profile
 the Wii Remote's A, which helps in the Wii Menu).
 
 Suggested groups in the picker: **Wii Remote** (0–10), **Nunchuk** (11–16, 46),
-**Classic Controller Pro** (17–39), **Pointer & Motion** (40–45).
+**Classic Controller** (17–39), **Pointer & Motion** (40–45).
 
 ## 6. Mapper commands (`mapper_cmd_t`)
 
@@ -164,15 +164,15 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 
 | Switch button | Nunchuk profile | Classic profile | Sideways profile |
 | --- | --- | --- | --- |
-| A | Remote A | Classic A | Remote A |
-| B | Remote B | Classic B | Remote 2 |
-| X | Remote 2 | Classic X | Remote B |
-| Y | Remote 1 | Classic Y | Remote 1 |
+| A | Remote A | Classic A | Remote 2 |
+| B | Remote B | Classic B | Remote 1 |
+| X | Remote 2 | Classic X | Remote A |
+| Y | Remote 1 | Classic Y | Remote B |
 | D-pad | Remote D-pad | Classic D-pad | Remote D-pad rotated (Up→Right, Down→Left, Left→Up, Right→Down) |
-| L | Nunchuk C | Classic L | Remote A |
-| R | Shake Remote | Classic R | Shake Remote |
-| ZL | Nunchuk Z | Classic ZL | Remote B |
-| ZR | Remote B | Classic ZR | Shake Remote |
+| L | Nunchuk C | Classic ZL | Remote A |
+| R | Shake Remote | Classic ZR | Shake Remote |
+| ZL (analog trigger) | Nunchuk Z | Classic L (analog) | Remote B |
+| ZR (analog trigger) | Remote B | Classic R (analog) | Shake Remote |
 | + / − / Home | Remote + / − / Home | Classic + / − / Home | Remote + / − / Home |
 | Capture | Pointer Recenter | Pointer Recenter | Pointer Recenter |
 | LS click | Shake Nunchuk | — | — |
@@ -182,9 +182,11 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 
 ## 8. Suggested UI
 
-- Under remapping, add a **Wii** section with three tabs: "Remote + Nunchuk", "Classic Pro" and
+- Under remapping, add a **Wii** section with three tabs: "Remote + Nunchuk", "Classic" and
   "Sideways Remote", each editing its profile above. Hide it when `wii_supported` is 0.
-- Add Wii to the boot-mode help text: d-pad up = Wii; power tap cycles Nunchuk → Classic Pro →
+- Add Wii to the boot-mode help text: d-pad up = Wii; power tap cycles Nunchuk → Classic →
   Sideways (LED flashes white / blue / yellow); pair by pressing SYNC on the Wii.
+- Classic L/R are analog outputs (like GameCube L/R analog): analog inputs pass through and digital
+  inputs send their static output value. The Wii sees the L/R click once the value passes ~95%.
 - Note in the Wii tabs that the gyro always drives the pointer, and that the gyro sensitivity
   setting in the IMU section scales it.

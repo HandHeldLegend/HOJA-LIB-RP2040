@@ -27,7 +27,7 @@ Configure the local controller before powering it on:
 | --- | --- |
 | Device name | `nwii_hid_get_device_name()` → `"Nintendo RVL-CNT-01"` |
 | Class of device | `NWII_HID_CLASS_OF_DEVICE` (0x002504) |
-| Inquiry access codes | **limited (`NWII_HID_INQUIRY_ACCESS_CODE`, 0x9E8B00) and general** � the Wii's SYNC search only uses the limited code, so a device answering just the general one is never found |
+| Inquiry access codes | **limited (`NWII_HID_INQUIRY_ACCESS_CODE`, 0x9E8B00) and general** — the Wii's SYNC search only uses the limited code, so a device answering just the general one is never found |
 | Secure Simple Pairing | **disabled** — the Wii only does legacy PIN pairing |
 | L2CAP security level | none (`LEVEL_0`) — the Wii authenticates when it wants to; requesting it yourself breaks temporary (1+2 style) connections |
 | Bondable | yes, so the link key from SYNC pairing is stored |
@@ -82,6 +82,12 @@ address for reconnecting.
 and interrupt channels to the saved address (`hid_device_connect` in BTstack). The Wii accepts
 remotes it knows; if it authenticates, the stored link key answers it. Retry periodically if the
 Wii is not up yet.
+
+**After a title launch:** starting a game reloads the Wii's system software, which drops every
+link without a power-off notice. Real remotes reconnect by themselves, so when the link drops,
+page the saved Wii again (and call `nwii_api_connection_reset()` when it reopens). Only power off
+when the disconnect reason is "remote device terminated connection due to power off" (0x15),
+which is what a Wii sends when it shuts down.
 
 The Wii also accepts temporary connections from any discoverable remote while it is running, which
 is useful for testing before a permanent SYNC.
