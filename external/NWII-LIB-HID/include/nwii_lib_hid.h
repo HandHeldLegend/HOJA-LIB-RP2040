@@ -30,6 +30,14 @@ extern "C" {
 /** @brief Class of device advertised by a Wii Remote (peripheral, joystick). */
 #define NWII_HID_CLASS_OF_DEVICE        0x002504u
 
+/**
+ * @brief Inquiry access code to listen on (in addition to the general one).
+ *
+ * The Wii's SYNC search uses the Limited Inquiry Access Code (LIAC), so a device that only answers
+ * the general code is never found. Program both with HCI Write Current IAC LAP.
+ */
+#define NWII_HID_INQUIRY_ACCESS_CODE    0x9E8B00u
+
 /** @brief Vendor and product id of the RVL-CNT-01. */
 #define NWII_HID_VID                    0x057Eu
 #define NWII_HID_PID                    0x0306u

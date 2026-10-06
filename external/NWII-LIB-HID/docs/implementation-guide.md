@@ -27,6 +27,7 @@ Configure the local controller before powering it on:
 | --- | --- |
 | Device name | `nwii_hid_get_device_name()` → `"Nintendo RVL-CNT-01"` |
 | Class of device | `NWII_HID_CLASS_OF_DEVICE` (0x002504) |
+| Inquiry access codes | **limited (`NWII_HID_INQUIRY_ACCESS_CODE`, 0x9E8B00) and general** � the Wii's SYNC search only uses the limited code, so a device answering just the general one is never found |
 | Secure Simple Pairing | **disabled** — the Wii only does legacy PIN pairing |
 | L2CAP security level | none (`LEVEL_0`) — the Wii authenticates when it wants to; requesting it yourself breaks temporary (1+2 style) connections |
 | Bondable | yes, so the link key from SYNC pairing is stored |
@@ -42,6 +43,10 @@ gap_set_security_level(LEVEL_0);
 gap_set_bondable_mode(1);
 gap_set_class_of_device(NWII_HID_CLASS_OF_DEVICE);
 gap_set_local_name(nwii_hid_get_device_name());
+
+// Once HCI is working (BTSTACK_EVENT_STATE), and the controller can take a command:
+hci_send_cmd(&hci_write_current_iac_lap_two_iacs, 2,
+             NWII_HID_INQUIRY_ACCESS_CODE, GAP_IAC_GENERAL_INQUIRY);
 
 const uint8_t *record;
 nwii_hid_get_sdp_record(&record, NULL);

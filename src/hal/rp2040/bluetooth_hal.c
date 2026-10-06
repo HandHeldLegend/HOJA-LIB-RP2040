@@ -239,6 +239,22 @@ static bool _bt_hal_is_wii(void)
     return core_current_reportformat() == CORE_REPORTFORMAT_WII;
 }
 
+// The Wii's SYNC search only finds devices listening on the Limited Inquiry Access Code, so in
+// Wii mode answer both it and the general code. Sent as soon as the controller can take a
+// command, since BTstack has no GAP call for two IACs.
+static bool _bt_hal_wii_iac_pending = true;
+
+static void _bt_hal_wii_iac_task(void)
+{
+    if (!_bt_hal_wii_iac_pending || !_bt_hal_is_wii() || !hci_can_send_command_packet_now())
+    {
+        return;
+    }
+
+    _bt_hal_wii_iac_pending = false;
+    hci_send_cmd(&hci_write_current_iac_lap_two_iacs, 2, NWII_HID_INQUIRY_ACCESS_CODE, GAP_IAC_GENERAL_INQUIRY);
+}
+
 static void _bt_hal_wii_reconnect_timer_stop(void)
 {
     if (!wii_reconnect_timer_active)
@@ -285,6 +301,8 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         case BTSTACK_EVENT_STATE:
             if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING)
                 return;
+
+            _bt_hal_wii_iac_task();
 
             if(hid_cid) return;
 
@@ -356,6 +374,15 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     }
                     break;
                 }
+            }
+            break;
+
+        case HCI_EVENT_COMMAND_COMPLETE:
+        case HCI_EVENT_COMMAND_STATUS:
+            // Retry the Wii IAC write if the controller was busy when BTstack came up
+            if (hci_get_state() == HCI_STATE_WORKING)
+            {
+                _bt_hal_wii_iac_task();
             }
             break;
 
