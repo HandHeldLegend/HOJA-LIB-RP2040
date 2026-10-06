@@ -12,9 +12,6 @@
 #define PCM_RAW_QUEUE_SIZE 1024 // Adjust size as needed
 
 #define PCM_BUFFER_SIZE         64
-#define PCM_SAMPLES_PER_PAIR    62
-#define PCM_SAMPLE_CHUNK_3      (PCM_SAMPLES_PER_PAIR / 3)
-#define PCM_SAMPLE_CHUNK_2      (PCM_SAMPLES_PER_PAIR / 2)
 
 #define PCM_WRAP_VAL            4096
 #define PCM_WRAP_HALF_VAL       (PCM_WRAP_VAL / 2)
@@ -55,6 +52,8 @@ void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out);
 int16_t pcm_raw_queue_count();
 int16_t pcm_raw_queue_push(int16_t *data, uint16_t len);
 
+// Standard rumble (Xbox / Sinput / Switch non-HD). On LRA boards this is a
+// dual-sine motor sim. Do not send this through pcm_amfm_push.
 void pcm_erm_set(uint8_t intensity, bool brake);
 
 // PCM UTILITIES FOR EASIER USE
@@ -69,7 +68,12 @@ void pcm_init(int intensity);
 void pcm_play_bump(bool arg_right, bool arg_left);
 
 void pcm_send_pulse();
+// Switch HD rumble AM/FM pairs, queued and played as OEM-timed grains.
+// Cancels any in-flight ERM simulation so the pair ring owns the LRA.
 bool pcm_amfm_push(haptic_packet_s *packet);
+// SInput HD haptics: the latest pair plays until replaced, without the Switch
+// ring's queueing or hold. Cancels any in-flight ERM simulation.
+void pcm_direct_set(const haptic_processed_s *pair);
 void pcm_generate_buffer(uint32_t *buffer);
 
 #endif

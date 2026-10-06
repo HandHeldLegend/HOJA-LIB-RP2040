@@ -264,51 +264,76 @@ bool lra_hal_init(uint8_t intensity)
     return true;
 }
 
-// Get which half of the buffer is safe to write to
-bool get_inactive_buffer_half() 
+// True while DMA is playing the first half, so the second half is free to
+// write. Reads dma_trigger_l's countdown (REPETITION_RATE PWM wraps per sample
+// across the whole ring) rather than dma_sample's read address, which can sit
+// on the ring boundary and hide a flip.
+static bool get_inactive_buffer_half(void)
 {
-    // Get current DMA read address
-    uint32_t current_trans_count = (dma_hw->ch[dma_trigger_l].transfer_count>>1);
-
-    // If DMA is reading from first half, return pointer to second half
-    if (current_trans_count >= PCM_BUFFER_SIZE) {
-        return true;
-    } else {
-        return false;
-    }
+    uint32_t remaining = dma_hw->ch[dma_trigger_l].transfer_count;
+    uint32_t half_wraps = (uint32_t)REPETITION_RATE * (uint32_t)PCM_BUFFER_SIZE;
+    return remaining > half_wraps;
 }
 
-volatile bool _erm_simulation_enabled = false;
+// Each half-buffer plays for 8 ms. The DMA position is only sampled when this
+// task runs, so a task late by two periods sees the same half free again and
+// would leave it replaying stale samples. If no flip is seen for a little over
+// one period, refill the free half anyway.
+#define LRA_HALF_BUFFER_US  ((PCM_BUFFER_SIZE * 1000000u) / PCM_SAMPLE_RATE)
+#define LRA_MISSED_FLIP_US  (LRA_HALF_BUFFER_US + 1000u)
+
+static void _lra_fill_half(bool second_half, const uint32_t *samples)
+{
+    memcpy(&audio_buffer[second_half ? PCM_BUFFER_SIZE : 0], samples, PCM_BUFFER_SIZE * sizeof(uint32_t));
+}
+
 void lra_hal_task(uint64_t timestamp)
 {
+    static bool started = false;
     static bool inactive_half = true;
+    static uint64_t last_flip_us = 0;
+    // The next half-buffer, rendered ahead so a flip only costs a memcpy
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
 
-    bool inactive_this = get_inactive_buffer_half();
+    if (!started)
+    {
+        // Fill both halves and render one ahead before tracking flips
+        started = true;
+        last_flip_us = timestamp;
+        pcm_generate_buffer(buffered);
+        _lra_fill_half(false, buffered);
+        pcm_generate_buffer(buffered);
+        _lra_fill_half(true, buffered);
+        pcm_generate_buffer(buffered);
+        inactive_half = get_inactive_buffer_half();
+        return;
+    }
 
-    if(inactive_this != inactive_half)
+    bool inactive_this = get_inactive_buffer_half();
+    bool flipped = (inactive_this != inactive_half);
+
+    if (!flipped && ((timestamp - last_flip_us) > LRA_MISSED_FLIP_US))
+    {
+        flipped = true;
+    }
+
+    if (flipped)
     {
         inactive_half = inactive_this;
-
-        if(inactive_half)
-            memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
-            
-        else 
-            memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE*sizeof(uint32_t));
-
+        last_flip_us = timestamp;
+        _lra_fill_half(inactive_half, buffered);
         pcm_generate_buffer(buffered);
     }
 }
 
 void lra_hal_push_amfm(haptic_packet_s *packet)
 {
-    _erm_simulation_enabled = false; // Unset our ERM simulation mode
     pcm_amfm_push(packet);
 }
 
 void lra_hal_set_standard(uint8_t intensity, bool brake)
 {
-    pcm_erm_set(intensity, brake); // Set ERM state with brake off
+    pcm_erm_set(intensity, brake);
 }
 
 #endif // HOJA_HAPTICS_DRIVER == HAPTICS_DRIVER_LRA_HAL

@@ -107,4 +107,15 @@ static inline bool hoja_fifo_##name##_pop(hoja_fifo_##name##_t *f, type *dst)  \
     memcpy(dst, &f->buf[h & ((len) - 1u)], sizeof(type));                      \
     atomic_store_explicit(&f->head, h + 1u, memory_order_release);             \
     return true;                                                               \
+}                                                                              \
+                                                                               \
+/* Queued element count, callable from either side. Head is read first so      \
+ * the result never goes negative; a push and pop racing the read can make     \
+ * it overshoot len, so callers that care should clamp. */                     \
+static inline unsigned int                                                     \
+hoja_fifo_##name##_count(const hoja_fifo_##name##_t *f)                        \
+{                                                                              \
+    unsigned int h = atomic_load_explicit(&f->head, memory_order_acquire);     \
+    unsigned int t = atomic_load_explicit(&f->tail, memory_order_acquire);     \
+    return (unsigned int)(t - h);                                              \
 }

@@ -57,20 +57,20 @@ void sinput_api_hook_set_rumble(sinput_stereo_rumble_s rumble)
 
 void sinput_api_hook_set_haptics(sinput_stereo_haptics_s haptics)
 {
-    haptic_packet_s packet = {0};
+    haptic_processed_s pair = {0};
     float a1_base = (float) (haptics.left.amplitude_1 > haptics.right.amplitude_1 ? haptics.left.amplitude_1 : haptics.right.amplitude_1);
     float a2_base = (float) (haptics.left.amplitude_2 > haptics.right.amplitude_2 ? haptics.left.amplitude_2 : haptics.right.amplitude_2);
 
     float amp_1 = a1_base > 0 ? (float) a1_base / (float) UINT16_MAX : 0;
     float amp_2 = a2_base > 0 ? (float) a2_base / (float) UINT16_MAX : 0;
 
-    packet.count = 1;
-    packet.pairs[0].hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
-    packet.pairs[0].lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
-    packet.pairs[0].hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptics.left.frequency_1);
-    packet.pairs[0].lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptics.left.frequency_2);
+    pair.hi_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_1);
+    pair.lo_amplitude_fixed = pcm_amplitude_to_fixedpoint(amp_2);
+    pair.hi_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptics.left.frequency_1);
+    pair.lo_frequency_increment = pcm_frequency_to_fixedpoint_increment((float) haptics.left.frequency_2);
 
-    pcm_amfm_push(&packet);
+    // SInput sends the state to hold, not a stream of grains
+    pcm_direct_set(&pair);
 }
 
 void sinput_api_hook_set_player_leds(uint8_t player_number)

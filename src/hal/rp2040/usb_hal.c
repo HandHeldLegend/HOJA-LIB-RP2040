@@ -25,7 +25,7 @@
 #if defined(HOJA_WEBUSB_URL)
 #define USB_WEBUSB_URL HOJA_WEBUSB_URL
 #else
-#define USB_WEBUSB_URL "handheldlegend.github.io/hoja2"
+#define USB_WEBUSB_URL "handheldlegend.github.io/hoja3"
 #endif
 
 core_params_s *_usb_core_params = NULL;

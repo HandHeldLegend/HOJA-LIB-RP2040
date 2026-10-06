@@ -70,7 +70,6 @@ typedef struct
 {
     haptic_processed_s pairs[3];
     uint8_t count;
-    uint64_t counter; 
 } haptic_packet_s;
 
 typedef union
