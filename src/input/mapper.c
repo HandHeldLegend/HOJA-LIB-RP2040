@@ -185,7 +185,162 @@ mapper_output_type_t _sinput_output_types[SINPUT_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // MISC6
 };
 
-typedef enum 
+mapper_output_type_t _wii_output_types[WII_CODE_MAX] = {
+    MAPPER_OUTPUT_DIGITAL, // A
+    MAPPER_OUTPUT_DIGITAL, // B
+    MAPPER_OUTPUT_DIGITAL, // 1
+    MAPPER_OUTPUT_DIGITAL, // 2
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DIGITAL, // Plus
+    MAPPER_OUTPUT_DIGITAL, // Minus
+    MAPPER_OUTPUT_DIGITAL, // Home
+    MAPPER_OUTPUT_DIGITAL, // C
+    MAPPER_OUTPUT_DIGITAL, // Z
+    MAPPER_OUTPUT_JOYSTICK, // Nunchuk stick
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_DIGITAL, // CC A
+    MAPPER_OUTPUT_DIGITAL, // CC B
+    MAPPER_OUTPUT_DIGITAL, // CC X
+    MAPPER_OUTPUT_DIGITAL, // CC Y
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DPAD,
+    MAPPER_OUTPUT_DIGITAL, // CC L
+    MAPPER_OUTPUT_DIGITAL, // CC R
+    MAPPER_OUTPUT_DIGITAL, // CC ZL
+    MAPPER_OUTPUT_DIGITAL, // CC ZR
+    MAPPER_OUTPUT_DIGITAL, // CC Plus
+    MAPPER_OUTPUT_DIGITAL, // CC Minus
+    MAPPER_OUTPUT_DIGITAL, // CC Home
+    MAPPER_OUTPUT_JOYSTICK, // CC left stick
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK, // CC right stick
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK, // Pointer (stick aim)
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_DIGITAL, // Pointer recenter
+    MAPPER_OUTPUT_DIGITAL, // Shake (remote)
+    MAPPER_OUTPUT_DIGITAL, // Shake (nunchuk)
+};
+
+// Wii profile defaults are derived from the board's Switch defaults, so every board gets a
+// sensible layout without listing Wii maps in main.c. Indexed by SWITCH_CODE_*.
+static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] = {
+    [WII_PROFILE_NUNCHUK] = {
+        [SWITCH_CODE_A]        = WII_CODE_A,
+        [SWITCH_CODE_B]        = WII_CODE_B,
+        [SWITCH_CODE_X]        = WII_CODE_TWO,
+        [SWITCH_CODE_Y]        = WII_CODE_ONE,
+        [SWITCH_CODE_UP]       = WII_CODE_UP,
+        [SWITCH_CODE_DOWN]     = WII_CODE_DOWN,
+        [SWITCH_CODE_LEFT]     = WII_CODE_LEFT,
+        [SWITCH_CODE_RIGHT]    = WII_CODE_RIGHT,
+        [SWITCH_CODE_L]        = WII_CODE_C,
+        [SWITCH_CODE_R]        = WII_CODE_SHAKE,
+        [SWITCH_CODE_ZL]       = WII_CODE_Z,
+        [SWITCH_CODE_ZR]       = WII_CODE_B,
+        [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
+        [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
+        [SWITCH_CODE_HOME]     = WII_CODE_HOME,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LS]       = WII_CODE_NUNCHUK_SHAKE,
+        [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LX_RIGHT] = WII_CODE_NUNCHUK_X_RIGHT,
+        [SWITCH_CODE_LX_LEFT]  = WII_CODE_NUNCHUK_X_LEFT,
+        [SWITCH_CODE_LY_UP]    = WII_CODE_NUNCHUK_Y_UP,
+        [SWITCH_CODE_LY_DOWN]  = WII_CODE_NUNCHUK_Y_DOWN,
+        [SWITCH_CODE_RX_RIGHT] = WII_CODE_POINTER_RIGHT,
+        [SWITCH_CODE_RX_LEFT]  = WII_CODE_POINTER_LEFT,
+        [SWITCH_CODE_RY_UP]    = WII_CODE_POINTER_UP,
+        [SWITCH_CODE_RY_DOWN]  = WII_CODE_POINTER_DOWN,
+    },
+    [WII_PROFILE_CLASSIC] = {
+        [SWITCH_CODE_A]        = WII_CODE_CC_A,
+        [SWITCH_CODE_B]        = WII_CODE_CC_B,
+        [SWITCH_CODE_X]        = WII_CODE_CC_X,
+        [SWITCH_CODE_Y]        = WII_CODE_CC_Y,
+        [SWITCH_CODE_UP]       = WII_CODE_CC_UP,
+        [SWITCH_CODE_DOWN]     = WII_CODE_CC_DOWN,
+        [SWITCH_CODE_LEFT]     = WII_CODE_CC_LEFT,
+        [SWITCH_CODE_RIGHT]    = WII_CODE_CC_RIGHT,
+        [SWITCH_CODE_L]        = WII_CODE_CC_L,
+        [SWITCH_CODE_R]        = WII_CODE_CC_R,
+        [SWITCH_CODE_ZL]       = WII_CODE_CC_ZL,
+        [SWITCH_CODE_ZR]       = WII_CODE_CC_ZR,
+        [SWITCH_CODE_PLUS]     = WII_CODE_CC_PLUS,
+        [SWITCH_CODE_MINUS]    = WII_CODE_CC_MINUS,
+        [SWITCH_CODE_HOME]     = WII_CODE_CC_HOME,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LS]       = WII_CODE_UNUSED,
+        [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LX_RIGHT] = WII_CODE_CC_LX_RIGHT,
+        [SWITCH_CODE_LX_LEFT]  = WII_CODE_CC_LX_LEFT,
+        [SWITCH_CODE_LY_UP]    = WII_CODE_CC_LY_UP,
+        [SWITCH_CODE_LY_DOWN]  = WII_CODE_CC_LY_DOWN,
+        [SWITCH_CODE_RX_RIGHT] = WII_CODE_CC_RX_RIGHT,
+        [SWITCH_CODE_RX_LEFT]  = WII_CODE_CC_RX_LEFT,
+        [SWITCH_CODE_RY_UP]    = WII_CODE_CC_RY_UP,
+        [SWITCH_CODE_RY_DOWN]  = WII_CODE_CC_RY_DOWN,
+    },
+    // Remote held sideways with the d-pad on the left: the d-pad and left stick are rotated so
+    // pressing right moves right on screen, and B / Y land on 2 / 1.
+    [WII_PROFILE_SIDEWAYS] = {
+        [SWITCH_CODE_A]        = WII_CODE_A,
+        [SWITCH_CODE_B]        = WII_CODE_TWO,
+        [SWITCH_CODE_X]        = WII_CODE_B,
+        [SWITCH_CODE_Y]        = WII_CODE_ONE,
+        [SWITCH_CODE_UP]       = WII_CODE_RIGHT,
+        [SWITCH_CODE_DOWN]     = WII_CODE_LEFT,
+        [SWITCH_CODE_LEFT]     = WII_CODE_UP,
+        [SWITCH_CODE_RIGHT]    = WII_CODE_DOWN,
+        [SWITCH_CODE_L]        = WII_CODE_A,
+        [SWITCH_CODE_R]        = WII_CODE_SHAKE,
+        [SWITCH_CODE_ZL]       = WII_CODE_B,
+        [SWITCH_CODE_ZR]       = WII_CODE_SHAKE,
+        [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
+        [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
+        [SWITCH_CODE_HOME]     = WII_CODE_HOME,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LS]       = WII_CODE_UNUSED,
+        [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_LX_RIGHT] = WII_CODE_DOWN,
+        [SWITCH_CODE_LX_LEFT]  = WII_CODE_UP,
+        [SWITCH_CODE_LY_UP]    = WII_CODE_RIGHT,
+        [SWITCH_CODE_LY_DOWN]  = WII_CODE_LEFT,
+        [SWITCH_CODE_RX_RIGHT] = WII_CODE_POINTER_RIGHT,
+        [SWITCH_CODE_RX_LEFT]  = WII_CODE_POINTER_LEFT,
+        [SWITCH_CODE_RY_UP]    = WII_CODE_POINTER_UP,
+        [SWITCH_CODE_RY_DOWN]  = WII_CODE_POINTER_DOWN,
+    },
+};
+
+static mapper_wii_profile_t _mapper_wii_profile = WII_PROFILE_NUNCHUK;
+static mapper_wii_profile_t _webusb_wii_profile = WII_PROFILE_NUNCHUK;
+
+static inline inputConfigSlot_s *_mapper_wii_slots(mapper_wii_profile_t profile)
+{
+    switch(profile)
+    {
+        default:
+        case WII_PROFILE_NUNCHUK:  return input_config->input_profile_wii_nunchuk;
+        case WII_PROFILE_CLASSIC:  return input_config->input_profile_wii_classic;
+        case WII_PROFILE_SIDEWAYS: return input_config->input_profile_wii_sideways;
+    }
+}
+
+typedef enum
 {
     MAPPER_OUTPUT_MODE_RAPID,
     MAPPER_OUTPUT_MODE_THRESHOLD,
@@ -331,10 +486,11 @@ mapper_operation_s _translated_op = {.input_slots = NULL, .output_types = NULL, 
 static bool _webusb_remap_preview = false;
 static core_reportformat_t _webusb_remap_format = CORE_REPORTFORMAT_SWPRO;
 
-static void _mapper_webusb_preview_begin(core_reportformat_t format)
+static void _mapper_webusb_preview_begin(core_reportformat_t format, mapper_wii_profile_t wii_profile)
 {
     _webusb_remap_preview = true;
     _webusb_remap_format = format;
+    _webusb_wii_profile = wii_profile;
     _set_raw_output_profile(format);
     anm_authentic_refresh();
 }
@@ -594,6 +750,9 @@ static uint16_t default_static_gamecube[MAPPER_INPUT_COUNT];
 static uint16_t default_static_xinput[MAPPER_INPUT_COUNT];
 static uint16_t default_static_sinput[MAPPER_INPUT_COUNT];
 
+static int8_t   default_codes_wii[WII_PROFILE_MAX][MAPPER_INPUT_COUNT];
+static uint16_t default_static_wii[WII_PROFILE_MAX][MAPPER_INPUT_COUNT];
+
 static void _mapper_apply_default_maps(int8_t *dest, uint16_t *static_dest, int8_t unused_code,
                                        const hoja_input_mode_defaults_s *maps)
 {
@@ -627,6 +786,18 @@ static void _mapper_refresh_default_codes(void)
     _mapper_apply_default_maps(default_codes_gamecube, default_static_gamecube, GAMECUBE_CODE_UNUSED, &cfg->defaults_gamecube);
     _mapper_apply_default_maps(default_codes_xinput,   default_static_xinput,   XINPUT_CODE_UNUSED,   &cfg->defaults_xinput);
     _mapper_apply_default_maps(default_codes_sinput,   default_static_sinput,   SINPUT_CODE_UNUSED,   &cfg->defaults_sinput);
+
+    for(int p = 0; p < WII_PROFILE_MAX; p++)
+    {
+        for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+        {
+            const int8_t sw = default_codes_switch[i];
+            default_codes_wii[p][i] = (sw >= 0 && sw < SWITCH_CODE_MAX)
+                ? _wii_defaults_from_switch[p][sw]
+                : WII_CODE_UNUSED;
+            default_static_wii[p][i] = default_static_switch[i];
+        }
+    }
 }
 
 static uint8_t _lhapticmode = 0;
@@ -669,7 +840,13 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
         }
 
         cfg_slots[i].output_code = output_code;
-        
+
+        if(output_code < 0)
+        {
+            cfg_slots[i].output_mode = 0;
+            continue;
+        }
+
         switch(input_static.input_info[i].input_type)
         {
             case MAPPER_INPUT_TYPE_HOVER:
@@ -699,6 +876,18 @@ static inline void _mapper_set_defaults(inputConfigSlot_s *cfg_slots, const int8
     }
 }
 
+static void _mapper_set_wii_defaults(mapper_wii_profile_t profile)
+{
+    _mapper_set_defaults(_mapper_wii_slots(profile), default_codes_wii[profile], default_static_wii[profile], _wii_output_types);
+}
+
+static void _mapper_set_all_wii_defaults(void)
+{
+    for(int p = 0; p < WII_PROFILE_MAX; p++)
+        _mapper_set_wii_defaults((mapper_wii_profile_t)p);
+    input_config->wii_profile_version = CFG_INPUT_WII_PROFILE_VERSION;
+}
+
 void _set_raw_output_profile(core_reportformat_t format)
 {
     _translated_op.remap_en = false;
@@ -707,10 +896,15 @@ void _set_raw_output_profile(core_reportformat_t format)
     {
         default:
         case CORE_REPORTFORMAT_SWPRO:
-        case CORE_REPORTFORMAT_WII: // Wii core reads the Switch profile
         _translated_op.input_slots = input_config->input_profile_switch;
         _translated_op.output_types = _switch_output_types;
         _translated_op.output_types_max = SWITCH_CODE_MAX;
+        break;
+
+        case CORE_REPORTFORMAT_WII:
+        _translated_op.input_slots = _mapper_wii_slots(_webusb_remap_preview ? _webusb_wii_profile : _mapper_wii_profile);
+        _translated_op.output_types = _wii_output_types;
+        _translated_op.output_types_max = WII_CODE_MAX;
         break;
 
         case CORE_REPORTFORMAT_GAMECUBE:
@@ -769,6 +963,7 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         _mapper_set_defaults(input_config->input_profile_n64, default_codes_n64, default_static_n64, _n64_output_types);
         _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, default_static_gamecube, _gamecube_output_types);
         _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, default_static_sinput, _sinput_output_types);
+        _mapper_set_all_wii_defaults();
         if(_webusb_remap_preview)
             _set_raw_output_profile(_webusb_remap_format);
         anm_authentic_refresh();
@@ -812,32 +1007,48 @@ void mapper_config_command(mapper_cmd_t cmd, webreport_cmd_confirm_t cb)
         break;
 
         case MAPPER_CMD_WEBUSB_SWITCH:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SWPRO);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SWPRO, WII_PROFILE_NUNCHUK);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_XINPUT:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_XINPUT);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_XINPUT, WII_PROFILE_NUNCHUK);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SNES:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SNES);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SNES, WII_PROFILE_NUNCHUK);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_N64:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_N64);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_N64, WII_PROFILE_NUNCHUK);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_GAMECUBE:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_GAMECUBE);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_GAMECUBE, WII_PROFILE_NUNCHUK);
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
         case MAPPER_CMD_WEBUSB_SINPUT:
-        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SINPUT);
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_SINPUT, WII_PROFILE_NUNCHUK);
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        break;
+
+        case MAPPER_CMD_DEFAULT_WII_NUNCHUK:
+        case MAPPER_CMD_DEFAULT_WII_CLASSIC:
+        case MAPPER_CMD_DEFAULT_WII_SIDEWAYS:
+        _mapper_set_wii_defaults((mapper_wii_profile_t)(cmd - MAPPER_CMD_DEFAULT_WII_NUNCHUK));
+        input_config->wii_profile_version = CFG_INPUT_WII_PROFILE_VERSION;
+        anm_authentic_refresh();
+        cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
+        break;
+
+        case MAPPER_CMD_WEBUSB_WII_NUNCHUK:
+        case MAPPER_CMD_WEBUSB_WII_CLASSIC:
+        case MAPPER_CMD_WEBUSB_WII_SIDEWAYS:
+        _mapper_webusb_preview_begin(CORE_REPORTFORMAT_WII, (mapper_wii_profile_t)(cmd - MAPPER_CMD_WEBUSB_WII_NUNCHUK));
         cb(CFG_BLOCK_INPUT, cmd, true, NULL, 0);
         break;
 
@@ -863,6 +1074,14 @@ void mapper_init()
         _mapper_set_defaults(input_config->input_profile_gamecube, default_codes_gamecube, default_static_gamecube, _gamecube_output_types);
         _mapper_set_defaults(input_config->input_profile_xinput, default_codes_xinput, default_static_xinput, _xinput_output_types);
         _mapper_set_defaults(input_config->input_profile_sinput, default_codes_sinput, default_static_sinput, _sinput_output_types);
+        _mapper_set_all_wii_defaults();
+    }
+
+    // The Wii profiles took over reserved space, so existing settings get them filled in once
+    // without touching the other profiles.
+    if(input_config->wii_profile_version != CFG_INPUT_WII_PROFILE_VERSION)
+    {
+        _mapper_set_all_wii_defaults();
     }
 
     if(_webusb_remap_preview)
@@ -876,10 +1095,15 @@ void mapper_init()
     {
         default:
         case CORE_REPORTFORMAT_SWPRO:
-        case CORE_REPORTFORMAT_WII: // Wii core reads the Switch profile
         _standard_op.input_slots = input_config->input_profile_switch;
         _standard_op.output_types = _switch_output_types;
         _standard_op.output_types_max = SWITCH_CODE_MAX;
+        break;
+
+        case CORE_REPORTFORMAT_WII:
+        _standard_op.input_slots = _mapper_wii_slots(_mapper_wii_profile);
+        _standard_op.output_types = _wii_output_types;
+        _standard_op.output_types_max = WII_CODE_MAX;
         break;
 
         case CORE_REPORTFORMAT_GAMECUBE:
@@ -932,8 +1156,10 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
     switch(core_current_reportformat())
     {
         case CORE_REPORTFORMAT_SWPRO:
-        case CORE_REPORTFORMAT_WII:
             return input_config->input_profile_switch;
+
+        case CORE_REPORTFORMAT_WII:
+            return _mapper_wii_slots(_mapper_wii_profile);
 
         case CORE_REPORTFORMAT_GAMECUBE:
         case CORE_REPORTFORMAT_SLIPPI:
@@ -954,6 +1180,27 @@ const inputConfigSlot_s *mapper_get_active_profile(void)
         default:
             return NULL;
     }
+}
+
+void mapper_set_wii_profile(mapper_wii_profile_t profile)
+{
+    if(profile >= WII_PROFILE_MAX || profile == _mapper_wii_profile)
+        return;
+
+    _mapper_wii_profile = profile;
+
+    if(core_current_reportformat() != CORE_REPORTFORMAT_WII)
+        return;
+
+    for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
+        _standard_op.rapid_value[i] = _mapper_wii_slots(profile)[i].threshold_delta;
+        _standard_op.rapid_press_state[i] = false;
+    }
+    _standard_op.input_slots = _mapper_wii_slots(profile);
+
+    if(!_webusb_remap_preview)
+        _set_raw_output_profile(CORE_REPORTFORMAT_WII);
 }
 
 core_reportformat_t mapper_get_palette_format(void)

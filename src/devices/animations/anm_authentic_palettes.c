@@ -117,8 +117,12 @@ bool anm_authentic_palette_color(core_reportformat_t format, int8_t output_code,
     {
         case CORE_REPORTFORMAT_SWPRO:
         case CORE_REPORTFORMAT_SNES:
-        case CORE_REPORTFORMAT_WII:
             return _nintendo_abxy_palette(output_code, out);
+
+        // Wii Remote, Nunchuk and Classic Controller Pro buttons are all plain white/gray,
+        // so every Wii output uses the light-gray fallback.
+        case CORE_REPORTFORMAT_WII:
+            return false;
 
         case CORE_REPORTFORMAT_XINPUT:
             return _xinput_palette(output_code, out);

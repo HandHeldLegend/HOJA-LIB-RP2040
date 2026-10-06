@@ -32,6 +32,8 @@
 #include "nwii_lib_hid.h"
 
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
+// A real Wii Remote reports every 10 ms
+#define BT_HAL_WII_POLLING_RATE_MS 10
 #define BT_HAL_INBOUND_FIFO_LEN 32
 
 // A paired Wii Remote connects to the console, never the reverse, so keep paging the saved
@@ -52,6 +54,7 @@ static uint16_t hid_cid = 0;
 
 static btstack_timer_source_t hid_report_timer;
 static bool hid_report_timer_active = false;
+static uint32_t hid_report_interval_ms = BT_HAL_TARGET_POLLING_RATE_MS;
 
 static btstack_timer_source_t wii_reconnect_timer;
 static bool wii_reconnect_timer_active = false;
@@ -220,7 +223,7 @@ static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 
     hid_device_request_can_send_now_event(hid_cid);
 
-    btstack_run_loop_set_timer(ts, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_set_timer(ts, hid_report_interval_ms);
     btstack_run_loop_add_timer(ts);
 }
 
@@ -229,7 +232,7 @@ static void _bt_hal_hid_report_timer_start(void)
     _bt_hal_hid_report_timer_stop();
 
     btstack_run_loop_set_timer_handler(&hid_report_timer, &_bt_hal_hid_report_timer_handler);
-    btstack_run_loop_set_timer(&hid_report_timer, BT_HAL_TARGET_POLLING_RATE_MS);
+    btstack_run_loop_set_timer(&hid_report_timer, hid_report_interval_ms);
     btstack_run_loop_add_timer(&hid_report_timer);
     hid_report_timer_active = true;
 }
@@ -559,6 +562,7 @@ bool transport_bt_init(core_params_s *params)
     _bt_init = true;
 
     const bool wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
+    hid_report_interval_ms = wii ? BT_HAL_WII_POLLING_RATE_MS : BT_HAL_TARGET_POLLING_RATE_MS;
 
     gap_set_bondable_mode(1);
 

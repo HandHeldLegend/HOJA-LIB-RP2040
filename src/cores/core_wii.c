@@ -46,8 +46,12 @@
 #define CORE_WII_AIM_BIAS_TAU_S         1.0f
 #define CORE_WII_AIM_DEADBAND_DPS       0.75f
 
-// Right stick nudges the pointer in Nunchuk mode: screen-halves per second at full tilt
-#define CORE_WII_AIM_STICK_SPEED        1.5f
+// Stick aim (anything mapped to the pointer outputs): screen-halves per second at full tilt.
+// The screen is wider than it is tall, so vertical travel is scaled up to feel the same speed,
+// and a response curve keeps small deflections precise.
+#define CORE_WII_AIM_STICK_SPEED        1.6f
+#define CORE_WII_AIM_STICK_Y_GAIN       1.5f
+#define CORE_WII_AIM_STICK_LINEAR       0.3f // Share of the response that is linear (rest is squared)
 
 // Shake: square wave on the accelerometer while the shake button is held
 #define CORE_WII_SHAKE_MG               3000
@@ -95,6 +99,12 @@ static inline int16_t _core_wii_mg(int16_t raw)
 static inline float _core_wii_stick_norm(uint16_t axis)
 {
     return ((float)axis - 2048.0f) / 2048.0f;
+}
+
+static inline float _core_wii_stick_curve(float v)
+{
+    const float mag = (v < 0.0f) ? -v : v;
+    return v * (CORE_WII_AIM_STICK_LINEAR + (1.0f - CORE_WII_AIM_STICK_LINEAR) * mag);
 }
 
 static inline float _core_wii_absf(float v)
@@ -161,8 +171,8 @@ static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float sti
     _wii_aim.x += (yaw_dps * dt) / CORE_WII_AIM_YAW_RANGE_DEG;
     _wii_aim.y += (pitch_dps * dt) / CORE_WII_AIM_PITCH_RANGE_DEG;
 
-    _wii_aim.x += stick_x * CORE_WII_AIM_STICK_SPEED * dt;
-    _wii_aim.y += stick_y * CORE_WII_AIM_STICK_SPEED * dt;
+    _wii_aim.x += _core_wii_stick_curve(stick_x) * CORE_WII_AIM_STICK_SPEED * dt;
+    _wii_aim.y += _core_wii_stick_curve(stick_y) * CORE_WII_AIM_STICK_SPEED * CORE_WII_AIM_STICK_Y_GAIN * dt;
 
     _wii_aim.x = _core_wii_clampf(_wii_aim.x, -1.0f, 1.0f);
     _wii_aim.y = _core_wii_clampf(_wii_aim.y, -1.0f, 1.0f);
@@ -176,8 +186,36 @@ static bool _core_wii_code_pressed(const mapper_input_s *input, mapper_input_cod
     return input->presses[code] || (input->inputs[code] > 0);
 }
 
-// The board's power button is whatever its ship-mode macro holds. A short tap swaps between
-// the Nunchuk and the Classic Controller Pro.
+typedef enum
+{
+    CORE_WII_MODE_NUNCHUK,  // Wii Remote + Nunchuk
+    CORE_WII_MODE_CLASSIC,  // Wii Remote + Classic Controller Pro
+    CORE_WII_MODE_SIDEWAYS, // Wii Remote alone, held sideways
+    CORE_WII_MODE_MAX,
+} core_wii_mode_t;
+
+static volatile core_wii_mode_t _wii_mode = CORE_WII_MODE_NUNCHUK;
+
+static void _core_wii_set_mode(core_wii_mode_t mode)
+{
+    static const nwii_extension_t extensions[CORE_WII_MODE_MAX] = {
+        [CORE_WII_MODE_NUNCHUK]  = NWII_EXTENSION_NUNCHUK,
+        [CORE_WII_MODE_CLASSIC]  = NWII_EXTENSION_CLASSIC_PRO,
+        [CORE_WII_MODE_SIDEWAYS] = NWII_EXTENSION_NONE,
+    };
+    static const mapper_wii_profile_t profiles[CORE_WII_MODE_MAX] = {
+        [CORE_WII_MODE_NUNCHUK]  = WII_PROFILE_NUNCHUK,
+        [CORE_WII_MODE_CLASSIC]  = WII_PROFILE_CLASSIC,
+        [CORE_WII_MODE_SIDEWAYS] = WII_PROFILE_SIDEWAYS,
+    };
+
+    _wii_mode = mode;
+    mapper_set_wii_profile(profiles[mode]);
+    nwii_api_set_extension(extensions[mode]);
+}
+
+// The board's power button is whatever its ship-mode macro holds. A short tap cycles
+// Nunchuk -> Classic Controller Pro -> Sideways.
 static void _core_wii_power_tap_task(void)
 {
     static bool armed = false;
@@ -213,9 +251,15 @@ static void _core_wii_power_tap_task(void)
     {
         if ((now - press_start_us) < CORE_WII_POWER_TAP_US)
         {
-            const bool to_classic = (nwii_api_get_extension() == NWII_EXTENSION_NUNCHUK);
-            nwii_api_set_extension(to_classic ? NWII_EXTENSION_CLASSIC_PRO : NWII_EXTENSION_NUNCHUK);
-            rgb_send_notification(to_classic ? COLOR_BLUE : COLOR_WHITE);
+            static const rgb_s colors[CORE_WII_MODE_MAX] = {
+                [CORE_WII_MODE_NUNCHUK]  = COLOR_WHITE,
+                [CORE_WII_MODE_CLASSIC]  = COLOR_BLUE,
+                [CORE_WII_MODE_SIDEWAYS] = COLOR_YELLOW,
+            };
+
+            const core_wii_mode_t next = (core_wii_mode_t)((_wii_mode + 1) % CORE_WII_MODE_MAX);
+            _core_wii_set_mode(next);
+            rgb_send_notification(colors[next]);
         }
     }
 
@@ -232,6 +276,11 @@ static void _core_wii_shake(int16_t *x, int16_t *y, int16_t *z)
     *z = (int16_t)_core_wii_clampf((float)*z + delta, -32000.0f, 32000.0f);
 }
 
+static inline uint16_t _core_wii_stick(const mapper_input_s *input, mapper_wii_code_t neg, mapper_wii_code_t pos)
+{
+    return (uint16_t)_core_wii_clampf((float)mapper_joystick_concat(2048, input->inputs[neg], input->inputs[pos]), 0, 4095);
+}
+
 void nwii_api_hook_get_input(nwii_input_s *out)
 {
     if (!out)
@@ -239,84 +288,98 @@ void nwii_api_hook_get_input(nwii_input_s *out)
 
     _core_wii_power_tap_task();
 
+    // Reads the Wii profile for the current mode (see mapper_set_wii_profile)
     mapper_input_s input = mapper_get_input();
-
-    bool dpad[4] = {input.presses[SWITCH_CODE_DOWN], input.presses[SWITCH_CODE_RIGHT],
-                    input.presses[SWITCH_CODE_LEFT], input.presses[SWITCH_CODE_UP]};
-    dpad_translate_input(dpad);
-
-    const uint16_t lx = (uint16_t)_core_wii_clampf((float)mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]), 0, 4095);
-    const uint16_t ly = (uint16_t)_core_wii_clampf((float)mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]), 0, 4095);
-    const uint16_t rx = (uint16_t)_core_wii_clampf((float)mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RX_LEFT], input.inputs[SWITCH_CODE_RX_RIGHT]), 0, 4095);
-    const uint16_t ry = (uint16_t)_core_wii_clampf((float)mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_RY_DOWN], input.inputs[SWITCH_CODE_RY_UP]), 0, 4095);
-
-    const bool nunchuk_mode = (nwii_api_get_extension() == NWII_EXTENSION_NUNCHUK);
+    const bool *p = input.presses;
 
     imu_data_s imu = {0};
     imu_access_safe(&imu);
 
-    // The pointer follows the gyro in both modes so the Wii Menu stays usable. The right stick
-    // only nudges it in Nunchuk mode, where it has no other job.
+    // The pointer follows the gyro in every mode so the Wii Menu stays usable; anything mapped to
+    // the pointer outputs nudges it as well.
     _core_wii_aim_update(&imu,
-                         nunchuk_mode ? _core_wii_stick_norm(rx) : 0.0f,
-                         nunchuk_mode ? _core_wii_stick_norm(ry) : 0.0f,
-                         input.presses[SWITCH_CODE_RS]);
+                         _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_LEFT, WII_CODE_POINTER_RIGHT)),
+                         _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_DOWN, WII_CODE_POINTER_UP)),
+                         p[WII_CODE_POINTER_RECENTER]);
     nwii_ir_set_pointer(out->ir, _wii_aim.x, _wii_aim.y);
 
-    if (nunchuk_mode)
+    // Wii Remote buttons are live in every mode, so a Classic profile can still map Remote A for
+    // the Wii Menu.
+    bool dpad[4] = {p[WII_CODE_DOWN], p[WII_CODE_RIGHT], p[WII_CODE_LEFT], p[WII_CODE_UP]};
+    dpad_translate_input(dpad);
+
+    out->remote.a     = p[WII_CODE_A];
+    out->remote.b     = p[WII_CODE_B];
+    out->remote.one   = p[WII_CODE_ONE];
+    out->remote.two   = p[WII_CODE_TWO];
+    out->remote.plus  = p[WII_CODE_PLUS];
+    out->remote.minus = p[WII_CODE_MINUS];
+    out->remote.home  = p[WII_CODE_HOME];
+    out->remote.down  = dpad[0];
+    out->remote.right = dpad[1];
+    out->remote.left  = dpad[2];
+    out->remote.up    = dpad[3];
+
+    switch (_wii_mode)
     {
+    default:
+    case CORE_WII_MODE_NUNCHUK:
         // The gamepad is the Wii Remote. HOJA's IMU frame (+X left, +Y forward, +Z up) already
         // lines up with the remote's.
         out->accel_x = _core_wii_mg(imu.ax);
         out->accel_y = _core_wii_mg(imu.ay);
         out->accel_z = _core_wii_mg(imu.az);
 
-        if (input.presses[SWITCH_CODE_R])
-            _core_wii_shake(&out->accel_x, &out->accel_y, &out->accel_z);
+        out->nunchuk.c = p[WII_CODE_C];
+        out->nunchuk.z = p[WII_CODE_Z];
+        out->nunchuk.stick_x = _core_wii_stick(&input, WII_CODE_NUNCHUK_X_LEFT, WII_CODE_NUNCHUK_X_RIGHT);
+        out->nunchuk.stick_y = _core_wii_stick(&input, WII_CODE_NUNCHUK_Y_DOWN, WII_CODE_NUNCHUK_Y_UP);
 
-        out->remote.a     = input.presses[SWITCH_CODE_A];
-        out->remote.b     = input.presses[SWITCH_CODE_B] || input.presses[SWITCH_CODE_ZR];
-        out->remote.one   = input.presses[SWITCH_CODE_Y];
-        out->remote.two   = input.presses[SWITCH_CODE_X];
-        out->remote.plus  = input.presses[SWITCH_CODE_PLUS];
-        out->remote.minus = input.presses[SWITCH_CODE_MINUS];
-        out->remote.home  = input.presses[SWITCH_CODE_HOME];
-        out->remote.down  = dpad[0];
-        out->remote.right = dpad[1];
-        out->remote.left  = dpad[2];
-        out->remote.up    = dpad[3];
-
-        out->nunchuk.c = input.presses[SWITCH_CODE_L];
-        out->nunchuk.z = input.presses[SWITCH_CODE_ZL];
-        out->nunchuk.stick_x = lx;
-        out->nunchuk.stick_y = ly;
-
-        if (input.presses[SWITCH_CODE_LS])
+        if (p[WII_CODE_NUNCHUK_SHAKE])
             _core_wii_shake(&out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
-    }
-    else
-    {
-        out->classic.a     = input.presses[SWITCH_CODE_A];
-        out->classic.b     = input.presses[SWITCH_CODE_B];
-        out->classic.x     = input.presses[SWITCH_CODE_X];
-        out->classic.y     = input.presses[SWITCH_CODE_Y];
-        out->classic.l     = input.presses[SWITCH_CODE_L];
-        out->classic.r     = input.presses[SWITCH_CODE_R];
-        out->classic.zl    = input.presses[SWITCH_CODE_ZL];
-        out->classic.zr    = input.presses[SWITCH_CODE_ZR];
-        out->classic.plus  = input.presses[SWITCH_CODE_PLUS];
-        out->classic.minus = input.presses[SWITCH_CODE_MINUS];
-        out->classic.home  = input.presses[SWITCH_CODE_HOME];
-        out->classic.down  = dpad[0];
-        out->classic.right = dpad[1];
-        out->classic.left  = dpad[2];
-        out->classic.up    = dpad[3];
+        break;
 
-        out->classic.ls_x = lx;
-        out->classic.ls_y = ly;
-        out->classic.rs_x = rx;
-        out->classic.rs_y = ry;
+    case CORE_WII_MODE_SIDEWAYS:
+        // The gamepad stands in for a remote held sideways, IR end to the left: the remote's
+        // pointing axis is the gamepad's left, and its left side faces the player.
+        out->accel_x = _core_wii_mg((int16_t)-imu.ay);
+        out->accel_y = _core_wii_mg(imu.ax);
+        out->accel_z = _core_wii_mg(imu.az);
+        break;
+
+    case CORE_WII_MODE_CLASSIC:
+    {
+        // The remote sits idle while the Classic Controller Pro is in use, so its accelerometer
+        // keeps the resting default.
+        bool cc_dpad[4] = {p[WII_CODE_CC_DOWN], p[WII_CODE_CC_RIGHT], p[WII_CODE_CC_LEFT], p[WII_CODE_CC_UP]};
+        dpad_translate_input(cc_dpad);
+
+        out->classic.a     = p[WII_CODE_CC_A];
+        out->classic.b     = p[WII_CODE_CC_B];
+        out->classic.x     = p[WII_CODE_CC_X];
+        out->classic.y     = p[WII_CODE_CC_Y];
+        out->classic.l     = p[WII_CODE_CC_L];
+        out->classic.r     = p[WII_CODE_CC_R];
+        out->classic.zl    = p[WII_CODE_CC_ZL];
+        out->classic.zr    = p[WII_CODE_CC_ZR];
+        out->classic.plus  = p[WII_CODE_CC_PLUS];
+        out->classic.minus = p[WII_CODE_CC_MINUS];
+        out->classic.home  = p[WII_CODE_CC_HOME];
+        out->classic.down  = cc_dpad[0];
+        out->classic.right = cc_dpad[1];
+        out->classic.left  = cc_dpad[2];
+        out->classic.up    = cc_dpad[3];
+
+        out->classic.ls_x = _core_wii_stick(&input, WII_CODE_CC_LX_LEFT, WII_CODE_CC_LX_RIGHT);
+        out->classic.ls_y = _core_wii_stick(&input, WII_CODE_CC_LY_DOWN, WII_CODE_CC_LY_UP);
+        out->classic.rs_x = _core_wii_stick(&input, WII_CODE_CC_RX_LEFT, WII_CODE_CC_RX_RIGHT);
+        out->classic.rs_y = _core_wii_stick(&input, WII_CODE_CC_RY_DOWN, WII_CODE_CC_RY_UP);
+        break;
     }
+    }
+
+    if (p[WII_CODE_SHAKE])
+        _core_wii_shake(&out->accel_x, &out->accel_y, &out->accel_z);
 }
 
 void nwii_api_hook_set_rumble(bool enable)
@@ -401,6 +464,9 @@ bool core_wii_init(core_params_s *params)
     nwii_device_config_s cfg = {.extension = NWII_EXTENSION_NUNCHUK};
     if (!nwii_api_init(&cfg))
         return false;
+
+    _wii_mode = CORE_WII_MODE_NUNCHUK;
+    mapper_set_wii_profile(WII_PROFILE_NUNCHUK);
 
     memset(&_wii_aim, 0, sizeof(_wii_aim));
 
