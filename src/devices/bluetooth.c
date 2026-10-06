@@ -114,7 +114,7 @@ void bluetooth_callback_handler(bluetooth_cb_msg_s *msg)
         break;
 
         case BTCB_HD_RUMBLE:
-            ns_haptics_rumble_translate_stereo(&(msg->data[0]), &(msg->data[4]));
+            ns_haptics_rumble_translate(&(msg->data[0]));
         break;
     }
 }

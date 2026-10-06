@@ -109,12 +109,13 @@ static inline bool hoja_fifo_##name##_pop(hoja_fifo_##name##_t *f, type *dst)  \
     return true;                                                               \
 }                                                                              \
                                                                                \
-/* Queued element count. Callable from either side; it may be stale by one     \
- * push/pop the moment it is read, inherent to a lock-free ring. */            \
+/* Queued element count, callable from either side. Head is read first so      \
+ * the result never goes negative; a push and pop racing the read can make     \
+ * it overshoot len, so callers that care should clamp. */                     \
 static inline unsigned int                                                     \
 hoja_fifo_##name##_count(const hoja_fifo_##name##_t *f)                        \
 {                                                                              \
-    unsigned int t = atomic_load_explicit(&f->tail, memory_order_acquire);     \
     unsigned int h = atomic_load_explicit(&f->head, memory_order_acquire);     \
+    unsigned int t = atomic_load_explicit(&f->tail, memory_order_acquire);     \
     return (unsigned int)(t - h);                                              \
 }

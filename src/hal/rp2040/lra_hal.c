@@ -264,9 +264,10 @@ bool lra_hal_init(uint8_t intensity)
     return true;
 }
 
-// True when DMA is playing the first 64 samples, so the second half is safe
-// to write. dma_sample.read_addr can sit on a ring boundary and miss a half.
-// dma_trigger_l counts PWM wraps for the whole 128-sample ring (4 reps each).
+// True while DMA is playing the first half, so the second half is free to
+// write. Reads dma_trigger_l's countdown (REPETITION_RATE PWM wraps per sample
+// across the whole ring) rather than dma_sample's read address, which can sit
+// on the ring boundary and hide a flip.
 static bool get_inactive_buffer_half(void)
 {
     uint32_t remaining = dma_hw->ch[dma_trigger_l].transfer_count;
@@ -274,22 +275,35 @@ static bool get_inactive_buffer_half(void)
     return remaining > half_wraps;
 }
 
-volatile bool _erm_simulation_enabled = false;
+// Each half-buffer plays for 8 ms. The DMA position is only sampled when this
+// task runs, so a task late by two periods sees the same half free again and
+// would leave it replaying stale samples. If no flip is seen for a little over
+// one period, refill the free half anyway.
+#define LRA_HALF_BUFFER_US  ((PCM_BUFFER_SIZE * 1000000u) / PCM_SAMPLE_RATE)
+#define LRA_MISSED_FLIP_US  (LRA_HALF_BUFFER_US + 1000u)
+
+static void _lra_fill_half(bool second_half, const uint32_t *samples)
+{
+    memcpy(&audio_buffer[second_half ? PCM_BUFFER_SIZE : 0], samples, PCM_BUFFER_SIZE * sizeof(uint32_t));
+}
+
 void lra_hal_task(uint64_t timestamp)
 {
     static bool started = false;
     static bool inactive_half = true;
     static uint64_t last_flip_us = 0;
+    // The next half-buffer, rendered ahead so a flip only costs a memcpy
     static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
 
     if (!started)
     {
+        // Fill both halves and render one ahead before tracking flips
         started = true;
         last_flip_us = timestamp;
         pcm_generate_buffer(buffered);
-        memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
+        _lra_fill_half(false, buffered);
         pcm_generate_buffer(buffered);
-        memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
+        _lra_fill_half(true, buffered);
         pcm_generate_buffer(buffered);
         inactive_half = get_inactive_buffer_half();
         return;
@@ -297,36 +311,28 @@ void lra_hal_task(uint64_t timestamp)
 
     bool inactive_this = get_inactive_buffer_half();
     bool flipped = (inactive_this != inactive_half);
-    // A missed half-flip looks like 1-skip-1 at an 8 ms menu rate.
-    if (!flipped && ((timestamp - last_flip_us) > 9000u))
+
+    if (!flipped && ((timestamp - last_flip_us) > LRA_MISSED_FLIP_US))
     {
         flipped = true;
-        inactive_this = !inactive_half;
     }
 
     if (flipped)
     {
         inactive_half = inactive_this;
         last_flip_us = timestamp;
-
-        if (inactive_half)
-            memcpy(&audio_buffer[PCM_BUFFER_SIZE], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
-        else
-            memcpy(&audio_buffer[0], buffered, PCM_BUFFER_SIZE * sizeof(uint32_t));
-
+        _lra_fill_half(inactive_half, buffered);
         pcm_generate_buffer(buffered);
     }
 }
 
 void lra_hal_push_amfm(haptic_packet_s *packet)
 {
-    _erm_simulation_enabled = false;
     pcm_amfm_push(packet);
 }
 
 void lra_hal_set_standard(uint8_t intensity, bool brake)
 {
-    _erm_simulation_enabled = (intensity != 0);
     pcm_erm_set(intensity, brake);
 }
 
