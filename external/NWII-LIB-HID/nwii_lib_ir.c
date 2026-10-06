@@ -45,10 +45,10 @@ void nwii_ir_set_pointer(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float x, floa
     x = _nwii_ir_clampf(x, -1.0f, 1.0f);
     y = _nwii_ir_clampf(y, -1.0f, 1.0f);
 
-    // Aiming right moves the sensor bar toward the left of the camera image (lower x), as on a
-    // real remote (verified on a Wii). Aiming up reports larger y.
+    // The camera sees the sensor bar move opposite to the aim: aiming right reports lower x and
+    // aiming up reports lower y, as on a real remote (verified on a Wii).
     const int32_t cx = (int32_t)(NWII_IR_RES_X / 2u) - (int32_t)(x * (float)NWII_IR_POINTER_RANGE_X);
-    const int32_t cy = (int32_t)(NWII_IR_RES_Y / 2u) + (int32_t)(y * (float)NWII_IR_POINTER_RANGE_Y);
+    const int32_t cy = (int32_t)(NWII_IR_RES_Y / 2u) - (int32_t)(y * (float)NWII_IR_POINTER_RANGE_Y);
     const int32_t half = NWII_IR_BAR_SEPARATION / 2;
 
     // Point order follows the camera's left-to-right scan

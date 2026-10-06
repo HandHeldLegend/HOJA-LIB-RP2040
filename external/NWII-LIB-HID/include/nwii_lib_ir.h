@@ -41,7 +41,7 @@ extern "C" {
  * @brief Fill IR points for a cursor position.
  *
  * Writes two visible points (the sensor bar LEDs) and marks the other two invisible. Pointing
- * right moves the camera points toward lower x and pointing up moves them toward higher y,
+ * right moves the camera points toward lower x and pointing up moves them toward lower y,
  * matching what a real remote reports.
  *
  * @param out NWII_IR_POINT_COUNT points to fill.
