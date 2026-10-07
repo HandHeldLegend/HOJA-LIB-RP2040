@@ -26,6 +26,9 @@
 // Held still also requires a steady 1 g, so a slow, smooth pan is not mistaken for gyro offset
 #define NWII_AIM_STILL_ACCEL_G 0.05f
 
+// Player-space yaw: boost for a tilted grip (GyroWiki's recommended 1.41)
+#define NWII_AIM_YAW_RELAX    1.41f
+
 static inline float _nwii_aim_absf(float v)
 {
     return (v < 0.0f) ? -v : v;
@@ -62,15 +65,6 @@ static inline float _nwii_aim_deadband(float v, float band)
 {
     if (_nwii_aim_absf(v) <= band) return 0.0f;
     return (v > 0.0f) ? (v - band) : (v + band);
-}
-
-// Remove the part of v along the unit vector up, leaving its horizontal component
-static inline void _nwii_aim_horizontal(const float v[3], const float up[3], float out[3])
-{
-    const float d = _nwii_aim_dot(v, up);
-    out[0] = v[0] - d * up[0];
-    out[1] = v[1] - d * up[1];
-    out[2] = v[2] - d * up[2];
 }
 
 void nwii_aim_default_config(nwii_aim_config_s *cfg)
@@ -189,27 +183,20 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
     _nwii_aim_track_gravity(aim, w_rad, accel_g, accel_mag_g, dt);
     if (!aim->up_valid) return;
 
-    // Pointing direction: the controller's front edge (-Y) when flat, its face (+Z) when stood up
-    // facing the screen. The horizontal parts of both blend smoothly between those grips.
-    static const float front_edge[3] = {0.0f, -1.0f, 0.0f};
-    static const float face[3] = {0.0f, 0.0f, 1.0f};
-    float fwd_a[3];
-    float fwd_b[3];
-    _nwii_aim_horizontal(front_edge, aim->up, fwd_a);
-    _nwii_aim_horizontal(face, aim->up, fwd_b);
-    float fwd[3] = {fwd_a[0] + fwd_b[0], fwd_a[1] + fwd_b[1], fwd_a[2] + fwd_b[2]};
+    // Player-space aim, after the GyroWiki: up/down is the controller's own pitch (about its +X
+    // axis, front edge rising), and left/right is rotation about the vertical, measured from the
+    // controller's yaw and roll axes only. Unlike pure world space this has no dead pose: pointed
+    // straight up or down, turning still moves the cursor. The relax factor lets a tilted grip
+    // reach full speed, capped at the actual rotation rate.
+    const float world_yaw = w_dps[1] * aim->up[1] + w_dps[2] * aim->up[2];
+    const float yaw_cap = sqrtf(w_dps[1] * w_dps[1] + w_dps[2] * w_dps[2]);
+    float yaw_mag = _nwii_aim_absf(world_yaw) * NWII_AIM_YAW_RELAX;
+    if (yaw_mag > yaw_cap) yaw_mag = yaw_cap;
 
-    // Aim right is clockwise seen from above (negative about up). Aim up turns the pointing
-    // direction toward up, which is rotation about fwd x up.
-    const float yaw_dps = -_nwii_aim_dot(w_dps, aim->up);
-    float pitch_dps = 0.0f;
-
-    float pitch_axis[3];
-    if (_nwii_aim_normalize(fwd))
-    {
-        _nwii_aim_cross(fwd, aim->up, pitch_axis);
-        pitch_dps = _nwii_aim_dot(w_dps, pitch_axis);
-    }
+    // Aim right is clockwise seen from above (negative about up); aim up raises the front edge
+    // (negative about +X)
+    const float yaw_dps = (world_yaw > 0.0f) ? -yaw_mag : yaw_mag;
+    const float pitch_dps = -w_dps[0];
 
     aim->x += _nwii_aim_deadband(yaw_dps, aim->cfg.deadband_dps) * dt / aim->cfg.yaw_range_deg;
     aim->y += _nwii_aim_deadband(pitch_dps, aim->cfg.deadband_dps) * dt / aim->cfg.pitch_range_deg;
@@ -218,9 +205,11 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
     aim->x = _nwii_aim_clampf(aim->x, -1.0f, 1.0f);
     aim->y = _nwii_aim_clampf(aim->y, -1.0f, 1.0f);
 
-    // Roll about the pointing direction: how far the left side (+X) has risen. Measured against
-    // the controller's "top" for either grip (+Z flat, -Y stood up), so it stays within +/-90 deg.
-    aim->roll_rad = atan2f(aim->up[0], sqrtf(aim->up[1] * aim->up[1] + aim->up[2] * aim->up[2]));
+    // Roll about the front edge: how far the left side (+X) has risen against the face (+Z).
+    // Pointed straight up or down there is no roll to read, so it fades to level there.
+    const float lean = sqrtf(aim->up[0] * aim->up[0] + aim->up[2] * aim->up[2]);
+    const float fade = _nwii_aim_clampf((lean - 0.2f) / 0.3f, 0.0f, 1.0f);
+    aim->roll_rad = atan2f(aim->up[0], _nwii_aim_absf(aim->up[2])) * fade;
 }
 
 void nwii_aim_nudge(nwii_aim_s *aim, float dx, float dy)
@@ -237,6 +226,25 @@ void nwii_aim_recenter(nwii_aim_s *aim)
 
     aim->x = 0.0f;
     aim->y = 0.0f;
+
+    // The pose at recentre becomes "level, aimed at the screen" (see nwii_aim_level_accel)
+    if (aim->up_valid)
+        aim->level_pitch_rad = asinf(_nwii_aim_clampf(-aim->up[1], -1.0f, 1.0f));
+}
+
+void nwii_aim_level_accel(const nwii_aim_s *aim, const float accel[3], float out[3])
+{
+    if (aim == NULL || accel == NULL || out == NULL) return;
+
+    // Undo the front-edge pitch captured at recentre: rotate about +X so that pose reads flat
+    const float c = cosf(aim->level_pitch_rad);
+    const float s = sinf(aim->level_pitch_rad);
+    const float y = accel[1];
+    const float z = accel[2];
+
+    out[0] = accel[0];
+    out[1] = y * c + z * s;
+    out[2] = z * c - y * s;
 }
 
 void nwii_aim_to_ir(const nwii_aim_s *aim, nwii_ir_point_s out[NWII_IR_POINT_COUNT], bool with_roll)

@@ -152,14 +152,21 @@ nwii_aim_update(&aim, gyro_dps, accel_g, dt_s);
 if (recenter_pressed) nwii_aim_recenter(&aim);
 nwii_aim_nudge(&aim, stick_dx, stick_dy); // optional stick aim
 nwii_aim_to_ir(&aim, out->ir, true);      // position + cursor roll
+nwii_aim_level_accel(&aim, accel, accel); // remote tilt relative to the recentre pose
 ```
 
-It fuses the two sensors into a gravity estimate and measures aim in world space: left/right is
-rotation about the real vertical, up/down is rotation about the horizontal axis across the
-pointing direction. Aim therefore works the same with the gamepad flat, stood up facing the
-screen, or rolled in the hands. The gyro offset is learned whenever the controller rests still.
-Sensors must be in the controller frame documented in the header (+X left, +Y toward the player,
-+Z up out of the face, right-handed).
+It fuses the two sensors into a gravity estimate and aims in "player space" (after the
+GyroWiki): up/down is the controller's own pitch, left/right is rotation about the real vertical
+taken from its yaw and roll axes. Aim therefore keeps working however the gamepad is held, flat,
+rolled, or pointed straight up or down, which matters for players who cannot hold a controller
+the usual way. The gyro offset is learned whenever the controller rests still. Sensors must be
+in the controller frame documented in the header (+X left, +Y toward the player, +Z up out of the
+face, right-handed for both accelerometer and gyro; check the gyro's roll axis sign, a flipped
+one shows up as cursor tilt that lags behind the controller).
+
+Recentring also makes the current pose "level": pass the remote accelerometer through
+`nwii_aim_level_accel()` so a player aiming from below or above still reports a remote held
+level at the screen.
 
 The virtual sensor bar sits `NWII_IR_POINTER_OFFSET_Y` above the aim point, as the Wii expects,
 so a recentred cursor lands in the middle of the screen.

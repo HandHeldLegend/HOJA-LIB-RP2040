@@ -3,12 +3,12 @@
  * @brief Motion aiming: turns a gamepad's gyro and accelerometer into a Wii Remote pointer
  *        position and roll, for controllers that have motion sensors but no IR camera.
  *
- * The helper fuses both sensors into a gravity estimate, then measures aim in world space:
- * left/right is rotation about the real vertical, up/down is rotation about the horizontal axis
- * across the pointing direction. That makes aiming behave the same whether the gamepad is held
- * flat, stood up facing the screen or anywhere between, and keeps a rolled grip from turning
- * horizontal motion into diagonal motion. The gyro's resting offset is learned whenever the
- * controller is held still.
+ * The helper fuses both sensors into a gravity estimate and aims in "player space" (after the
+ * GyroWiki): up/down is the controller's own pitch, and left/right is rotation about the real
+ * vertical taken from its yaw and roll axes. Aim keeps working in any grip, including pointed
+ * straight up or down, and a rolled grip does not turn horizontal motion into diagonal motion.
+ * The gyro's resting offset is learned whenever the controller is held still, and recentring
+ * makes the current pose the level reference for the reported accelerometer.
  *
  * Controller frame used for every sensor input (right-handed):
  *   +X toward the controller's left side
@@ -59,6 +59,7 @@ typedef struct
     bool  up_valid;
     float bias_dps[3];
     float still_s;
+    float level_pitch_rad; ///< Front-edge pitch captured at the last recentre
 } nwii_aim_s;
 
 /**
@@ -94,9 +95,23 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
 void nwii_aim_nudge(nwii_aim_s *aim, float dx, float dy);
 
 /**
- * @brief Put the cursor in the centre of the screen, keeping the learned gyro offset.
+ * @brief Put the cursor in the centre of the screen, keeping the learned gyro offset. The current
+ *        pose becomes the level reference for nwii_aim_level_accel().
  */
 void nwii_aim_recenter(nwii_aim_s *aim);
+
+/**
+ * @brief Re-express an accelerometer sample relative to the pose captured at the last recentre.
+ *
+ * A remote aimed at the screen reads level; a gamepad recentred while pointed up or down would
+ * otherwise report a remote aimed at the ceiling or floor, which confuses the Wii's cursor. Use
+ * the result for the remote accelerometer in a pointing mode. Units pass through unchanged.
+ *
+ * @param aim State.
+ * @param accel Sample in the controller frame.
+ * @param out Levelled sample, still in the controller frame (may alias accel).
+ */
+void nwii_aim_level_accel(const nwii_aim_s *aim, const float accel[3], float out[3]);
 
 /**
  * @brief Write the IR points for the current aim (position and roll).

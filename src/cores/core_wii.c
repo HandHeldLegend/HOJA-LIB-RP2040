@@ -88,7 +88,11 @@ static inline float _core_wii_stick_curve(float v)
 }
 
 // Feed the IMU to the aim helper and add stick aim. HOJA's IMU frame (the same on every board)
-// is the helper's controller frame: +X left, +Y toward the player, +Z up.
+// is the helper's controller frame: +X left, +Y toward the player, +Z up. HOJA's gyro X and Z
+// turn right-handed in that frame (checked by aiming) but its Y axis turns the other way: fed
+// as-is, the gravity estimate fights the accelerometer on every roll and cursor tilt lags.
+#define CORE_WII_GYRO_Y_SIGN        (-1.0f)
+
 static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float stick_y, bool recenter)
 {
     const uint64_t now = sys_hal_now_us();
@@ -97,7 +101,7 @@ static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float sti
 
     const float gyro_dps[3] = {
         (float)imu->gx * CORE_WII_GYRO_DPS_PER_LSB,
-        (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB,
+        (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_GYRO_Y_SIGN,
         (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB,
     };
     const float accel_g[3] = {
@@ -314,11 +318,18 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     {
     default:
     case CORE_WII_MODE_UPRIGHT:
-        // The gamepad is the remote pointing at the screen
-        out->accel_x = _core_wii_mg(imu.ax);
-        out->accel_y = _core_wii_mg(-(int32_t)imu.ay);
-        out->accel_z = _core_wii_mg(imu.az);
+    {
+        // The gamepad is the remote pointing at the screen. Tilt is measured from the pose at the
+        // last recentre, so a gamepad aimed from any angle reads as a remote held level.
+        const float raw[3] = {(float)imu.ax, (float)imu.ay, (float)imu.az};
+        float level[3];
+        nwii_aim_level_accel(&_wii_aim, raw, level);
+
+        out->accel_x = _core_wii_mg((int32_t)level[0]);
+        out->accel_y = _core_wii_mg(-(int32_t)level[1]);
+        out->accel_z = _core_wii_mg((int32_t)level[2]);
         break;
+    }
 
     case CORE_WII_MODE_SIDEWAYS:
         // The gamepad stands in for a remote held sideways. Signs set by flat-table checks against
