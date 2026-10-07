@@ -41,6 +41,11 @@
 #define CORE_WII_SHAKE_MG               3000
 #define CORE_WII_SHAKE_HALF_PERIOD_US   32000
 
+// Upright mode: while the fused gravity's levelled Z is above FACE_UP, the reported remote Z
+// acceleration never drops below Z_FLOOR_MG (see the UPRIGHT accelerometer case)
+#define CORE_WII_FACE_UP                0.5f
+#define CORE_WII_ACCEL_Z_FLOOR_MG       300
+
 // Analog trigger level (0..4095) where the Classic Controller's L/R click
 #define CORE_WII_TRIGGER_CLICK          3900
 
@@ -330,6 +335,16 @@ void nwii_api_hook_get_input(nwii_input_s *out)
         out->accel_x = _core_wii_mg((int32_t)level[0]);
         out->accel_y = _core_wii_mg((int32_t)level[1]);
         out->accel_z = _core_wii_mg((int32_t)level[2]);
+
+        // The Wii reads which way up the remote is from the accelerometer to make sense of the IR
+        // dots. A quick downward flick briefly cancels gravity, and with Z near zero (or below)
+        // the Wii loses the remote's orientation and the cursor jumps. While the fused gravity
+        // says the controller really is face up, keep Z above a floor; a controller turned over
+        // still reads upside down, and X/Y pass through for games that read swings.
+        float level_up[3];
+        nwii_aim_level_accel(&_wii_aim, _wii_aim.up, level_up);
+        if (_wii_aim.up_valid && (level_up[2] > CORE_WII_FACE_UP) && (out->accel_z < CORE_WII_ACCEL_Z_FLOOR_MG))
+            out->accel_z = CORE_WII_ACCEL_Z_FLOOR_MG;
         break;
     }
 
