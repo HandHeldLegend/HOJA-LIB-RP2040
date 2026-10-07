@@ -368,21 +368,21 @@ void nwii_api_hook_get_input(nwii_input_s *out)
 
     // Accelerometer frames, checked against a real remote: HOJA's standardized IMU frame (the same
     // on every board) reads +X toward the gamepad's left side, +Y toward the player, +Z up out of
-    // its face. The remote reads +X toward its left side, +Y toward its IR camera, +Z up.
+    // its face. The remote reads +X toward its right side, +Y toward its IR camera, +Z up.
     switch (_wii_mode)
     {
     default:
     case CORE_WII_MODE_UPRIGHT:
         // The gamepad is the remote pointing at the screen
-        out->accel_x = _core_wii_mg(imu.ax);
+        out->accel_x = _core_wii_mg(-(int32_t)imu.ax);
         out->accel_y = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_z = _core_wii_mg(imu.az);
         break;
 
     case CORE_WII_MODE_SIDEWAYS:
         // The gamepad stands in for a remote held sideways, IR end to the left: the remote's
-        // camera points along the gamepad's left, and its left side faces the player
-        out->accel_x = _core_wii_mg(imu.ay);
+        // camera points along the gamepad's left, and its right side faces away from the player
+        out->accel_x = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_y = _core_wii_mg(imu.ax);
         out->accel_z = _core_wii_mg(imu.az);
         break;
