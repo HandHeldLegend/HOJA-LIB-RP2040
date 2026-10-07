@@ -233,7 +233,12 @@ mapper_output_type_t _wii_output_types[WII_CODE_MAX] = {
     MAPPER_OUTPUT_DIGITAL, // Pointer recenter
     MAPPER_OUTPUT_DIGITAL, // Shake (remote)
     MAPPER_OUTPUT_DIGITAL, // Shake (nunchuk)
+    MAPPER_OUTPUT_DIGITAL, // Extension attach / detach
 };
+
+// Output codes index mapper_input_s directly
+_Static_assert(WII_CODE_MAX <= (sizeof(((mapper_input_s *)0)->inputs) / sizeof(uint16_t)),
+               "Wii output codes must fit in mapper_input_s");
 
 // Wii profile defaults are derived from the board's Switch defaults, so every board gets a
 // sensible layout without listing Wii maps in main.c. Indexed by SWITCH_CODE_*.
@@ -254,7 +259,7 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_HOME,
-        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_EXTENSION_TOGGLE,
         [SWITCH_CODE_LS]       = WII_CODE_NUNCHUK_SHAKE,
         [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
         [SWITCH_CODE_LX_RIGHT] = WII_CODE_NUNCHUK_X_RIGHT,
@@ -284,7 +289,7 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_PLUS]     = WII_CODE_CC_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_CC_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_CC_HOME,
-        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_EXTENSION_TOGGLE,
         [SWITCH_CODE_LS]       = WII_CODE_UNUSED,
         [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
         [SWITCH_CODE_LX_RIGHT] = WII_CODE_CC_LX_RIGHT,
@@ -315,7 +320,7 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_HOME,
-        [SWITCH_CODE_CAPTURE]  = WII_CODE_POINTER_RECENTER,
+        [SWITCH_CODE_CAPTURE]  = WII_CODE_EXTENSION_TOGGLE,
         [SWITCH_CODE_LS]       = WII_CODE_UNUSED,
         [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
         [SWITCH_CODE_LX_RIGHT] = WII_CODE_DOWN,

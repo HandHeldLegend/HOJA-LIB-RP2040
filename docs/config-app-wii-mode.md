@@ -10,13 +10,17 @@ reserved, so older firmware and older app builds stay compatible.
 Boards with the Raspberry Pi RM2 (CYW43) Bluetooth radio can now act as a Wii Remote over
 Bluetooth. Holding **d-pad up** at boot enters Wii mode (alongside d-pad left / down / right for
 SNES / N64 / GameCube). The status LED is pink. The controller has three Wii controller modes, and a
-short tap of the power button cycles them:
+short tap of the power button cycles them (the LED flashes white / yellow / blue):
 
 | Mode | What the Wii sees | Input profile |
 | --- | --- | --- |
-| Nunchuk | Wii Remote + Nunchuk | Wii Nunchuk profile |
-| Classic | Wii Remote + Classic Controller (analog L/R) | Wii Classic profile |
-| Sideways | Wii Remote alone, held sideways | Wii Sideways profile |
+| Upright | Wii Remote held upright, Nunchuk attached | Wii Nunchuk profile |
+| Sideways | Wii Remote held sideways, no extension | Wii Sideways profile |
+| Classic Pro | Wii Remote + Classic Controller (analog L/R) | Wii Classic profile |
+
+The extension toggle (Capture by default) plugs or unplugs the current mode's extension at any
+time, for games that ask for it to be removed: the Nunchuk in Upright and Sideways, the Classic
+Controller in Classic Pro. The LED flashes green when attached and red when detached.
 
 In every mode the IR pointer follows the gyro, can be nudged by whatever is mapped to the pointer
 outputs, and can be recentred by whatever is mapped to Pointer Recenter.
@@ -69,7 +73,7 @@ tail are now the Wii profiles. Each profile is 36 slots of `inputConfigSlot_s` (
 | **1081** | 180 | **`input_profile_wii_nunchuk`** (was `input_profile_reserved_2`) |
 | **1261** | 180 | **`input_profile_wii_classic`** |
 | **1441** | 180 | **`input_profile_wii_sideways`** |
-| **1621** | 1 | **`wii_profile_version`** (0x02 once the firmware filled the Wii defaults) |
+| **1621** | 1 | **`wii_profile_version`** (0x03 once the firmware filled the Wii defaults) |
 | 1622 | 426 | `reserved` |
 
 Slot layout (unchanged): `uint16 output_mode:3, static_output:13; uint16 threshold_delta;
@@ -132,13 +136,14 @@ exactly as for other profiles.
 | 44 | `WII_CODE_POINTER_RECENTER` | Pointer Recenter | Digital | all |
 | 45 | `WII_CODE_SHAKE` | Shake Remote | Digital | all |
 | 46 | `WII_CODE_NUNCHUK_SHAKE` | Shake Nunchuk | Digital | Nunchuk |
+| 47 | `WII_CODE_EXTENSION_TOGGLE` | Extension Attach/Detach | Digital | all |
 
 "Used by" is a UI suggestion: show those codes in that profile's output picker. The firmware
 accepts any code in any Wii profile (for example Remote A in the Classic profile still presses
 the Wii Remote's A, which helps in the Wii Menu).
 
 Suggested groups in the picker: **Wii Remote** (0–10), **Nunchuk** (11–16, 46),
-**Classic Controller** (17–39), **Pointer & Motion** (40–45).
+**Classic Controller** (17–39), **Pointer & Motion** (40–45, 47).
 
 ## 6. Mapper commands (`mapper_cmd_t`)
 
@@ -162,7 +167,7 @@ real Wii controllers have white/gray buttons).
 Derived from the board's Switch defaults; shown here by Switch button name so the app can label
 "Reset to defaults" clearly.
 
-| Switch button | Nunchuk profile | Classic profile | Sideways profile |
+| Switch button | Nunchuk profile (Upright) | Classic profile | Sideways profile |
 | --- | --- | --- | --- |
 | A | Remote A | Classic A | Remote 2 |
 | B | Remote B | Classic B | Remote 1 |
@@ -174,7 +179,7 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 | ZL (analog trigger) | Nunchuk Z | Classic L (analog) | Remote B |
 | ZR (analog trigger) | Remote B | Classic R (analog) | Shake Remote |
 | + / − / Home | Remote + / − / Home | Classic + / − / Home | Remote + / − / Home |
-| Capture | Pointer Recenter | Pointer Recenter | Pointer Recenter |
+| Capture | Extension Attach/Detach | Extension Attach/Detach | Extension Attach/Detach |
 | LS click | Shake Nunchuk | — | — |
 | RS click | Pointer Recenter | Pointer Recenter | Pointer Recenter |
 | Left stick | Nunchuk stick | Classic left stick | Remote D-pad rotated (digital) |
@@ -182,10 +187,12 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 
 ## 8. Suggested UI
 
-- Under remapping, add a **Wii** section with three tabs: "Remote + Nunchuk", "Classic" and
-  "Sideways Remote", each editing its profile above. Hide it when `wii_supported` is 0.
-- Add Wii to the boot-mode help text: d-pad up = Wii; power tap cycles Nunchuk → Classic →
-  Sideways (LED flashes white / blue / yellow); pair by pressing SYNC on the Wii.
+- Under remapping, add a **Wii** section with three tabs: "Upright", "Sideways" and "Classic Pro",
+  each editing its profile above. Hide it when `wii_supported` is 0. Nunchuk outputs are useful in
+  the Sideways tab too, since a Nunchuk can be attached there.
+- Add Wii to the boot-mode help text: d-pad up = Wii; power tap cycles Upright → Sideways →
+  Classic Pro (LED flashes white / yellow / blue); Capture plugs / unplugs the extension; pair by
+  pressing SYNC on the Wii.
 - Classic L/R are analog outputs (like GameCube L/R analog): analog inputs pass through and digital
   inputs send their static output value. The Wii sees the L/R click once the value passes ~95%.
 - Note in the Wii tabs that the gyro always drives the pointer, and that the gyro sensitivity

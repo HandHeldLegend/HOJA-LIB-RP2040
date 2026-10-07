@@ -310,6 +310,7 @@ typedef enum
     WII_CODE_POINTER_RECENTER,
     WII_CODE_SHAKE,
     WII_CODE_NUNCHUK_SHAKE,
+    WII_CODE_EXTENSION_TOGGLE, // Plug / unplug the current mode's extension
     WII_CODE_MAX,
 } mapper_wii_code_t;
 

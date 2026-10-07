@@ -34,8 +34,8 @@
 #define CORE_WII_AIM_YAW_RANGE_DEG      12.5f
 #define CORE_WII_AIM_PITCH_RANGE_DEG    10.0f
 
-// HOJA's IMU frame is +X left, +Y forward, +Z up (NS-LIB swaps X/Y into the Switch's frame).
-// Yaw is rotation about Z and pitch about X; these signs make right / up positive.
+// Gyro aim: yaw is rotation about the IMU's Z (up) axis and pitch about its X (lateral) axis
+// (NS-LIB swaps X/Y into the Switch's frame); these signs make right / up positive.
 #define CORE_WII_AIM_YAW_SIGN           (-1.0f)
 #define CORE_WII_AIM_PITCH_SIGN         (-1.0f)
 
@@ -192,35 +192,64 @@ static bool _core_wii_code_pressed(const mapper_input_s *input, mapper_input_cod
 
 typedef enum
 {
-    CORE_WII_MODE_NUNCHUK,  // Wii Remote + Nunchuk
-    CORE_WII_MODE_CLASSIC,  // Wii Remote + Classic Controller
-    CORE_WII_MODE_SIDEWAYS, // Wii Remote alone, held sideways
+    CORE_WII_MODE_UPRIGHT,  // Wii Remote held upright, Nunchuk attachable
+    CORE_WII_MODE_SIDEWAYS, // Wii Remote held sideways, Nunchuk attachable
+    CORE_WII_MODE_CLASSIC,  // Classic Controller (Pro layout)
     CORE_WII_MODE_MAX,
 } core_wii_mode_t;
 
-static volatile core_wii_mode_t _wii_mode = CORE_WII_MODE_NUNCHUK;
+static volatile core_wii_mode_t _wii_mode = CORE_WII_MODE_UPRIGHT;
+
+// The extension each mode plugs in, and whether it is currently plugged in. Games that ask for an
+// extension to be removed can be satisfied with the extension toggle (Capture by default).
+static const nwii_extension_t _wii_mode_extension[CORE_WII_MODE_MAX] = {
+    [CORE_WII_MODE_UPRIGHT]  = NWII_EXTENSION_NUNCHUK,
+    [CORE_WII_MODE_SIDEWAYS] = NWII_EXTENSION_NUNCHUK,
+    // The original Classic Controller: same buttons as the Pro, plus analog L/R triggers
+    [CORE_WII_MODE_CLASSIC]  = NWII_EXTENSION_CLASSIC,
+};
+
+static bool _wii_mode_attached[CORE_WII_MODE_MAX] = {
+    [CORE_WII_MODE_UPRIGHT]  = true,
+    [CORE_WII_MODE_SIDEWAYS] = false, // Sideways games expect a bare remote
+    [CORE_WII_MODE_CLASSIC]  = true,
+};
+
+static void _core_wii_apply_extension(void)
+{
+    nwii_api_set_extension(_wii_mode_attached[_wii_mode] ? _wii_mode_extension[_wii_mode] : NWII_EXTENSION_NONE);
+}
 
 static void _core_wii_set_mode(core_wii_mode_t mode)
 {
-    static const nwii_extension_t extensions[CORE_WII_MODE_MAX] = {
-        [CORE_WII_MODE_NUNCHUK]  = NWII_EXTENSION_NUNCHUK,
-        // The original Classic Controller: same buttons as the Pro, plus analog L/R triggers
-        [CORE_WII_MODE_CLASSIC]  = NWII_EXTENSION_CLASSIC,
-        [CORE_WII_MODE_SIDEWAYS] = NWII_EXTENSION_NONE,
-    };
     static const mapper_wii_profile_t profiles[CORE_WII_MODE_MAX] = {
-        [CORE_WII_MODE_NUNCHUK]  = WII_PROFILE_NUNCHUK,
-        [CORE_WII_MODE_CLASSIC]  = WII_PROFILE_CLASSIC,
+        [CORE_WII_MODE_UPRIGHT]  = WII_PROFILE_NUNCHUK,
         [CORE_WII_MODE_SIDEWAYS] = WII_PROFILE_SIDEWAYS,
+        [CORE_WII_MODE_CLASSIC]  = WII_PROFILE_CLASSIC,
     };
 
     _wii_mode = mode;
     mapper_set_wii_profile(profiles[mode]);
-    nwii_api_set_extension(extensions[mode]);
+    _core_wii_apply_extension();
+}
+
+// Plug or unplug the current mode's extension on each press of the extension toggle
+static void _core_wii_extension_toggle_task(bool pressed)
+{
+    static bool was_pressed = false;
+
+    if (pressed && !was_pressed)
+    {
+        _wii_mode_attached[_wii_mode] = !_wii_mode_attached[_wii_mode];
+        _core_wii_apply_extension();
+        rgb_send_notification(_wii_mode_attached[_wii_mode] ? COLOR_GREEN : COLOR_RED);
+    }
+
+    was_pressed = pressed;
 }
 
 // The board's power button is whatever its ship-mode macro holds. A short tap cycles
-// Nunchuk -> Classic Controller -> Sideways.
+// Upright -> Sideways -> Classic.
 static void _core_wii_power_tap_task(void)
 {
     static bool armed = false;
@@ -257,9 +286,9 @@ static void _core_wii_power_tap_task(void)
         if ((now - press_start_us) < CORE_WII_POWER_TAP_US)
         {
             static const rgb_s colors[CORE_WII_MODE_MAX] = {
-                [CORE_WII_MODE_NUNCHUK]  = COLOR_WHITE,
-                [CORE_WII_MODE_CLASSIC]  = COLOR_BLUE,
+                [CORE_WII_MODE_UPRIGHT]  = COLOR_WHITE,
                 [CORE_WII_MODE_SIDEWAYS] = COLOR_YELLOW,
+                [CORE_WII_MODE_CLASSIC]  = COLOR_BLUE,
             };
 
             const core_wii_mode_t next = (core_wii_mode_t)((_wii_mode + 1) % CORE_WII_MODE_MAX);
@@ -325,31 +354,36 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     out->remote.left  = dpad[2];
     out->remote.up    = dpad[3];
 
+    _core_wii_extension_toggle_task(p[WII_CODE_EXTENSION_TOGGLE]);
+
+    // Nunchuk inputs are live in every mode; the library only reports them while a Nunchuk is
+    // attached.
+    out->nunchuk.c = p[WII_CODE_C];
+    out->nunchuk.z = p[WII_CODE_Z];
+    out->nunchuk.stick_x = _core_wii_stick(&input, WII_CODE_NUNCHUK_X_LEFT, WII_CODE_NUNCHUK_X_RIGHT);
+    out->nunchuk.stick_y = _core_wii_stick(&input, WII_CODE_NUNCHUK_Y_DOWN, WII_CODE_NUNCHUK_Y_UP);
+
+    if (p[WII_CODE_NUNCHUK_SHAKE])
+        _core_wii_shake(&out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
+
+    // Accelerometer frames, as checked against a real remote on the GCU-2: the gamepad reads +X
+    // toward its left side, +Y toward the player, +Z up out of its face. The remote reads +X
+    // toward its left side, +Y toward its IR camera, +Z up out of its face.
     switch (_wii_mode)
     {
     default:
-    case CORE_WII_MODE_NUNCHUK:
-        // The gamepad is the Wii Remote. The remote's pointing (Y) axis reads opposite to HOJA's
-        // forward axis (checked against a real remote: tilting up must not tilt down).
+    case CORE_WII_MODE_UPRIGHT:
+        // The gamepad is the remote pointing at the screen
         out->accel_x = _core_wii_mg(imu.ax);
         out->accel_y = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_z = _core_wii_mg(imu.az);
-
-        out->nunchuk.c = p[WII_CODE_C];
-        out->nunchuk.z = p[WII_CODE_Z];
-        out->nunchuk.stick_x = _core_wii_stick(&input, WII_CODE_NUNCHUK_X_LEFT, WII_CODE_NUNCHUK_X_RIGHT);
-        out->nunchuk.stick_y = _core_wii_stick(&input, WII_CODE_NUNCHUK_Y_DOWN, WII_CODE_NUNCHUK_Y_UP);
-
-        if (p[WII_CODE_NUNCHUK_SHAKE])
-            _core_wii_shake(&out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
         break;
 
     case CORE_WII_MODE_SIDEWAYS:
         // The gamepad stands in for a remote held sideways, IR end to the left: the remote's
-        // pointing axis is the gamepad's left, and its left side faces the player.
-        // (Same pointing-axis sign correction as Nunchuk mode.)
-        out->accel_x = _core_wii_mg(-(int32_t)imu.ay);
-        out->accel_y = _core_wii_mg(-(int32_t)imu.ax);
+        // camera points along the gamepad's left, and its left side faces the player
+        out->accel_x = _core_wii_mg(imu.ay);
+        out->accel_y = _core_wii_mg(imu.ax);
         out->accel_z = _core_wii_mg(imu.az);
         break;
 
@@ -474,7 +508,7 @@ bool core_wii_init(core_params_s *params)
     if (!nwii_api_init(&cfg))
         return false;
 
-    _wii_mode = CORE_WII_MODE_NUNCHUK;
+    _wii_mode = CORE_WII_MODE_UPRIGHT;
     mapper_set_wii_profile(WII_PROFILE_NUNCHUK);
 
     memset(&_wii_aim, 0, sizeof(_wii_aim));
