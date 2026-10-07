@@ -366,9 +366,9 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     if (p[WII_CODE_NUNCHUK_SHAKE])
         _core_wii_shake(&out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
 
-    // Accelerometer frames, as checked against a real remote on the GCU-2: the gamepad reads +X
-    // toward its left side, +Y toward the player, +Z up out of its face. The remote reads +X
-    // toward its left side, +Y toward its IR camera, +Z up out of its face.
+    // Accelerometer frames, checked against a real remote: HOJA's standardized IMU frame (the same
+    // on every board) reads +X toward the gamepad's left side, +Y toward the player, +Z up out of
+    // its face. The remote reads +X toward its left side, +Y toward its IR camera, +Z up.
     switch (_wii_mode)
     {
     default:
