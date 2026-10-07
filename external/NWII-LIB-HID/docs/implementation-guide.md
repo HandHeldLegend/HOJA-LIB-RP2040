@@ -161,8 +161,9 @@ taken from its yaw and roll axes. Aim therefore keeps working however the gamepa
 rolled, or pointed straight up or down, which matters for players who cannot hold a controller
 the usual way. The gyro offset is learned whenever the controller rests still. Sensors must be
 in the controller frame documented in the header (+X left, +Y toward the player, +Z up out of the
-face, right-handed for both accelerometer and gyro; check the gyro's roll axis sign, a flipped
-one shows up as cursor tilt that lags behind the controller).
+face, right-handed for both accelerometer and gyro). The two sensors must agree: an axis whose
+sign differs between them shows up as cursor tilt that lags far behind the controller, or as
+turning that inverts when the controller is held vertical.
 
 Recentring also makes the current pose "level": pass the remote accelerometer through
 `nwii_aim_level_accel()` so a player aiming from below or above still reports a remote held

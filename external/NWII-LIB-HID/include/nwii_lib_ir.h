@@ -70,9 +70,8 @@ void nwii_ir_set_pointer(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float x, floa
  * @param out NWII_IR_POINT_COUNT points to fill.
  * @param x Cursor x, -1.0 (left screen edge) .. +1.0 (right edge). Values are clamped.
  * @param y Cursor y, -1.0 (bottom edge) .. +1.0 (top edge). Values are clamped.
- * @param roll_rad Roll in radians, positive when the remote turns clockwise as seen from behind
- *                 (right side down). In the remote's accelerometer frame this is
- *                 atan2f(accel_x, accel_z).
+ * @param roll_rad Roll in radians, as atan2f(accel_x, accel_z) of the remote accelerometer values
+ *                 you report (checked on a Wii; nwii_aim_s.roll_rad uses the same sign).
  */
 void nwii_ir_set_pointer_rotated(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float x, float y, float roll_rad);
 

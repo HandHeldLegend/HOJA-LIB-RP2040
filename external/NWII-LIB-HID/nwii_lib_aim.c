@@ -205,11 +205,12 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
     aim->x = _nwii_aim_clampf(aim->x, -1.0f, 1.0f);
     aim->y = _nwii_aim_clampf(aim->y, -1.0f, 1.0f);
 
-    // Roll about the front edge: how far the left side (+X) has risen against the face (+Z).
-    // Pointed straight up or down there is no roll to read, so it fades to level there.
+    // Roll about the front edge: how far the right side (-X) has risen against the face (+Z), the
+    // sign nwii_ir_set_pointer_rotated() expects (checked on a Wii). Pointed straight up or down
+    // there is no roll to read, so it fades to level there.
     const float lean = sqrtf(aim->up[0] * aim->up[0] + aim->up[2] * aim->up[2]);
     const float fade = _nwii_aim_clampf((lean - 0.2f) / 0.3f, 0.0f, 1.0f);
-    aim->roll_rad = atan2f(aim->up[0], _nwii_aim_absf(aim->up[2])) * fade;
+    aim->roll_rad = atan2f(-aim->up[0], _nwii_aim_absf(aim->up[2])) * fade;
 }
 
 void nwii_aim_nudge(nwii_aim_s *aim, float dx, float dy)

@@ -87,11 +87,12 @@ static inline float _core_wii_stick_curve(float v)
     return v * (CORE_WII_AIM_STICK_LINEAR + (1.0f - CORE_WII_AIM_STICK_LINEAR) * mag);
 }
 
-// Feed the IMU to the aim helper and add stick aim. HOJA's IMU frame (the same on every board)
-// is the helper's controller frame: +X left, +Y toward the player, +Z up. HOJA's gyro X and Z
-// turn right-handed in that frame (checked by aiming) but its Y axis turns the other way: fed
-// as-is, the gravity estimate fights the accelerometer on every roll and cursor tilt lags.
-#define CORE_WII_GYRO_Y_SIGN        (-1.0f)
+// Feed the IMU to the aim helper and add stick aim. HOJA's gyro (the same on every board) turns
+// right-handed about the helper's controller frame: +X left, +Y toward the player, +Z up (checked
+// by aiming flat and held vertical). HOJA's accelerometer X axis reads the other way, so it is
+// negated here; fed as-is, the gravity estimate fights the gyro on every roll and cursor tilt
+// lags far behind the controller.
+#define CORE_WII_ACCEL_X_SIGN       (-1.0f)
 
 static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float stick_y, bool recenter)
 {
@@ -101,11 +102,11 @@ static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float sti
 
     const float gyro_dps[3] = {
         (float)imu->gx * CORE_WII_GYRO_DPS_PER_LSB,
-        (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_GYRO_Y_SIGN,
+        (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB,
         (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB,
     };
     const float accel_g[3] = {
-        (float)imu->ax * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
+        (float)imu->ax * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f * CORE_WII_ACCEL_X_SIGN,
         (float)imu->ay * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
         (float)imu->az * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
     };
@@ -321,6 +322,7 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     {
         // The gamepad is the remote pointing at the screen. Tilt is measured from the pose at the
         // last recentre, so a gamepad aimed from any angle reads as a remote held level.
+        // (Levelling only turns Y into Z, so HOJA's X sign passes straight through)
         const float raw[3] = {(float)imu.ax, (float)imu.ay, (float)imu.az};
         float level[3];
         nwii_aim_level_accel(&_wii_aim, raw, level);

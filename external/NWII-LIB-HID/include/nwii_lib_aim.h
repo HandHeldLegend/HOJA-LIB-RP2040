@@ -52,7 +52,7 @@ typedef struct
 {
     float x;        ///< Cursor x, -1.0 (left edge) .. +1.0 (right edge)
     float y;        ///< Cursor y, -1.0 (bottom edge) .. +1.0 (top edge)
-    float roll_rad; ///< Roll about the pointing direction, positive turning clockwise from behind
+    float roll_rad; ///< Roll about the pointing direction, positive with the right side raised
 
     nwii_aim_config_s cfg;
     float up[3];    ///< Unit vector pointing up, in the controller frame
