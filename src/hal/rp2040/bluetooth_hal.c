@@ -74,6 +74,12 @@ static bool wii_reconnect_timer_active = false;
 static uint32_t wii_link_lost_deadline_ms = 0; // 0 while connected or before the first link
 static hci_con_handle_t wii_acl_handle = HCI_CON_HANDLE_INVALID;
 
+// Powering off, the Wii only closes the HID channels (as when quitting a title), so reconnecting
+// starts as usual. A Wii in standby still accepts a new link but never answers the HID channel
+// request (L2CAP RTX timeout), while a reloading Wii refuses it outright until it is ready. That
+// tells them apart: on the standby answer, power off like a real remote instead of paging again.
+static bool wii_fresh_acl = false; // This reconnect attempt brought up a new link
+
 typedef struct
 {
     uint8_t len;
@@ -312,6 +318,7 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
         return;
     }
 
+    wii_fresh_acl = false;
     hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
 }
 
@@ -546,6 +553,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS)
             {
                 wii_acl_handle = hci_event_connection_complete_get_connection_handle(packet);
+                wii_fresh_acl = true;
             }
             break;
 
@@ -631,6 +639,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                     _connected = false;
                     hid_cid = 0;
+
+                    // Reconnecting after a lost link, the Wii took a new link but never answered:
+                    // it has gone to standby
+                    if (_bt_hal_is_wii() && wii_link_lost_deadline_ms && wii_fresh_acl &&
+                        (status == L2CAP_CONNECTION_RESPONSE_RESULT_RTX_TIMEOUT))
+                    {
+                        printf("Wii is in standby, powering off\n");
+                        wii_link_lost_deadline_ms = 0;
+                        _bt_hal_wii_reconnect_timer_stop();
+                        _bt_hal_shutdown();
+                        return;
+                    }
 
                     if (_bt_hal_is_wii() && !_pairing_mode &&
                         _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
