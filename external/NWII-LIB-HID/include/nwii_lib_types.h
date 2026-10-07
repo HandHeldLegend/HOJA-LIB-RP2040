@@ -105,7 +105,7 @@ typedef struct
  * @brief Logical input state requested from the firmware for every input report.
  *
  * Accelerometer axes use the Wii Remote frame: +Z out of the button face, +Y toward the IR
- * camera (pointing direction), +X toward the remote's right side. At rest lying face-up the
+ * camera (pointing direction), +X toward the remote's left side (verified axis by axis against a real remote; the frame is left-handed). At rest lying face-up the
  * remote reads (0, 0, +1000).
  */
 typedef struct

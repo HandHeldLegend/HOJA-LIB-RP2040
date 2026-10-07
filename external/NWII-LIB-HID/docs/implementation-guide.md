@@ -127,7 +127,8 @@ Input reports go out on the interrupt channel as `0xA1` followed by the bytes fr
 ### Accelerometer frame
 
 Values are milli-g in the remote's frame: +Z out of the button face, +Y toward the IR camera,
-+X toward the remote's right side (verified against a real remote). A remote lying face-up reads (0, 0, +1000).
++X toward the remote's left side (verified axis by axis against a real remote; note the frame is
+left-handed). A remote lying face-up reads (0, 0, +1000).
 
 ### Pointer
 
