@@ -263,6 +263,17 @@ static void boot_resolve_dpad(const mapper_input_s *input, core_reportformat_t *
             return;
         }
 
+        // Several directions held count as none held, leaving the face buttons / default. Analog
+        // directions count as held past the boot activation level, so a light graze does not.
+        uint8_t held = 0;
+        for (uint8_t i = 0; i < BOOT_DPAD_COUNT; i++)
+        {
+            if (input->inputs[k_dpad_codes[i]] >= HOJA_BOOT_ANALOG_FACE_MIN)
+                held++;
+        }
+        if (held > 1u)
+            return;
+
         if (boot_try_hover_analog(input, k_dpad_codes, BOOT_DPAD_COUNT, HOJA_BOOT_ANALOG_FACE_DELTA,
                                   HOJA_BOOT_ANALOG_FACE_MIN, &idx))
         {
@@ -270,25 +281,19 @@ static void boot_resolve_dpad(const mapper_input_s *input, core_reportformat_t *
             return;
         }
 
+        // Several directions held count as none held, leaving the face buttons / default
         idx = boot_resolve_single_pressed_index(input, k_dpad_codes, BOOT_DPAD_COUNT);
         if (idx == 0xFFu)
-        {
-            if (boot_count_pressed(input, k_dpad_codes, BOOT_DPAD_COUNT) > 1u)
-                *format = CORE_REPORTFORMAT_UNDEFINED;
             return;
-        }
 
         *format = k_dpad_formats[idx];
         return;
     }
 
+    // Several directions held count as none held, leaving the face buttons / default
     idx = boot_resolve_single_pressed_index(input, k_dpad_codes, BOOT_DPAD_COUNT);
     if (idx == 0xFFu)
-    {
-        if (boot_count_pressed(input, k_dpad_codes, BOOT_DPAD_COUNT) > 1u)
-            *format = CORE_REPORTFORMAT_UNDEFINED;
         return;
-    }
 
     *format = k_dpad_formats[idx];
 }
