@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 #include "cores/cores.h"
 #include "cores/core_wii.h"
@@ -37,9 +38,11 @@
 #define CORE_WII_AIM_STICK_Y_GAIN       1.3f
 #define CORE_WII_AIM_STICK_LINEAR       0.3f // Share of the response that is linear (rest is squared)
 
-// Shake: square wave on the accelerometer while the shake button is held
+// Shake: a smooth back-and-forth on the accelerometer, at roughly the pace of a real shake (as
+// Dolphin emulates it). It starts at the press, keeps going while the button is held, and a quick
+// tap still plays one full swing, so every press reads as a shake.
 #define CORE_WII_SHAKE_MG               3000
-#define CORE_WII_SHAKE_HALF_PERIOD_US   32000
+#define CORE_WII_SHAKE_PERIOD_US        166000 // ~6 Hz
 
 // Upright mode: while the fused gravity's levelled Z is above FACE_UP, the reported remote Z
 // acceleration never drops below Z_FLOOR_MG (see the UPRIGHT accelerometer case)
@@ -248,10 +251,45 @@ static void _core_wii_power_tap_task(void)
     was_pressed = pressed;
 }
 
-static void _core_wii_shake(int16_t *x, int16_t *y, int16_t *z)
+typedef struct
 {
-    const bool high = ((sys_hal_now_us() / CORE_WII_SHAKE_HALF_PERIOD_US) & 1u) != 0;
-    const int16_t delta = high ? CORE_WII_SHAKE_MG : -CORE_WII_SHAKE_MG;
+    bool     was_pressed;
+    bool     active;
+    uint64_t start_us;
+    uint64_t end_us; // End of the swing in progress
+} core_wii_shake_s;
+
+static core_wii_shake_s _wii_shake_remote = {0};
+static core_wii_shake_s _wii_shake_nunchuk = {0};
+
+static void _core_wii_shake(core_wii_shake_s *shake, bool pressed, int16_t *x, int16_t *y, int16_t *z)
+{
+    const uint64_t now = sys_hal_now_us();
+
+    if (pressed && !shake->was_pressed && !shake->active)
+    {
+        shake->active = true;
+        shake->start_us = now;
+    }
+    shake->was_pressed = pressed;
+
+    if (!shake->active)
+        return;
+
+    // While held, keep extending to the end of the current swing; once released, the swing in
+    // progress (at least one, for a quick tap) plays out and stops back at rest
+    const uint64_t elapsed = now - shake->start_us;
+    if (pressed)
+        shake->end_us = shake->start_us + (elapsed / CORE_WII_SHAKE_PERIOD_US + 1u) * CORE_WII_SHAKE_PERIOD_US;
+
+    if (now >= shake->end_us)
+    {
+        shake->active = false;
+        return;
+    }
+
+    const float phase = (float)(elapsed % CORE_WII_SHAKE_PERIOD_US) / (float)CORE_WII_SHAKE_PERIOD_US;
+    const float delta = (float)CORE_WII_SHAKE_MG * sinf(phase * 6.2831853f);
 
     *x = (int16_t)_core_wii_clampf((float)*x + delta, -32000.0f, 32000.0f);
     *y = (int16_t)_core_wii_clampf((float)*y + delta, -32000.0f, 32000.0f);
@@ -313,8 +351,8 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     out->nunchuk.stick_x = _core_wii_stick(&input, WII_CODE_NUNCHUK_X_LEFT, WII_CODE_NUNCHUK_X_RIGHT);
     out->nunchuk.stick_y = _core_wii_stick(&input, WII_CODE_NUNCHUK_Y_DOWN, WII_CODE_NUNCHUK_Y_UP);
 
-    if (p[WII_CODE_NUNCHUK_SHAKE])
-        _core_wii_shake(&out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
+    _core_wii_shake(&_wii_shake_nunchuk, p[WII_CODE_NUNCHUK_SHAKE],
+                    &out->nunchuk.accel_x, &out->nunchuk.accel_y, &out->nunchuk.accel_z);
 
     // Accelerometer frames, checked axis by axis against a real remote: HOJA's standardized IMU
     // frame (the same on every board) reads +X toward the gamepad's left side, +Y toward the
@@ -390,8 +428,7 @@ void nwii_api_hook_get_input(nwii_input_s *out)
     }
     }
 
-    if (p[WII_CODE_SHAKE])
-        _core_wii_shake(&out->accel_x, &out->accel_y, &out->accel_z);
+    _core_wii_shake(&_wii_shake_remote, p[WII_CODE_SHAKE], &out->accel_x, &out->accel_y, &out->accel_z);
 }
 
 void nwii_api_hook_set_rumble(bool enable)
