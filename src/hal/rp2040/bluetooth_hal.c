@@ -42,17 +42,16 @@
 // Wii until it answers (it may still be booting).
 #define BT_HAL_WII_RECONNECT_MS 1000
 
-// The Wii takes the master role, so its 20 s link supervision timeout applies. When a title
-// starts or quits, the Wii stops servicing the link while it reloads; if none of our reports
-// have been accepted for this long, treat the link as dead and reconnect instead of waiting.
-#define BT_HAL_WII_STALL_MS 1500
+// No report-stall watchdog: with several remotes connected the Wii can legitimately take seconds
+// to service a link (sniff mode), and a watchdog then loops on reconnects. A silent link is left
+// to the Wii's own supervision timeout, as with real remotes.
 
 // Page timeout while reconnecting (x 0.625 ms, ~5 s) so retries during a reload stay short
 #define BT_HAL_WII_PAGE_TIMEOUT 0x2000
 
 // When a title starts the Wii reloads its system software and every link drops. Real remotes
 // reconnect on their own, so after a lost link keep paging for this long before powering off.
-#define BT_HAL_WII_LINK_LOST_WINDOW_MS 30000
+#define BT_HAL_WII_LINK_LOST_WINDOW_MS 60000
 
 volatile bool _connected = false;
 volatile bool _hidreportclear = false;
@@ -74,7 +73,6 @@ static btstack_timer_source_t wii_reconnect_timer;
 static bool wii_reconnect_timer_active = false;
 static uint32_t wii_link_lost_deadline_ms = 0; // 0 while connected or before the first link
 static hci_con_handle_t wii_acl_handle = HCI_CON_HANDLE_INVALID;
-static uint32_t wii_last_can_send_ms = 0;
 
 typedef struct
 {
@@ -231,21 +229,10 @@ static void _bt_hal_hid_report_timer_stop(void)
     hid_report_timer_active = false;
 }
 
-static void _bt_hal_wii_radio_cycle(void);
-
 static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 {
     if (!hid_cid || !_connected)
     {
-        return;
-    }
-
-    // Wii reload watchdog (see BT_HAL_WII_STALL_MS)
-    if ((core_current_reportformat() == CORE_REPORTFORMAT_WII) && (wii_acl_handle != HCI_CON_HANDLE_INVALID) &&
-        (btstack_run_loop_get_time_ms() - wii_last_can_send_ms) > BT_HAL_WII_STALL_MS)
-    {
-        hid_report_timer_active = false;
-        _bt_hal_wii_radio_cycle();
         return;
     }
 
@@ -338,9 +325,9 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 
 // A reloading Wii keeps transmitting but stops acknowledging us, so a normal disconnect waits out
 // the 30 s LMP response timeout. Power-cycling our radio drops the link locally in about a second
-// (BTstack's halting watchdog discards connections the controller cannot close). Wii mode keeps
-// the master role on the links it opens, so our 2 s supervision timeout also ends the link on the
-// Wii's side quickly. BTSTACK_EVENT_STATE powers the radio back on and pages the Wii again.
+// (BTstack's halting watchdog discards connections the controller cannot close). The Wii is the
+// master, so its own supervision timeout (up to 20 s) decides when it lets go of the old link;
+// BTSTACK_EVENT_STATE powers the radio back on and keeps paging the Wii until it does.
 static bool wii_radio_cycling = false;
 
 static void _bt_hal_wii_radio_cycle(void)
@@ -671,7 +658,6 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     _pairing_mode = false;
                 }
                 wii_link_lost_deadline_ms = 0;
-                wii_last_can_send_ms = btstack_run_loop_get_time_ms();
                 if (core_current_params()->core_connected)
                 {
                     core_current_params()->core_connected();
@@ -718,7 +704,6 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _bt_hal_shutdown();
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
-                wii_last_can_send_ms = btstack_run_loop_get_time_ms();
                 if (hid_cid)
                 {
                     core_report_s report = {0};
@@ -801,17 +786,12 @@ bool transport_bt_init(core_params_s *params)
     }
     gap_set_local_name(_bt_hal_hid->name);
 
+    // Every mode lets the host take the master role. A Wii in particular hangs up on a remote that
+    // refuses the role switch once other remotes are connected or a game is running.
     uint16_t link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH | LM_LINK_POLICY_ENABLE_SNIFF_MODE;
 
-    // Wii mode keeps the master role on links it opens, so our 2 s supervision timeout (not the
-    // Wii's 20 s) decides how quickly a dead link ends on both sides
-    if (wii)
-    {
-        link_policy = LM_LINK_POLICY_ENABLE_SNIFF_MODE;
-    }
-
     gap_set_default_link_policy_settings(link_policy);
-    gap_set_allow_role_switch(!wii);
+    gap_set_allow_role_switch(true);
 
     hci_set_chipset(btstack_chipset_cyw43_instance());
 
