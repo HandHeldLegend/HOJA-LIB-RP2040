@@ -382,8 +382,9 @@ void nwii_api_hook_get_input(nwii_input_s *out)
 
     case CORE_WII_MODE_SIDEWAYS:
         // The gamepad stands in for a remote held sideways, IR end to the left: the remote's
-        // camera points along the gamepad's left, and its left side faces the player
-        out->accel_x = _core_wii_mg(imu.ay);
+        // camera points along the gamepad's left. X follows the steering-wheel check against a
+        // real remote (X against Y), which the flat tilts alone cannot distinguish.
+        out->accel_x = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_y = _core_wii_mg(imu.ax);
         out->accel_z = _core_wii_mg(imu.az);
         break;
