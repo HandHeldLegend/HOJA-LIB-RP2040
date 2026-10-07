@@ -16,14 +16,19 @@ short tap of the power button cycles them (the LED flashes white / yellow / blue
 | --- | --- | --- |
 | Upright | Wii Remote held upright, Nunchuk attached | Wii Nunchuk profile |
 | Sideways | Wii Remote held sideways, no extension | Wii Sideways profile |
-| Classic Pro | Wii Remote + Classic Controller (analog L/R) | Wii Classic profile |
+| Classic | Wii Remote + the original Classic Controller (analog L/R) | Wii Classic profile |
 
 The extension toggle (Capture by default) plugs or unplugs the current mode's extension at any
 time, for games that ask for it to be removed: the Nunchuk in Upright and Sideways, the Classic
-Controller in Classic Pro. The LED flashes green when attached and red when detached.
+Controller in Classic. The LED flashes green when attached and red when detached.
 
 In every mode the IR pointer follows the gyro, can be nudged by whatever is mapped to the pointer
-outputs, and can be recentred by whatever is mapped to Pointer Recenter.
+outputs, and can be recentred by whatever is mapped to Pointer Recenter. Aiming works in any grip
+(flat, rolled, or pointed straight up or down), the cursor tilts with the controller, and
+recentring also makes the current pose "level" for the remote's reported tilt.
+
+The controller reports as a Wii Remote Plus (MotionPlus built in), so MotionPlus games such as
+Wii Sports Resort run. None of this needs settings; it is listed here for help text.
 
 ## 1. Capability: does this board support Wii mode?
 
@@ -187,13 +192,17 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 
 ## 8. Suggested UI
 
-- Under remapping, add a **Wii** section with three tabs: "Upright", "Sideways" and "Classic Pro",
+- Under remapping, add a **Wii** section with three tabs: "Upright", "Sideways" and "Classic",
   each editing its profile above. Hide it when `wii_supported` is 0. Nunchuk outputs are useful in
   the Sideways tab too, since a Nunchuk can be attached there.
 - Add Wii to the boot-mode help text: d-pad up = Wii; power tap cycles Upright → Sideways →
-  Classic Pro (LED flashes white / yellow / blue); Capture plugs / unplugs the extension; pair by
-  pressing SYNC on the Wii.
+  Classic (LED flashes white / yellow / blue); Capture plugs / unplugs the extension; pair by
+  pressing SYNC on the Wii. The controller turns itself off a few seconds after the Wii is
+  switched off.
 - Classic L/R are analog outputs (like GameCube L/R analog): analog inputs pass through and digital
   inputs send their static output value. The Wii sees the L/R click once the value passes ~95%.
-- Note in the Wii tabs that the gyro always drives the pointer, and that the gyro sensitivity
-  setting in the IMU section scales it.
+- Note in the Wii tabs that the gyro always drives the pointer. The IMU section's sensitivity
+  settings scale the pointer speed but also the MotionPlus gyro and the reported tilt, so values
+  far from the default can make MotionPlus games and tilt controls feel off.
+- Nintendont tip for the Classic tab: rumble with a Classic Controller needs Nintendont's
+  "CC Rumble" setting turned on.
