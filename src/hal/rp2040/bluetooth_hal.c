@@ -12,8 +12,10 @@
 #include "btstack_run_loop.h"
 #include "btstack_event.h"
 #include "btstack_tlv.h"
+#include "hci_dump.h"
 
 #include <string.h>
+#include <stdarg.h>
 
 #include "transport/transport_bt.h"
 #include "utilities/settings.h"
@@ -304,6 +306,63 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 
     hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
 }
+
+// When a title starts, the Wii reloads its system software but keeps the ACL link, and its new
+// stack addresses L2CAP channels that no longer exist. BTstack answers with a Command Reject
+// ("invalid CID") and otherwise drops the traffic, leaving the remote unregistered until the link
+// times out. Watching for that reject (via BTstack's HCI packet-log hook, the only place it is
+// visible) lets Wii mode drop the stale link and reconnect straight away, as a real remote does.
+#define BT_HAL_L2CAP_COMMAND_REJECT     0x01
+#define BT_HAL_L2CAP_REJECT_INVALID_CID 0x0002
+
+static btstack_timer_source_t wii_stale_link_timer;
+static hci_con_handle_t wii_stale_link_handle = HCI_CON_HANDLE_INVALID;
+
+static void _bt_hal_wii_stale_link_handler(btstack_timer_source_t *ts)
+{
+    (void)ts;
+    if (wii_stale_link_handle != HCI_CON_HANDLE_INVALID)
+    {
+        gap_disconnect(wii_stale_link_handle);
+        wii_stale_link_handle = HCI_CON_HANDLE_INVALID;
+    }
+}
+
+static void _bt_hal_wii_dump_log_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len)
+{
+    // Outgoing ACL: handle(2) acl_len(2) l2cap_len(2) cid(2) code(1) id(1) len(2) reason(2)
+    if (packet_type != HCI_ACL_DATA_PACKET || in || len < 14)
+        return;
+    if (little_endian_read_16(packet, 6) != L2CAP_CID_SIGNALING)
+        return;
+    if (packet[8] != BT_HAL_L2CAP_COMMAND_REJECT || little_endian_read_16(packet, 12) != BT_HAL_L2CAP_REJECT_INVALID_CID)
+        return;
+    if (wii_stale_link_handle != HCI_CON_HANDLE_INVALID)
+        return;
+
+    // Disconnect from a timer rather than from inside the HCI send path
+    wii_stale_link_handle = little_endian_read_16(packet, 0) & 0x0FFF;
+    btstack_run_loop_set_timer_handler(&wii_stale_link_timer, &_bt_hal_wii_stale_link_handler);
+    btstack_run_loop_set_timer(&wii_stale_link_timer, 1);
+    btstack_run_loop_add_timer(&wii_stale_link_timer);
+}
+
+static void _bt_hal_wii_dump_reset(void)
+{
+}
+
+static void _bt_hal_wii_dump_log_message(int log_level, const char *format, va_list argptr)
+{
+    (void)log_level;
+    (void)format;
+    (void)argptr;
+}
+
+static const hci_dump_t _bt_hal_wii_stale_link_watch = {
+    .reset       = _bt_hal_wii_dump_reset,
+    .log_packet  = _bt_hal_wii_dump_log_packet,
+    .log_message = _bt_hal_wii_dump_log_message,
+};
 
 static void _bt_hal_wii_reconnect_timer_start(void)
 {
@@ -619,6 +678,7 @@ bool transport_bt_init(core_params_s *params)
         gap_ssp_set_enable(0);
         gap_set_security_level(LEVEL_0);
         gap_set_class_of_device(NWII_HID_CLASS_OF_DEVICE);
+        hci_dump_init(&_bt_hal_wii_stale_link_watch);
     }
     else
     {
