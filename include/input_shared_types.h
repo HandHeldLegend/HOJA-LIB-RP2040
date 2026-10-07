@@ -253,6 +253,76 @@ typedef enum
     SINPUT_CODE_MAX,
 } mapper_sinput_code_t;
 
+// Wii outputs. One code space is shared by the three Wii profiles (Nunchuk, Classic Pro,
+// Sideways); each profile normally uses the subset that applies to its mode. Values are part of
+// the config app wire format: append only.
+typedef enum
+{
+    WII_CODE_UNUSED = -1,
+    // Wii Remote
+    WII_CODE_A,
+    WII_CODE_B,
+    WII_CODE_ONE,
+    WII_CODE_TWO,
+    WII_CODE_UP,
+    WII_CODE_DOWN,
+    WII_CODE_LEFT,
+    WII_CODE_RIGHT,
+    WII_CODE_PLUS,
+    WII_CODE_MINUS,
+    WII_CODE_HOME,
+    // Nunchuk
+    WII_CODE_C,
+    WII_CODE_Z,
+    WII_CODE_NUNCHUK_X_RIGHT,
+    WII_CODE_NUNCHUK_X_LEFT,
+    WII_CODE_NUNCHUK_Y_UP,
+    WII_CODE_NUNCHUK_Y_DOWN,
+    // Classic Controller Pro
+    WII_CODE_CC_A,
+    WII_CODE_CC_B,
+    WII_CODE_CC_X,
+    WII_CODE_CC_Y,
+    WII_CODE_CC_UP,
+    WII_CODE_CC_DOWN,
+    WII_CODE_CC_LEFT,
+    WII_CODE_CC_RIGHT,
+    WII_CODE_CC_L,
+    WII_CODE_CC_R,
+    WII_CODE_CC_ZL,
+    WII_CODE_CC_ZR,
+    WII_CODE_CC_PLUS,
+    WII_CODE_CC_MINUS,
+    WII_CODE_CC_HOME,
+    WII_CODE_CC_LX_RIGHT,
+    WII_CODE_CC_LX_LEFT,
+    WII_CODE_CC_LY_UP,
+    WII_CODE_CC_LY_DOWN,
+    WII_CODE_CC_RX_RIGHT,
+    WII_CODE_CC_RX_LEFT,
+    WII_CODE_CC_RY_UP,
+    WII_CODE_CC_RY_DOWN,
+    // Pointer and motion functions (any mode)
+    WII_CODE_POINTER_RIGHT,
+    WII_CODE_POINTER_LEFT,
+    WII_CODE_POINTER_UP,
+    WII_CODE_POINTER_DOWN,
+    WII_CODE_POINTER_RECENTER,
+    WII_CODE_SHAKE,
+    WII_CODE_NUNCHUK_SHAKE,
+    WII_CODE_EXTENSION_TOGGLE, // Plug / unplug the current mode's extension
+    WII_CODE_MAX,
+} mapper_wii_code_t;
+
+// Which Wii profile the mapper reads; follows the Wii core's controller mode.
+typedef enum
+{
+    WII_PROFILE_NUNCHUK,
+    WII_PROFILE_CLASSIC,
+    WII_PROFILE_SIDEWAYS,
+    WII_PROFILE_MAX,
+} mapper_wii_profile_t;
+
 #define MAPPER_PROFILE_SIZE sizeof(mapper_profile_s)
 
 typedef struct 

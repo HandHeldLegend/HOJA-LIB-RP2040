@@ -35,6 +35,10 @@ typedef enum
 
 #define CFG_BLOCK_INPUT_VERSION     0x14
 
+// The Wii profiles live in space that used to be reserved, so they get their own version byte
+// instead of bumping CFG_BLOCK_INPUT_VERSION (which would reset every other profile).
+#define CFG_INPUT_WII_PROFILE_VERSION 0x03
+
 #define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 
 typedef enum 
@@ -61,6 +65,12 @@ typedef enum
     MAPPER_CMD_WEBUSB_N64,
     MAPPER_CMD_WEBUSB_GAMECUBE,
     MAPPER_CMD_WEBUSB_SINPUT,
+    MAPPER_CMD_DEFAULT_WII_NUNCHUK,
+    MAPPER_CMD_DEFAULT_WII_CLASSIC,
+    MAPPER_CMD_DEFAULT_WII_SIDEWAYS,
+    MAPPER_CMD_WEBUSB_WII_NUNCHUK,
+    MAPPER_CMD_WEBUSB_WII_CLASSIC,
+    MAPPER_CMD_WEBUSB_WII_SIDEWAYS,
 } mapper_cmd_t;
 
 typedef enum 
@@ -215,7 +225,7 @@ typedef struct
 typedef struct 
 {
     uint8_t  gamepad_config_version;
-    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 6=SINPUT)
+    uint8_t  gamepad_default_mode; // core_reportformat_t value (0=SWPRO .. 7=WII)
     uint8_t  gamepad_mac_address[6]; // Device BASE MAC Address
     uint32_t gamepad_color_body;
     uint32_t gamepad_color_buttons;
@@ -225,7 +235,8 @@ typedef struct
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
     uint16_t wlan_dongle_key;       // WLAN dongle pairing pin (0000-9999)
-    uint8_t  reserved[25];
+    uint8_t  host_mac_wii[6];       // Mac address of the Wii we are paired to
+    uint8_t  reserved[19];
 } gamepadConfig_s;
 
 _Static_assert(sizeof(gamepadConfig_s) == 64, "gamepadConfig_s must remain 64 bytes");
@@ -270,9 +281,14 @@ typedef struct
     inputConfigSlot_s input_profile_n64[36]; // SIZE=5
     inputConfigSlot_s input_profile_gamecube[36]; // SIZE=5
     inputConfigSlot_s input_profile_sinput[36]; // SIZE=5
-    inputConfigSlot_s input_profile_reserved_2[36]; // SIZE=5
-    uint8_t reserved[787];
+    inputConfigSlot_s input_profile_wii_nunchuk[36]; // SIZE=5 (was input_profile_reserved_2)
+    inputConfigSlot_s input_profile_wii_classic[36]; // SIZE=5
+    inputConfigSlot_s input_profile_wii_sideways[36]; // SIZE=5
+    uint8_t wii_profile_version; // CFG_INPUT_WII_PROFILE_VERSION once the Wii profiles hold defaults
+    uint8_t reserved[426];
 } inputConfig_s;
+
+_Static_assert(sizeof(inputConfig_s) == 2048, "inputConfig_s must remain 2048 bytes");
 
 typedef struct
 {

@@ -149,54 +149,51 @@ static const mapper_input_code_t k_face_codes[4] = {
     INPUT_CODE_NORTH,
 };
 
-static const mapper_input_code_t k_dpad_codes[3] = {
+// Wii mode needs the RM2 (CYW43) Bluetooth HAL. Without it d-pad up stays out of the boot
+// mode group entirely, so those boards keep the three-way SNES / N64 / GameCube pick.
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+#define BOOT_WII_SUPPORTED 1
+#define BOOT_DPAD_COUNT    4
+#else
+#define BOOT_WII_SUPPORTED 0
+#define BOOT_DPAD_COUNT    3
+#endif
+
+static const mapper_input_code_t k_dpad_codes[4] = {
     INPUT_CODE_LEFT,
     INPUT_CODE_DOWN,
     INPUT_CODE_RIGHT,
+    INPUT_CODE_UP,
 };
 
-static const core_reportformat_t k_dpad_formats[3] = {
+static const core_reportformat_t k_dpad_formats[4] = {
     CORE_REPORTFORMAT_SNES,
     CORE_REPORTFORMAT_N64,
     CORE_REPORTFORMAT_GAMECUBE,
+    CORE_REPORTFORMAT_WII,
 };
 
-static bool boot_try_hover_analog4(const mapper_input_s *in, const mapper_input_code_t codes[4],
-                                   uint16_t min_delta, uint16_t min_activation, uint8_t *index_out)
+static bool boot_format_supported(core_reportformat_t format)
 {
-    if (!boot_group_all_hover(codes, 4))
-        return false;
+    if (format == CORE_REPORTFORMAT_WII)
+        return BOOT_WII_SUPPORTED;
 
-    uint16_t raw[4] = {
-        in->inputs[codes[0]],
-        in->inputs[codes[1]],
-        in->inputs[codes[2]],
-        in->inputs[codes[3]],
-    };
-
-    uint8_t bit = boot_pick_strongest_analog4(raw, min_delta, min_activation);
-    if (bit == 0)
-        return false;
-
-    *index_out = (uint8_t)__builtin_ctz((unsigned)bit);
-    return true;
+    return (format > CORE_REPORTFORMAT_UNDEFINED) && (format < CORE_REPORTFORMAT_MAX);
 }
 
-static bool boot_try_hover_analog3(const mapper_input_s *in, const mapper_input_code_t codes[3],
-                                   uint16_t min_delta, uint16_t min_activation, uint8_t *index_out)
+// Strongest of up to four hover inputs; unused slots read as released.
+static bool boot_try_hover_analog(const mapper_input_s *in, const mapper_input_code_t *codes, uint8_t count,
+                                  uint16_t min_delta, uint16_t min_activation, uint8_t *index_out)
 {
-    if (!boot_group_all_hover(codes, 3))
+    if (!boot_group_all_hover(codes, count))
         return false;
 
-    uint16_t raw[4] = {
-        in->inputs[codes[0]],
-        in->inputs[codes[1]],
-        in->inputs[codes[2]],
-        0,
-    };
+    uint16_t raw[4] = {0};
+    for (uint8_t i = 0; i < count; i++)
+        raw[i] = in->inputs[codes[i]];
 
     uint8_t bit = boot_pick_strongest_analog4(raw, min_delta, min_activation);
-    if (bit == 0 || bit >= (1u << 3))
+    if (bit == 0 || bit >= (1u << count))
         return false;
 
     *index_out = (uint8_t)__builtin_ctz((unsigned)bit);
@@ -215,7 +212,7 @@ static bool boot_resolve_hover_face(const mapper_input_s *in, core_reportformat_
     }
 
     uint8_t idx = 0;
-    if (!boot_try_hover_analog4(in, k_face_codes, HOJA_BOOT_ANALOG_FACE_DELTA, HOJA_BOOT_ANALOG_FACE_MIN, &idx))
+    if (!boot_try_hover_analog(in, k_face_codes, 4, HOJA_BOOT_ANALOG_FACE_DELTA, HOJA_BOOT_ANALOG_FACE_MIN, &idx))
     {
         *format_out = CORE_REPORTFORMAT_UNDEFINED;
         return true;
@@ -258,7 +255,7 @@ static void boot_resolve_dpad(const mapper_input_s *input, core_reportformat_t *
 {
     uint8_t idx = 0xFFu;
 
-    if (boot_group_all_hover(k_dpad_codes, 3))
+    if (boot_group_all_hover(k_dpad_codes, BOOT_DPAD_COUNT))
     {
         if (!hover_config->hover_calibration_set)
         {
@@ -266,32 +263,37 @@ static void boot_resolve_dpad(const mapper_input_s *input, core_reportformat_t *
             return;
         }
 
-        if (boot_try_hover_analog3(input, k_dpad_codes, HOJA_BOOT_ANALOG_FACE_DELTA,
-                                   HOJA_BOOT_ANALOG_FACE_MIN, &idx))
+        // Several directions held count as none held, leaving the face buttons / default. Analog
+        // directions count as held past the boot activation level, so a light graze does not.
+        uint8_t held = 0;
+        for (uint8_t i = 0; i < BOOT_DPAD_COUNT; i++)
+        {
+            if (input->inputs[k_dpad_codes[i]] >= HOJA_BOOT_ANALOG_FACE_MIN)
+                held++;
+        }
+        if (held > 1u)
+            return;
+
+        if (boot_try_hover_analog(input, k_dpad_codes, BOOT_DPAD_COUNT, HOJA_BOOT_ANALOG_FACE_DELTA,
+                                  HOJA_BOOT_ANALOG_FACE_MIN, &idx))
         {
             *format = k_dpad_formats[idx];
             return;
         }
 
-        idx = boot_resolve_single_pressed_index(input, k_dpad_codes, 3);
+        // Several directions held count as none held, leaving the face buttons / default
+        idx = boot_resolve_single_pressed_index(input, k_dpad_codes, BOOT_DPAD_COUNT);
         if (idx == 0xFFu)
-        {
-            if (boot_count_pressed(input, k_dpad_codes, 3) > 1u)
-                *format = CORE_REPORTFORMAT_UNDEFINED;
             return;
-        }
 
         *format = k_dpad_formats[idx];
         return;
     }
 
-    idx = boot_resolve_single_pressed_index(input, k_dpad_codes, 3);
+    // Several directions held count as none held, leaving the face buttons / default
+    idx = boot_resolve_single_pressed_index(input, k_dpad_codes, BOOT_DPAD_COUNT);
     if (idx == 0xFFu)
-    {
-        if (boot_count_pressed(input, k_dpad_codes, 3) > 1u)
-            *format = CORE_REPORTFORMAT_UNDEFINED;
         return;
-    }
 
     *format = k_dpad_formats[idx];
 }
@@ -313,6 +315,9 @@ static core_reportformat_t boot_resolve_reportformat(const mapper_input_s *input
 
     if (format == CORE_REPORTFORMAT_UNDEFINED)
         format = core_reportformat_from_default(gamepad_config->gamepad_default_mode);
+
+    if (!boot_format_supported(format))
+        format = CORE_REPORTFORMAT_SWPRO;
 
     return format;
 }
@@ -409,6 +414,11 @@ static void boot_apply_wired_transport_default(core_reportformat_t format, boot_
         info->transport = GAMEPAD_TRANSPORT_JOYBUSGC;
         break;
 
+    // The Wii only speaks Bluetooth
+    case CORE_REPORTFORMAT_WII:
+        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        break;
+
     default:
         break;
     }
@@ -451,7 +461,8 @@ static void boot_apply_persisted_memory(boot_info_s *info)
     }
 #endif
 
-    if (boot_memory.report_format < (uint8_t)CORE_REPORTFORMAT_MAX)
+    if (boot_memory.report_format < (uint8_t)CORE_REPORTFORMAT_MAX &&
+        boot_format_supported((core_reportformat_t)boot_memory.report_format))
         info->reportformat = (core_reportformat_t)boot_memory.report_format;
 
     info->pairing = boot_memory.gamepad_pair ? true : false;
@@ -600,7 +611,7 @@ void boot_init(void)
     // 6. LB held at boot prefers Bluetooth when transport is still AUTO.
     boot_apply_lb_bt_hint(&input, &_boot_info);
 
-    // 7. Wired formats default to their bus transport.
+    // 7. Wired formats default to their bus transport, Wii to Bluetooth.
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
 
     // 8. Runtime reboot memory (pairing macro, etc.) overrides selections above.

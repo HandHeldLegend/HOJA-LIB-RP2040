@@ -109,7 +109,7 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
                 core_reportformat_t format = core_current_params()->core_report_format;
                 bool pair = false;
 
-                if (format == CORE_REPORTFORMAT_SWPRO)
+                if (format == CORE_REPORTFORMAT_SWPRO || format == CORE_REPORTFORMAT_WII)
                 {
                     pair = true;
                 }

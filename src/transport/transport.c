@@ -209,6 +209,10 @@ bool transport_init(core_params_s *params)
         case CORE_REPORTFORMAT_SINPUT:
         memcpy(params->transport_host_mac, gamepad_config->host_mac_sinput, 6);
         break;
+
+        case CORE_REPORTFORMAT_WII:
+        memcpy(params->transport_host_mac, gamepad_config->host_mac_wii, 6);
+        break;
     }
 
     _transport_set_mac(params->transport_dev_mac, params->core_report_format);

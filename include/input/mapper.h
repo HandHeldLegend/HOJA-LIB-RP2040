@@ -17,6 +17,8 @@ void mapper_init();
 const inputConfigSlot_s *mapper_get_active_profile(void);
 core_reportformat_t mapper_get_palette_format(void);
 void mapper_webusb_remap_preview_end(void);
+// Select which Wii profile (Nunchuk / Classic Pro / Sideways) the mapper reads in Wii mode.
+void mapper_set_wii_profile(mapper_wii_profile_t profile);
 mapper_input_s mapper_get_translated_input();
 mapper_input_s mapper_get_input();
 
