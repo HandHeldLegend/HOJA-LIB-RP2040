@@ -10,3 +10,6 @@
 [submodule "external/HHL-TINYUSB-DRIVERS"]
 	path = external/HHL-TINYUSB-DRIVERS
 	url = https://github.com/HandHeldLegend/HHL-TINYUSB-DRIVERS
+[submodule "external/NWII-LIB-HID"]
+	path = external/NWII-LIB-HID
+	url = https://github.com/HandHeldLegend/NWII-LIB-HID
