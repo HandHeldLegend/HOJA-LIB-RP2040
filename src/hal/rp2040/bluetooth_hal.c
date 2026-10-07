@@ -82,8 +82,9 @@ static bool wii_fresh_acl = false; // This reconnect attempt brought up a new li
 
 // Faster still: a Wii going to standby takes the page at the radio (it switches roles) and then
 // never completes the connection, which otherwise ends only on a ~20 s timeout. While the Wii
-// reloads for a title, a page always completes within a few seconds of the role switch.
-#define BT_HAL_WII_PAGE_STALL_MS 5000
+// reloads for a title, a page has completed within ~3.5 s of the role switch; leaving the Homebrew
+// Channel can take longer, so allow 10 s.
+#define BT_HAL_WII_PAGE_STALL_MS 10000
 
 static btstack_timer_source_t wii_page_stall_timer;
 static bool wii_page_pending = false; // Reconnect page in progress
