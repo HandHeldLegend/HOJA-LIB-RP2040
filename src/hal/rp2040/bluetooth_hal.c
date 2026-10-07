@@ -80,6 +80,15 @@ static hci_con_handle_t wii_acl_handle = HCI_CON_HANDLE_INVALID;
 // tells them apart: on the standby answer, power off like a real remote instead of paging again.
 static bool wii_fresh_acl = false; // This reconnect attempt brought up a new link
 
+// Faster still: a Wii going to standby takes the page at the radio (it switches roles) and then
+// never completes the connection, which otherwise ends only on a ~20 s timeout. While the Wii
+// reloads for a title, a page always completes within a few seconds of the role switch.
+#define BT_HAL_WII_PAGE_STALL_MS 5000
+
+static btstack_timer_source_t wii_page_stall_timer;
+static bool wii_page_pending = false; // Reconnect page in progress
+static bool wii_page_answered = false; // ...and the Wii's radio has taken it
+
 typedef struct
 {
     uint8_t len;
@@ -299,6 +308,20 @@ static void _bt_hal_shutdown(void)
     transport_evt_cb(pevt);
 }
 
+static void _bt_hal_wii_page_stall_handler(btstack_timer_source_t *ts)
+{
+    (void)ts;
+
+    if (wii_page_pending && wii_page_answered && wii_link_lost_deadline_ms)
+    {
+        printf("Wii is going to standby, powering off\n");
+        wii_link_lost_deadline_ms = 0;
+        _bt_hal_wii_reconnect_timer_stop();
+        _bt_hal_shutdown();
+    }
+    wii_page_pending = false;
+}
+
 static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 {
     (void)ts;
@@ -319,6 +342,15 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
     }
 
     wii_fresh_acl = false;
+    if (wii_link_lost_deadline_ms)
+    {
+        wii_page_pending = true;
+        wii_page_answered = false;
+        btstack_run_loop_remove_timer(&wii_page_stall_timer);
+        btstack_run_loop_set_timer_handler(&wii_page_stall_timer, &_bt_hal_wii_page_stall_handler);
+        btstack_run_loop_set_timer(&wii_page_stall_timer, BT_HAL_WII_PAGE_STALL_MS);
+        btstack_run_loop_add_timer(&wii_page_stall_timer);
+    }
     hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
 }
 
@@ -549,7 +581,16 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             break;
 
+        case HCI_EVENT_ROLE_CHANGE:
+            if (wii_page_pending && (hci_event_role_change_get_status(packet) == ERROR_CODE_SUCCESS))
+            {
+                wii_page_answered = true;
+            }
+            break;
+
         case HCI_EVENT_CONNECTION_COMPLETE:
+            wii_page_pending = false;
+            btstack_run_loop_remove_timer(&wii_page_stall_timer);
             if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS)
             {
                 wii_acl_handle = hci_event_connection_complete_get_connection_handle(packet);
