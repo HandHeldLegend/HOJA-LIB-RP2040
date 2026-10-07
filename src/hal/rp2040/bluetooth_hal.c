@@ -231,6 +231,8 @@ static void _bt_hal_hid_report_timer_stop(void)
     hid_report_timer_active = false;
 }
 
+static void _bt_hal_wii_radio_cycle(void);
+
 static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 {
     if (!hid_cid || !_connected)
@@ -242,8 +244,8 @@ static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
     if ((core_current_reportformat() == CORE_REPORTFORMAT_WII) && (wii_acl_handle != HCI_CON_HANDLE_INVALID) &&
         (btstack_run_loop_get_time_ms() - wii_last_can_send_ms) > BT_HAL_WII_STALL_MS)
     {
-        gap_disconnect(wii_acl_handle);
         hid_report_timer_active = false;
+        _bt_hal_wii_radio_cycle();
         return;
     }
 
@@ -334,6 +336,42 @@ static void _bt_hal_wii_reconnect_timer_handler(btstack_timer_source_t *ts)
 #define BT_HAL_L2CAP_COMMAND_REJECT     0x01
 #define BT_HAL_L2CAP_REJECT_INVALID_CID 0x0002
 
+// A reloading Wii keeps transmitting but stops acknowledging us, so a normal disconnect waits out
+// the 30 s LMP response timeout. Power-cycling our radio drops the link locally in about a second
+// (BTstack's halting watchdog discards connections the controller cannot close). Wii mode keeps
+// the master role on the links it opens, so our 2 s supervision timeout also ends the link on the
+// Wii's side quickly. BTSTACK_EVENT_STATE powers the radio back on and pages the Wii again.
+static bool wii_radio_cycling = false;
+
+static void _bt_hal_wii_radio_cycle(void)
+{
+    if (wii_radio_cycling)
+        return;
+
+    wii_radio_cycling = true;
+    _bt_hal_hid_report_timer_stop();
+    _connected = false;
+    wii_link_lost_deadline_ms = btstack_run_loop_get_time_ms() + BT_HAL_WII_LINK_LOST_WINDOW_MS;
+    hci_power_control(HCI_POWER_OFF);
+}
+
+// After the Wii closes the HID channels, give a normal disconnect this long before cycling
+#define BT_HAL_WII_TEARDOWN_MS 1500
+
+static btstack_timer_source_t wii_teardown_timer;
+static hci_con_handle_t wii_teardown_handle = HCI_CON_HANDLE_INVALID;
+
+static void _bt_hal_wii_teardown_handler(btstack_timer_source_t *ts)
+{
+    (void)ts;
+    // Only if that same link is still up; a fresh reconnect may already have replaced it
+    if (wii_teardown_handle != HCI_CON_HANDLE_INVALID && wii_teardown_handle == wii_acl_handle)
+    {
+        _bt_hal_wii_radio_cycle();
+    }
+    wii_teardown_handle = HCI_CON_HANDLE_INVALID;
+}
+
 static btstack_timer_source_t wii_stale_link_timer;
 static hci_con_handle_t wii_stale_link_handle = HCI_CON_HANDLE_INVALID;
 
@@ -342,8 +380,8 @@ static void _bt_hal_wii_stale_link_handler(btstack_timer_source_t *ts)
     (void)ts;
     if (wii_stale_link_handle != HCI_CON_HANDLE_INVALID)
     {
-        gap_disconnect(wii_stale_link_handle);
         wii_stale_link_handle = HCI_CON_HANDLE_INVALID;
+        _bt_hal_wii_radio_cycle();
     }
 }
 
@@ -403,9 +441,23 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
         switch (packet[0])
         {
         case BTSTACK_EVENT_STATE:
+            // Wii radio power-cycle (see _bt_hal_wii_radio_cycle): bring the radio straight back
+            if (btstack_event_state_get_state(packet) == HCI_STATE_OFF && wii_radio_cycling)
+            {
+                wii_acl_handle = HCI_CON_HANDLE_INVALID;
+                hid_cid = 0;
+                _bt_hal_wii_iac_pending = true; // The controller forgets the IACs on reset
+                hci_power_control(HCI_POWER_ON);
+                // The custom address is only applied on the first power-on; without this the
+                // radio returns with its factory address and the Wii refuses the unknown remote
+                hci_set_bd_addr(core_current_params()->transport_dev_mac);
+                return;
+            }
+
             if (btstack_event_state_get_state(packet) != HCI_STATE_WORKING)
                 return;
 
+            wii_radio_cycling = false;
             _bt_hal_wii_iac_task();
 
             if(hid_cid) return;
@@ -492,6 +544,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             if (hci_event_disconnection_complete_get_connection_handle(packet) == wii_acl_handle)
             {
                 wii_acl_handle = HCI_CON_HANDLE_INVALID;
+            }
+            if (hci_event_disconnection_complete_get_connection_handle(packet) == wii_teardown_handle)
+            {
+                btstack_run_loop_remove_timer(&wii_teardown_timer);
+                wii_teardown_handle = HCI_CON_HANDLE_INVALID;
             }
 
             // A Wii that is powering off says so; follow it instead of trying to reconnect
@@ -608,6 +665,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 }
 
                 printf("HID Connected\n");
+                if (_bt_hal_is_wii())
+                {
+                    // Paired or reconnected: from now on a dropped link pages this Wii again
+                    _pairing_mode = false;
+                }
                 wii_link_lost_deadline_ms = 0;
                 wii_last_can_send_ms = btstack_run_loop_get_time_ms();
                 if (core_current_params()->core_connected)
@@ -626,15 +688,27 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _hidreportclear = false;
                 hid_cid = 0;
 
+                // Torn down by our own radio power-cycle; BTSTACK_EVENT_STATE reconnects
+                if (wii_radio_cycling)
+                {
+                    break;
+                }
+
                 if (_bt_hal_is_wii() && _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
                 {
                     // Likely a title launch; reconnect unless the Wii says it is powering off
                     // (handled in HCI_EVENT_DISCONNECTION_COMPLETE). When the Wii only closed the
-                    // HID channels (quitting a title), its restarted stack will not answer on the
-                    // old link, so drop it and page fresh.
+                    // HID channels (launching or quitting a title), its restarted stack will not
+                    // answer on the old link, so drop it and page fresh; if the Wii does not
+                    // acknowledge the disconnect, power-cycle the radio instead of waiting.
                     if (wii_acl_handle != HCI_CON_HANDLE_INVALID)
                     {
                         gap_disconnect(wii_acl_handle);
+                        wii_teardown_handle = wii_acl_handle;
+                        btstack_run_loop_remove_timer(&wii_teardown_timer);
+                        btstack_run_loop_set_timer_handler(&wii_teardown_timer, &_bt_hal_wii_teardown_handler);
+                        btstack_run_loop_set_timer(&wii_teardown_timer, BT_HAL_WII_TEARDOWN_MS);
+                        btstack_run_loop_add_timer(&wii_teardown_timer);
                     }
                     wii_link_lost_deadline_ms = btstack_run_loop_get_time_ms() + BT_HAL_WII_LINK_LOST_WINDOW_MS;
                     _bt_hal_wii_reconnect_timer_start();
@@ -729,8 +803,15 @@ bool transport_bt_init(core_params_s *params)
 
     uint16_t link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH | LM_LINK_POLICY_ENABLE_SNIFF_MODE;
 
+    // Wii mode keeps the master role on links it opens, so our 2 s supervision timeout (not the
+    // Wii's 20 s) decides how quickly a dead link ends on both sides
+    if (wii)
+    {
+        link_policy = LM_LINK_POLICY_ENABLE_SNIFF_MODE;
+    }
+
     gap_set_default_link_policy_settings(link_policy);
-    gap_set_allow_role_switch(true);
+    gap_set_allow_role_switch(!wii);
 
     hci_set_chipset(btstack_chipset_cyw43_instance());
 
