@@ -56,6 +56,7 @@ typedef enum
 typedef struct
 {
     nwii_extension_t extension; ///< Extension reported once the host connects
+    bool motion_plus;           ///< Built-in Wii MotionPlus, as on a Wii Remote Plus (feed nwii_input_s.gyro_dps)
 } nwii_device_config_s;
 
 /**
@@ -122,6 +123,18 @@ typedef struct
     int16_t accel_z; ///< milli-g
 
     nwii_ir_point_s ir[NWII_IR_POINT_COUNT];
+
+    /**
+     * Wii MotionPlus angular rate in degrees per second (used when nwii_device_config_s.motion_plus
+     * is set). Right-handed rotation about the same axes as accel_x (pitch), accel_y (roll) and
+     * accel_z (yaw).
+     */
+    struct
+    {
+        float pitch;
+        float roll;
+        float yaw;
+    } gyro_dps;
 
     nwii_nunchuk_s nunchuk; ///< Used while the nunchuk is attached
     nwii_classic_s classic; ///< Used while a classic controller is attached

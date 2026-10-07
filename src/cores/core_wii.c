@@ -374,6 +374,19 @@ void nwii_api_hook_get_input(nwii_input_s *out)
         out->accel_y = _core_wii_mg((int32_t)level[1]);
         out->accel_z = _core_wii_mg((int32_t)level[2]);
 
+        // MotionPlus: the remote's axes are the helper frame's here, levelled the same way so the
+        // gyro and accelerometer agree. Pitch, roll and yaw turn about remote X, Y and Z.
+        const float gyro_helper[3] = {
+            (float)imu.gx * CORE_WII_GYRO_DPS_PER_LSB,
+            (float)imu.gy * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_IMU_Y_SIGN,
+            (float)imu.gz * CORE_WII_GYRO_DPS_PER_LSB,
+        };
+        float gyro_level[3];
+        nwii_aim_level_accel(&_wii_aim, gyro_helper, gyro_level);
+        out->gyro_dps.pitch = gyro_level[0];
+        out->gyro_dps.roll  = gyro_level[1];
+        out->gyro_dps.yaw   = gyro_level[2];
+
         // The Wii reads which way up the remote is from the accelerometer to make sense of the IR
         // dots. A quick downward flick briefly cancels gravity, and with Z near zero (or below)
         // the Wii loses the remote's orientation and the cursor jumps. While the fused gravity
@@ -392,6 +405,12 @@ void nwii_api_hook_get_input(nwii_input_s *out)
         out->accel_x = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_y = _core_wii_mg(-(int32_t)imu.ax);
         out->accel_z = _core_wii_mg(imu.az);
+
+        // MotionPlus about the same remote axes: each gyro axis turns about its own accelerometer
+        // axis, so the gyro follows the accelerometer's mapping
+        out->gyro_dps.pitch = -(float)imu.gy * CORE_WII_GYRO_DPS_PER_LSB;
+        out->gyro_dps.roll  = -(float)imu.gx * CORE_WII_GYRO_DPS_PER_LSB;
+        out->gyro_dps.yaw   =  (float)imu.gz * CORE_WII_GYRO_DPS_PER_LSB;
         break;
 
     case CORE_WII_MODE_CLASSIC:
@@ -510,7 +529,9 @@ bool core_wii_init(core_params_s *params)
     memset(_wii_hid_device.name, 0, sizeof(_wii_hid_device.name));
     strncpy(_wii_hid_device.name, _wii_name, sizeof(_wii_hid_device.name) - 1u);
 
-    nwii_device_config_s cfg = {.extension = NWII_EXTENSION_NUNCHUK};
+    // Reports as a Wii Remote Plus: MotionPlus built in, so MotionPlus games (Wii Sports Resort)
+    // start. In Classic mode the remote is idle and its gyro reads still.
+    nwii_device_config_s cfg = {.extension = NWII_EXTENSION_NUNCHUK, .motion_plus = true};
     if (!nwii_api_init(&cfg))
         return false;
 

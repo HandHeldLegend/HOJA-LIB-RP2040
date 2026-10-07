@@ -172,6 +172,16 @@ level at the screen.
 The virtual sensor bar sits `NWII_IR_POINTER_OFFSET_Y` above the aim point, as the Wii expects,
 so a recentred cursor lands in the middle of the screen.
 
+### MotionPlus
+
+Set `motion_plus = true` in `nwii_device_config_s` to report a Wii Remote Plus (MotionPlus built
+in), which MotionPlus games such as Wii Sports Resort require. Fill `in->gyro_dps` (pitch, roll,
+yaw in deg/s, right-handed about the same axes as the accelerometer) every report; the library
+handles the rest: the MotionPlus register space, activation over the extension port, pass-through
+of Nunchuk or Classic Controller data, and the host's authentication challenge (answers are
+precomputed, so no big-number maths runs on the device). If you level or remap the accelerometer,
+apply the same rotation to the gyro so the two agree.
+
 ## 6) Extensions
 
 Pick the starting extension in `nwii_device_config_s` and switch at runtime with

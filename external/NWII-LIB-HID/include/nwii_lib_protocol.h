@@ -39,7 +39,7 @@ extern "C" {
 #define NWII_IN_ACK             0x22u
 #define NWII_IN_MODE_DEFAULT    0x30u
 
-void nwii_protocol_init(nwii_extension_t extension);
+void nwii_protocol_init(nwii_extension_t extension, bool motion_plus);
 void nwii_protocol_connection_reset(void);
 void nwii_protocol_set_extension(nwii_extension_t extension);
 nwii_extension_t nwii_protocol_get_extension(void);

@@ -18,6 +18,7 @@
 #include "nwii_lib_protocol.h"
 #include "nwii_lib_extension.h"
 #include "nwii_lib_crypto.h"
+#include "nwii_lib_motionplus.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -93,8 +94,9 @@ typedef struct
     bool    speaker_enabled;
     bool    interleave_second; // Next 0x3E/0x3F report is the 0x3F half
 
-    nwii_extension_t ext_attached; // What the host currently sees
+    nwii_extension_t ext_attached; // Plugged into the port (behind the MotionPlus, if any)
     uint8_t          hotplug_timer;
+    bool             ext_detect;   // Extension detect line, as last reported in a status report
 
     uint8_t ext_reg[NWII_EXTENSION_REG_SIZE];
     uint8_t camera_reg[0x40];
@@ -113,6 +115,9 @@ static nwii_protocol_state_s _nwii;
 /* Written from the tunnel context only */
 static bool    _nwii_rumble = false;
 static uint8_t _nwii_leds = 0;
+
+/* Built-in MotionPlus, from nwii_device_config_s */
+static bool _nwii_mp_enabled = false;
 
 /* Extension requested by the firmware; applied by the generator's hotplug step */
 static volatile nwii_extension_t _nwii_ext_requested = NWII_EXTENSION_NONE;
@@ -188,9 +193,16 @@ static void _nwii_queue_read(bool registers, uint32_t addr, uint16_t size)
 
 /* --- Extension state --- */
 
+/* The extension port answers the host directly unless the MotionPlus has taken it over */
+static inline bool _nwii_port_direct(void)
+{
+    const nwii_mp_status_t mp = nwii_mp_status();
+    return (mp == NWII_MP_ABSENT) || (mp == NWII_MP_INACTIVE);
+}
+
 static inline bool _nwii_ext_encrypted(void)
 {
-    return (_nwii.ext_attached != NWII_EXTENSION_NONE) &&
+    return _nwii_port_direct() && (_nwii.ext_attached != NWII_EXTENSION_NONE) &&
            (_nwii.ext_reg[NWII_EXTENSION_REG_CRYPT] == NWII_EXTENSION_CRYPT_ON);
 }
 
@@ -201,8 +213,8 @@ static void _nwii_ext_attach(nwii_extension_t extension)
     memset(&_nwii.crypto, 0, sizeof(_nwii.crypto));
 }
 
-/* Real remotes announce an extension change with an unsolicited status report. A different
- * extension is unplugged first, then plugged in after a short delay so the host sees both edges. */
+/* A different extension is unplugged first, then plugged in after a short delay so the host sees
+ * both edges (see _nwii_detect_step). */
 static void _nwii_hotplug_step(void)
 {
     const nwii_extension_t want = _nwii_ext_requested;
@@ -216,7 +228,6 @@ static void _nwii_hotplug_step(void)
     {
         _nwii_ext_attach(NWII_EXTENSION_NONE);
         _nwii.hotplug_timer = NWII_HOTPLUG_DELAY_REPORTS;
-        _nwii_queue_status();
         return;
     }
 
@@ -227,7 +238,18 @@ static void _nwii_hotplug_step(void)
     }
 
     _nwii_ext_attach(want);
-    _nwii_queue_status();
+}
+
+/* Real remotes send an unsolicited status report whenever the extension detect line changes: an
+ * extension plugged in or out, or the MotionPlus switching over. */
+static void _nwii_detect_step(void)
+{
+    const bool detect = nwii_mp_detect_pin(_nwii.ext_attached != NWII_EXTENSION_NONE);
+    if (detect != _nwii.ext_detect)
+    {
+        _nwii.ext_detect = detect;
+        _nwii_queue_status();
+    }
 }
 
 /* --- Memory access --- */
@@ -250,6 +272,22 @@ static uint8_t _nwii_write_registers(uint32_t addr, const uint8_t *src, uint8_t 
 
     case NWII_SPACE_EXTENSION:
     {
+        switch (nwii_mp_status())
+        {
+        case NWII_MP_ACTIVE:
+            // A write to 0xF0 deactivates the MotionPlus and also initializes the extension behind it
+            if (!nwii_mp_write_active(offset, src, size) || (_nwii.ext_attached == NWII_EXTENSION_NONE))
+                return NWII_ERROR_OK;
+            break;
+
+        case NWII_MP_ACTIVATING:
+        case NWII_MP_DEACTIVATING:
+            return NWII_ERROR_NO_DEVICE;
+
+        default:
+            break;
+        }
+
         if (_nwii.ext_attached == NWII_EXTENSION_NONE)
             return NWII_ERROR_NO_DEVICE;
 
@@ -265,8 +303,13 @@ static uint8_t _nwii_write_registers(uint32_t addr, const uint8_t *src, uint8_t 
         return NWII_ERROR_OK;
     }
 
-    // No Motion Plus inside this remote, and nothing else answers on the bus
     case NWII_SPACE_MOTIONPLUS:
+        // The MotionPlus answers here only while inactive
+        if (nwii_mp_status() != NWII_MP_INACTIVE)
+            return NWII_ERROR_NO_DEVICE;
+        nwii_mp_write_inactive(offset, src, size);
+        return NWII_ERROR_OK;
+
     default:
         return NWII_ERROR_NO_DEVICE;
     }
@@ -321,7 +364,13 @@ static uint8_t _nwii_read_chunk(bool registers, uint32_t addr, uint8_t *dst, uin
         return NWII_ERROR_OK;
 
     case NWII_SPACE_EXTENSION:
-        if (_nwii.ext_attached == NWII_EXTENSION_NONE)
+        if (nwii_mp_status() == NWII_MP_ACTIVE)
+        {
+            nwii_mp_read(offset, dst, size);
+            return NWII_ERROR_OK;
+        }
+
+        if (!_nwii_port_direct() || (_nwii.ext_attached == NWII_EXTENSION_NONE))
             return NWII_ERROR_NO_DEVICE;
 
         for (uint8_t i = 0; i < size; i++)
@@ -332,6 +381,11 @@ static uint8_t _nwii_read_chunk(bool registers, uint32_t addr, uint8_t *dst, uin
         return NWII_ERROR_OK;
 
     case NWII_SPACE_MOTIONPLUS:
+        if (nwii_mp_status() != NWII_MP_INACTIVE)
+            return NWII_ERROR_NO_DEVICE;
+        nwii_mp_read(offset, dst, size);
+        return NWII_ERROR_OK;
+
     default:
         return NWII_ERROR_NO_DEVICE;
     }
@@ -543,6 +597,16 @@ static void _nwii_put_ir_full(uint8_t out[18], const nwii_input_s *in, uint8_t f
 /* Extension bytes are an I2C read of `len` bytes from register 0, encrypted like any other read. */
 static void _nwii_put_extension(uint8_t *out, uint8_t len, const nwii_input_s *in)
 {
+    // An active MotionPlus sends its own 6-byte frames (never encrypted); the rest reads as zero
+    if (nwii_mp_status() == NWII_MP_ACTIVE)
+    {
+        uint8_t frame[NWII_EXTENSION_DATA_LEN];
+        nwii_mp_build(frame, in, _nwii.ext_attached);
+        memset(out, 0x00, len);
+        memcpy(out, frame, (len < NWII_EXTENSION_DATA_LEN) ? len : NWII_EXTENSION_DATA_LEN);
+        return;
+    }
+
     if (_nwii.ext_attached != NWII_EXTENSION_NONE)
     {
         nwii_extension_encode(_nwii.ext_attached, in, _nwii.ext_reg);
@@ -564,7 +628,7 @@ static uint8_t _nwii_build_status(uint8_t *data, const nwii_input_s *in)
     data[0] = NWII_IN_STATUS;
     _nwii_put_buttons(&data[1], in);
     data[3] = (uint8_t)((power.low ? 0x01u : 0u) |
-                        ((_nwii.ext_attached != NWII_EXTENSION_NONE) ? 0x02u : 0u) |
+                        (_nwii.ext_detect ? 0x02u : 0u) |
                         (_nwii.speaker_enabled ? 0x04u : 0u) |
                         (_nwii.ir_enabled ? 0x08u : 0u) |
                         ((_nwii_leds & 0x0Fu) << 4));
@@ -718,8 +782,9 @@ static void _nwii_default_input(nwii_input_s *in)
 
 /* --- Protocol entry points --- */
 
-void nwii_protocol_init(nwii_extension_t extension)
+void nwii_protocol_init(nwii_extension_t extension, bool motion_plus)
 {
+    _nwii_mp_enabled = motion_plus;
     _nwii_ext_requested = (extension < NWII_EXTENSION_MAX) ? extension : NWII_EXTENSION_NONE;
     nwii_protocol_connection_reset();
 }
@@ -734,6 +799,7 @@ void nwii_protocol_connection_reset(void)
     // The extension is announced a moment after connecting, like a remote powering its port
     _nwii_ext_attach(NWII_EXTENSION_NONE);
     _nwii.hotplug_timer = NWII_HOTPLUG_DELAY_REPORTS;
+    nwii_mp_reset(_nwii_mp_enabled);
 
     _nwii_out_tail = _nwii_out_head;
 }
@@ -799,6 +865,8 @@ bool nwii_protocol_generate_inputreport(uint8_t *data, uint8_t *len)
     }
 
     _nwii_hotplug_step();
+    nwii_mp_step(_nwii.ext_attached, _nwii.ext_reg);
+    _nwii_detect_step();
 
     nwii_input_s in;
     _nwii_default_input(&in);

@@ -15,6 +15,7 @@ add_library(nwii_lib_hid STATIC
   nwii_lib_crypto.c
   nwii_lib_extension.c
   nwii_lib_ir.c
+  nwii_lib_motionplus.c
   nwii_lib_hid.c
   nwii_lib_protocol.c
   nwii_lib.c

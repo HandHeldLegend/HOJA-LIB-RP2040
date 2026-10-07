@@ -12,6 +12,9 @@ What the library handles:
 - extension identification, calibration, hotplug and the extension encryption Wii games enable
 - IR camera reports, plus a virtual sensor bar (`nwii_ir_set_pointer`) so a gyro or stick can
   drive the pointer
+- a built-in Wii MotionPlus, as on a Wii Remote Plus (`motion_plus` in the device config): gyro
+  data, activation and pass-through over the Nunchuk or Classic Controller, and the host's
+  authentication challenge, so MotionPlus games such as Wii Sports Resort start
 - motion aiming (`nwii_lib_aim.h`): gyro + accelerometer fusion that turns a gamepad's IMU into
   pointer position and cursor roll, whatever way the gamepad is held
 - Bluetooth identity blobs: device name, class of device, HID descriptor, the SDP record the Wii

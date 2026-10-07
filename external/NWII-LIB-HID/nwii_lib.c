@@ -26,7 +26,7 @@ bool nwii_api_init(const nwii_device_config_s *cfg)
         return false;
     }
 
-    nwii_protocol_init(extension);
+    nwii_protocol_init(extension, cfg ? cfg->motion_plus : false);
     return true;
 }
 
