@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 #include "cores/cores.h"
 #include "cores/core_wii.h"
@@ -32,7 +33,7 @@
 
 // Gyro aim: degrees of rotation from the centre to the screen edge
 #define CORE_WII_AIM_YAW_RANGE_DEG      12.5f
-#define CORE_WII_AIM_PITCH_RANGE_DEG    10.0f
+#define CORE_WII_AIM_PITCH_RANGE_DEG    15.0f
 
 // Gyro aim: yaw is rotation about the IMU's Z (up) axis and pitch about its X (lateral) axis
 // (NS-LIB swaps X/Y into the Switch's frame); these signs make right / up positive.
@@ -47,10 +48,10 @@
 #define CORE_WII_AIM_DEADBAND_DPS       0.75f
 
 // Stick aim (anything mapped to the pointer outputs): screen-halves per second at full tilt.
-// The screen is wider than it is tall, so vertical travel is scaled up to feel the same speed,
-// and a response curve keeps small deflections precise.
+// Y_GAIN balances vertical against horizontal speed, and a response curve keeps small deflections
+// precise.
 #define CORE_WII_AIM_STICK_SPEED        1.6f
-#define CORE_WII_AIM_STICK_Y_GAIN       1.5f
+#define CORE_WII_AIM_STICK_Y_GAIN       1.0f
 #define CORE_WII_AIM_STICK_LINEAR       0.3f // Share of the response that is linear (rest is squared)
 
 // Shake: square wave on the accelerometer while the shake button is held
@@ -59,6 +60,9 @@
 
 // Analog trigger level (0..4095) where the Classic Controller's L/R click
 #define CORE_WII_TRIGGER_CLICK          3900
+
+// Smoothing for the gravity vector that sets cursor tilt (per report, ~100 Hz)
+#define CORE_WII_ROLL_SMOOTHING         0.25f
 
 // A power button press shorter than this toggles the extension. Holding it longer is left to
 // the shutdown macro.
@@ -84,6 +88,8 @@ typedef struct
     float    bias_pitch_dps;
     uint32_t still_us;
     uint64_t last_us;
+    float    roll_x;
+    float    roll_z;
 } core_wii_aim_s;
 
 static core_wii_aim_s _wii_aim = {0};
@@ -335,7 +341,20 @@ void nwii_api_hook_get_input(nwii_input_s *out)
                          _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_LEFT, WII_CODE_POINTER_RIGHT)),
                          _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_DOWN, WII_CODE_POINTER_UP)),
                          p[WII_CODE_POINTER_RECENTER]);
-    nwii_ir_set_pointer(out->ir, _wii_aim.x, _wii_aim.y);
+    // Cursor tilt follows the remote's roll, read from gravity in the remote frame (the same
+    // values sent as the accelerometer below). Only Upright mode is held like a pointing remote.
+    float roll_rad = 0.0f;
+    if (_wii_mode == CORE_WII_MODE_UPRIGHT)
+    {
+        _wii_aim.roll_x += ((float)imu.ax - _wii_aim.roll_x) * CORE_WII_ROLL_SMOOTHING;
+        _wii_aim.roll_z += ((float)imu.az - _wii_aim.roll_z) * CORE_WII_ROLL_SMOOTHING;
+
+        // Pointing straight up or down leaves no usable gravity for roll, so the tilt eases back
+        // to level there
+        if ((_wii_aim.roll_x != 0.0f) || (_wii_aim.roll_z != 0.0f))
+            roll_rad = atan2f(_wii_aim.roll_x, _wii_aim.roll_z);
+    }
+    nwii_ir_set_pointer_rotated(out->ir, _wii_aim.x, _wii_aim.y, roll_rad);
 
     // Wii Remote buttons are live in every mode, so a Classic profile can still map Remote A for
     // the Wii Menu.

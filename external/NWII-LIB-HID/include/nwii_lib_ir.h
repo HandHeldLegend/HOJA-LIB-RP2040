@@ -24,12 +24,13 @@ extern "C" {
 /**
  * @brief Camera-space travel of the sensor bar centre for a cursor at the screen edge.
  *
- * The camera sees roughly 42 x 31 degrees (about 24 px per degree). These ranges correspond to
- * about +/-12.5 degrees of yaw and +/-10 degrees of pitch, which the Wii maps to the edges of
- * the screen.
+ * The camera sees roughly 42 x 31 degrees (about 24 px per degree). The Wii shifts the cursor
+ * vertically for the sensor bar position setting, so the vertical range runs almost to the
+ * camera's edges (14..754) to reach the top and bottom of the screen with the bar above or
+ * below the TV.
  */
 #define NWII_IR_POINTER_RANGE_X     305
-#define NWII_IR_POINTER_RANGE_Y     244
+#define NWII_IR_POINTER_RANGE_Y     370
 
 /** @brief Gap between the two sensor bar LEDs as seen from ~2.5 m (20 cm bar). */
 #define NWII_IR_BAR_SEPARATION      112
@@ -49,6 +50,24 @@ extern "C" {
  * @param y Cursor y, -1.0 (bottom edge) .. +1.0 (top edge). Values are clamped.
  */
 void nwii_ir_set_pointer(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float x, float y);
+
+/**
+ * @brief Fill IR points for a cursor position with the remote rolled about its pointing axis.
+ *
+ * The Wii reads cursor tilt from the angle between the two sensor bar dots, so this rotates the
+ * whole camera image (bar position and bar angle) the way a real remote's camera sees it. Take
+ * roll from the same accelerometer data sent in the input report: the Wii also uses the
+ * accelerometer to tell the two dots apart. A dot rotated past the camera's edge is left
+ * invisible.
+ *
+ * @param out NWII_IR_POINT_COUNT points to fill.
+ * @param x Cursor x, -1.0 (left screen edge) .. +1.0 (right edge). Values are clamped.
+ * @param y Cursor y, -1.0 (bottom edge) .. +1.0 (top edge). Values are clamped.
+ * @param roll_rad Roll in radians, positive when the remote turns clockwise as seen from behind
+ *                 (right side down). In the remote's accelerometer frame this is
+ *                 atan2f(accel_x, accel_z).
+ */
+void nwii_ir_set_pointer_rotated(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float x, float y, float roll_rad);
 
 /**
  * @brief Mark every IR point invisible (remote pointed away from the screen).

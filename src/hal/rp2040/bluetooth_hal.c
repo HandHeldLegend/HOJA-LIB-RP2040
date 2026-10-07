@@ -359,6 +359,28 @@ static void _bt_hal_wii_teardown_handler(btstack_timer_source_t *ts)
     wii_teardown_handle = HCI_CON_HANDLE_INVALID;
 }
 
+// Quitting or launching a title can also leave the Wii holding the link without taking our
+// reports, and nothing on the link reports it; a power cycle is the only way out by hand. If no
+// report has gone out for this long, cycle the radio. With several remotes connected the Wii can
+// take a second or two to service a link, so this stays well above that.
+#define BT_HAL_WII_STALL_MS       6000
+#define BT_HAL_WII_STALL_CHECK_MS 500
+
+static btstack_timer_source_t wii_stall_timer;
+static uint32_t wii_last_report_ms = 0;
+
+static void _bt_hal_wii_stall_handler(btstack_timer_source_t *ts)
+{
+    if (_connected && hid_cid &&
+        (btstack_run_loop_get_time_ms() - wii_last_report_ms) > BT_HAL_WII_STALL_MS)
+    {
+        _bt_hal_wii_radio_cycle();
+    }
+
+    btstack_run_loop_set_timer(ts, BT_HAL_WII_STALL_CHECK_MS);
+    btstack_run_loop_add_timer(ts);
+}
+
 static btstack_timer_source_t wii_stale_link_timer;
 static hci_con_handle_t wii_stale_link_handle = HCI_CON_HANDLE_INVALID;
 
@@ -658,6 +680,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                     _pairing_mode = false;
                 }
                 wii_link_lost_deadline_ms = 0;
+                wii_last_report_ms = btstack_run_loop_get_time_ms();
                 if (core_current_params()->core_connected)
                 {
                     core_current_params()->core_connected();
@@ -704,6 +727,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _bt_hal_shutdown();
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
+                wii_last_report_ms = btstack_run_loop_get_time_ms();
                 if (hid_cid)
                 {
                     core_report_s report = {0};
@@ -779,6 +803,10 @@ bool transport_bt_init(core_params_s *params)
         hci_dump_init(&_bt_hal_wii_stale_link_watch);
         gap_set_link_supervision_timeout(NWII_HID_LINK_SUPERVISION_TIMEOUT);
         gap_set_page_timeout(BT_HAL_WII_PAGE_TIMEOUT);
+
+        btstack_run_loop_set_timer_handler(&wii_stall_timer, &_bt_hal_wii_stall_handler);
+        btstack_run_loop_set_timer(&wii_stall_timer, BT_HAL_WII_STALL_CHECK_MS);
+        btstack_run_loop_add_timer(&wii_stall_timer);
     }
     else
     {
