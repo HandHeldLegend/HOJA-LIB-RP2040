@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <math.h>
 
 #include "cores/cores.h"
 #include "cores/core_wii.h"
@@ -31,27 +30,11 @@
 #define CORE_WII_ACCEL_MG_PER_LSB   0.244f
 #define CORE_WII_GYRO_DPS_PER_LSB   0.07f
 
-// Gyro aim: degrees of rotation from the centre to the screen edge
-#define CORE_WII_AIM_YAW_RANGE_DEG      12.5f
-#define CORE_WII_AIM_PITCH_RANGE_DEG    15.0f
-
-// Gyro aim: yaw is rotation about the IMU's Z (up) axis and pitch about its X (lateral) axis
-// (NS-LIB swaps X/Y into the Switch's frame); these signs make right / up positive.
-#define CORE_WII_AIM_YAW_SIGN           (-1.0f)
-#define CORE_WII_AIM_PITCH_SIGN         (-1.0f)
-
-// Gyro bias tracking: once both aim axes have stayed under STILL_DPS for STILL_US, the residual
-// offset is learned with time constant BIAS_TAU_S. DEADBAND_DPS hides what is left.
-#define CORE_WII_AIM_STILL_DPS          2.0f
-#define CORE_WII_AIM_STILL_US           500000
-#define CORE_WII_AIM_BIAS_TAU_S         1.0f
-#define CORE_WII_AIM_DEADBAND_DPS       0.75f
-
 // Stick aim (anything mapped to the pointer outputs): screen-halves per second at full tilt.
 // Y_GAIN balances vertical against horizontal speed, and a response curve keeps small deflections
 // precise.
 #define CORE_WII_AIM_STICK_SPEED        1.6f
-#define CORE_WII_AIM_STICK_Y_GAIN       1.0f
+#define CORE_WII_AIM_STICK_Y_GAIN       1.3f
 #define CORE_WII_AIM_STICK_LINEAR       0.3f // Share of the response that is linear (rest is squared)
 
 // Shake: square wave on the accelerometer while the shake button is held
@@ -60,9 +43,6 @@
 
 // Analog trigger level (0..4095) where the Classic Controller's L/R click
 #define CORE_WII_TRIGGER_CLICK          3900
-
-// Smoothing for the gravity vector that sets cursor tilt (per report, ~100 Hz)
-#define CORE_WII_ROLL_SMOOTHING         0.25f
 
 // A power button press shorter than this toggles the extension. Holding it longer is left to
 // the shutdown macro.
@@ -80,19 +60,9 @@ static core_hid_device_t _wii_hid_device = {
     .pid = NWII_HID_PID,
 };
 
-typedef struct
-{
-    float    x;
-    float    y;
-    float    bias_yaw_dps;
-    float    bias_pitch_dps;
-    uint32_t still_us;
-    uint64_t last_us;
-    float    roll_x;
-    float    roll_z;
-} core_wii_aim_s;
-
-static core_wii_aim_s _wii_aim = {0};
+// Pointer aim from gyro + accelerometer fusion (NWII-LIB-HID's aim helper)
+static nwii_aim_s _wii_aim = {0};
+static uint64_t   _wii_aim_last_us = 0;
 
 static inline float _core_wii_clampf(float v, float lo, float hi)
 {
@@ -117,75 +87,37 @@ static inline float _core_wii_stick_curve(float v)
     return v * (CORE_WII_AIM_STICK_LINEAR + (1.0f - CORE_WII_AIM_STICK_LINEAR) * mag);
 }
 
-static inline float _core_wii_absf(float v)
-{
-    return (v < 0.0f) ? -v : v;
-}
-
-static inline float _core_wii_deadband(float v, float band)
-{
-    if (_core_wii_absf(v) <= band)
-        return 0.0f;
-    return (v > 0.0f) ? (v - band) : (v + band);
-}
-
-// Learn the gyro's resting offset while the controller is held still, so the pointer does not
-// creep. Deliberate slow aiming never stays under the threshold long enough to be absorbed.
-static void _core_wii_aim_track_bias(float yaw_dps, float pitch_dps, float dt)
-{
-    const bool still = (_core_wii_absf(yaw_dps - _wii_aim.bias_yaw_dps) < CORE_WII_AIM_STILL_DPS) &&
-                       (_core_wii_absf(pitch_dps - _wii_aim.bias_pitch_dps) < CORE_WII_AIM_STILL_DPS);
-
-    if (!still)
-    {
-        _wii_aim.still_us = 0;
-        return;
-    }
-
-    if (_wii_aim.still_us < CORE_WII_AIM_STILL_US)
-    {
-        _wii_aim.still_us += (uint32_t)(dt * 1000000.0f);
-        return;
-    }
-
-    const float k = _core_wii_clampf(dt / CORE_WII_AIM_BIAS_TAU_S, 0.0f, 1.0f);
-    _wii_aim.bias_yaw_dps   += (yaw_dps - _wii_aim.bias_yaw_dps) * k;
-    _wii_aim.bias_pitch_dps += (pitch_dps - _wii_aim.bias_pitch_dps) * k;
-}
-
-// Integrate the gyro into a pointer position. The edges absorb further rotation, so turning
-// back from an edge recentres the cursor naturally.
+// Feed the IMU to the aim helper and add stick aim. HOJA's IMU frame (the same on every board)
+// is the helper's controller frame: +X left, +Y toward the player, +Z up.
 static void _core_wii_aim_update(const imu_data_s *imu, float stick_x, float stick_y, bool recenter)
 {
     const uint64_t now = sys_hal_now_us();
-    float dt = (_wii_aim.last_us == 0) ? 0.0f : (float)(now - _wii_aim.last_us) / 1000000.0f;
-    _wii_aim.last_us = now;
+    const float dt = (_wii_aim_last_us == 0) ? 0.0f : (float)(now - _wii_aim_last_us) / 1000000.0f;
+    _wii_aim_last_us = now;
 
-    if (dt > 0.05f) dt = 0.05f;
+    const float gyro_dps[3] = {
+        (float)imu->gx * CORE_WII_GYRO_DPS_PER_LSB,
+        (float)imu->gy * CORE_WII_GYRO_DPS_PER_LSB,
+        (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB,
+    };
+    const float accel_g[3] = {
+        (float)imu->ax * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
+        (float)imu->ay * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
+        (float)imu->az * CORE_WII_ACCEL_MG_PER_LSB / 1000.0f,
+    };
+
+    nwii_aim_update(&_wii_aim, gyro_dps, accel_g, dt);
 
     if (recenter)
     {
-        _wii_aim.x = 0.0f;
-        _wii_aim.y = 0.0f;
+        nwii_aim_recenter(&_wii_aim);
         return;
     }
 
-    const float raw_yaw_dps   = (float)imu->gz * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_YAW_SIGN;
-    const float raw_pitch_dps = (float)imu->gx * CORE_WII_GYRO_DPS_PER_LSB * CORE_WII_AIM_PITCH_SIGN;
-
-    _core_wii_aim_track_bias(raw_yaw_dps, raw_pitch_dps, dt);
-
-    const float yaw_dps   = _core_wii_deadband(raw_yaw_dps - _wii_aim.bias_yaw_dps, CORE_WII_AIM_DEADBAND_DPS);
-    const float pitch_dps = _core_wii_deadband(raw_pitch_dps - _wii_aim.bias_pitch_dps, CORE_WII_AIM_DEADBAND_DPS);
-
-    _wii_aim.x += (yaw_dps * dt) / CORE_WII_AIM_YAW_RANGE_DEG;
-    _wii_aim.y += (pitch_dps * dt) / CORE_WII_AIM_PITCH_RANGE_DEG;
-
-    _wii_aim.x += _core_wii_stick_curve(stick_x) * CORE_WII_AIM_STICK_SPEED * dt;
-    _wii_aim.y += _core_wii_stick_curve(stick_y) * CORE_WII_AIM_STICK_SPEED * CORE_WII_AIM_STICK_Y_GAIN * dt;
-
-    _wii_aim.x = _core_wii_clampf(_wii_aim.x, -1.0f, 1.0f);
-    _wii_aim.y = _core_wii_clampf(_wii_aim.y, -1.0f, 1.0f);
+    const float stick_dt = (dt > 0.05f) ? 0.05f : dt;
+    nwii_aim_nudge(&_wii_aim,
+                   _core_wii_stick_curve(stick_x) * CORE_WII_AIM_STICK_SPEED * stick_dt,
+                   _core_wii_stick_curve(stick_y) * CORE_WII_AIM_STICK_SPEED * CORE_WII_AIM_STICK_Y_GAIN * stick_dt);
 }
 
 static bool _core_wii_code_pressed(const mapper_input_s *input, mapper_input_code_t code)
@@ -341,20 +273,9 @@ void nwii_api_hook_get_input(nwii_input_s *out)
                          _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_LEFT, WII_CODE_POINTER_RIGHT)),
                          _core_wii_stick_norm(_core_wii_stick(&input, WII_CODE_POINTER_DOWN, WII_CODE_POINTER_UP)),
                          p[WII_CODE_POINTER_RECENTER]);
-    // Cursor tilt follows the remote's roll, read from gravity in the remote frame (the same
-    // values sent as the accelerometer below). Only Upright mode is held like a pointing remote.
-    float roll_rad = 0.0f;
-    if (_wii_mode == CORE_WII_MODE_UPRIGHT)
-    {
-        _wii_aim.roll_x += ((float)imu.ax - _wii_aim.roll_x) * CORE_WII_ROLL_SMOOTHING;
-        _wii_aim.roll_z += ((float)imu.az - _wii_aim.roll_z) * CORE_WII_ROLL_SMOOTHING;
-
-        // Pointing straight up or down leaves no usable gravity for roll, so the tilt eases back
-        // to level there
-        if ((_wii_aim.roll_x != 0.0f) || (_wii_aim.roll_z != 0.0f))
-            roll_rad = atan2f(_wii_aim.roll_x, _wii_aim.roll_z);
-    }
-    nwii_ir_set_pointer_rotated(out->ir, _wii_aim.x, _wii_aim.y, roll_rad);
+    // Cursor tilt follows the controller's roll in Upright mode, where it is held like a pointing
+    // remote
+    nwii_aim_to_ir(&_wii_aim, out->ir, _wii_mode == CORE_WII_MODE_UPRIGHT);
 
     // Wii Remote buttons are live in every mode, so a Classic profile can still map Remote A for
     // the Wii Menu.
@@ -531,7 +452,8 @@ bool core_wii_init(core_params_s *params)
     _wii_mode = CORE_WII_MODE_UPRIGHT;
     mapper_set_wii_profile(WII_PROFILE_NUNCHUK);
 
-    memset(&_wii_aim, 0, sizeof(_wii_aim));
+    nwii_aim_init(&_wii_aim, NULL);
+    _wii_aim_last_us = 0;
 
     params->hid_device = &_wii_hid_device;
     params->core_report_format    = CORE_REPORTFORMAT_WII;

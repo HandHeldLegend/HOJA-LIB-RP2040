@@ -27,6 +27,7 @@
 #include "nwii_lib_types.h"
 #include "nwii_lib_hid.h"
 #include "nwii_lib_ir.h"
+#include "nwii_lib_aim.h"
 
 #ifdef __cplusplus
 extern "C" {

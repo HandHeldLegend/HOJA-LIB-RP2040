@@ -136,6 +136,33 @@ Real remotes see the two sensor bar LEDs through an IR camera. `nwii_ir_set_poin
 synthesizes those points from a cursor position in -1..+1 (left..right, bottom..top), so any
 source works: integrate a gyro, move with a stick, or map a touch surface. Call
 `nwii_ir_clear(out->ir)` to report the remote pointing away from the screen.
+`nwii_ir_set_pointer_rotated()` also tilts the sensor bar by the remote's roll, which is how the
+Wii rotates its cursor; take the roll from the same accelerometer data you report.
+
+### Motion aiming (`nwii_lib_aim.h`)
+
+For a gamepad with a gyro and accelerometer, the aim helper does the whole job:
+
+```c
+static nwii_aim_s aim;
+nwii_aim_init(&aim, NULL);              // once; NULL = tested defaults
+
+// every input report:
+nwii_aim_update(&aim, gyro_dps, accel_g, dt_s);
+if (recenter_pressed) nwii_aim_recenter(&aim);
+nwii_aim_nudge(&aim, stick_dx, stick_dy); // optional stick aim
+nwii_aim_to_ir(&aim, out->ir, true);      // position + cursor roll
+```
+
+It fuses the two sensors into a gravity estimate and measures aim in world space: left/right is
+rotation about the real vertical, up/down is rotation about the horizontal axis across the
+pointing direction. Aim therefore works the same with the gamepad flat, stood up facing the
+screen, or rolled in the hands. The gyro offset is learned whenever the controller rests still.
+Sensors must be in the controller frame documented in the header (+X left, +Y toward the player,
++Z up out of the face, right-handed).
+
+The virtual sensor bar sits `NWII_IR_POINTER_OFFSET_Y` above the aim point, as the Wii expects,
+so a recentred cursor lands in the middle of the screen.
 
 ## 6) Extensions
 

@@ -12,6 +12,8 @@ What the library handles:
 - extension identification, calibration, hotplug and the extension encryption Wii games enable
 - IR camera reports, plus a virtual sensor bar (`nwii_ir_set_pointer`) so a gyro or stick can
   drive the pointer
+- motion aiming (`nwii_lib_aim.h`): gyro + accelerometer fusion that turns a gamepad's IMU into
+  pointer position and cursor roll, whatever way the gamepad is held
 - Bluetooth identity blobs: device name, class of device, HID descriptor, the SDP record the Wii
   checks, and the pairing PIN
 

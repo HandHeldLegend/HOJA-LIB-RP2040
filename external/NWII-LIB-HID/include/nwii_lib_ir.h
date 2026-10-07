@@ -24,13 +24,20 @@ extern "C" {
 /**
  * @brief Camera-space travel of the sensor bar centre for a cursor at the screen edge.
  *
- * The camera sees roughly 42 x 31 degrees (about 24 px per degree). The Wii shifts the cursor
- * vertically for the sensor bar position setting, so the vertical range runs almost to the
- * camera's edges (14..754) to reach the top and bottom of the screen with the bar above or
- * below the TV.
+ * The camera sees roughly 42 x 31 degrees (about 24 px per degree), so these correspond to about
+ * +/-12.5 degrees of yaw and +/-11.5 degrees of pitch.
  */
 #define NWII_IR_POINTER_RANGE_X     305
-#define NWII_IR_POINTER_RANGE_Y     370
+#define NWII_IR_POINTER_RANGE_Y     282
+
+/**
+ * @brief Vertical camera offset of the sensor bar for a centred cursor.
+ *
+ * The Wii does not centre the cursor on the bar itself: a remote aimed at the middle of the screen
+ * sees the bar about 10 cm off its aim (about 56 px at 2.5 m). Without this, a centred cursor
+ * lands below the middle of the screen.
+ */
+#define NWII_IR_POINTER_OFFSET_Y    56
 
 /** @brief Gap between the two sensor bar LEDs as seen from ~2.5 m (20 cm bar). */
 #define NWII_IR_BAR_SEPARATION      112

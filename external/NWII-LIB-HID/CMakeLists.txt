@@ -11,6 +11,7 @@
 # Public headers live in include/; compile this target as C11 or newer.
 
 add_library(nwii_lib_hid STATIC
+  nwii_lib_aim.c
   nwii_lib_crypto.c
   nwii_lib_extension.c
   nwii_lib_ir.c

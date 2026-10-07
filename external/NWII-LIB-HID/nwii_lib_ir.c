@@ -69,7 +69,7 @@ void nwii_ir_set_pointer_rotated(nwii_ir_point_s out[NWII_IR_POINT_COUNT], float
     // aiming up reports lower y, as on a real remote (verified on a Wii). Seen from behind the
     // remote that makes camera space x-right, y-up.
     const float dx = -x * (float)NWII_IR_POINTER_RANGE_X;
-    const float dy = -y * (float)NWII_IR_POINTER_RANGE_Y;
+    const float dy = -y * (float)NWII_IR_POINTER_RANGE_Y - (float)NWII_IR_POINTER_OFFSET_Y;
     const float half = (float)NWII_IR_BAR_SEPARATION / 2.0f;
 
     // Rolling the remote clockwise turns the whole camera image counter-clockwise about its
