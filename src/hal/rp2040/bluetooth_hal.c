@@ -40,7 +40,15 @@
 
 // A paired Wii Remote connects to the console, never the reverse, so keep paging the saved
 // Wii until it answers (it may still be booting).
-#define BT_HAL_WII_RECONNECT_MS 2000
+#define BT_HAL_WII_RECONNECT_MS 1000
+
+// The Wii takes the master role, so its 20 s link supervision timeout applies. When a title
+// starts or quits, the Wii stops servicing the link while it reloads; if none of our reports
+// have been accepted for this long, treat the link as dead and reconnect instead of waiting.
+#define BT_HAL_WII_STALL_MS 1500
+
+// Page timeout while reconnecting (x 0.625 ms, ~5 s) so retries during a reload stay short
+#define BT_HAL_WII_PAGE_TIMEOUT 0x2000
 
 // When a title starts the Wii reloads its system software and every link drops. Real remotes
 // reconnect on their own, so after a lost link keep paging for this long before powering off.
@@ -65,6 +73,8 @@ static uint32_t hid_report_interval_ms = BT_HAL_TARGET_POLLING_RATE_MS;
 static btstack_timer_source_t wii_reconnect_timer;
 static bool wii_reconnect_timer_active = false;
 static uint32_t wii_link_lost_deadline_ms = 0; // 0 while connected or before the first link
+static hci_con_handle_t wii_acl_handle = HCI_CON_HANDLE_INVALID;
+static uint32_t wii_last_can_send_ms = 0;
 
 typedef struct
 {
@@ -225,6 +235,15 @@ static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 {
     if (!hid_cid || !_connected)
     {
+        return;
+    }
+
+    // Wii reload watchdog (see BT_HAL_WII_STALL_MS)
+    if ((core_current_reportformat() == CORE_REPORTFORMAT_WII) && (wii_acl_handle != HCI_CON_HANDLE_INVALID) &&
+        (btstack_run_loop_get_time_ms() - wii_last_can_send_ms) > BT_HAL_WII_STALL_MS)
+    {
+        gap_disconnect(wii_acl_handle);
+        hid_report_timer_active = false;
         return;
     }
 
@@ -462,7 +481,19 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             break;
 
+        case HCI_EVENT_CONNECTION_COMPLETE:
+            if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS)
+            {
+                wii_acl_handle = hci_event_connection_complete_get_connection_handle(packet);
+            }
+            break;
+
         case HCI_EVENT_DISCONNECTION_COMPLETE:
+            if (hci_event_disconnection_complete_get_connection_handle(packet) == wii_acl_handle)
+            {
+                wii_acl_handle = HCI_CON_HANDLE_INVALID;
+            }
+
             // A Wii that is powering off says so; follow it instead of trying to reconnect
             if (_bt_hal_is_wii() &&
                 hci_event_disconnection_complete_get_reason(packet) ==
@@ -578,6 +609,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
 
                 printf("HID Connected\n");
                 wii_link_lost_deadline_ms = 0;
+                wii_last_can_send_ms = btstack_run_loop_get_time_ms();
                 if (core_current_params()->core_connected)
                 {
                     core_current_params()->core_connected();
@@ -597,7 +629,13 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 if (_bt_hal_is_wii() && _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
                 {
                     // Likely a title launch; reconnect unless the Wii says it is powering off
-                    // (handled in HCI_EVENT_DISCONNECTION_COMPLETE)
+                    // (handled in HCI_EVENT_DISCONNECTION_COMPLETE). When the Wii only closed the
+                    // HID channels (quitting a title), its restarted stack will not answer on the
+                    // old link, so drop it and page fresh.
+                    if (wii_acl_handle != HCI_CON_HANDLE_INVALID)
+                    {
+                        gap_disconnect(wii_acl_handle);
+                    }
                     wii_link_lost_deadline_ms = btstack_run_loop_get_time_ms() + BT_HAL_WII_LINK_LOST_WINDOW_MS;
                     _bt_hal_wii_reconnect_timer_start();
                     break;
@@ -606,6 +644,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _bt_hal_shutdown();
                 break;
             case HID_SUBEVENT_CAN_SEND_NOW:
+                wii_last_can_send_ms = btstack_run_loop_get_time_ms();
                 if (hid_cid)
                 {
                     core_report_s report = {0};
@@ -679,6 +718,8 @@ bool transport_bt_init(core_params_s *params)
         gap_set_security_level(LEVEL_0);
         gap_set_class_of_device(NWII_HID_CLASS_OF_DEVICE);
         hci_dump_init(&_bt_hal_wii_stale_link_watch);
+        gap_set_link_supervision_timeout(NWII_HID_LINK_SUPERVISION_TIMEOUT);
+        gap_set_page_timeout(BT_HAL_WII_PAGE_TIMEOUT);
     }
     else
     {

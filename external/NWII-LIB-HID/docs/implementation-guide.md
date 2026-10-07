@@ -83,11 +83,21 @@ and interrupt channels to the saved address (`hid_device_connect` in BTstack). T
 remotes it knows; if it authenticates, the stored link key answers it. Retry periodically if the
 Wii is not up yet.
 
-**After a title launch:** starting a game reloads the Wii's system software, which drops every
-link without a power-off notice. Real remotes reconnect by themselves, so when the link drops,
-page the saved Wii again (and call `nwii_api_connection_reset()` when it reopens). Only power off
-when the disconnect reason is "remote device terminated connection due to power off" (0x15),
-which is what a Wii sends when it shuts down.
+**Title launch and quit:** starting or quitting a game reloads the Wii's system software. The
+Wii stops servicing the link while it reloads, and its restarted stack does not know the old
+L2CAP channels. Captured behavior on a real Wii:
+
+- On launch the link goes silent; sometimes the new stack then addresses stale channel IDs
+  (BTstack answers with an L2CAP Command Reject, "invalid CID").
+- On quit the Wii sends L2CAP Disconnect Requests for both HID channels but keeps the ACL link.
+- The Wii is the master, so its 20 s supervision timeout decides when a silent link dies.
+
+A real remote is back within a couple of seconds, so a firmware should: drop the ACL link when
+reports stop being accepted for ~1.5 s, when it rejects an invalid CID, or when the HID channels
+close; then page the saved Wii again with a short page timeout (~5 s), retrying every second, and
+call `nwii_api_connection_reset()` when the HID connection reopens. Only power off when the
+disconnect reason is "remote device terminated connection due to power off" (0x15), which is
+what a Wii sends when it shuts down.
 
 The Wii also accepts temporary connections from any discoverable remote while it is running, which
 is useful for testing before a permanent SYNC.

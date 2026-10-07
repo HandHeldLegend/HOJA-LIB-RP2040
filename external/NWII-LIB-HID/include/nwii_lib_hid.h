@@ -51,6 +51,14 @@ extern "C" {
 /** @brief Service record handle embedded in the SDP record blob. */
 #define NWII_HID_SDP_RECORD_HANDLE      0x00010000u
 
+/**
+ * @brief Link supervision timeout a real remote advertises (x 0.625 ms = 2 s).
+ *
+ * Only the master's value applies, and the Wii usually takes the master role (keeping its own
+ * 20 s default), so also watch for a stalled link yourself; see the implementation guide.
+ */
+#define NWII_HID_LINK_SUPERVISION_TIMEOUT 0x0C80u
+
 /** @brief Length of the binary pairing PIN. */
 #define NWII_HID_PIN_LEN                6u
 
