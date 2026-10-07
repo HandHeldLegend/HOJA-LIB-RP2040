@@ -155,11 +155,11 @@ nwii_aim_to_ir(&aim, out->ir, true);      // position + cursor roll
 nwii_aim_level_accel(&aim, accel, accel); // remote tilt relative to the recentre pose
 ```
 
-It fuses the two sensors into a gravity estimate and aims in "player space" (after the
-GyroWiki): up/down is the controller's own pitch, left/right is rotation about the real vertical
-taken from its yaw and roll axes. Aim therefore keeps working however the gamepad is held, flat,
-rolled, or pointed straight up or down, which matters for players who cannot hold a controller
-the usual way. The gyro offset is learned whenever the controller rests still. Sensors must be
+It fuses the two sensors into a gravity estimate and aims like a real remote: the cursor follows
+where the front edge points, so up/down and left/right stay true to the room however the gamepad
+is rolled in the hand. Pointed straight up or down, where that has no answer, it blends into
+"player space" (after the GyroWiki). Aim therefore keeps working however the gamepad is held,
+which matters for players who cannot hold a controller the usual way. The gyro offset is learned whenever the controller rests still. Sensors must be
 in the controller frame documented in the header (+X left, +Y toward the player, +Z up out of the
 face, right-handed for both accelerometer and gyro). The two sensors must agree: an axis whose
 sign differs between them shows up as cursor tilt that lags far behind the controller, or as

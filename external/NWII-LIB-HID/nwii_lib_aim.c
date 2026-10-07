@@ -183,20 +183,37 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
     _nwii_aim_track_gravity(aim, w_rad, accel_g, accel_mag_g, dt);
     if (!aim->up_valid) return;
 
-    // Player-space aim, after the GyroWiki: up/down is the controller's own pitch (about its +X
-    // axis, front edge rising), and left/right is rotation about the vertical, measured from the
-    // controller's yaw and roll axes only. Unlike pure world space this has no dead pose: pointed
-    // straight up or down, turning still moves the cursor. The relax factor lets a tilted grip
-    // reach full speed, capped at the actual rotation rate.
-    const float world_yaw = w_dps[1] * aim->up[1] + w_dps[2] * aim->up[2];
-    const float yaw_cap = sqrtf(w_dps[1] * w_dps[1] + w_dps[2] * w_dps[2]);
-    float yaw_mag = _nwii_aim_absf(world_yaw) * NWII_AIM_YAW_RELAX;
-    if (yaw_mag > yaw_cap) yaw_mag = yaw_cap;
+    // Aim like a real remote: the cursor follows where the front edge (-Y) points, so up/down and
+    // left/right stay true to the room however the controller is rolled in the hand.
+    //   left/right: rotation about the real vertical (aim right is clockwise seen from above,
+    //               negative about up)
+    //   up/down:    the front edge turning toward up, i.e. rotation about front x up, which is
+    //               (-up.z, 0, up.x) normalized by the lean below
+    // "Lean" is how far up is from the front edge; pointed straight up or down it vanishes and
+    // world space has no answer (turning becomes a twist about the pointing direction).
+    const float lean = sqrtf(aim->up[0] * aim->up[0] + aim->up[2] * aim->up[2]);
+    const float world_weight = _nwii_aim_clampf((lean - 0.2f) / 0.3f, 0.0f, 1.0f);
 
-    // Aim right is clockwise seen from above (negative about up); aim up raises the front edge
-    // (negative about +X)
-    const float yaw_dps = (world_yaw > 0.0f) ? -yaw_mag : yaw_mag;
-    const float pitch_dps = -w_dps[0];
+    float world_yaw_dps = 0.0f;
+    float world_pitch_dps = 0.0f;
+    if (lean > 1e-3f)
+    {
+        world_yaw_dps = -_nwii_aim_dot(w_dps, aim->up);
+        world_pitch_dps = (aim->up[0] * w_dps[2] - aim->up[2] * w_dps[0]) / lean;
+    }
+
+    // Near vertical, blend into player space (after the GyroWiki): up/down is the controller's own
+    // pitch, left/right is rotation about the vertical from its yaw and roll axes only, with the
+    // relax factor letting a tilted grip reach full speed, capped at the actual rotation rate
+    const float player_world_yaw = w_dps[1] * aim->up[1] + w_dps[2] * aim->up[2];
+    const float yaw_cap = sqrtf(w_dps[1] * w_dps[1] + w_dps[2] * w_dps[2]);
+    float yaw_mag = _nwii_aim_absf(player_world_yaw) * NWII_AIM_YAW_RELAX;
+    if (yaw_mag > yaw_cap) yaw_mag = yaw_cap;
+    const float player_yaw_dps = (player_world_yaw > 0.0f) ? -yaw_mag : yaw_mag;
+    const float player_pitch_dps = -w_dps[0];
+
+    const float yaw_dps = world_weight * world_yaw_dps + (1.0f - world_weight) * player_yaw_dps;
+    const float pitch_dps = world_weight * world_pitch_dps + (1.0f - world_weight) * player_pitch_dps;
 
     aim->x += _nwii_aim_deadband(yaw_dps, aim->cfg.deadband_dps) * dt / aim->cfg.yaw_range_deg;
     aim->y += _nwii_aim_deadband(pitch_dps, aim->cfg.deadband_dps) * dt / aim->cfg.pitch_range_deg;
@@ -208,9 +225,7 @@ void nwii_aim_update(nwii_aim_s *aim, const float gyro_dps[3], const float accel
     // Roll about the front edge: how far the right side (-X) has risen against the face (+Z), the
     // sign nwii_ir_set_pointer_rotated() expects (checked on a Wii). Pointed straight up or down
     // there is no roll to read, so it fades to level there.
-    const float lean = sqrtf(aim->up[0] * aim->up[0] + aim->up[2] * aim->up[2]);
-    const float fade = _nwii_aim_clampf((lean - 0.2f) / 0.3f, 0.0f, 1.0f);
-    aim->roll_rad = atan2f(-aim->up[0], _nwii_aim_absf(aim->up[2])) * fade;
+    aim->roll_rad = atan2f(-aim->up[0], _nwii_aim_absf(aim->up[2])) * world_weight;
 }
 
 void nwii_aim_nudge(nwii_aim_s *aim, float dx, float dy)

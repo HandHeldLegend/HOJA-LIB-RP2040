@@ -3,10 +3,11 @@
  * @brief Motion aiming: turns a gamepad's gyro and accelerometer into a Wii Remote pointer
  *        position and roll, for controllers that have motion sensors but no IR camera.
  *
- * The helper fuses both sensors into a gravity estimate and aims in "player space" (after the
- * GyroWiki): up/down is the controller's own pitch, and left/right is rotation about the real
- * vertical taken from its yaw and roll axes. Aim keeps working in any grip, including pointed
- * straight up or down, and a rolled grip does not turn horizontal motion into diagonal motion.
+ * The helper fuses both sensors into a gravity estimate and aims like a real remote: the cursor
+ * follows where the controller's front edge points, so up/down and left/right stay true to the
+ * room however the controller is rolled in the hand. Pointed straight up or down, where that has
+ * no answer, it blends into "player space" (after the GyroWiki) so aiming keeps working in any
+ * grip.
  * The gyro's resting offset is learned whenever the controller is held still, and recentring
  * makes the current pose the level reference for the reported accelerometer.
  *
