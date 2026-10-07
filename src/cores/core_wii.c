@@ -381,10 +381,9 @@ void nwii_api_hook_get_input(nwii_input_s *out)
         break;
 
     case CORE_WII_MODE_SIDEWAYS:
-        // The gamepad stands in for a remote held sideways. Signs set by side-by-side checks
-        // against a real remote (flat tilts and the steering-wheel hold); the other three sign
-        // combinations each failed one of those checks.
-        out->accel_x = _core_wii_mg(imu.ay);
+        // The gamepad stands in for a remote held sideways. Signs set by flat-table checks against
+        // a real remote: forward/back tilt drives X, left/right tilt drives Y.
+        out->accel_x = _core_wii_mg(-(int32_t)imu.ay);
         out->accel_y = _core_wii_mg(-(int32_t)imu.ax);
         out->accel_z = _core_wii_mg(imu.az);
         break;
