@@ -127,6 +127,23 @@ static void _bt_hal_sinput_qos_task(void)
     hci_send_cmd(&hci_qos_setup, hid_con_handle, 0, 0x02, token_rate, 0, latency_us, 0xFFFFFFFF);
 }
 
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+// A Switch report fills a 1-slot EDR packet exactly. The ESP32 keeps falling back from those to
+// smaller packets, splitting each report over several polls (~20 reports/s). Without 1-slot EDR
+// every report goes out in one 3-slot packet.
+#define BT_HAL_ESP32_PACKET_TYPES 0xCC1E // DM1 DH1 DM3 DH3 DM5 DH5, no 2-DH1 or 3-DH1
+static bool packet_type_pending = false;
+
+static void _bt_hal_packet_type_task(void)
+{
+    if (!packet_type_pending || hid_con_handle == HCI_CON_HANDLE_INVALID || !hci_can_send_command_packet_now())
+        return;
+    packet_type_pending = false;
+
+    hci_send_cmd(&hci_change_connection_packet_type, hid_con_handle, BT_HAL_ESP32_PACKET_TYPES);
+}
+#endif
+
 
 /** True when persisted pairing bytes are not blank (0x0000) or erased (0xFFFF…) sentinel. */
 static bool _bluetooth_hal_is_stored_identity_valid(const uint8_t *bytes)
@@ -303,6 +320,9 @@ static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 
     hid_device_request_can_send_now_event(hid_cid);
     _bt_hal_sinput_qos_task();
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    _bt_hal_packet_type_task();
+#endif
 
     _bt_hal_hid_report_timer_arm(ts);
 }
@@ -756,6 +776,9 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
                 hid_con_handle = hid_subevent_connection_opened_get_con_handle(packet);
                 sinput_qos_pending = (core_current_reportformat() == CORE_REPORTFORMAT_SINPUT);
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+                packet_type_pending = true;
+#endif
                 bd_addr_t addr;
                 hid_subevent_connection_opened_get_bd_addr(packet, addr);
 
