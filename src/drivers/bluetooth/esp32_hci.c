@@ -764,7 +764,8 @@ static uint16_t _esp32_read_version()
     _esp32_enable(true);
     sys_hal_sleep_ms(600);
 
-    for(int attempt = 0; attempt < 10; attempt++)
+    // Some ESP32s are still starting after the wait above, keep asking for up to ~2 s
+    for(int attempt = 0; attempt < 80; attempt++)
     {
         i2c_hal_write_timeout_us(BLUETOOTH_DRIVER_I2C_INSTANCE, ESP32_HCI_I2C_ADDRESS, out, sizeof(out), false, 10000);
         sys_hal_sleep_ms(4);
@@ -772,8 +773,9 @@ static uint16_t _esp32_read_version()
 
         if(r == sizeof(in))
         {
+            // 0xFFFF is an ESP32 that answers before its firmware has a reply loaded
             uint16_t version = (in[1] << 8) | in[2];
-            if(version)
+            if(version && version != 0xFFFF)
             {
                 _esp32_enable(false);
                 return version;
