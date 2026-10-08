@@ -144,3 +144,13 @@ motion_gesture_out_s motion_gesture_update(motion_gesture_set_s *set, const bool
 
     return out;
 }
+
+bool motion_gesture_busy(const motion_gesture_set_s *set)
+{
+    if (!set)
+        return false;
+    for (int g = 0; g < MOTION_GESTURE_MAX; g++)
+        if (set->gesture[g].active || set->gesture[g].was_pressed)
+            return true;
+    return false;
+}

@@ -12,6 +12,7 @@
 #define RUNTIME_MAX_NO_UPDATE false
 
 volatile bool _tasks_sent_isr_signal = false; 
+volatile bool _tasks_frame_isr_signal = false;
 volatile bool _tasks_shutdown_lock = false;
 
 typedef enum
@@ -294,6 +295,12 @@ void tasks_mark_sent_isr(void)
     _tasks_sent_isr_signal = true;
 }
 
+// A new USB frame: restart the cycle for fresh input, unless the current one is still running
+void tasks_mark_frame_isr(void)
+{
+    _tasks_frame_isr_signal = true;
+}
+
 // Used where it's not ISR context and safe to call sys_hal_now_us
 void tasks_mark_sent(void)
 {
@@ -323,6 +330,15 @@ void tasks_run(void)
         _tasks_sent_isr_signal = false;
     }
 
+    // Restarting a cycle that hasn't finished would hold its report back another frame, and
+    // once a cycle takes longer than a frame no report would ever go out
+    if(_tasks_frame_isr_signal)
+    {
+        _tasks_frame_isr_signal = false;
+        if(tasks_get_required_done())
+            _tasks_reset_sm();
+    }
+
     // Motion runs every call: guaranteed read on the first call of a new cycle,
     // then evenly-spaced grid reads as time allows within the cycle.
     if(_tasks_sm.motion_count > 0)
@@ -330,6 +346,7 @@ void tasks_run(void)
         _tasks_motion_run(sys_hal_now_us());
     }
 
+    bool cycle_finished = false;
     if(_tasks_phase == TASK_PHASE_REQUIRED)
     {
         if(_tasks_sm.required_completed < _tasks_sm.required_count)
@@ -339,18 +356,23 @@ void tasks_run(void)
             _tasks_sm.required_flags_done |= t->required_done_flag;
             _tasks_sm.required_completed++;
         }
-        else
+
+        if(_tasks_sm.required_completed >= _tasks_sm.required_count)
         {
-            if (_tasks_sm.optional_count > 0)
-            {
-                uint64_t now_us = sys_hal_now_us();
-                _tasks_optional_run(_tasks_sm.optional, _tasks_sm.optional_count, now_us);
-            }
+            cycle_finished = true;
             _tasks_phase = TASK_PHASE_RECURRING;
         }
     }
 
+    // Sends the report as soon as the cycle finishes (which can start the next cycle)
     _tasks_rapid_run();
+
+    // One optional task per finished cycle, after the report is out
+    if (cycle_finished && _tasks_sm.optional_count > 0)
+    {
+        uint64_t now_us = sys_hal_now_us();
+        _tasks_optional_run(_tasks_sm.optional, _tasks_sm.optional_count, now_us);
+    }
 
     if(_tasks_phase == TASK_PHASE_RECURRING)
     {

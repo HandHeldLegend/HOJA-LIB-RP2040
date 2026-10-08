@@ -50,4 +50,7 @@ typedef struct
 motion_gesture_out_s motion_gesture_update(motion_gesture_set_s *set, const bool pressed[MOTION_GESTURE_MAX],
                                            const float up[3], uint64_t now_us);
 
+// True while any gesture in the set is playing or its button is still held
+bool motion_gesture_busy(const motion_gesture_set_s *set);
+
 #endif

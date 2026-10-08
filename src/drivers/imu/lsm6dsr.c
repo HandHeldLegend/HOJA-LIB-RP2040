@@ -109,16 +109,10 @@ static int lsm6dsr_i2c_init(uint8_t select, uint8_t i2c_instance)
     return ret;
 }
 
-static int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, lsm6dsr_sensor_cfg_s gyro, lsm6dsr_sensor_cfg_s accel)
+static const uint8_t _lsm6dsr_i2c_addresses[2] = {0b1101011, 0b1101010};
+
+static void _lsm6dsr_decode(const uint8_t *i, imu_data_s *out, lsm6dsr_sensor_cfg_s gyro, lsm6dsr_sensor_cfg_s accel)
 {
-    const uint8_t addresses[2] = {0b1101011, 0b1101010};
-
-    uint8_t addr = addresses[select];
-    const uint8_t write_reg[1] = {IMU_OUTX_L_G};
-    uint8_t i[12] = {0};
-
-    int ret = i2c_hal_write_read_timeout_us(i2c_instance, addr, write_reg, 1, i, 12, 10000);
-
     bool gx_invert = gyro.invert_x;
     bool gy_invert = gyro.invert_y;
     bool gz_invert = gyro.invert_z;
@@ -137,6 +131,14 @@ static int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instanc
     out->az = APPLY_INVERSION(_imu_concat_16(i[10], i[11]), az_invert);
 
     out->retrieved = true;
+}
+
+static int lsm6dsr_i2c_read(imu_data_s *out, uint8_t select, uint8_t i2c_instance, lsm6dsr_sensor_cfg_s gyro, lsm6dsr_sensor_cfg_s accel)
+{
+    uint8_t i[12] = {0};
+
+    int ret = i2c_hal_read_reg_burst_us(i2c_instance, _lsm6dsr_i2c_addresses[select], IMU_OUTX_L_G, i, 12, 10000);
+    _lsm6dsr_decode(i, out, gyro, accel);
 
     return ret;
 }
@@ -196,6 +198,55 @@ bool imu_driver_read(uint8_t channel, imu_data_s *out)
         return false;
 
     return _channel_read(_channel(cfg, channel), out) >= 0;
+}
+
+// Both sensors on one I2C bus: hand back the pair read in the background since the last call and
+// start the next, so the bus time overlaps the rest of the cycle (samples are one call old)
+static uint8_t _pair_raw[2][12];
+static bool    _pair_pending = false;
+
+bool imu_driver_read_pair(imu_data_s *a, imu_data_s *b)
+{
+    const lsm6dsr_cfg_s *cfg = _cfg();
+    const uint8_t count = imu_driver_channel_count();
+    if (cfg == NULL || a == NULL || b == NULL || count == 0)
+        return false;
+
+    // Single-IMU boards read channel 0 for both
+    const bool dual = (count >= 2);
+    const lsm6dsr_channel_cfg_s *ch0 = _channel(cfg, 0);
+    const lsm6dsr_channel_cfg_s *ch1 = dual ? _channel(cfg, 1) : ch0;
+    const bool shared_i2c = (ch0->bus == LSM6DSR_BUS_I2C) && (ch1->bus == LSM6DSR_BUS_I2C) &&
+                            (ch0->i2c_instance == ch1->i2c_instance);
+    if (!shared_i2c)
+    {
+        _channel_read(ch0, a);
+        _channel_read(ch1, b);
+        return true;
+    }
+
+    // Bit per burst that completed
+    const uint8_t done = _pair_pending ? i2c_hal_async_wait(ch0->i2c_instance, 2000) : 0;
+    _pair_pending = false;
+
+    if (done == (dual ? 0x3 : 0x1))
+    {
+        _lsm6dsr_decode(_pair_raw[0], a, ch0->gyro, ch0->accel);
+        _lsm6dsr_decode(_pair_raw[dual ? 1 : 0], b, ch1->gyro, ch1->accel);
+    }
+    else
+    {
+        // First call, or the last background read failed
+        _channel_read(ch0, a);
+        _channel_read(ch1, b);
+    }
+
+    const i2c_hal_burst_s bursts[2] = {
+        {.addr = _lsm6dsr_i2c_addresses[ch0->select], .reg = IMU_OUTX_L_G, .len = 12, .dst = _pair_raw[0]},
+        {.addr = _lsm6dsr_i2c_addresses[ch1->select], .reg = IMU_OUTX_L_G, .len = 12, .dst = _pair_raw[1]},
+    };
+    _pair_pending = i2c_hal_read_reg_burst_async(ch0->i2c_instance, bursts, dual ? 2 : 1);
+    return true;
 }
 
 const char *imu_driver_part_code(void)
