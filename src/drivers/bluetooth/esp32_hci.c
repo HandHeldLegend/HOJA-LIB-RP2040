@@ -613,8 +613,22 @@ static void _hci_init(const void *config)
     (void)config;
 }
 
+// Keeps the run loop servicing the link. Without it, SInput reports stall for up to a second
+// waiting for something else to wake BTstack.
+#define HCI_TICK_MS 8
+static btstack_timer_source_t _tick_timer;
+static void _tick_timer_handler(btstack_timer_source_t *ts)
+{
+    btstack_run_loop_set_timer(ts, HCI_TICK_MS);
+    btstack_run_loop_add_timer(ts);
+}
+
 static int _hci_open_fn()
 {
+    btstack_run_loop_set_timer_handler(&_tick_timer, _tick_timer_handler);
+    btstack_run_loop_set_timer(&_tick_timer, HCI_TICK_MS);
+    btstack_run_loop_add_timer(&_tick_timer);
+
     if(!_radio_requested) _request_radio();
 
     btstack_run_loop_set_data_source_handler(&_hci_source, &_hci_source_poll);
@@ -627,6 +641,7 @@ static int _hci_open_fn()
 static int _hci_close_fn()
 {
     _hci_open = false;
+    btstack_run_loop_remove_timer(&_tick_timer);
     btstack_run_loop_disable_data_source_callbacks(&_hci_source, DATA_SOURCE_CALLBACK_POLL);
     btstack_run_loop_remove_data_source(&_hci_source);
     return 0;
