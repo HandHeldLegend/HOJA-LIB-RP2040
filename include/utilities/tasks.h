@@ -40,6 +40,7 @@ void tasks_register(task_s *task);
 
 // Call once at the start of each main-loop iteration.
 void tasks_mark_sent_isr(void);
+void tasks_mark_frame_isr(void);
 void tasks_mark_sent(void);
 
 void tasks_run(void);

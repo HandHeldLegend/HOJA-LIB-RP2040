@@ -41,6 +41,9 @@ typedef enum
 uint8_t     imu_driver_channel_count(void);
 bool        imu_driver_init(void);
 bool        imu_driver_read(uint8_t channel, imu_data_s *out);
+// Both channels (channel 0 twice on single-IMU boards). A driver may return samples read in the
+// background since the previous call.
+bool        imu_driver_read_pair(imu_data_s *a, imu_data_s *b);
 const char *imu_driver_part_code(void);
 
 void imu_access_safe(imu_data_s *out);

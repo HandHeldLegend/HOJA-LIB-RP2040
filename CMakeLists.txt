@@ -70,6 +70,8 @@ target_compile_definitions(hoja_lib
   LWIP_DEBUG=0
   LWIP_STATS=0
   LWIP_STATS_DISPLAY=0
+  # Float helpers run on every input cycle: keep them out of the flash cache's way
+  PICO_FLOAT_IN_RAM=1
 )
 
 set(BLUETOOTH_DRIVERS 

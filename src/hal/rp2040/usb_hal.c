@@ -72,7 +72,7 @@ static void _usb_hal_on_sof(uint32_t frame_count)
     {
     case 1:
         // Align the task cycle to each USB frame so input is sampled before send.
-        tasks_mark_sent_isr();
+        tasks_mark_frame_isr();
         _usb_sendit = true;
         break;
 
@@ -240,10 +240,7 @@ void transport_usb_task(uint64_t timestamp)
         {
             if (hhl_tusb_report_send(_core_report.data[0], &_core_report.data[1], _core_report.size - 1))
             {
-                if (_usb_frames != 1)
-                {
-                    tasks_mark_sent();
-                }
+                tasks_mark_sent();
                 hhl_tusb_task();
             }
         }

@@ -38,9 +38,16 @@ void sys_hal_sleep_ms(uint32_t ms)
     sleep_ms(ms);
 }
 
+// Short waits spin: sleep_us() sets a timer alarm for each one, and the alarm interrupts cost
+// more than the wait
+#define SYS_HAL_SPIN_MAX_US 200
+
 void sys_hal_sleep_us(uint32_t us)
 {
-    sleep_us(us);
+    if (us <= SYS_HAL_SPIN_MAX_US)
+        busy_wait_us_32(us);
+    else
+        sleep_us(us);
 }
 
 void sys_hal_tick(uint64_t now_us)

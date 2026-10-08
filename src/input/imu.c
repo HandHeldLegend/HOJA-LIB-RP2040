@@ -37,6 +37,13 @@ __attribute__((weak)) bool imu_driver_read(uint8_t channel, imu_data_s *out)
   return false;
 }
 __attribute__((weak)) const char *imu_driver_part_code(void) { return NULL; }
+__attribute__((weak)) bool imu_driver_read_pair(imu_data_s *a, imu_data_s *b)
+{
+  const uint8_t ch2 = (imu_driver_channel_count() >= 2) ? 1 : 0;
+  bool ok = imu_driver_read(0, a);
+  ok &= imu_driver_read(ch2, b);
+  return ok;
+}
 
 #define IMU_CALIBRATE_CYCLES 2000
 #define IMU_READ_RATE 3000
@@ -68,21 +75,35 @@ imu_data_s _imu_data = {0};
 static volatile uint8_t _imu_gesture_mask = 0;
 static motion_gesture_set_s _imu_gestures = {0};
 
-// Gravity (which way is up, mg) smoothed from the samples before gestures are added, so flicks
-// can be turned to stay relative to the ground
-#define IMU_UP_TAU_US 250000.0f
-static float    _imu_up_mg[3] = {0, 0, 1000.0f};
+// Gravity (which way is up) smoothed from the samples before gestures are added, so flicks can be
+// turned to stay relative to the ground. Integer math: this runs on every sample, at up to 1 kHz.
+#define IMU_UP_TAU_US 250000u
+#define IMU_UP_WEIGHT_SHIFT 12 // Filter weight in 1/4096ths
+static int32_t  _imu_up_q8[3] = {0, 0, IMU_ACCEL_LSB_PER_G * 256}; // Accel LSB x 256
 static uint64_t _imu_up_last_us = 0;
 
 static void _imu_track_up(const imu_data_s *sample, uint64_t now_us)
 {
-  const float dt = (_imu_up_last_us == 0 || now_us <= _imu_up_last_us) ? 0.0f : (float)(now_us - _imu_up_last_us);
+  const int32_t raw_q8[3] = {sample->ax * 256, sample->ay * 256, sample->az * 256};
+
+  // First sample: start from it
+  if (_imu_up_last_us == 0 || now_us <= _imu_up_last_us)
+  {
+    _imu_up_last_us = now_us;
+    for (int i = 0; i < 3; i++)
+      _imu_up_q8[i] = raw_q8[i];
+    return;
+  }
+
+  uint32_t dt = (uint32_t)(now_us - _imu_up_last_us);
+  if (dt > IMU_UP_TAU_US)
+    dt = IMU_UP_TAU_US;
   _imu_up_last_us = now_us;
 
-  const float alpha = (dt <= 0.0f) ? 1.0f : dt / (IMU_UP_TAU_US + dt);
-  const float raw[3] = {sample->ax * IMU_ACCEL_MG_PER_LSB, sample->ay * IMU_ACCEL_MG_PER_LSB, sample->az * IMU_ACCEL_MG_PER_LSB};
+  // Low-pass, each sample weighted dt / (tau + dt)
+  const int32_t weight = (int32_t)((dt << IMU_UP_WEIGHT_SHIFT) / (IMU_UP_TAU_US + dt));
   for (int i = 0; i < 3; i++)
-    _imu_up_mg[i] += alpha * (raw[i] - _imu_up_mg[i]);
+    _imu_up_q8[i] += (int32_t)(((int64_t)(raw_q8[i] - _imu_up_q8[i]) * weight) >> IMU_UP_WEIGHT_SHIFT);
 }
 
 static inline int16_t _imu_add_clip_int16(int16_t value, float offset)
@@ -112,19 +133,30 @@ static void _imu_rest_sample(imu_data_s *out)
 static void _imu_apply_gestures(imu_data_s *sample, uint64_t now_us)
 {
   const uint8_t mask = _imu_gesture_mask;
+
+  _imu_track_up(sample, now_us);
+
+  // Nothing held or playing: leave the sample alone (the float work below is costly on the M0+)
+  if (!mask && !motion_gesture_busy(&_imu_gestures))
+    return;
+
   bool pressed[MOTION_GESTURE_MAX];
   for (int g = 0; g < MOTION_GESTURE_MAX; g++)
     pressed[g] = (mask >> g) & 1u;
 
-  _imu_track_up(sample, now_us);
-  const motion_gesture_out_s o = motion_gesture_update(&_imu_gestures, pressed, _imu_up_mg, now_us);
+  const float up_mg[3] = {
+    (float)_imu_up_q8[0] * (IMU_ACCEL_MG_PER_LSB / 256.0f),
+    (float)_imu_up_q8[1] * (IMU_ACCEL_MG_PER_LSB / 256.0f),
+    (float)_imu_up_q8[2] * (IMU_ACCEL_MG_PER_LSB / 256.0f),
+  };
+  const motion_gesture_out_s o = motion_gesture_update(&_imu_gestures, pressed, up_mg, now_us);
 
-  sample->ax = _imu_add_clip_int16(sample->ax, o.accel_mg[0] / IMU_ACCEL_MG_PER_LSB);
-  sample->ay = _imu_add_clip_int16(sample->ay, o.accel_mg[1] / IMU_ACCEL_MG_PER_LSB);
-  sample->az = _imu_add_clip_int16(sample->az, o.accel_mg[2] / IMU_ACCEL_MG_PER_LSB);
-  sample->gx = _imu_add_clip_int16(sample->gx, o.gyro_dps[0] / IMU_GYRO_DPS_PER_LSB);
-  sample->gy = _imu_add_clip_int16(sample->gy, o.gyro_dps[1] / IMU_GYRO_DPS_PER_LSB);
-  sample->gz = _imu_add_clip_int16(sample->gz, o.gyro_dps[2] / IMU_GYRO_DPS_PER_LSB);
+  sample->ax = _imu_add_clip_int16(sample->ax, o.accel_mg[0] * (1.0f / IMU_ACCEL_MG_PER_LSB));
+  sample->ay = _imu_add_clip_int16(sample->ay, o.accel_mg[1] * (1.0f / IMU_ACCEL_MG_PER_LSB));
+  sample->az = _imu_add_clip_int16(sample->az, o.accel_mg[2] * (1.0f / IMU_ACCEL_MG_PER_LSB));
+  sample->gx = _imu_add_clip_int16(sample->gx, o.gyro_dps[0] * (1.0f / IMU_GYRO_DPS_PER_LSB));
+  sample->gy = _imu_add_clip_int16(sample->gy, o.gyro_dps[1] * (1.0f / IMU_GYRO_DPS_PER_LSB));
+  sample->gz = _imu_add_clip_int16(sample->gz, o.gyro_dps[2] * (1.0f / IMU_GYRO_DPS_PER_LSB));
 }
 
 void imu_gesture_set(const bool pressed[MOTION_GESTURE_MAX])
@@ -207,8 +239,7 @@ static void _imu_read_quaternion(uint64_t timestamp)
     // averaging below collapses to that single sensor.
     uint8_t ch2 = (channels >= 2) ? 1 : 0;
 
-    imu_driver_read(0, &this_imu[0]);
-    imu_driver_read(ch2, &this_imu[1]);
+    imu_driver_read_pair(&this_imu[0], &this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
@@ -263,8 +294,7 @@ static void _imu_read_standard(uint64_t timestamp)
     // averaging below collapses to that single sensor.
     uint8_t ch2 = (channels >= 2) ? 1 : 0;
 
-    imu_driver_read(0, &this_imu[0]);
-    imu_driver_read(ch2, &this_imu[1]);
+    imu_driver_read_pair(&this_imu[0], &this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
