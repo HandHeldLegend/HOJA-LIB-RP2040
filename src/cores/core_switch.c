@@ -282,7 +282,18 @@ void ns_api_hook_set_imu_mode(ns_imu_mode_t imu_mode)
 
 void ns_api_hook_get_imu(ns_gyrodata_s *out)
 {
-    imu_access_safe((imu_data_s *) out);
+    // Copied field by field: the two types share a layout, but writing one through a pointer to
+    // the other lets the compiler drop the writes
+    imu_data_s imu = {0};
+    imu_access_safe(&imu);
+
+    out->ax = imu.ax;
+    out->ay = imu.ay;
+    out->az = imu.az;
+    out->gx = imu.gx;
+    out->gy = imu.gy;
+    out->gz = imu.gz;
+    out->timestamp_us = imu.timestamp;
 }
 
 void ns_api_hook_get_quaternion(ns_quaternion_s *out)

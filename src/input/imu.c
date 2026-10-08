@@ -189,15 +189,17 @@ static void _imu_default_sensitivity(void)
 
 static void _imu_read_quaternion(uint64_t timestamp)
 {
-  ns_gyrodata_s this_imu[3] = {0};
+  // Built as imu_data_s like the standard path, then copied for the quaternion. Writing an
+  // ns_gyrodata_s and reading it back through imu_data_s * let the compiler drop the stores
+  // (strict aliasing), so every sample read zero.
+  imu_data_s this_imu[3] = {0};
 
   uint8_t channels = imu_driver_channel_count();
 
   if (!imu_motion_enabled(core_current_reportformat()) || channels == 0)
   {
     // Motion off: hold still, face up
-    _imu_rest_sample((imu_data_s *)&this_imu[2]);
-    this_imu[2].timestamp_us = timestamp;
+    _imu_rest_sample(&this_imu[2]);
   }
   else
   {
@@ -205,8 +207,8 @@ static void _imu_read_quaternion(uint64_t timestamp)
     // averaging below collapses to that single sensor.
     uint8_t ch2 = (channels >= 2) ? 1 : 0;
 
-    imu_driver_read(0, (imu_data_s *)&this_imu[0]);
-    imu_driver_read(ch2, (imu_data_s *)&this_imu[1]);
+    imu_driver_read(0, &this_imu[0]);
+    imu_driver_read(ch2, &this_imu[1]);
 
     this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
     this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
@@ -224,14 +226,22 @@ static void _imu_read_quaternion(uint64_t timestamp)
     this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
     this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
     this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
-    this_imu[2].timestamp_us = timestamp;
 
-    _imu_apply_sensitivity((imu_data_s *)&this_imu[2]);
+    _imu_apply_sensitivity(&this_imu[2]);
   }
 
-  _imu_apply_gestures((imu_data_s *)&this_imu[2], timestamp);
+  _imu_apply_gestures(&this_imu[2], timestamp);
 
-  ns_motion_update_quaternion(&_imu_quat_state, &_imu_quat_integrator, &this_imu[2], _imu_gyro_rad_per_lsb);
+  ns_gyrodata_s sample = {0};
+  sample.ax = this_imu[2].ax;
+  sample.ay = this_imu[2].ay;
+  sample.az = this_imu[2].az;
+  sample.gx = this_imu[2].gx;
+  sample.gy = this_imu[2].gy;
+  sample.gz = this_imu[2].gz;
+  sample.timestamp_us = timestamp;
+
+  ns_motion_update_quaternion(&_imu_quat_state, &_imu_quat_integrator, &sample, _imu_gyro_rad_per_lsb);
   snapshot_quat_write(&_quat_snap, &_imu_quat_state);
 }
 
