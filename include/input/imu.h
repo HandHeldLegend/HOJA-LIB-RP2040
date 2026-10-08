@@ -8,8 +8,15 @@
 
 #include "settings_shared_types.h"
 #include "input_shared_types.h"
+#include "hoja_shared_types.h"
 
 #include "ns_lib_motion.h"
+#include "input/motion_gesture.h"
+
+// HOJA's IMU scale, the same on every board (8 g, 2000 dps)
+#define IMU_ACCEL_MG_PER_LSB    0.244f
+#define IMU_GYRO_DPS_PER_LSB    0.07f
+#define IMU_ACCEL_LSB_PER_G     4096
 
 typedef enum
 {
@@ -38,6 +45,16 @@ const char *imu_driver_part_code(void);
 
 void imu_access_safe(imu_data_s *out);
 void imu_quaternion_access_safe(ns_quaternion_s *out);
+
+// True when the board has an IMU and motion is on for this mode: neither turned off everywhere
+// (imu_disabled) nor for this mode (imu_mode_disable_mask)
+bool imu_motion_enabled(core_reportformat_t format);
+
+// Motion gestures held right now (see input/motion_gesture.h). The active core sets them each
+// time it reads input; every IMU sample then carries them, as if the controller really moved, so
+// they go through exactly the same processing as real motion in every mode. While motion is off
+// the samples read as a controller lying still and face up, and gestures play on top of that.
+void imu_gesture_set(const bool pressed[MOTION_GESTURE_MAX]);
 
 bool imu_init(void);
 

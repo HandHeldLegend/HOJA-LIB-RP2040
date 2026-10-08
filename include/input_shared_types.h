@@ -96,6 +96,12 @@ typedef enum
     SWITCH_CODE_RX_LEFT,
     SWITCH_CODE_RY_UP,
     SWITCH_CODE_RY_DOWN,
+    // Motion gestures, played on the reported accelerometer/gyro (see input/motion_gesture.h).
+    // Values are part of the config app wire format: append only.
+    SWITCH_CODE_FLICK_UP,
+    SWITCH_CODE_FLICK_DOWN,
+    SWITCH_CODE_FLICK_LEFT,
+    SWITCH_CODE_FLICK_RIGHT,
     SWITCH_CODE_MAX,
 } mapper_switch_code_t;
 
@@ -308,9 +314,16 @@ typedef enum
     WII_CODE_POINTER_UP,
     WII_CODE_POINTER_DOWN,
     WII_CODE_POINTER_RECENTER,
-    WII_CODE_SHAKE,
-    WII_CODE_NUNCHUK_SHAKE,
     WII_CODE_EXTENSION_TOGGLE, // Plug / unplug the current mode's extension
+    // Motion gestures (see input/motion_gesture.h)
+    WII_CODE_REMOTE_FLICK_UP,
+    WII_CODE_REMOTE_FLICK_DOWN,
+    WII_CODE_REMOTE_FLICK_LEFT,
+    WII_CODE_REMOTE_FLICK_RIGHT,
+    WII_CODE_NUNCHUK_FLICK_UP,
+    WII_CODE_NUNCHUK_FLICK_DOWN,
+    WII_CODE_NUNCHUK_FLICK_LEFT,
+    WII_CODE_NUNCHUK_FLICK_RIGHT,
     WII_CODE_MAX,
 } mapper_wii_code_t;
 
@@ -327,8 +340,8 @@ typedef enum
 
 typedef struct 
 {
-    uint16_t inputs[48];
-    bool presses[48];
+    uint16_t inputs[64];
+    bool presses[64];
 } mapper_input_s;
 
 // Analog input data structure

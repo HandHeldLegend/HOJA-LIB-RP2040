@@ -52,7 +52,11 @@ mapper_output_type_t _switch_output_types[SWITCH_CODE_MAX] = {
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_JOYSTICK,
-    MAPPER_OUTPUT_JOYSTICK
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_DIGITAL, // Flick up
+    MAPPER_OUTPUT_DIGITAL, // Flick down
+    MAPPER_OUTPUT_DIGITAL, // Flick left
+    MAPPER_OUTPUT_DIGITAL, // Flick right
 };
 
 mapper_output_type_t _snes_output_types[SNES_CODE_MAX] = {
@@ -231,17 +235,26 @@ mapper_output_type_t _wii_output_types[WII_CODE_MAX] = {
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_DIGITAL, // Pointer recenter
-    MAPPER_OUTPUT_DIGITAL, // Shake (remote)
-    MAPPER_OUTPUT_DIGITAL, // Shake (nunchuk)
     MAPPER_OUTPUT_DIGITAL, // Extension attach / detach
+    MAPPER_OUTPUT_DIGITAL, // Remote flick up
+    MAPPER_OUTPUT_DIGITAL, // Remote flick down
+    MAPPER_OUTPUT_DIGITAL, // Remote flick left
+    MAPPER_OUTPUT_DIGITAL, // Remote flick right
+    MAPPER_OUTPUT_DIGITAL, // Nunchuk flick up
+    MAPPER_OUTPUT_DIGITAL, // Nunchuk flick down
+    MAPPER_OUTPUT_DIGITAL, // Nunchuk flick left
+    MAPPER_OUTPUT_DIGITAL, // Nunchuk flick right
 };
 
 // Output codes index mapper_input_s directly
+_Static_assert(SWITCH_CODE_MAX <= (sizeof(((mapper_input_s *)0)->inputs) / sizeof(uint16_t)),
+               "Switch output codes must fit in mapper_input_s");
 _Static_assert(WII_CODE_MAX <= (sizeof(((mapper_input_s *)0)->inputs) / sizeof(uint16_t)),
                "Wii output codes must fit in mapper_input_s");
 
 // Wii profile defaults are derived from the board's Switch defaults, so every board gets a
-// sensible layout without listing Wii maps in main.c. Indexed by SWITCH_CODE_*.
+// sensible layout without listing Wii maps in main.c. Indexed by SWITCH_CODE_*. Every Switch
+// code must be listed in every profile: a missing entry reads as 0, which is WII_CODE_A.
 static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] = {
     [WII_PROFILE_NUNCHUK] = {
         [SWITCH_CODE_A]        = WII_CODE_A,
@@ -253,14 +266,14 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_LEFT]     = WII_CODE_LEFT,
         [SWITCH_CODE_RIGHT]    = WII_CODE_RIGHT,
         [SWITCH_CODE_L]        = WII_CODE_C,
-        [SWITCH_CODE_R]        = WII_CODE_SHAKE,
+        [SWITCH_CODE_R]        = WII_CODE_REMOTE_FLICK_DOWN,
         [SWITCH_CODE_ZL]       = WII_CODE_Z,
         [SWITCH_CODE_ZR]       = WII_CODE_B,
         [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_HOME,
         [SWITCH_CODE_CAPTURE]  = WII_CODE_EXTENSION_TOGGLE,
-        [SWITCH_CODE_LS]       = WII_CODE_NUNCHUK_SHAKE,
+        [SWITCH_CODE_LS]       = WII_CODE_NUNCHUK_FLICK_DOWN,
         [SWITCH_CODE_RS]       = WII_CODE_POINTER_RECENTER,
         [SWITCH_CODE_LX_RIGHT] = WII_CODE_NUNCHUK_X_RIGHT,
         [SWITCH_CODE_LX_LEFT]  = WII_CODE_NUNCHUK_X_LEFT,
@@ -270,6 +283,10 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_RX_LEFT]  = WII_CODE_POINTER_LEFT,
         [SWITCH_CODE_RY_UP]    = WII_CODE_POINTER_UP,
         [SWITCH_CODE_RY_DOWN]  = WII_CODE_POINTER_DOWN,
+        [SWITCH_CODE_FLICK_UP]    = WII_CODE_REMOTE_FLICK_UP,
+        [SWITCH_CODE_FLICK_DOWN]  = WII_CODE_REMOTE_FLICK_DOWN,
+        [SWITCH_CODE_FLICK_LEFT]  = WII_CODE_REMOTE_FLICK_LEFT,
+        [SWITCH_CODE_FLICK_RIGHT] = WII_CODE_REMOTE_FLICK_RIGHT,
     },
     [WII_PROFILE_CLASSIC] = {
         [SWITCH_CODE_A]        = WII_CODE_CC_A,
@@ -300,6 +317,10 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_RX_LEFT]  = WII_CODE_CC_RX_LEFT,
         [SWITCH_CODE_RY_UP]    = WII_CODE_CC_RY_UP,
         [SWITCH_CODE_RY_DOWN]  = WII_CODE_CC_RY_DOWN,
+        [SWITCH_CODE_FLICK_UP]    = WII_CODE_REMOTE_FLICK_UP,
+        [SWITCH_CODE_FLICK_DOWN]  = WII_CODE_REMOTE_FLICK_DOWN,
+        [SWITCH_CODE_FLICK_LEFT]  = WII_CODE_REMOTE_FLICK_LEFT,
+        [SWITCH_CODE_FLICK_RIGHT] = WII_CODE_REMOTE_FLICK_RIGHT,
     },
     // Remote held sideways with the d-pad on the left: the d-pad and left stick are rotated so
     // pressing right moves right on screen, and 1 / 2 land on B / A, matching their left / right
@@ -314,9 +335,9 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_LEFT]     = WII_CODE_UP,
         [SWITCH_CODE_RIGHT]    = WII_CODE_DOWN,
         [SWITCH_CODE_L]        = WII_CODE_A,
-        [SWITCH_CODE_R]        = WII_CODE_SHAKE,
+        [SWITCH_CODE_R]        = WII_CODE_REMOTE_FLICK_DOWN,
         [SWITCH_CODE_ZL]       = WII_CODE_B,
-        [SWITCH_CODE_ZR]       = WII_CODE_SHAKE,
+        [SWITCH_CODE_ZR]       = WII_CODE_REMOTE_FLICK_DOWN,
         [SWITCH_CODE_PLUS]     = WII_CODE_PLUS,
         [SWITCH_CODE_MINUS]    = WII_CODE_MINUS,
         [SWITCH_CODE_HOME]     = WII_CODE_HOME,
@@ -331,6 +352,10 @@ static const int8_t _wii_defaults_from_switch[WII_PROFILE_MAX][SWITCH_CODE_MAX] 
         [SWITCH_CODE_RX_LEFT]  = WII_CODE_POINTER_LEFT,
         [SWITCH_CODE_RY_UP]    = WII_CODE_POINTER_UP,
         [SWITCH_CODE_RY_DOWN]  = WII_CODE_POINTER_DOWN,
+        [SWITCH_CODE_FLICK_UP]    = WII_CODE_REMOTE_FLICK_UP,
+        [SWITCH_CODE_FLICK_DOWN]  = WII_CODE_REMOTE_FLICK_DOWN,
+        [SWITCH_CODE_FLICK_LEFT]  = WII_CODE_REMOTE_FLICK_LEFT,
+        [SWITCH_CODE_FLICK_RIGHT] = WII_CODE_REMOTE_FLICK_RIGHT,
     },
 };
 
@@ -535,7 +560,8 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         bool *press = &_all_inputs.presses[i];
 
         uint8_t output_type = 0;
-        if (mapped_output_code<0)
+        // Codes this firmware does not know (written by a newer config app) count as unmapped
+        if (mapped_output_code < 0 || mapped_output_code >= op->output_types_max)
         {
             output_type = MAPPER_OUTPUT_DISABLED;
             if(!op->remap_en)

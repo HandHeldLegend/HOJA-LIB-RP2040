@@ -30,6 +30,8 @@ typedef void (*bluetooth_cb_t)(bluetooth_cb_msg_s *msg);
     #include "hal/bluetooth_hal.h"
 #elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
     #include "drivers/bluetooth/esp32_hojabaseband.h"
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HCI)
+    #include "drivers/bluetooth/esp32_hci.h"
 #endif
 
 void bluetooth_mode_stop();

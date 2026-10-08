@@ -276,7 +276,7 @@ bool core_sinput_init(core_params_s *params)
     params->core_report_generator = _core_sinput_get_generated_report;
     params->core_report_tunnel    = sinput_api_output_tunnel;
 
-    const bool imu_available = (imu_driver_channel_count() >= 1) && (imu_config->imu_disabled != 1);
+    const bool imu_available = imu_motion_enabled(CORE_REPORTFORMAT_SINPUT);
 
     sinput_hid_get_descriptor_params(
         &_sinput_hid_device.hid_report_descriptor, &_sinput_hid_device.hid_report_descriptor_len,

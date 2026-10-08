@@ -123,12 +123,21 @@
     // Bluetooth Drivers
     #define BT_DRIVER_HAL 1
     #define BT_DRIVER_ESP32HOJA 2
+    #define BT_DRIVER_ESP32HCI 3 // ESP32 running the HCI bridge, BTstack on the RP2040
 
     // Older board_config.h files declared HOJA_BLUETOOTH_DRIVER instead of
     // HOJA_TRANSPORT_BT_DRIVER. Values match (BLUETOOTH_DRIVER_* == BT_DRIVER_*).
     #if !defined(HOJA_TRANSPORT_BT_DRIVER) && defined(HOJA_BLUETOOTH_DRIVER)
     #define HOJA_TRANSPORT_BT_DRIVER HOJA_BLUETOOTH_DRIVER
     #endif
+
+    // Any ESP32 Bluetooth board (USB mux, baseband updates)
+    #define HOJA_BT_IS_ESP32 ((HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA) || \
+                              (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI))
+
+    // BTstack on the RP2040 (RM2, or the ESP32 HCI bridge)
+    #define HOJA_BT_USES_BTSTACK ((HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL) || \
+                                  (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI))
 
     // USB Drivers
     #define USB_DRIVER_HAL 1

@@ -1,7 +1,19 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_IS_ESP32
 #include "drivers/bluetooth/esp32_hojabaseband.h"
+
+// ESP32 HCI builds keep this driver for ESP32s still on the old baseband, renamed, with the
+// static info left to esp32_hci.c
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+#define ESP32_LEGACY_FALLBACK 1
+#include "drivers/bluetooth/esp32_hci.h"
+#define transport_bt_stop esp32_legacy_bt_stop
+#define transport_bt_init esp32_legacy_bt_init
+#define transport_bt_task esp32_legacy_bt_task
+#else
+#define ESP32_LEGACY_FALLBACK 0
+#endif
 
 #include "transport/transport.h"
 
@@ -28,6 +40,7 @@
 
 #include "input/mapper.h"
 #include "input/imu.h"
+#include "cores/core_switch.h"
 
 #define ESP32_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
@@ -453,14 +466,14 @@ void transport_bt_stop()
 
 }
 
-// ESP32 baseband always expects live gyro/accel in the standard input packet.
-// There is no separate I2C motion-enable command — turn IMU reads on here.
+// ESP32 baseband always expects gyro/accel in the standard input packet.
+// There is no separate I2C motion-enable command — turn IMU reads on here. The user's motion
+// settings are left alone: while motion is off for the mode, the reads hold still.
 static void _esp32_bt_enable_imu(void)
 {
     if (imu_driver_channel_count() == 0)
         return;
 
-    imu_config->imu_disabled = 0;
     imu_set_read_mode(IMU_MODE_STANDARD);
 }
 
@@ -576,8 +589,12 @@ bool transport_bt_init(core_params_s *params)
     // Stupid workaround for SuperGamepad+ :)
     data_out[21] = dev_cfg ? dev_cfg->sinput.gamepad_subtype : 0;
 
-    // Local MAC
+    // Local MAC. The baseband uses it as its Bluetooth address exactly. Switch over USB runs
+    // USB pairing on the RP2040, handing the console a link key for the USB MAC that the ESP32
+    // never learns, so Switch over Bluetooth takes the next address to keep the two apart.
     memcpy(&data_out[22], _bt_esp32_params->transport_dev_mac, 6);
+    if (_bt_esp32_params->core_report_format == CORE_REPORTFORMAT_SWPRO)
+        data_out[27] += 1;
 
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
@@ -667,6 +684,8 @@ void transport_bt_task(uint64_t timestamp)
 
                 input_data.lt = 0;
                 input_data.rt = 0;
+
+                core_switch_gesture_input(&input);
                 break;
 
                 case CORE_REPORTFORMAT_SINPUT:
@@ -801,6 +820,7 @@ void transport_bt_task(uint64_t timestamp)
     }
 }
 
+#if !ESP32_LEGACY_FALLBACK
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
 static uint16_t _esp32_static_cached_version = 0;
@@ -909,5 +929,6 @@ const char *fuelgauge_driver_part_code(void)
 }
 
 #endif // HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32
+#endif // !ESP32_LEGACY_FALLBACK
 
 #endif

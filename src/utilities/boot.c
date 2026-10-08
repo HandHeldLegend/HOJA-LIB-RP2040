@@ -149,9 +149,9 @@ static const mapper_input_code_t k_face_codes[4] = {
     INPUT_CODE_NORTH,
 };
 
-// Wii mode needs the RM2 (CYW43) Bluetooth HAL. Without it d-pad up stays out of the boot
+// Wii mode needs BTstack (RM2 or the ESP32 HCI bridge). Without it d-pad up stays out of the boot
 // mode group entirely, so those boards keep the three-way SNES / N64 / GameCube pick.
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
 #define BOOT_WII_SUPPORTED 1
 #define BOOT_DPAD_COUNT    4
 #else
@@ -335,7 +335,7 @@ static bool boot_combo_usb_bootloader(const mapper_input_s *input)
     return boot_combo_pressed(input, cfg->usb_bootloader_code);
 }
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+#if HOJA_BT_IS_ESP32
 static bool boot_combo_baseband_update(const mapper_input_s *input)
 {
     const hoja_config_s *cfg = hoja_config_get();
@@ -364,7 +364,7 @@ static bool boot_combo_wlan_force(const mapper_input_s *input)
     if (boot_combo_usb_bootloader(input))
         return false;
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+#if HOJA_BT_IS_ESP32
     if (boot_combo_baseband_update(input))
         return false;
 #endif
@@ -442,7 +442,7 @@ static void boot_apply_persisted_memory(boot_info_s *info)
     if (boot_memory.val == 0)
         return;
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+#if HOJA_BT_IS_ESP32
     // Requested over WebUSB (config app). Mirror the physical boot combo: force
     // the Bluetooth transport into ALTFLASH load mode so the ESP32 baseband can
     // be reflashed.
@@ -586,7 +586,7 @@ void boot_init(void)
         return;
     }
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+#if HOJA_BT_IS_ESP32
     // 2. ESP32 baseband firmware update.
     if (cfg && boot_combo_baseband_update(&input))
     {

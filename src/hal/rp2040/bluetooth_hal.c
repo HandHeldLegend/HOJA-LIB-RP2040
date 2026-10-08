@@ -1,13 +1,25 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+// BTstack Bluetooth for the RM2 (CYW43) and for an ESP32 running the HCI bridge
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
 #include "btstack_config.h"
 #include "hal/bluetooth_hal.h"
 #include "pico/stdlib.h"
 #include "pico/rand.h"
 #include "pico/multicore.h"
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
 #include "pico/cyw43_arch.h"
 #include "pico/btstack_chipset_cyw43.h"
+#else
+#include "drivers/bluetooth/esp32_hci.h"
+#include "pico/async_context_threadsafe_background.h"
+#include "pico/btstack_run_loop_async_context.h"
+#include "pico/btstack_flash_bank.h"
+#include "btstack_tlv_flash_bank.h"
+#include "classic/btstack_link_key_db_tlv.h"
+#include "ble/le_device_db_tlv.h"
+#include "btstack_memory.h"
+#endif
 #include "btstack.h"
 #include "btstack_run_loop.h"
 #include "btstack_event.h"
@@ -15,6 +27,7 @@
 #include "hci_dump.h"
 
 #include <string.h>
+#include <stdio.h>
 #include <stdarg.h>
 
 #include "transport/transport_bt.h"
@@ -98,6 +111,22 @@ typedef struct
 
 HOJA_CROSSCORE_FIFO_TYPE(bt_inbound, bt_hal_inbound_report_s, BT_HAL_INBOUND_FIFO_LEN);
 static hoja_fifo_bt_inbound_t _bt_inbound_fifo;
+
+// SInput asks the host to poll every report interval (QoS, guaranteed service)
+static hci_con_handle_t hid_con_handle = HCI_CON_HANDLE_INVALID;
+static bool sinput_qos_pending = false;
+
+static void _bt_hal_sinput_qos_task(void)
+{
+    if (!sinput_qos_pending || hid_con_handle == HCI_CON_HANDLE_INVALID || !hci_can_send_command_packet_now())
+        return;
+    sinput_qos_pending = false;
+
+    uint32_t latency_us = hid_report_interval_ms * 1000;
+    uint32_t token_rate = (64 * 1000) / hid_report_interval_ms;
+    hci_send_cmd(&hci_qos_setup, hid_con_handle, 0, 0x02, token_rate, 0, latency_us, 0xFFFFFFFF);
+}
+
 
 /** True when persisted pairing bytes are not blank (0x0000) or erased (0xFFFF…) sentinel. */
 static bool _bluetooth_hal_is_stored_identity_valid(const uint8_t *bytes)
@@ -245,6 +274,26 @@ static void _bt_hal_hid_report_timer_stop(void)
     hid_report_timer_active = false;
 }
 
+// Schedule against fixed deadlines so tick latency doesn't stretch the interval
+static uint32_t hid_report_deadline_ms = 0;
+
+static void _bt_hal_hid_report_timer_arm(btstack_timer_source_t *ts)
+{
+    uint32_t now = btstack_run_loop_get_time_ms();
+    hid_report_deadline_ms += hid_report_interval_ms;
+
+    int32_t wait = (int32_t)(hid_report_deadline_ms - now);
+    if (wait < 0)
+    {
+        // A whole interval behind, restart from now instead of bursting
+        hid_report_deadline_ms = now + hid_report_interval_ms;
+        wait = hid_report_interval_ms;
+    }
+
+    btstack_run_loop_set_timer(ts, wait);
+    btstack_run_loop_add_timer(ts);
+}
+
 static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
 {
     if (!hid_cid || !_connected)
@@ -253,9 +302,9 @@ static void _bt_hal_hid_report_timer_handler(btstack_timer_source_t *ts)
     }
 
     hid_device_request_can_send_now_event(hid_cid);
+    _bt_hal_sinput_qos_task();
 
-    btstack_run_loop_set_timer(ts, hid_report_interval_ms);
-    btstack_run_loop_add_timer(ts);
+    _bt_hal_hid_report_timer_arm(ts);
 }
 
 static void _bt_hal_hid_report_timer_start(void)
@@ -263,8 +312,8 @@ static void _bt_hal_hid_report_timer_start(void)
     _bt_hal_hid_report_timer_stop();
 
     btstack_run_loop_set_timer_handler(&hid_report_timer, &_bt_hal_hid_report_timer_handler);
-    btstack_run_loop_set_timer(&hid_report_timer, hid_report_interval_ms);
-    btstack_run_loop_add_timer(&hid_report_timer);
+    hid_report_deadline_ms = btstack_run_loop_get_time_ms();
+    _bt_hal_hid_report_timer_arm(&hid_report_timer);
     hid_report_timer_active = true;
 }
 
@@ -705,6 +754,8 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 _bt_hal_wii_reconnect_timer_stop();
 
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
+                hid_con_handle = hid_subevent_connection_opened_get_con_handle(packet);
+                sinput_qos_pending = (core_current_reportformat() == CORE_REPORTFORMAT_SINPUT);
                 bd_addr_t addr;
                 hid_subevent_connection_opened_get_bd_addr(packet, addr);
 
@@ -826,9 +877,80 @@ int hid_report_size_valid(uint16_t cid, int report_id, hid_report_type_t report_
 }
 
 /***********************************************/
+/********* Controller bring-up *****************/
+
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+
+static bool _bt_hal_controller_init(core_params_s *params)
+{
+    (void)params;
+    // Sets up BTstack, its run loop, transport and link key storage
+    while (cyw43_arch_init())
+    {
+        sys_hal_sleep_ms(1000);
+    }
+    hci_set_chipset(btstack_chipset_cyw43_instance());
+    return true;
+}
+
+static bool _bt_hal_update_mode(void)
+{
+    return false;
+}
+
+#else
+
+static async_context_threadsafe_background_t _bt_async;
+static bool _bt_hal_legacy = false; // ESP32 still on the old baseband
+
+// Link keys in the BTstack flash bank, as btstack_cyw43_init does
+static void _bt_hal_setup_tlv(void)
+{
+    static btstack_tlv_flash_bank_t tlv_context;
+    const btstack_tlv_t *tlv = btstack_tlv_flash_bank_init_instance(&tlv_context, pico_flash_bank_instance(), NULL);
+    btstack_tlv_set_instance(tlv, &tlv_context);
+    hci_set_link_key_db(btstack_link_key_db_tlv_get_instance(tlv, &tlv_context));
+#ifdef ENABLE_BLE
+    le_device_db_tlv_configure(tlv, &tlv_context);
+#endif
+}
+
+static bool _bt_hal_controller_init(core_params_s *params)
+{
+    if (!esp32_hci_backend_init(params))
+        return false;
+    if (esp32_hci_backend_update_mode())
+        return true;
+
+    async_context_threadsafe_background_config_t config = async_context_threadsafe_background_default_config();
+    if (!async_context_threadsafe_background_init(&_bt_async, &config))
+        return false;
+
+    btstack_memory_init();
+    btstack_run_loop_init(btstack_run_loop_async_context_get_instance(&_bt_async.core));
+    hci_init(esp32_hci_transport_instance(), NULL);
+    _bt_hal_setup_tlv();
+    return true;
+}
+
+static bool _bt_hal_update_mode(void)
+{
+    return esp32_hci_backend_update_mode();
+}
+
+#endif
+
+/***********************************************/
 /********* Transport Defines *******************/
 void transport_bt_stop()
 {
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    if (_bt_hal_legacy)
+    {
+        esp32_legacy_bt_stop();
+        return;
+    }
+#endif
     //if(_bt_init)
     //    cyw43_arch_deinit();
     //_bt_init = false;
@@ -838,19 +960,40 @@ bool transport_bt_init(core_params_s *params)
 {
     _bt_hal_params = params;
 
-    if (!_bt_hal_params || !_bt_hal_params->hid_device)
+    if (!_bt_hal_params)
+        return false;
+
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    // ESP32 firmware update (no core or HID device)
+    if (params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+        return esp32_hci_backend_init(params);
+
+    // Old baseband: its own driver until the ESP32 is updated
+    uint16_t esp32_version = esp32_hci_firmware_version();
+    if (esp32_version && esp32_version < ESP32_HCI_BRIDGE_VERSION_MIN)
+    {
+        _bt_hal_legacy = true;
+        bool ok = esp32_legacy_bt_init(params);
+        esp32_hci_console_attach();
+        return ok;
+    }
+#endif
+
+    if (!_bt_hal_params->hid_device)
         return false;
 
     _bt_hal_hid = _bt_hal_params->hid_device;
 
-    while (cyw43_arch_init())
-    {
-        sys_hal_sleep_ms(1000);
-    }
+    if (!_bt_hal_controller_init(params))
+        return false;
+
+    if (_bt_hal_update_mode())
+        return true;
 
     _bt_init = true;
 
     const bool wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
+    const bool sinput = (params->core_report_format == CORE_REPORTFORMAT_SINPUT);
     hid_report_interval_ms = wii ? BT_HAL_WII_POLLING_RATE_MS : BT_HAL_TARGET_POLLING_RATE_MS;
 
     gap_set_bondable_mode(1);
@@ -879,11 +1022,12 @@ bool transport_bt_init(core_params_s *params)
     // Every mode lets the host take the master role. A Wii in particular hangs up on a remote that
     // refuses the role switch once other remotes are connected or a game is running.
     uint16_t link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH | LM_LINK_POLICY_ENABLE_SNIFF_MODE;
+    // Sniff on a PC (12.5 ms on Windows) caps SInput below its report rate
+    if (sinput)
+        link_policy = LM_LINK_POLICY_ENABLE_ROLE_SWITCH;
 
     gap_set_default_link_policy_settings(link_policy);
     gap_set_allow_role_switch(true);
-
-    hci_set_chipset(btstack_chipset_cyw43_instance());
 
     // L2CAP
     l2cap_init();
@@ -964,6 +1108,16 @@ bool transport_bt_init(core_params_s *params)
 void transport_bt_task(uint64_t timestamp)
 {
     (void)timestamp;
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    if (_bt_hal_legacy)
+    {
+        esp32_legacy_bt_task(timestamp);
+        return;
+    }
+    esp32_hci_backend_task(timestamp);
+    if (_bt_hal_update_mode())
+        return;
+#endif
 
     bt_hal_inbound_report_s inbound;
     if (hoja_fifo_bt_inbound_pop(&_bt_inbound_fifo, &inbound))
@@ -972,6 +1126,8 @@ void transport_bt_task(uint64_t timestamp)
     }
 }
 
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+// The ESP32 backend provides its own static info (esp32_hci.c)
 static uint32_t _bt_hal_probe_wireless(void)
 {
     // If the init fails it returns true lol
@@ -1010,5 +1166,6 @@ const char *bluetooth_driver_part_code(void)
 {
     return "RPI RM2";
 }
+#endif
 
 #endif
