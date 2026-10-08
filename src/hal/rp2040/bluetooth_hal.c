@@ -128,19 +128,43 @@ static void _bt_hal_sinput_qos_task(void)
 }
 
 #if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
-// A Switch report fills a 1-slot EDR packet exactly. The ESP32 keeps falling back from those to
-// smaller packets, splitting each report over several polls (~20 reports/s). Without 1-slot EDR
-// every report goes out in one 3-slot packet.
-#define BT_HAL_ESP32_PACKET_TYPES 0xCC1E // DM1 DH1 DM3 DH3 DM5 DH5, no 2-DH1 or 3-DH1
-static bool packet_type_pending = false;
+// A Switch report fills a 1-slot EDR packet exactly. On an active link (a PC) the ESP32 keeps
+// falling back from those to smaller packets, splitting each report over several polls
+// (~20 reports/s), so 1-slot EDR is left out and every report goes out in one 3-slot packet.
+// In sniff (a Switch, 5 ms windows) only 1-slot packets fit, so every packet type stays allowed.
+#define BT_HAL_ESP32_PACKET_TYPES_MULTISLOT 0xCC1E // DM1 DH1 DM3 DH3 DM5 DH5, no 2-DH1 or 3-DH1
+#define BT_HAL_ESP32_PACKET_TYPES_ALL       0xCC18
+static hci_con_handle_t packet_type_handle = HCI_CON_HANDLE_INVALID;
+static uint16_t packet_type_pending = 0;
+static uint16_t packet_type_current = BT_HAL_ESP32_PACKET_TYPES_ALL;
+static uint8_t link_max_slots = 1;
+static bool link_sniff = false;
+
+static void _bt_hal_packet_type_update(hci_con_handle_t handle)
+{
+    if (handle != packet_type_handle)
+    {
+        // New link, controller defaults
+        packet_type_handle = handle;
+        packet_type_current = BT_HAL_ESP32_PACKET_TYPES_ALL;
+        packet_type_pending = 0;
+    }
+
+    uint16_t types = (!link_sniff && link_max_slots >= 3) ? BT_HAL_ESP32_PACKET_TYPES_MULTISLOT : BT_HAL_ESP32_PACKET_TYPES_ALL;
+    if (types != packet_type_current)
+    {
+        packet_type_current = types;
+        packet_type_pending = types;
+    }
+}
 
 static void _bt_hal_packet_type_task(void)
 {
-    if (!packet_type_pending || hid_con_handle == HCI_CON_HANDLE_INVALID || !hci_can_send_command_packet_now())
+    if (!packet_type_pending || packet_type_handle == HCI_CON_HANDLE_INVALID || !hci_can_send_command_packet_now())
         return;
-    packet_type_pending = false;
 
-    hci_send_cmd(&hci_change_connection_packet_type, hid_con_handle, BT_HAL_ESP32_PACKET_TYPES);
+    hci_send_cmd(&hci_change_connection_packet_type, packet_type_handle, packet_type_pending);
+    packet_type_pending = 0;
 }
 #endif
 
@@ -651,6 +675,28 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             break;
 
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+        case HCI_EVENT_MAX_SLOTS_CHANGED:
+        {
+            hci_con_handle_t handle = hci_event_max_slots_changed_get_handle(packet);
+            if (handle != packet_type_handle)
+                link_sniff = false;
+            link_max_slots = hci_event_max_slots_changed_get_lmp_max_slots(packet);
+            _bt_hal_packet_type_update(handle);
+        }
+        break;
+
+        case HCI_EVENT_MODE_CHANGE:
+        {
+            hci_con_handle_t handle = hci_event_mode_change_get_handle(packet);
+            if (handle != packet_type_handle)
+                link_max_slots = 1;
+            link_sniff = hci_event_mode_change_get_mode(packet) != 0; // Not active
+            _bt_hal_packet_type_update(handle);
+        }
+        break;
+#endif
+
         case HCI_EVENT_ROLE_CHANGE:
             if (wii_page_pending && (hci_event_role_change_get_status(packet) == ERROR_CODE_SUCCESS))
             {
@@ -776,9 +822,6 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
                 hid_con_handle = hid_subevent_connection_opened_get_con_handle(packet);
                 sinput_qos_pending = (core_current_reportformat() == CORE_REPORTFORMAT_SINPUT);
-#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
-                packet_type_pending = true;
-#endif
                 bd_addr_t addr;
                 hid_subevent_connection_opened_get_bd_addr(packet, addr);
 
