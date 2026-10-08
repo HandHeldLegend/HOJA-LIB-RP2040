@@ -139,16 +139,26 @@ exactly as for other profiles.
 | 42 | `WII_CODE_POINTER_UP` | Pointer Up (stick aim) | Joystick | all |
 | 43 | `WII_CODE_POINTER_DOWN` | Pointer Down (stick aim) | Joystick | all |
 | 44 | `WII_CODE_POINTER_RECENTER` | Pointer Recenter | Digital | all |
-| 45 | `WII_CODE_SHAKE` | Shake Remote | Digital | all |
-| 46 | `WII_CODE_NUNCHUK_SHAKE` | Shake Nunchuk | Digital | Nunchuk |
-| 47 | `WII_CODE_EXTENSION_TOGGLE` | Extension Attach/Detach | Digital | all |
+| 45 | `WII_CODE_EXTENSION_TOGGLE` | Extension Attach/Detach | Digital | all |
+| 46 | `WII_CODE_REMOTE_FLICK_UP` | Remote Flick Up | Digital | all |
+| 47 | `WII_CODE_REMOTE_FLICK_DOWN` | Remote Flick Down | Digital | all |
+| 48 | `WII_CODE_REMOTE_FLICK_LEFT` | Remote Flick Left | Digital | all |
+| 49 | `WII_CODE_REMOTE_FLICK_RIGHT` | Remote Flick Right | Digital | all |
+| 50 | `WII_CODE_NUNCHUK_FLICK_UP` | Nunchuk Flick Up | Digital | Nunchuk |
+| 51 | `WII_CODE_NUNCHUK_FLICK_DOWN` | Nunchuk Flick Down | Digital | Nunchuk |
+| 52 | `WII_CODE_NUNCHUK_FLICK_LEFT` | Nunchuk Flick Left | Digital | Nunchuk |
+| 53 | `WII_CODE_NUNCHUK_FLICK_RIGHT` | Nunchuk Flick Right | Digital | Nunchuk |
 
 "Used by" is a UI suggestion: show those codes in that profile's output picker. The firmware
 accepts any code in any Wii profile (for example Remote A in the Classic profile still presses
 the Wii Remote's A, which helps in the Wii Menu).
 
-Suggested groups in the picker: **Wii Remote** (0–10), **Nunchuk** (11–16, 46),
-**Classic Controller** (17–39), **Pointer & Motion** (40–45, 47).
+Suggested groups in the picker: **Wii Remote** (0–10), **Nunchuk** (11–16, 50–53),
+**Classic Controller** (17–39), **Pointer & Motion** (40–49).
+
+The flicks (46–53) replace the earlier Shake Remote / Shake Nunchuk codes and moved Extension
+Attach/Detach from 47 to 45; see `config-app-motion.md`. Games that only check for a shake take
+a flick in any direction.
 
 ## 6. Mapper commands (`mapper_cmd_t`)
 
@@ -180,12 +190,12 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 | Y | Remote 1 | Classic Y | Remote B |
 | D-pad | Remote D-pad | Classic D-pad | Remote D-pad rotated (Up→Right, Down→Left, Left→Up, Right→Down) |
 | L | Nunchuk C | Classic ZL | Remote A |
-| R | Shake Remote | Classic ZR | Shake Remote |
+| R | Remote Flick Down | Classic ZR | Remote Flick Down |
 | ZL (analog trigger) | Nunchuk Z | Classic L (analog) | Remote B |
-| ZR (analog trigger) | Remote B | Classic R (analog) | Shake Remote |
+| ZR (analog trigger) | Remote B | Classic R (analog) | Remote Flick Down |
 | + / − / Home | Remote + / − / Home | Classic + / − / Home | Remote + / − / Home |
 | Capture | Extension Attach/Detach | Extension Attach/Detach | Extension Attach/Detach |
-| LS click | Shake Nunchuk | — | — |
+| LS click | Nunchuk Flick Down | — | — |
 | RS click | Pointer Recenter | Pointer Recenter | Pointer Recenter |
 | Left stick | Nunchuk stick | Classic left stick | Remote D-pad rotated (digital) |
 | Right stick | Pointer (stick aim) | Classic right stick | Pointer (stick aim) |

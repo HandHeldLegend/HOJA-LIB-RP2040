@@ -7,6 +7,7 @@
 #include "transport/transport.h"
 #include "hoja_shared_types.h"
 #include "input/imu.h"
+#include "input/motion_gesture.h"
 #include "input/mapper.h"
 #include "input/dpad.h"
 
@@ -25,6 +26,21 @@
 #include "devices_shared_types.h"
 
 #define CORE_SWITCH_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
+
+void core_switch_gesture_input(const mapper_input_s *input)
+{
+    if (!input)
+        return;
+
+    // Played on the raw IMU samples, so raw and quaternion reports both carry them
+    const bool gestures[MOTION_GESTURE_MAX] = {
+        [MOTION_GESTURE_FLICK_UP]    = input->presses[SWITCH_CODE_FLICK_UP],
+        [MOTION_GESTURE_FLICK_DOWN]  = input->presses[SWITCH_CODE_FLICK_DOWN],
+        [MOTION_GESTURE_FLICK_LEFT]  = input->presses[SWITCH_CODE_FLICK_LEFT],
+        [MOTION_GESTURE_FLICK_RIGHT] = input->presses[SWITCH_CODE_FLICK_RIGHT],
+    };
+    imu_gesture_set(gestures);
+}
 
 // USB/Bluetooth HID descriptors are owned by NS-LIB-HID and populated at init.
 // For USB, HHL-TINYUSB-DRIVERS appends the WebUSB vendor interface dynamically.
@@ -133,6 +149,8 @@ void ns_api_hook_get_input(ns_input_s *out)
     out->l = input.presses[SWITCH_CODE_L];
     out->zl = input.presses[SWITCH_CODE_ZL];
     out->zr = input.presses[SWITCH_CODE_ZR];
+
+    core_switch_gesture_input(&input);
 
     uint16_t lx = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LX_LEFT], input.inputs[SWITCH_CODE_LX_RIGHT]);
     uint16_t ly = mapper_joystick_concat(2048, input.inputs[SWITCH_CODE_LY_DOWN], input.inputs[SWITCH_CODE_LY_UP]);

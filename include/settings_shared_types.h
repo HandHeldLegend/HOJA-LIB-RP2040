@@ -29,7 +29,9 @@ typedef enum
 // Reserved for later use now
 #define CFG_BLOCK_TRIGGER_VERSION   0x11
 
-#define CFG_BLOCK_IMU_VERSION       0x12
+// 0x13 added imu_mode_disable_mask; 0x12 configs migrate without losing calibration
+#define CFG_BLOCK_IMU_VERSION       0x13
+#define CFG_BLOCK_IMU_VERSION_PREV  0x12
 #define CFG_BLOCK_HAPTIC_VERSION    0x11
 #define CFG_BLOCK_USER_VERSION      0x11
 
@@ -139,8 +141,11 @@ typedef struct
     uint8_t     imu_disabled;
     uint8_t     imu_gyro_sensitivity[3];   // X, Y, Z — default 120 (1.20x)
     uint8_t     imu_accel_sensitivity[3];  // X, Y, Z — default 100 (1.00x)
-    uint8_t     reserved[12];
+    uint16_t    imu_mode_disable_mask;     // Bit n set = motion off in core_reportformat_t n
+    uint8_t     reserved[10];
 } imuConfig_s;
+
+_Static_assert(sizeof(imuConfig_s) == 32, "imuConfig_s must remain 32 bytes");
 
 // Trigger config is now unused
 // We can safely use this later for other
@@ -285,6 +290,8 @@ typedef struct
     inputConfigSlot_s input_profile_wii_classic[36]; // SIZE=5
     inputConfigSlot_s input_profile_wii_sideways[36]; // SIZE=5
     uint8_t wii_profile_version; // CFG_INPUT_WII_PROFILE_VERSION once the Wii profiles hold defaults
+    // Set aside for a future motion-input table (gestures detected from the IMU, bound like
+    // buttons): every 36-slot profile above is full of physical inputs
     uint8_t reserved[426];
 } inputConfig_s;
 

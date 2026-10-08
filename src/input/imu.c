@@ -63,6 +63,77 @@ SNAPSHOT_TYPE(quat, ns_quaternion_s);
 snapshot_quat_t _quat_snap;
 
 imu_data_s _imu_data = {0};
+
+// Gesture inputs held (bit per motion_gesture_t), written by the active core
+static volatile uint8_t _imu_gesture_mask = 0;
+static motion_gesture_set_s _imu_gestures = {0};
+
+// Gravity (which way is up, mg) smoothed from the samples before gestures are added, so flicks
+// can be turned to stay relative to the ground
+#define IMU_UP_TAU_US 250000.0f
+static float    _imu_up_mg[3] = {0, 0, 1000.0f};
+static uint64_t _imu_up_last_us = 0;
+
+static void _imu_track_up(const imu_data_s *sample, uint64_t now_us)
+{
+  const float dt = (_imu_up_last_us == 0 || now_us <= _imu_up_last_us) ? 0.0f : (float)(now_us - _imu_up_last_us);
+  _imu_up_last_us = now_us;
+
+  const float alpha = (dt <= 0.0f) ? 1.0f : dt / (IMU_UP_TAU_US + dt);
+  const float raw[3] = {sample->ax * IMU_ACCEL_MG_PER_LSB, sample->ay * IMU_ACCEL_MG_PER_LSB, sample->az * IMU_ACCEL_MG_PER_LSB};
+  for (int i = 0; i < 3; i++)
+    _imu_up_mg[i] += alpha * (raw[i] - _imu_up_mg[i]);
+}
+
+static inline int16_t _imu_add_clip_int16(int16_t value, float offset)
+{
+  float result = (float)value + offset;
+  if (result > 32767.0f)
+    result = 32767.0f;
+  else if (result < -32768.0f)
+    result = -32768.0f;
+  return (int16_t)result;
+}
+
+// A controller lying still and face up: gravity on +Z, no rotation
+static void _imu_rest_sample(imu_data_s *out)
+{
+  out->ax = 0;
+  out->ay = 0;
+  out->az = IMU_ACCEL_LSB_PER_G;
+  out->gx = 0;
+  out->gy = 0;
+  out->gz = 0;
+}
+
+// Add the gestures in progress to a finished sample (after calibration and sensitivity: the
+// gesture tables already hold what hosts receive). Flicks follow the ground: they are turned to
+// the gravity tracked from the samples (flat on a table while motion is off).
+static void _imu_apply_gestures(imu_data_s *sample, uint64_t now_us)
+{
+  const uint8_t mask = _imu_gesture_mask;
+  bool pressed[MOTION_GESTURE_MAX];
+  for (int g = 0; g < MOTION_GESTURE_MAX; g++)
+    pressed[g] = (mask >> g) & 1u;
+
+  _imu_track_up(sample, now_us);
+  const motion_gesture_out_s o = motion_gesture_update(&_imu_gestures, pressed, _imu_up_mg, now_us);
+
+  sample->ax = _imu_add_clip_int16(sample->ax, o.accel_mg[0] / IMU_ACCEL_MG_PER_LSB);
+  sample->ay = _imu_add_clip_int16(sample->ay, o.accel_mg[1] / IMU_ACCEL_MG_PER_LSB);
+  sample->az = _imu_add_clip_int16(sample->az, o.accel_mg[2] / IMU_ACCEL_MG_PER_LSB);
+  sample->gx = _imu_add_clip_int16(sample->gx, o.gyro_dps[0] / IMU_GYRO_DPS_PER_LSB);
+  sample->gy = _imu_add_clip_int16(sample->gy, o.gyro_dps[1] / IMU_GYRO_DPS_PER_LSB);
+  sample->gz = _imu_add_clip_int16(sample->gz, o.gyro_dps[2] / IMU_GYRO_DPS_PER_LSB);
+}
+
+void imu_gesture_set(const bool pressed[MOTION_GESTURE_MAX])
+{
+  uint8_t mask = 0;
+  for (int g = 0; g < MOTION_GESTURE_MAX; g++)
+    mask |= (pressed && pressed[g]) ? (uint8_t)(1u << g) : 0u;
+  _imu_gesture_mask = mask;
+}
 ns_quaternion_s _imu_quat_state = {0};
 
 float _imu_gyro_rad_per_lsb = 0;
@@ -122,16 +193,10 @@ static void _imu_read_quaternion(uint64_t timestamp)
 
   uint8_t channels = imu_driver_channel_count();
 
-  if (imu_config->imu_disabled == 1 || channels == 0)
+  if (!imu_motion_enabled(core_current_reportformat()) || channels == 0)
   {
-    // Disabled
-    this_imu[2].ax = 0;
-    this_imu[2].ay = 0;
-    this_imu[2].az = 0;
-
-    this_imu[2].gx = 0;
-    this_imu[2].gy = 0;
-    this_imu[2].gz = 0;
+    // Motion off: hold still, face up
+    _imu_rest_sample((imu_data_s *)&this_imu[2]);
     this_imu[2].timestamp_us = timestamp;
   }
   else
@@ -164,6 +229,8 @@ static void _imu_read_quaternion(uint64_t timestamp)
     _imu_apply_sensitivity((imu_data_s *)&this_imu[2]);
   }
 
+  _imu_apply_gestures((imu_data_s *)&this_imu[2], timestamp);
+
   ns_motion_update_quaternion(&_imu_quat_state, &_imu_quat_integrator, &this_imu[2], _imu_gyro_rad_per_lsb);
   snapshot_quat_write(&_quat_snap, &_imu_quat_state);
 }
@@ -174,16 +241,10 @@ static void _imu_read_standard(uint64_t timestamp)
 
   uint8_t channels = imu_driver_channel_count();
 
-  if (imu_config->imu_disabled == 1 || channels == 0)
+  if (!imu_motion_enabled(core_current_reportformat()) || channels == 0)
   {
-    // Disabled
-    this_imu[2].ax = 0;
-    this_imu[2].ay = 0;
-    this_imu[2].az = 0;
-
-    this_imu[2].gx = 0;
-    this_imu[2].gy = 0;
-    this_imu[2].gz = 0;
+    // Motion off: hold still, face up
+    _imu_rest_sample(&this_imu[2]);
     this_imu[2].timestamp = timestamp;
   }
   else
@@ -216,6 +277,8 @@ static void _imu_read_standard(uint64_t timestamp)
     _imu_apply_sensitivity(&this_imu[2]);
   }
 
+  _imu_apply_gestures(&this_imu[2], timestamp);
+
   snapshot_imu_write(&_imu_snap, &this_imu[2]);
 }
 
@@ -223,6 +286,17 @@ static void _imu_read_standard(uint64_t timestamp)
 void imu_access_safe(imu_data_s *out)
 {
   snapshot_imu_read(&_imu_snap, out);
+}
+
+bool imu_motion_enabled(core_reportformat_t format)
+{
+  if (imu_driver_channel_count() == 0 || imu_config->imu_disabled == 1)
+    return false;
+
+  if (format < 0 || format >= 16)
+    return true;
+
+  return !(imu_config->imu_mode_disable_mask & (uint16_t)(1u << format));
 }
 
 // Optional access Quaternion data (If available)
@@ -364,18 +438,13 @@ void imu_forced_task_standard(uint64_t now_us)
 {
   (void)now_us;
 
-  if (imu_driver_channel_count() == 0)
-    return;
-
+  // Runs without a sensor too: the samples then read still, with any gestures on top
   _imu_read_standard(sys_hal_now_us());
 }
 
 void imu_forced_task_quaternion(uint64_t now_us)
 {
   static interval_s quat_interval = {0};
-
-  if (imu_driver_channel_count() == 0)
-    return;
 
   // Self-pace at 2 ms even when motion ticks are report-aligned.
   if (!interval_run(now_us, IMU_QUAT_INTEGRATE_US, &quat_interval))
@@ -387,9 +456,6 @@ void imu_forced_task_quaternion(uint64_t now_us)
 // IMU module operational task
 void imu_task(uint64_t now_us)
 {
-  if (imu_driver_channel_count() == 0)
-    return;
-
   // Jump into appropriate IMU task if it's defined
   if (_imu_calibrate_cycles_remaining)
     _imu_calibrate_function(now_us);
@@ -401,9 +467,19 @@ void imu_task(uint64_t now_us)
 bool imu_init()
 {
   // Verify or default IMU
-  if (imu_config->imu_config_version != CFG_BLOCK_IMU_VERSION)
+  if (imu_config->imu_config_version == CFG_BLOCK_IMU_VERSION_PREV)
+  {
+    // 0x12 -> 0x13 only added the per-mode mask (in old reserved space): keep calibration,
+    // sensitivity and the global switch, and start with motion on in every mode
+    imu_config->imu_config_version = CFG_BLOCK_IMU_VERSION;
+    imu_config->imu_mode_disable_mask = 0;
+    memset(imu_config->reserved, 0, sizeof(imu_config->reserved));
+  }
+  else if (imu_config->imu_config_version != CFG_BLOCK_IMU_VERSION)
   {
     imu_config->imu_config_version = CFG_BLOCK_IMU_VERSION;
+    imu_config->imu_mode_disable_mask = 0;
+    memset(imu_config->reserved, 0, sizeof(imu_config->reserved));
     imu_config->imu_disabled = 0;
     memset(&imu_config->imu_a_gyro_offsets, 0, 3);
     memset(&imu_config->imu_a_accel_config, 0, 3);

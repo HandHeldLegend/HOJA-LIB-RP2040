@@ -28,6 +28,7 @@
 
 #include "input/mapper.h"
 #include "input/imu.h"
+#include "cores/core_switch.h"
 
 #define ESP32_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
 
@@ -453,14 +454,14 @@ void transport_bt_stop()
 
 }
 
-// ESP32 baseband always expects live gyro/accel in the standard input packet.
-// There is no separate I2C motion-enable command — turn IMU reads on here.
+// ESP32 baseband always expects gyro/accel in the standard input packet.
+// There is no separate I2C motion-enable command — turn IMU reads on here. The user's motion
+// settings are left alone: while motion is off for the mode, the reads hold still.
 static void _esp32_bt_enable_imu(void)
 {
     if (imu_driver_channel_count() == 0)
         return;
 
-    imu_config->imu_disabled = 0;
     imu_set_read_mode(IMU_MODE_STANDARD);
 }
 
@@ -576,8 +577,12 @@ bool transport_bt_init(core_params_s *params)
     // Stupid workaround for SuperGamepad+ :)
     data_out[21] = dev_cfg ? dev_cfg->sinput.gamepad_subtype : 0;
 
-    // Local MAC
+    // Local MAC. The baseband uses it as its Bluetooth address exactly. Switch over USB runs
+    // USB pairing on the RP2040, handing the console a link key for the USB MAC that the ESP32
+    // never learns, so Switch over Bluetooth takes the next address to keep the two apart.
     memcpy(&data_out[22], _bt_esp32_params->transport_dev_mac, 6);
+    if (_bt_esp32_params->core_report_format == CORE_REPORTFORMAT_SWPRO)
+        data_out[27] += 1;
 
     // Calculate CRC
     uint8_t crc = _crc8_compute(&(data_out[2]), I2C_START_CMD_CRC_LEN);
@@ -667,6 +672,8 @@ void transport_bt_task(uint64_t timestamp)
 
                 input_data.lt = 0;
                 input_data.rt = 0;
+
+                core_switch_gesture_input(&input);
                 break;
 
                 case CORE_REPORTFORMAT_SINPUT:
