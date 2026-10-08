@@ -229,7 +229,7 @@ typedef struct
     // is INPUT_CODE_UNUSED, [0] alone triggers bootloader mode.
     mapper_input_code_t usb_bootloader_code[2];
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA)
+#if HOJA_BT_IS_ESP32
     // ESP32 baseband firmware-update combo (optional). Same single-or-dual rules
     // as usb_bootloader_code. Set [0] to INPUT_CODE_UNUSED to disable.
     mapper_input_code_t baseband_update_code[2];

@@ -17,6 +17,37 @@ static void _i2c_hal_drain_abort(i2c_hw_t *hw)
 i2c_inst_t *_i2c_instances[2] = {i2c0, i2c1}; // Numerical accessible array to spi hardware
 uint32_t _i2c_instances_bauds[2] = {400*1000, 400*1000}; // Baud rates defaulted to 400Khz
 
+static const i2c_hal_bus_hooks_s *_bus_hooks[I2C_HAL_MAX_INSTANCES] = {NULL};
+static uint8_t _bus_depth[I2C_HAL_MAX_INSTANCES] = {0};
+static bool _bus_held_for_restart[I2C_HAL_MAX_INSTANCES] = {false};
+
+void i2c_hal_set_bus_hooks(uint8_t instance, const i2c_hal_bus_hooks_s *hooks)
+{
+  if(instance < I2C_HAL_MAX_INSTANCES) _bus_hooks[instance] = hooks;
+}
+
+uint32_t i2c_hal_get_baudrate(uint8_t instance)
+{
+  return (instance < I2C_HAL_MAX_INSTANCES) ? _i2c_instances_bauds[instance] : 0;
+}
+
+static void _bus_enter(uint8_t instance)
+{
+  if(!_bus_hooks[instance]) return;
+  if(_bus_depth[instance]++ == 0 && !_bus_held_for_restart[instance])
+    _bus_hooks[instance]->acquire();
+}
+
+static void _bus_exit(uint8_t instance, bool nostop)
+{
+  if(!_bus_hooks[instance]) return;
+  if(--_bus_depth[instance]) return;
+
+  // Without a STOP the bus stays ours until the next transfer completes
+  _bus_held_for_restart[instance] = nostop;
+  if(!nostop) _bus_hooks[instance]->release();
+}
+
 bool i2c_hal_init(uint8_t instance, uint32_t sda, uint32_t scl, uint32_t baudrate_khz)
 {
   if (instance >= I2C_HAL_MAX_INSTANCES)
@@ -41,6 +72,7 @@ int i2c_hal_write_timeout_us_odbaud(uint8_t instance, uint8_t addr, const uint8_
     return -1;
   int ret = 0;
 
+  _bus_enter(instance);
   uint32_t baud_original = _i2c_instances_bauds[instance];
   if(baud_khz_override)
   {
@@ -53,6 +85,7 @@ int i2c_hal_write_timeout_us_odbaud(uint8_t instance, uint8_t addr, const uint8_
   {
     i2c_set_baudrate(_i2c_instances[instance], baud_original);
   }
+  _bus_exit(instance, nostop);
 
   return ret;
 }
@@ -68,6 +101,7 @@ int i2c_hal_read_timeout_us_odbaud(uint8_t instance, uint8_t addr, uint8_t *dst,
     return -1;
   int ret = 0;
 
+  _bus_enter(instance);
   uint32_t baud_original = _i2c_instances_bauds[instance];
   if(baud_khz_override)
   {
@@ -85,7 +119,7 @@ int i2c_hal_read_timeout_us_odbaud(uint8_t instance, uint8_t addr, uint8_t *dst,
   {
     i2c_set_baudrate(_i2c_instances[instance], baud_original);
   }
-
+  _bus_exit(instance, nostop);
 
   return ret;
 }
@@ -101,7 +135,9 @@ int i2c_hal_write_blocking(uint8_t instance, uint8_t addr, const uint8_t *src, s
     return -1;
   int ret = 0;
 
+  _bus_enter(instance);
   ret = i2c_write_blocking(_i2c_instances[instance], addr, src, len, nostop);
+  _bus_exit(instance, nostop);
 
   return ret;
 }
@@ -114,8 +150,10 @@ int i2c_hal_write_read_timeout_us(uint8_t instance, uint8_t addr, const uint8_t 
     return -1;
   int ret = 0;
 
+  _bus_enter(instance);
   ret = i2c_write_timeout_us(_i2c_instances[instance], addr, src, wr_len, true, timeout_us);
   ret = i2c_hal_read_timeout_us(instance, addr, dst, dst_len, false, timeout_us);
+  _bus_exit(instance, false);
 
   return ret;
 }
@@ -128,9 +166,11 @@ int i2c_hal_write_read_blocking(uint8_t instance, uint8_t addr, const uint8_t *s
     return -1;
   int ret = 0;
 
+  _bus_enter(instance);
   ret = i2c_write_blocking(_i2c_instances[instance], addr, src, wr_len, true);
   ret = i2c_read_blocking(_i2c_instances[instance], addr, dst, dst_len, false);
   _i2c_hal_drain_abort(_i2c_instances[instance]->hw);
+  _bus_exit(instance, false);
 
   return ret;
 }

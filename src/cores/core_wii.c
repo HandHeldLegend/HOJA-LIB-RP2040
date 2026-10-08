@@ -24,9 +24,9 @@
 
 #include "nwii_lib.h"
 
-// Wii console mode: Wii Remote + Nunchuk, or Wii Remote + Classic Controller Pro, over the
-// RM2 (CYW43) Bluetooth HAL. The ESP32 baseband has no Wii support.
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+// Wii console mode: Wii Remote + Nunchuk, or Wii Remote + Classic Controller Pro, over BTstack
+// (RM2 or the ESP32 HCI bridge). The old ESP32 baseband has no Wii support.
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
 
 #define CORE_WII_ACCEL_MG_PER_LSB   IMU_ACCEL_MG_PER_LSB
 #define CORE_WII_GYRO_DPS_PER_LSB   IMU_GYRO_DPS_PER_LSB

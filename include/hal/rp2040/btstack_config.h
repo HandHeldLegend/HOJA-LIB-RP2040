@@ -36,6 +36,14 @@
 #define MAX_NR_WHITELIST_ENTRIES 16
 #define MAX_NR_LE_DEVICE_DB_ENTRIES 16
 
+#include "board_config.h"
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+// ESP32 HCI bridge: the link has its own flow control, and the ESP32 controller
+// doesn't handle Host Buffer Size well
+#define MAX_NR_CONTROLLER_ACL_BUFFERS 4
+#define MAX_NR_CONTROLLER_SCO_PACKETS 0
+#else
 // Limit number of ACL/SCO Buffer to use by stack to avoid cyw43 shared bus
 // overrun
 #define MAX_NR_CONTROLLER_ACL_BUFFERS 3
@@ -48,6 +56,7 @@
 #define HCI_HOST_ACL_PACKET_NUM 2
 #define HCI_HOST_SCO_PACKET_LEN 0
 #define HCI_HOST_SCO_PACKET_NUM 0
+#endif
 
 // Link Key DB and LE Device DB using TLV on top of Flash Sector interface
 #define NVM_NUM_DEVICE_DB_ENTRIES 16

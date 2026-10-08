@@ -113,7 +113,7 @@ typedef struct
     uint8_t     wireless_part_status;
     uint8_t     fcc_id[24];
     uint8_t     wlan_supported;        // 1 when RPI RM2 WLAN dongle transport is available
-    uint8_t     wii_supported;         // 1 when Wii console mode is available (RM2 Bluetooth HAL)
+    uint8_t     wii_supported;         // 1 when Wii console mode is available (BTstack Bluetooth)
 } bluetoothInfoStatic_s;
 
 _Static_assert(sizeof(bluetoothInfoStatic_s) == 56, "bluetoothInfoStatic_s layout must match config app");

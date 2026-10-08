@@ -291,7 +291,7 @@ static void _bluetooth_static_apply_caps(void)
     bluetooth_static.bluetooth_ble_supported = bt_caps.ble_supported;
     bluetooth_static.external_update_supported = bt_caps.external_update_supported;
     bluetooth_static.wlan_supported = transport_wlan_static_supported();
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
     bluetooth_static.wii_supported = 1;
 #else
     bluetooth_static.wii_supported = 0;
@@ -357,6 +357,11 @@ static void _bluetooth_static_refresh(void)
 
     bluetooth_static.wireless_part_status = overall_status;
     bluetooth_static.external_version_number = transport_bt_static_external_version();
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    // Wii needs the HCI bridge, not the old baseband
+    bluetooth_static.wii_supported = !bluetooth_static.external_version_number ||
+                                     (bluetooth_static.external_version_number >= ESP32_HCI_BRIDGE_VERSION_MIN);
+#endif
 
     _bluetooth_static_refresh_identity();
 }

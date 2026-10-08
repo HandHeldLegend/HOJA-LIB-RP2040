@@ -1,7 +1,19 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER==BT_DRIVER_ESP32HOJA)
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_IS_ESP32
 #include "drivers/bluetooth/esp32_hojabaseband.h"
+
+// ESP32 HCI builds keep this driver for ESP32s still on the old baseband, renamed, with the
+// static info left to esp32_hci.c
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+#define ESP32_LEGACY_FALLBACK 1
+#include "drivers/bluetooth/esp32_hci.h"
+#define transport_bt_stop esp32_legacy_bt_stop
+#define transport_bt_init esp32_legacy_bt_init
+#define transport_bt_task esp32_legacy_bt_task
+#else
+#define ESP32_LEGACY_FALLBACK 0
+#endif
 
 #include "transport/transport.h"
 
@@ -808,6 +820,7 @@ void transport_bt_task(uint64_t timestamp)
     }
 }
 
+#if !ESP32_LEGACY_FALLBACK
 #define BTINPUT_GET_VERSION_ATTEMPTS 10
 
 static uint16_t _esp32_static_cached_version = 0;
@@ -916,5 +929,6 @@ const char *fuelgauge_driver_part_code(void)
 }
 
 #endif // HOJA_FUELGAUGE_DRIVER == FUELGAUGE_DRIVER_ESP32
+#endif // !ESP32_LEGACY_FALLBACK
 
 #endif
