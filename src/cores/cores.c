@@ -211,6 +211,8 @@ void core_deinit()
 
     _core_params.core_transport_stop = NULL;
     _core_params.transport_task = NULL;
+    // The next mode comes from the boot info (mapper and colors read it while it starts)
+    _core_params.core_report_format = CORE_REPORTFORMAT_UNDEFINED;
     transport_stop();
 }
 

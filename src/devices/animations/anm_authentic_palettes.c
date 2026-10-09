@@ -1,5 +1,6 @@
 #include "devices/animations/anm_authentic_palettes.h"
 #include "input_shared_types.h"
+#include "hoja.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
@@ -42,42 +43,110 @@ rgb_s anm_authentic_stick_color(core_reportformat_t format)
     return COLOR_LIGHT_GRAY;
 }
 
-// Switch / SNES: A=red, B=yellow, X=blue, Y=green (output codes 0..3).
-static bool _nintendo_abxy_palette(int8_t output_code, rgb_s *out)
+typedef enum
 {
-    switch(output_code)
+    FACE_LETTER_A,
+    FACE_LETTER_B,
+    FACE_LETTER_X,
+    FACE_LETTER_Y,
+} face_letter_t;
+
+// The letter printed at each face position (South, East, West, North) for each SEWN layout
+static const face_letter_t _sewn_letters[3][4] = {
+    [SEWN_LAYOUT_ABXY] = {FACE_LETTER_A, FACE_LETTER_B, FACE_LETTER_X, FACE_LETTER_Y}, // Xbox
+    [SEWN_LAYOUT_BAYX] = {FACE_LETTER_B, FACE_LETTER_A, FACE_LETTER_Y, FACE_LETTER_X}, // Nintendo
+    [SEWN_LAYOUT_AXBY] = {FACE_LETTER_A, FACE_LETTER_X, FACE_LETTER_B, FACE_LETTER_Y}, // GameCube
+};
+
+// position: 0..3 for South, East, West, North
+static face_letter_t _face_letter(uint8_t position)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    uint8_t layout = cfg ? cfg->sewn_layout : (uint8_t)SEWN_LAYOUT_ABXY;
+    if(layout > (uint8_t)SEWN_LAYOUT_AXBY)
+        layout = (uint8_t)SEWN_LAYOUT_ABXY;
+    return _sewn_letters[layout][position & 3];
+}
+
+// Switch / SNES: A=red, B=yellow, X=blue, Y=green
+static rgb_s _nintendo_letter_color(face_letter_t letter)
+{
+    switch(letter)
     {
-        case 0: *out = COLOR_SFC_RED;    return true; // A
-        case 1: *out = COLOR_SFC_YELLOW; return true; // B
-        case 2: *out = COLOR_LED_BLUE;   return true; // X
-        case 3: *out = COLOR_SFC_GREEN;  return true; // Y
-        default: return false;
+        default:
+        case FACE_LETTER_A: return COLOR_SFC_RED;
+        case FACE_LETTER_B: return COLOR_SFC_YELLOW;
+        case FACE_LETTER_X: return COLOR_LED_BLUE;
+        case FACE_LETTER_Y: return COLOR_SFC_GREEN;
     }
 }
 
-// Xbox layout using saturated SFC primaries (LED-tuned blue).
+// Xbox: A=green, B=red, X=blue, Y=yellow (saturated SFC primaries, LED-tuned blue)
+static rgb_s _xbox_letter_color(face_letter_t letter)
+{
+    switch(letter)
+    {
+        default:
+        case FACE_LETTER_A: return COLOR_SFC_GREEN;
+        case FACE_LETTER_B: return COLOR_SFC_RED;
+        case FACE_LETTER_X: return COLOR_LED_BLUE;
+        case FACE_LETTER_Y: return COLOR_SFC_YELLOW;
+    }
+}
+
+// Switch / SNES output codes 0..3 are A, B, X, Y
+static bool _nintendo_abxy_palette(int8_t output_code, rgb_s *out)
+{
+    if(output_code < 0 || output_code > 3)
+        return false;
+    *out = _nintendo_letter_color((face_letter_t)output_code);
+    return true;
+}
+
 static bool _xinput_palette(int8_t output_code, rgb_s *out)
 {
     switch(output_code)
     {
-        case XINPUT_CODE_A: *out = COLOR_SFC_GREEN;  return true;
-        case XINPUT_CODE_B: *out = COLOR_SFC_RED;    return true;
-        case XINPUT_CODE_X: *out = COLOR_LED_BLUE;   return true;
-        case XINPUT_CODE_Y: *out = COLOR_SFC_YELLOW; return true;
+        case XINPUT_CODE_A: *out = _xbox_letter_color(FACE_LETTER_A); return true;
+        case XINPUT_CODE_B: *out = _xbox_letter_color(FACE_LETTER_B); return true;
+        case XINPUT_CODE_X: *out = _xbox_letter_color(FACE_LETTER_X); return true;
+        case XINPUT_CODE_Y: *out = _xbox_letter_color(FACE_LETTER_Y); return true;
         default: return false;
     }
 }
 
-// Same ABXY semantics as XInput; slightly desaturated SFC primaries.
+// SInput outputs are positions: each takes the letter printed there on this board
 static bool _sinput_palette(int8_t output_code, rgb_s *out)
 {
-    switch(output_code)
+    if(output_code < SINPUT_CODE_SOUTH || output_code > SINPUT_CODE_NORTH)
+        return false;
+    *out = _sinput_color(_xbox_letter_color(_face_letter((uint8_t)(output_code - SINPUT_CODE_SOUTH))));
+    return true;
+}
+
+bool anm_authentic_face_color(core_reportformat_t format, mapper_input_code_t physical, rgb_s *out)
+{
+    if(!out || physical < INPUT_CODE_SOUTH || physical > INPUT_CODE_NORTH)
+        return false;
+
+    const face_letter_t letter = _face_letter((uint8_t)(physical - INPUT_CODE_SOUTH));
+    switch(format)
     {
-        case SINPUT_CODE_SOUTH: *out = _sinput_color(COLOR_SFC_GREEN);  return true; // A
-        case SINPUT_CODE_WEST:  *out = _sinput_color(COLOR_SFC_RED);    return true; // B
-        case SINPUT_CODE_EAST:  *out = _sinput_color(COLOR_LED_BLUE);   return true; // X
-        case SINPUT_CODE_NORTH: *out = _sinput_color(COLOR_SFC_YELLOW); return true; // Y
-        default: return false;
+        case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_SNES:
+            *out = _nintendo_letter_color(letter);
+            return true;
+
+        case CORE_REPORTFORMAT_XINPUT:
+            *out = _xbox_letter_color(letter);
+            return true;
+
+        case CORE_REPORTFORMAT_SINPUT:
+            *out = _sinput_color(_xbox_letter_color(letter));
+            return true;
+
+        default:
+            return false;
     }
 }
 

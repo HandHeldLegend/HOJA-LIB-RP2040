@@ -111,8 +111,10 @@ static void _resolve_group_colors(void)
             continue;
         }
 
+        // Face buttons show their printed letter's color, whatever the board's layout
         rgb_s resolved = fallback;
-        if(anm_authentic_palette_color(format, output_code, &resolved))
+        if(anm_authentic_face_color(format, physical, &resolved) ||
+           anm_authentic_palette_color(format, output_code, &resolved))
             _group_colors[g] = resolved;
     }
 

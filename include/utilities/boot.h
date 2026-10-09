@@ -40,6 +40,9 @@ typedef struct
 #define BOOT_MEMORY_SIZE sizeof(boot_memory_s)
 
 void boot_clear_memory(void);
+
+// Auto mode switching modes in place
+void boot_set_mode(core_reportformat_t reportformat, gamepad_transport_t transport);
 void boot_get_memory(boot_memory_s *out);
 void boot_set_memory(boot_memory_s *in);
 

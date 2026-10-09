@@ -12,6 +12,7 @@
 #include "cores/cores.h"
 
 #include "hoja.h"
+#include "utilities/autodetect.h"
 
 #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
 #define HOJA_BOOT_ANALOG_FACE_DELTA 200
@@ -313,13 +314,64 @@ static core_reportformat_t boot_resolve_reportformat(const mapper_input_s *input
     if (!hover_face_handled)
         boot_resolve_face_digital(input, &format);
 
+    // Nothing held: boot_init picks the default for the power source
     if (format == CORE_REPORTFORMAT_UNDEFINED)
-        format = core_reportformat_from_default(gamepad_config->gamepad_default_mode);
+        return CORE_REPORTFORMAT_UNDEFINED;
 
     if (!boot_format_supported(format))
         format = CORE_REPORTFORMAT_SWPRO;
 
     return format;
+}
+
+// Only reads the PMIC: a retro console boot leaves it unconfigured, like a manual one
+static autodetect_power_t boot_power_source(void)
+{
+    battery_status_s status = {0};
+    if (!battery_peek_status(&status))
+        return AUTODETECT_POWER_UNKNOWN;
+    return status.plugged ? AUTODETECT_POWER_EXTERNAL : AUTODETECT_POWER_BATTERY;
+}
+
+// The saved defaults as modes. CORE_REPORTFORMAT_UNDEFINED means Auto.
+static core_reportformat_t boot_default_wired(void)
+{
+    const uint8_t stored = gamepad_config->gamepad_default_mode;
+    if (stored == GAMEPAD_DEFAULT_MODE_AUTO)
+        return CORE_REPORTFORMAT_UNDEFINED;
+
+    const core_reportformat_t format = core_reportformat_from_default(stored);
+    return boot_format_supported(format) ? format : CORE_REPORTFORMAT_SWPRO;
+}
+
+static core_reportformat_t boot_default_wireless(void)
+{
+    const core_reportformat_t format = (core_reportformat_t)gamepad_config->gamepad_default_wireless;
+    switch (format)
+    {
+    case CORE_REPORTFORMAT_SWPRO:
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_WII:
+        if (boot_format_supported(format))
+            return format;
+        break;
+
+    default:
+        break;
+    }
+    return CORE_REPORTFORMAT_UNDEFINED;
+}
+
+// The default for this power source. On battery the wireless default applies, except that an N64
+// doesn't power the controller: a wired default of N64 stays, and a wired Auto still answers an N64
+// before going wireless.
+static core_reportformat_t boot_resolve_default(autodetect_power_t power)
+{
+    const core_reportformat_t wired = boot_default_wired();
+    if ((power != AUTODETECT_POWER_BATTERY) || (wired == CORE_REPORTFORMAT_N64) ||
+        (wired == CORE_REPORTFORMAT_UNDEFINED))
+        return wired;
+    return boot_default_wireless();
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +617,12 @@ const boot_info_s *boot_get_info(void)
     return &_boot_info;
 }
 
+void boot_set_mode(core_reportformat_t reportformat, gamepad_transport_t transport)
+{
+    _boot_info.reportformat = reportformat;
+    _boot_info.transport = transport;
+}
+
 void boot_init(void)
 {
     _boot_info = (boot_info_s){
@@ -597,8 +655,15 @@ void boot_init(void)
     }
 #endif
 
-    // 3. Gamepad mode from ABXY / d-pad.
+    // 3. Gamepad mode from ABXY / d-pad, else the saved default for the power source. Undefined
+    //    means Auto.
+    const autodetect_power_t power = boot_power_source();
     _boot_info.reportformat = boot_resolve_reportformat(&input);
+    if (_boot_info.reportformat == CORE_REPORTFORMAT_UNDEFINED)
+        _boot_info.reportformat = boot_resolve_default(power);
+    const bool auto_mode = (_boot_info.reportformat == CORE_REPORTFORMAT_UNDEFINED);
+    if (auto_mode)
+        _boot_info.reportformat = CORE_REPORTFORMAT_SWPRO;
 
     // 4. Pairing enable combo.
     if (boot_combo_pairing(&input))
@@ -615,7 +680,21 @@ void boot_init(void)
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
 
     // 8. Runtime reboot memory (pairing macro, etc.) overrides selections above.
+    boot_memory_s boot_memory = {0};
+    boot_get_memory(&boot_memory);
+    const bool from_memory = (boot_memory.val != 0);
     boot_apply_persisted_memory(&_boot_info);
+
+    // A wired format chosen through boot memory still needs its bus
+    boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
+
+    // Auto with nothing in boot memory and nothing else picked (pairing, LB, WLAN force): detect,
+    // starting from the power source
+    if (auto_mode && !from_memory && !_boot_info.pairing && _boot_info.transport == GAMEPAD_TRANSPORT_AUTO)
+    {
+        const bool wired_auto = (boot_default_wired() == CORE_REPORTFORMAT_UNDEFINED);
+        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless());
+    }
 
     // 9. Battery status resolves AUTO transport to USB / BT / WLAN.
     boot_apply_battery_transport(&_boot_info);

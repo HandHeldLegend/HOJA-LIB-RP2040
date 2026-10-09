@@ -37,6 +37,7 @@
 #include "devices/animations/or_indicate.h"
 
 #include "devices/animations/rgb_modes.h"
+#include "utilities/autodetect.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
@@ -72,6 +73,44 @@ rgb_s    _adjusted_ani_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 
 uint16_t _anim_brightness = 0;
+
+// Brightness changes (the wireless cap after Auto picks a wireless mode, the config app) ramp over
+// the same time as a color fade instead of jumping
+static uint16_t _anim_brightness_target = 0;
+static uint16_t _anim_brightness_step = 1;
+
+static void _anm_brightness_set(uint16_t brightness)
+{
+    static bool first = true;
+    _anim_brightness_target = brightness;
+
+    // The first setting applies at once: the LEDs fade in from dark anyway
+    if(first)
+    {
+        first = false;
+        _anim_brightness = brightness;
+        return;
+    }
+
+    const uint32_t delta = (brightness > _anim_brightness) ? (brightness - _anim_brightness) : (_anim_brightness - brightness);
+    const uint32_t step = (delta * FADE_STEP_FIXED) / RGB_FADE_FIXED_MULT;
+    _anim_brightness_step = (step > 0) ? (uint16_t)step : 1;
+}
+
+static void _anm_brightness_tick(void)
+{
+    if(_anim_brightness < _anim_brightness_target)
+    {
+        const uint32_t next = _anim_brightness + _anim_brightness_step;
+        _anim_brightness = (next > _anim_brightness_target) ? _anim_brightness_target : (uint16_t)next;
+    }
+    else if(_anim_brightness > _anim_brightness_target)
+    {
+        _anim_brightness = (_anim_brightness - _anim_brightness_target > _anim_brightness_step)
+                         ? (uint16_t)(_anim_brightness - _anim_brightness_step)
+                         : _anim_brightness_target;
+    }
+}
 uint32_t _anim_speed = 0;
 int _current_mode = -1;
 
@@ -146,7 +185,7 @@ void anm_handler_setup_mode(uint8_t rgb_mode, uint16_t brightness, uint32_t anim
     _anim_speed = animation_time_ms;
     anm_utility_set_time_ms(animation_time_ms);
 
-    _anim_brightness = brightness;
+    _anm_brightness_set(brightness);
 
     _current_mode = rgb_mode;
 
@@ -234,69 +273,81 @@ void _notification_manager(rgb_s *output)
     }
 }
 
-void _player_connection_manager(rgb_s *output) 
+// The LEDs that show the player: the player group (4-LED chase), else the notification group (blink)
+static bool _player_leds_get(int8_t *group_idx, uint8_t *count, bool *use_chase)
 {
     const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
 
-    // Prefer the dedicated player group (4-LED chase); otherwise fall back to the
-    // notification group (blink). If neither exists there's nothing to drive.
-    int8_t  player_group_idx;
-    uint8_t player_leds_count;
-    bool    use_chase;
-
     if(rcfg->player_group_index >= 0)
     {
-        player_group_idx  = rcfg->player_group_index;
-        player_leds_count = RGB_PLAYER_GROUP_SIZE;
-        use_chase         = true;
+        *group_idx = rcfg->player_group_index;
+        *count     = RGB_PLAYER_GROUP_SIZE;
+        *use_chase = true;
     }
     else if(rcfg->notification_group_index >= 0)
     {
-        player_group_idx  = rcfg->notification_group_index;
-        player_leds_count = rcfg->notification_group_size;
-        use_chase         = false;
+        *group_idx = rcfg->notification_group_index;
+        *count     = rcfg->notification_group_size;
+        *use_chase = false;
     }
-    else return;
+    else return false;
 
-    if(player_leds_count > RGB_MAX_LEDS_PER_GROUP) player_leds_count = RGB_MAX_LEDS_PER_GROUP;
+    if(*count > RGB_MAX_LEDS_PER_GROUP) *count = RGB_MAX_LEDS_PER_GROUP;
+    return true;
+}
+
+// Plays the connecting animation (chase or blink) in color on the player LEDs
+static void _player_connecting_draw(rgb_s *output, rgb_s color)
+{
+    int8_t  player_group_idx;
+    uint8_t player_leds_count;
+    bool    use_chase;
+    if(!_player_leds_get(&player_group_idx, &player_leds_count, &use_chase)) return;
 
     rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
-
-    // Get the current player LEDs
     for(int i = 0; i < player_leds_count; i++)
-    {
-        uint8_t this_idx = rgb_led_groups[player_group_idx][i];
-        player_leds[i] = output[this_idx];
-    }
+        player_leds[i] = output[rgb_led_groups[player_group_idx][i]];
 
+    if(use_chase)
+        ply_chase_handler(player_leds, color);
+    else
+        ply_blink_handler(player_leds, player_leds_count, color);
+
+    for(int i = 0; i < player_leds_count; i++)
+        output[rgb_led_groups[player_group_idx][i]] = player_leds[i];
+}
+
+void _player_connection_manager(rgb_s *output) 
+{
     switch(transport_current_connection())
     {
         case TP_CONNSTAT_IDLE:
         case TP_CONNSTAT_UNDEFINED:
-            if(use_chase)
-                ply_chase_handler(player_leds, core_current_color_get());
-            else
-                ply_blink_handler(player_leds, player_leds_count, core_current_color_get());
+            _player_connecting_draw(output, core_current_color_get());
         break;
 
         default:
+        {
+            int8_t  player_group_idx;
+            uint8_t player_leds_count;
+            bool    use_chase;
+            if(!_player_leds_get(&player_group_idx, &player_leds_count, &use_chase)) return;
+
             // Reactive mode can leave player LEDs black if the player group
             // is not actively driven by input. Seed player LEDs with the
             // configured player-group color before applying the player mask.
+            rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
             for(int i = 0; i < player_leds_count; i++)
             {
                 player_leds[i] = rgb_colors_safe[player_group_idx];
             }
             ply_idle_handler(player_leds, transport_current_player_number());
+
+            for(int i = 0; i < player_leds_count; i++)
+                output[rgb_led_groups[player_group_idx][i]] = player_leds[i];
+        }
         break;
     }  
-
-    // Write the player LED colors to the output
-    for(int i = 0; i < player_leds_count; i++)
-    {
-        uint8_t this_idx = rgb_led_groups[player_group_idx][i];
-        output[this_idx] = player_leds[i];
-    }
 }
 
 volatile bool _anm_idle_active = false;
@@ -308,7 +359,7 @@ void anm_set_idle_enable(bool enable)
     if(enable && !_anm_idle_active)
     {
         store_mode = _current_mode;
-        store_bright = _anim_brightness;
+        store_bright = _anim_brightness_target;
         anm_handler_setup_mode(RGB_ANIM_IDLE, 500, _anim_speed);
         _anm_idle_active = true;
 
@@ -320,11 +371,62 @@ void anm_set_idle_enable(bool enable)
     }
 }
 
+// Auto mode: every LED shows the player LED color until the mode is confirmed, with the player LEDs
+// playing the connecting animation. The mode's own lighting keeps running underneath (static modes
+// only draw once), then fades in.
+static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
+
+static bool _anm_auto_hold(void)
+{
+    static bool holding = false;
+
+    if(!autodetect_pending())
+    {
+        if(holding)
+        {
+            holding = false;
+            memcpy(_fade_start, _anm_hold_leds, ALL_LEDS_SIZE);
+            // A mode change mid-hold queues its own fade: keep its target, not the colors on the way
+            if(!_fade)
+                memcpy(_fade_end, _current_ani_leds, ALL_LEDS_SIZE);
+            _fade_progress = 0;
+            _fade = true;
+        }
+        return false;
+    }
+
+    const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+    const int8_t group = (rcfg->player_group_index >= 0) ? rcfg->player_group_index : rcfg->notification_group_index;
+    rgb_s color = (group >= 0) ? rgb_colors_safe[group] : (rgb_s){0};
+
+    // Fades in from dark, the same way the modes fade
+    static uint32_t fade_in_progress = 0;
+    rgb_s dark = {0};
+    rgb_s shown = {.color = anm_utility_blend(&dark, &color, fade_in_progress)};
+    for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
+        _anm_hold_leds[i] = shown;
+
+    // The player LEDs show it's still connecting
+    _player_connecting_draw(_anm_hold_leds, shown);
+
+    if(fade_in_progress < RGB_FADE_FIXED_MULT)
+    {
+        fade_in_progress += FADE_STEP_FIXED;
+        if(fade_in_progress > RGB_FADE_FIXED_MULT)
+            fade_in_progress = RGB_FADE_FIXED_MULT;
+    }
+
+    holding = true;
+    return true;
+}
+
 // Call this once per frame
 void anm_handler_tick()
 {
     // Only compile this function if we have our driver update function
     #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER>0)
+    const bool hold = _anm_auto_hold();
+
     if(_fade)
     {
         if(_ani_queue_fade_handler(_current_ani_leds))
@@ -339,14 +441,16 @@ void anm_handler_tick()
 
     if(!_rgb_shutting_down)
     {
-        if(!_anm_idle_active)
+        // While Auto holds, the hold plays the connecting animation itself (they share its state)
+        if(!_anm_idle_active && !hold)
             _player_connection_manager(_current_ani_leds);
 
         _notification_manager(_current_ani_leds);
     }
 
     // Process brightness/gamma
-    anm_utility_process(_current_ani_leds, _adjusted_ani_leds, _anim_brightness);
+    _anm_brightness_tick();
+    anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, _adjusted_ani_leds, _anim_brightness);
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
     #endif

@@ -385,7 +385,7 @@ static void _n64_set_connected(bool connected)
 
 /***********************************************/
 /********* Transport Defines *******************/
-void transport_jb64_stop()
+void transport_jb64_stop(void)
 {
   if (!_n64_hal_params) return;
 
