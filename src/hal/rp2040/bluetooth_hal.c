@@ -638,6 +638,36 @@ static void _bt_hal_reconnect_saved_host(void)
     }
 }
 
+// The host may be busy setting up another controller and miss our call, and neither the Switch
+// nor Windows calls a controller back. Try again a few times, at random gaps so controllers
+// turned on together stop colliding.
+#define BT_HAL_RECONNECT_TRIES     5
+#define BT_HAL_RECONNECT_MIN_MS    1000
+#define BT_HAL_RECONNECT_SPREAD_MS 2000
+
+static btstack_timer_source_t reconnect_timer;
+static uint8_t reconnect_tries = 0;
+
+static void _bt_hal_reconnect_timer_handler(btstack_timer_source_t *ts)
+{
+    (void)ts;
+    if (hid_cid || _connected || _pairing_mode)
+        return;
+    _bt_hal_reconnect_saved_host();
+}
+
+// After a failed reconnect in Switch or SInput mode (Wii mode has its own)
+static void _bt_hal_reconnect_retry(void)
+{
+    if (_pairing_mode || reconnect_tries >= BT_HAL_RECONNECT_TRIES)
+        return;
+    reconnect_tries++;
+    btstack_run_loop_remove_timer(&reconnect_timer);
+    btstack_run_loop_set_timer_handler(&reconnect_timer, &_bt_hal_reconnect_timer_handler);
+    btstack_run_loop_set_timer(&reconnect_timer, BT_HAL_RECONNECT_MIN_MS + get_rand_32() % BT_HAL_RECONNECT_SPREAD_MS);
+    btstack_run_loop_add_timer(&reconnect_timer);
+}
+
 // The stack comes up once per boot. Auto mode may set up a mode after it is running.
 static bool _bt_stack_up = false;
 static volatile bool _bt_power_cycling = false;
@@ -659,7 +689,8 @@ static void _bt_hal_power_on_as(const uint8_t *mac)
 
 // Auto mode: before reconnecting, call each saved host and open a service discovery channel (no
 // pairing, no HID). An awake host answers, even if only to refuse. A Wii in standby takes the call
-// but never answers. The first awake host picks the mode, Switch, then Wii, then SInput.
+// but never answers. The first awake console picks the mode, Switch, then Wii. The PC isn't called:
+// with neither console awake, SInput reconnects to it directly, which saves a whole call.
 // Hosts listen for calls every 1.28 s, so each gets two of those windows
 #define BT_HAL_PROBE_PAGE_TIMEOUT   0x1000 // x 0.625 ms, 2.56 s per host
 #define BT_HAL_PROBE_ANSWER_MS      1500
@@ -707,6 +738,10 @@ static void _bt_hal_probe_finish(core_reportformat_t found)
 {
     probe_running = false;
     gap_set_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
+
+    // No console answered: a saved PC gets SInput, otherwise Switch mode waits for the Switch
+    if (found == CORE_REPORTFORMAT_UNDEFINED && _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
+        found = CORE_REPORTFORMAT_SINPUT;
 
     // Switch mode carries on: set it up now and bring the radio back with it. Otherwise core 1
     // brings up the mode that answered.
@@ -826,7 +861,6 @@ static bool _bt_hal_probe_start(void)
     probe_index = 0;
     _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
     _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
-    _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
 
     if (!probe_count)
     {
@@ -892,6 +926,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             }
             else if (!_bt_hal_probe_start())
             {
+                reconnect_tries = 0;
                 _bt_hal_reconnect_saved_host();
             }
             break;
@@ -1036,6 +1071,10 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                         _bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
                     {
                         _bt_hal_wii_reconnect_timer_start();
+                    }
+                    else if (!_bt_hal_is_wii())
+                    {
+                        _bt_hal_reconnect_retry();
                     }
                     return;
                 }
@@ -1358,6 +1397,7 @@ static void _bt_hal_mode_setup(core_params_s *params)
 static void _bt_hal_power_cycle_as(const uint8_t *mac)
 {
     memcpy(_bt_cycle_mac, mac, 6);
+    btstack_run_loop_remove_timer(&reconnect_timer);
     _bt_power_cycling = true;
     hid_cid = 0;
     _connected = false;
