@@ -42,6 +42,7 @@ typedef enum
     HLINK_CTRL_HELLO        = 0x01, // [protocol]
     HLINK_CTRL_START_RADIO  = 0x02, // [bd_addr x6] Start the controller with this address
     HLINK_CTRL_BATMON       = 0x03, // [enable, adc gpio]
+    HLINK_CTRL_PING         = 0x04, // Nothing, only the link's ack matters
 
     HLINK_CTRL_HELLO_RSP    = 0x81, // [protocol, fw version hi, lo]
     HLINK_CTRL_RADIO_READY  = 0x82, // [status] 0 when the controller is up

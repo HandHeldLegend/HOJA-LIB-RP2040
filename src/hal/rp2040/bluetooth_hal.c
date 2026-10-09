@@ -1468,8 +1468,9 @@ void transport_bt_task(uint64_t timestamp)
         return;
 
     // The ESP32 lost its links behind the stack's back: restart the stack, which closes them
-    // properly and reconnects
-    if (esp32_hci_take_radio_fault())
+    // properly and reconnects. Once a restart is under way, leave it be: each power-off call
+    // cancels the stack's timer that finishes shutting down without the controller.
+    if (esp32_hci_take_radio_fault() && !_bt_power_cycling && !wii_radio_cycling)
     {
         _bt_hal_lock();
         _bt_hal_power_cycle();
