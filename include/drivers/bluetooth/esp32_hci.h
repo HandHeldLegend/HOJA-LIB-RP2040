@@ -48,6 +48,8 @@ void esp32_hci_backend_task(uint64_t timestamp);
 void esp32_hci_backend_stop(void);
 bool esp32_hci_backend_update_mode(void);
 const void *esp32_hci_transport_instance(void);
+// Address the radio starts with next (the stack can't set it on this controller)
+void esp32_hci_set_radio_mac(const uint8_t *mac);
 void esp32_hci_console_attach(void);
 
 // ESP32 firmware version, read once (0 if it does not answer)

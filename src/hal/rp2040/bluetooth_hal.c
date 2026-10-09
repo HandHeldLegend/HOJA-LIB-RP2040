@@ -43,6 +43,7 @@
 #include "hoja.h"
 #include "cores/cores.h"
 #include "utilities/crosscore_utils.h"
+#include "utilities/autodetect.h"
 
 #include "nwii_lib_hid.h"
 
@@ -573,6 +574,273 @@ static void _bt_hal_wii_reconnect_timer_start(void)
     wii_reconnect_timer_active = true;
 }
 
+// Reconnect to the host saved for this mode
+static void _bt_hal_reconnect_saved_host(void)
+{
+    switch (core_current_reportformat())
+    {
+    default:
+    case CORE_REPORTFORMAT_SWPRO:
+        link_key_type_t read_type;
+        link_key_t read_key;
+
+        bool overwrite_key = false;
+
+        if (!_bluetooth_hal_is_stored_identity_valid(switchpair_config->link_key))
+        {
+            gap_discoverable_control(1);
+            return;
+        }
+
+        if (gap_get_link_key_for_bd_addr(gamepad_config->host_mac_switch, read_key, &read_type))
+        {
+            //printf("BTStack Stored Link Key:\n");
+            link_key_t read_key_be;
+            _bluetooth_hal_reverse_bytes(read_key, read_key_be, 16);
+
+            if (!_bluetooth_hal_is_lk_addr_same(read_key_be, switchpair_config->link_key))
+            {
+                overwrite_key = true;
+            }
+        }
+        else
+        {
+            overwrite_key = true;
+        }
+
+        if(overwrite_key)
+        {
+            link_key_t link_key_le;
+            _bluetooth_hal_reverse_bytes(switchpair_config->link_key, link_key_le, 16);
+            gap_store_link_key_for_bd_addr(gamepad_config->host_mac_switch, link_key_le,
+                              UNAUTHENTICATED_COMBINATION_KEY_GENERATED_FROM_P192);
+        }
+
+        hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
+
+        break;
+
+    case CORE_REPORTFORMAT_SINPUT:
+        if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
+        {
+            hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
+        }
+        break;
+
+    case CORE_REPORTFORMAT_WII:
+        // Stay discoverable either way: the Wii can still SYNC or temporarily
+        // connect to us while we page the saved console.
+        gap_discoverable_control(1);
+        if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
+        {
+            hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
+        }
+        break;
+    }
+}
+
+// The stack comes up once per boot. Auto mode may set up a mode after it is running.
+static bool _bt_stack_up = false;
+static volatile bool _bt_power_cycling = false;
+static bool _bt_mode_ready = false;
+
+// The address the radio runs with, and the one it comes back with after a power cycle
+static bd_addr_t _bt_radio_mac;
+static bd_addr_t _bt_cycle_mac;
+
+static void _bt_hal_power_on_as(const uint8_t *mac)
+{
+    memcpy(_bt_radio_mac, mac, 6);
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    esp32_hci_set_radio_mac(mac);
+#endif
+    hci_power_control(HCI_POWER_ON);
+    hci_set_bd_addr(_bt_radio_mac);
+}
+
+// Auto mode: before reconnecting, call each saved host and open a service discovery channel (no
+// pairing, no HID). An awake host answers, even if only to refuse. A Wii in standby takes the call
+// but never answers. The first awake host picks the mode, Switch, then Wii, then SInput.
+// Hosts listen for calls every 1.28 s, so each gets two of those windows
+#define BT_HAL_PROBE_PAGE_TIMEOUT   0x1000 // x 0.625 ms, 2.56 s per host
+#define BT_HAL_PROBE_ANSWER_MS      1500
+#define BT_HAL_DEFAULT_PAGE_TIMEOUT 0x6000 // BTstack's default
+
+typedef struct
+{
+    core_reportformat_t format;
+    const uint8_t *addr;
+    bd_addr_t local_mac; // Our address in that mode: hosts only answer the remote they paired
+} bt_hal_probe_host_s;
+
+static bt_hal_probe_host_s probe_hosts[3];
+static uint8_t probe_count = 0;
+static uint8_t probe_index = 0;
+static bool probe_running = false;
+static uint16_t probe_cid = 0;
+static hci_con_handle_t probe_handle = HCI_CON_HANDLE_INVALID;
+static btstack_timer_source_t probe_timer;
+
+static void _bt_hal_probe_next(void);
+static void _bt_hal_mode_setup(core_params_s *params);
+static void _bt_hal_power_cycle(void);
+static void _bt_hal_power_cycle_as(const uint8_t *mac);
+
+static void _bt_hal_probe_add(core_reportformat_t format, const uint8_t *addr)
+{
+    if (!_bluetooth_hal_is_stored_identity_valid(addr))
+        return;
+
+    // A host saved for two modes answers for both: the first mode keeps it
+    for (uint8_t i = 0; i < probe_count; i++)
+    {
+        if (!memcmp(addr, probe_hosts[i].addr, 6))
+            return;
+    }
+
+    probe_hosts[probe_count].format = format;
+    probe_hosts[probe_count].addr = addr;
+    transport_mode_mac(probe_hosts[probe_count].local_mac, format);
+    probe_count++;
+}
+
+static void _bt_hal_probe_finish(core_reportformat_t found)
+{
+    probe_running = false;
+    gap_set_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
+
+    // Switch mode carries on: set it up now and bring the radio back with it. Otherwise core 1
+    // brings up the mode that answered.
+    if (autodetect_bt_probe_result(found))
+    {
+        _bt_hal_mode_setup(core_current_params());
+        _bt_hal_power_cycle();
+    }
+}
+
+static void _bt_hal_probe_host_done(bool awake)
+{
+    btstack_run_loop_remove_timer(&probe_timer);
+    if (probe_cid)
+    {
+        l2cap_disconnect(probe_cid);
+        probe_cid = 0;
+    }
+
+    if (awake)
+    {
+        _bt_hal_probe_finish(probe_hosts[probe_index].format);
+        return;
+    }
+
+    if (probe_handle != HCI_CON_HANDLE_INVALID)
+        gap_disconnect(probe_handle);
+    probe_handle = HCI_CON_HANDLE_INVALID;
+
+    probe_index++;
+    _bt_hal_probe_next();
+}
+
+// Connected but no answer: asleep
+static void _bt_hal_probe_timeout(btstack_timer_source_t *ts)
+{
+    (void)ts;
+    if (probe_running)
+        _bt_hal_probe_host_done(false);
+}
+
+static void _bt_hal_probe_l2cap_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size)
+{
+    (void)channel;
+    (void)size;
+    if (!probe_running || packet_type != HCI_EVENT_PACKET || packet[0] != L2CAP_EVENT_CHANNEL_OPENED)
+        return;
+
+    const uint8_t status = l2cap_event_channel_opened_get_status(packet);
+    if (status != ERROR_CODE_SUCCESS)
+        probe_cid = 0;
+
+    // Opened, or refused by the host itself: awake. A failed call or no answer: not
+    const bool answered = (status == ERROR_CODE_SUCCESS) ||
+                          (probe_handle != HCI_CON_HANDLE_INVALID &&
+                           status >= L2CAP_CONNECTION_RESPONSE_RESULT_REFUSED_PSM &&
+                           status <= L2CAP_CONNECTION_RESPONSE_RESULT_REFUSED_RESOURCES);
+    _bt_hal_probe_host_done(answered);
+}
+
+// From HCI_EVENT_CONNECTION_COMPLETE: the call went through, now wait for the answer
+static void _bt_hal_probe_on_connection(const uint8_t *packet)
+{
+    if (!probe_running || hci_event_connection_complete_get_status(packet) != ERROR_CODE_SUCCESS)
+        return;
+
+    bd_addr_t addr;
+    hci_event_connection_complete_get_bd_addr(packet, addr);
+    if (memcmp(addr, probe_hosts[probe_index].addr, 6))
+        return;
+
+    probe_handle = hci_event_connection_complete_get_connection_handle(packet);
+    btstack_run_loop_remove_timer(&probe_timer);
+    btstack_run_loop_set_timer_handler(&probe_timer, &_bt_hal_probe_timeout);
+    btstack_run_loop_set_timer(&probe_timer, BT_HAL_PROBE_ANSWER_MS);
+    btstack_run_loop_add_timer(&probe_timer);
+}
+
+static void _bt_hal_probe_next(void)
+{
+    if (probe_index >= probe_count)
+    {
+        _bt_hal_probe_finish(CORE_REPORTFORMAT_UNDEFINED);
+        return;
+    }
+
+    // Call each host from the address it paired with. The probe carries on once the radio is back.
+    if (memcmp(_bt_radio_mac, probe_hosts[probe_index].local_mac, 6))
+    {
+        _bt_hal_power_cycle_as(probe_hosts[probe_index].local_mac);
+        return;
+    }
+
+    bd_addr_t addr;
+    memcpy(addr, probe_hosts[probe_index].addr, 6);
+    probe_handle = HCI_CON_HANDLE_INVALID;
+    if (l2cap_create_channel(&_bt_hal_probe_l2cap_handler, addr, BLUETOOTH_PSM_SDP, 48, &probe_cid) != ERROR_CODE_SUCCESS)
+    {
+        probe_cid = 0;
+        _bt_hal_probe_host_done(false);
+    }
+}
+
+// True while the probe runs, the reconnect follows from its result
+static bool _bt_hal_probe_start(void)
+{
+    // Back from changing address for the next host
+    if (probe_running)
+    {
+        _bt_hal_probe_next();
+        return true;
+    }
+    if (!autodetect_bt_probe_pending())
+        return false;
+
+    probe_count = 0;
+    probe_index = 0;
+    _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
+    _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
+    _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
+
+    if (!probe_count)
+    {
+        _bt_hal_probe_finish(CORE_REPORTFORMAT_UNDEFINED);
+        return true;
+    }
+
+    probe_running = true;
+    gap_set_page_timeout(BT_HAL_PROBE_PAGE_TIMEOUT);
+    _bt_hal_probe_next();
+    return true;
+}
+
 static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t packet_size)
 {
     UNUSED(channel);
@@ -589,10 +857,17 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 wii_acl_handle = HCI_CON_HANDLE_INVALID;
                 hid_cid = 0;
                 _bt_hal_wii_iac_pending = true; // The controller forgets the IACs on reset
-                hci_power_control(HCI_POWER_ON);
                 // The custom address is only applied on the first power-on; without this the
                 // radio returns with its factory address and the Wii refuses the unknown remote
-                hci_set_bd_addr(core_current_params()->transport_dev_mac);
+                _bt_hal_power_on_as(core_current_params()->transport_dev_mac);
+                return;
+            }
+
+            // A new mode, or the probe calling the next host, comes back with its own address
+            if (btstack_event_state_get_state(packet) == HCI_STATE_OFF && _bt_power_cycling)
+            {
+                _bt_power_cycling = false;
+                _bt_hal_power_on_as(_bt_cycle_mac);
                 return;
             }
 
@@ -610,70 +885,18 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 gap_discoverable_control(1);
                 return;
             }
-            else
+            else if (!_bt_mode_ready && !autodetect_bt_probe_pending())
             {
-                switch (core_current_reportformat())
-                {
-                default:
-                case CORE_REPORTFORMAT_SWPRO:
-                    link_key_type_t read_type;
-                    link_key_t read_key;
-
-                    bool overwrite_key = false;
-
-                    if (!_bluetooth_hal_is_stored_identity_valid(switchpair_config->link_key))
-                    {
-                        gap_discoverable_control(1);
-                        return;
-                    }
-
-                    if (gap_get_link_key_for_bd_addr(gamepad_config->host_mac_switch, read_key, &read_type))
-                    {
-                        //printf("BTStack Stored Link Key:\n");
-                        link_key_t read_key_be;
-                        _bluetooth_hal_reverse_bytes(read_key, read_key_be, 16);
-
-                        if (!_bluetooth_hal_is_lk_addr_same(read_key_be, switchpair_config->link_key))
-                        {
-                            overwrite_key = true;
-                        }
-                    }
-                    else
-                    {
-                        overwrite_key = true;
-                    }
-
-                    if(overwrite_key)
-                    {
-                        link_key_t link_key_le;
-                        _bluetooth_hal_reverse_bytes(switchpair_config->link_key, link_key_le, 16);
-                        gap_store_link_key_for_bd_addr(gamepad_config->host_mac_switch, link_key_le,
-                                          UNAUTHENTICATED_COMBINATION_KEY_GENERATED_FROM_P192);
-                    }
-
-                    hid_device_connect(gamepad_config->host_mac_switch, &hid_cid);
-
-                    break;
-
-                case CORE_REPORTFORMAT_SINPUT:
-                    if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
-                    {
-                        hid_device_connect(gamepad_config->host_mac_sinput, &hid_cid);
-                    }
-                    break;
-
-                case CORE_REPORTFORMAT_WII:
-                    // Stay discoverable either way: the Wii can still SYNC or temporarily
-                    // connect to us while we page the saved console.
-                    gap_discoverable_control(1);
-                    if (_bluetooth_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
-                    {
-                        hid_device_connect(gamepad_config->host_mac_wii, &hid_cid);
-                    }
-                    break;
-                }
+                // The probe gave up before deciding: set up this mode now
+                _bt_hal_mode_setup(core_current_params());
+                _bt_hal_power_cycle();
+            }
+            else if (!_bt_hal_probe_start())
+            {
+                _bt_hal_reconnect_saved_host();
             }
             break;
+
 
 #if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
         case HCI_EVENT_MAX_SLOTS_CHANGED:
@@ -705,6 +928,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
             break;
 
         case HCI_EVENT_CONNECTION_COMPLETE:
+            _bt_hal_probe_on_connection(packet);
             wii_page_pending = false;
             btstack_run_loop_remove_timer(&wii_page_stall_timer);
             if (hci_event_connection_complete_get_status(packet) == ERROR_CODE_SUCCESS)
@@ -964,6 +1188,17 @@ static bool _bt_hal_update_mode(void)
     return false;
 }
 
+// BTstack runs in the async context: hold its lock to call into it from core 1
+static void _bt_hal_lock(void)
+{
+    async_context_acquire_lock_blocking(cyw43_arch_async_context());
+}
+
+static void _bt_hal_unlock(void)
+{
+    async_context_release_lock(cyw43_arch_async_context());
+}
+
 #else
 
 static async_context_threadsafe_background_t _bt_async;
@@ -1004,60 +1239,22 @@ static bool _bt_hal_update_mode(void)
     return esp32_hci_backend_update_mode();
 }
 
-#endif
-
-/***********************************************/
-/********* Transport Defines *******************/
-void transport_bt_stop()
+// BTstack runs in the async context: hold its lock to call into it from core 1
+static void _bt_hal_lock(void)
 {
-#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
-    if (_bt_hal_legacy)
-    {
-        esp32_legacy_bt_stop();
-        return;
-    }
-#endif
-    //if(_bt_init)
-    //    cyw43_arch_deinit();
-    //_bt_init = false;
+    async_context_acquire_lock_blocking(&_bt_async.core);
 }
 
-bool transport_bt_init(core_params_s *params)
+static void _bt_hal_unlock(void)
 {
-    _bt_hal_params = params;
+    async_context_release_lock(&_bt_async.core);
+}
 
-    if (!_bt_hal_params)
-        return false;
-
-#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
-    // ESP32 firmware update (no core or HID device)
-    if (params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
-        return esp32_hci_backend_init(params);
-
-    // Old baseband: its own driver until the ESP32 is updated
-    uint16_t esp32_version = esp32_hci_firmware_version();
-    if (esp32_version && esp32_version < ESP32_HCI_BRIDGE_VERSION_MIN)
-    {
-        _bt_hal_legacy = true;
-        bool ok = esp32_legacy_bt_init(params);
-        esp32_hci_console_attach();
-        return ok;
-    }
 #endif
 
-    if (!_bt_hal_params->hid_device)
-        return false;
-
-    _bt_hal_hid = _bt_hal_params->hid_device;
-
-    if (!_bt_hal_controller_init(params))
-        return false;
-
-    if (_bt_hal_update_mode())
-        return true;
-
-    _bt_init = true;
-
+// Everything that belongs to one mode: class of device, security, SDP records and the HID service
+static void _bt_hal_mode_setup(core_params_s *params)
+{
     const bool wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
     const bool sinput = (params->core_report_format == CORE_REPORTFORMAT_SINPUT);
     hid_report_interval_ms = wii ? BT_HAL_WII_POLLING_RATE_MS : BT_HAL_TARGET_POLLING_RATE_MS;
@@ -1094,16 +1291,6 @@ bool transport_bt_init(core_params_s *params)
 
     gap_set_default_link_policy_settings(link_policy);
     gap_set_allow_role_switch(true);
-
-    // L2CAP
-    l2cap_init();
-
-    sm_init();
-    // sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
-    // sm_set_authentication_requirements(0);
-
-    // SDP Server
-    sdp_init();
 
     hid_sdp_record_t hid_sdp_record = {
         .hid_device_subclass = 0x2508,      // Device Subclass HID
@@ -1154,20 +1341,110 @@ bool transport_bt_init(core_params_s *params)
 
     hid_device_accept_truncated_hid_reports(true);
 
-    hci_event_callback_registration.callback = &_bt_hal_packet_handler;
-    hci_add_event_handler(&hci_event_callback_registration);
-
     hid_device_register_packet_handler(&_bt_hal_packet_handler);
     hid_device_register_report_data_callback(&_bt_hid_report_handler);
     hid_device_register_set_report_callback(&_bt_hid_set_report_handler);
 
     _pairing_mode = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
+    _bt_mode_ready = true;
+}
 
-    hci_power_control(HCI_POWER_ON);
+static void _bt_hal_power_cycle_as(const uint8_t *mac)
+{
+    memcpy(_bt_cycle_mac, mac, 6);
+    _bt_power_cycling = true;
+    hid_cid = 0;
+    _connected = false;
+    hci_power_control(HCI_POWER_OFF);
+}
 
-    hci_set_bd_addr(_bt_hal_params->transport_dev_mac);
+// Brings the radio back with the current mode's address
+static void _bt_hal_power_cycle(void)
+{
+    _bt_hal_power_cycle_as(core_current_params()->transport_dev_mac);
+}
 
-    // btstack_run_loop_execute();
+/***********************************************/
+/********* Transport Defines *******************/
+void transport_bt_stop()
+{
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    if (_bt_hal_legacy)
+    {
+        esp32_legacy_bt_stop();
+        return;
+    }
+#endif
+    //if(_bt_init)
+    //    cyw43_arch_deinit();
+    //_bt_init = false;
+}
+
+bool transport_bt_init(core_params_s *params)
+{
+    _bt_hal_params = params;
+
+    if (!_bt_hal_params)
+        return false;
+
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+    // ESP32 firmware update (no core or HID device)
+    if (params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+        return esp32_hci_backend_init(params);
+
+    // Old baseband: its own driver until the ESP32 is updated
+    uint16_t esp32_version = esp32_hci_firmware_version();
+    if (esp32_version && esp32_version < ESP32_HCI_BRIDGE_VERSION_MIN)
+    {
+        _bt_hal_legacy = true;
+        bool ok = esp32_legacy_bt_init(params);
+        esp32_hci_console_attach();
+        return ok;
+    }
+#endif
+
+    if (!_bt_hal_params->hid_device)
+        return false;
+
+    _bt_hal_hid = _bt_hal_params->hid_device;
+
+    if (!_bt_stack_up)
+    {
+        if (!_bt_hal_controller_init(params))
+            return false;
+
+        if (_bt_hal_update_mode())
+            return true;
+
+        _bt_init = true;
+
+        // L2CAP
+        l2cap_init();
+
+        sm_init();
+        // sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
+        // sm_set_authentication_requirements(0);
+
+        // SDP Server
+        sdp_init();
+
+        hci_event_callback_registration.callback = &_bt_hal_packet_handler;
+        hci_add_event_handler(&hci_event_callback_registration);
+        _bt_stack_up = true;
+
+        // Auto mode checks the saved hosts before any mode is set up
+        if (!autodetect_bt_probe_pending())
+            _bt_hal_mode_setup(params);
+
+        _bt_hal_power_on_as(_bt_hal_params->transport_dev_mac);
+        return true;
+    }
+
+    // Already running (Auto mode picked this mode): set it up and bring the radio back with it
+    _bt_hal_lock();
+    _bt_hal_mode_setup(params);
+    _bt_hal_power_cycle();
+    _bt_hal_unlock();
     return true;
 }
 

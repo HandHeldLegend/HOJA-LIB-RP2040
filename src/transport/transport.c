@@ -1,4 +1,5 @@
 #include "transport/transport.h"
+#include "utilities/autodetect.h"
 #include "cores/cores.h"
 
 #include <hoja.h>
@@ -50,6 +51,7 @@ void _transport_connectionchange(uint8_t status)
 
         case TP_CONNECTION_CONNECTED:
         _tp_stat_sm.connection = TP_CONNSTAT_CONNECTED;
+        autodetect_on_connected();
         break;
 
         case TP_CONNECTION_DISCONNECTED:
@@ -145,7 +147,8 @@ void transport_autoinit(transport_autoinit_state_t *sm, core_params_s *params)
 
 }
 
-void _transport_set_mac(uint8_t *out, core_reportformat_t reportformat)
+// Each mode has its own address, so every host pairs with the mode it was paired in
+void transport_mode_mac(uint8_t *out, core_reportformat_t reportformat)
 {
     memcpy(out, gamepad_config->gamepad_mac_address, 6);
     out[5] += reportformat;
@@ -215,7 +218,7 @@ bool transport_init(core_params_s *params)
         break;
     }
 
-    _transport_set_mac(params->transport_dev_mac, params->core_report_format);
+    transport_mode_mac(params->transport_dev_mac, params->core_report_format);
 
     if(!_transport_supported(params->transport_type))
         return false;
@@ -234,7 +237,8 @@ bool transport_init(core_params_s *params)
         case GAMEPAD_TRANSPORT_JOYBUS64:
         if(transport_jb64_init(params))
         {
-            _tp_stop_cb = NULL;
+            // Auto mode moves on from N64 when no N64 answers, freeing the data pin
+            _tp_stop_cb = transport_jb64_stop;
             params->transport_task = transport_jb64_task;
             return true;
         }

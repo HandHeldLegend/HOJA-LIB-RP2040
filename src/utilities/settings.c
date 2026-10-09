@@ -1,4 +1,5 @@
 #include "utilities/settings.h"
+#include "utilities/autodetect.h"
 #include "hardware/flash.h"
 #include "hoja.h"
 
@@ -46,6 +47,8 @@ userConfig_s        *user_config       = NULL;
 inputConfig_s       *input_config      = NULL;
 switchpairConfig_s  *switchpair_config = NULL;
 
+static void _settings_split_default_mode(void);
+
 void settings_init()
 {
     flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
@@ -64,8 +67,10 @@ void settings_init()
     // Debug mac address if zero
     if(gamepad_config->gamepad_config_version != CFG_BLOCK_GAMEPAD_VERSION)
     {
-        gamepad_config->gamepad_config_version = CFG_BLOCK_GAMEPAD_VERSION;
-        gamepad_config->gamepad_default_mode   = CORE_REPORTFORMAT_SWPRO;
+        gamepad_config->gamepad_config_version   = CFG_BLOCK_GAMEPAD_VERSION;
+        gamepad_config->gamepad_default_mode     = GAMEPAD_DEFAULT_MODE_AUTO;
+        gamepad_config->gamepad_default_wireless = GAMEPAD_DEFAULT_MODE_AUTO;
+        gamepad_config->gamepad_defaults_split   = GAMEPAD_DEFAULTS_SPLIT;
 
         for(uint8_t i = 0; i < 6; i++)
         {
@@ -106,6 +111,14 @@ void settings_init()
         settings_commit_blocks();
     }
 
+    // Once, after updating: split the one default mode into wired and wireless. Older firmware
+    // ignores these bytes, so going back keeps everything.
+    if(gamepad_config->gamepad_defaults_split != GAMEPAD_DEFAULTS_SPLIT)
+    {
+        _settings_split_default_mode();
+        settings_commit_blocks();
+    }
+
     // Init User config
     if(user_config->user_config_version != CFG_BLOCK_USER_VERSION)
     {
@@ -115,6 +128,42 @@ void settings_init()
 }
 
 MUTEX_HAL_INIT(_settings_mutex);
+
+// The factory default (Switch Pro) becomes Auto for both. A mode someone picked keeps doing what it
+// did: wired as before, and on battery the same mode where it has a wireless version.
+static void _settings_split_default_mode(void)
+{
+    const uint8_t old = gamepad_config->gamepad_default_mode;
+
+    uint8_t wired = old;
+    uint8_t wireless = GAMEPAD_DEFAULT_MODE_AUTO;
+    switch(old)
+    {
+        case CORE_REPORTFORMAT_SINPUT:
+            wireless = old;
+            break;
+
+        case CORE_REPORTFORMAT_WII:
+            wired = GAMEPAD_DEFAULT_MODE_AUTO;
+            wireless = old;
+            break;
+
+        case CORE_REPORTFORMAT_GAMECUBE:
+        case CORE_REPORTFORMAT_N64:
+        case CORE_REPORTFORMAT_SNES:
+        case CORE_REPORTFORMAT_XINPUT:
+        case CORE_REPORTFORMAT_SLIPPI:
+            break;
+
+        default: // Switch Pro, Auto, or anything unknown
+            wired = GAMEPAD_DEFAULT_MODE_AUTO;
+            break;
+    }
+
+    gamepad_config->gamepad_default_mode     = wired;
+    gamepad_config->gamepad_default_wireless = wireless;
+    gamepad_config->gamepad_defaults_split   = GAMEPAD_DEFAULTS_SPLIT;
+}
 
 
 void settings_commit_blocks()

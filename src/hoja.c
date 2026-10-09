@@ -35,6 +35,7 @@
 
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
+#include "utilities/autodetect.h"
 
 static const hoja_config_s *_hoja_config = NULL;
 
@@ -267,6 +268,13 @@ static task_s _task_idle = {
   .type_mask = (TASK_TYPE_OPTIONAL)
 };
 
+// Rapid: a few checks per pass, and it must never be starved by the cycle budget
+static task_s _task_autodetect = {
+  .fn = autodetect_task,
+  .name = "auto",
+  .type_mask = (TASK_TYPE_RAPID)
+};
+
 static task_s _task_watchdog = {
   .fn = sys_hal_tick,
   .name = "wd",
@@ -307,6 +315,8 @@ void _hoja_init_core_tasks(void)
 
   // Tasks for all modes
   tasks_register(&_task_flash);
+  if (autodetect_active())
+    tasks_register(&_task_autodetect);
   tasks_register(&_task_idle);
   tasks_register(&_task_macros);
   
@@ -329,6 +339,22 @@ void _hoja_task_1()
   for (;;)
   {
     tasks_run();
+
+    // Auto mode moving to another mode: stop this one, bring up the next in place
+    core_reportformat_t format;
+    gamepad_transport_t transport;
+    if (autodetect_take_switch(&format, &transport))
+    {
+      core_deinit();
+      boot_set_mode(format, transport);
+      // Auto starting as N64 leaves the battery alone, like a manual N64 boot. Set it up once the
+      // mode uses it (battery_init still skips the retro consoles), and let sysmon see it.
+      if (!battery_init_complete() && (battery_init() == BATTERY_RESULT_OK))
+        sysmon_init();
+      _core_format_init();
+      _hoja_init_core_tasks();
+      autodetect_switch_done();
+    }
   }
 }
 

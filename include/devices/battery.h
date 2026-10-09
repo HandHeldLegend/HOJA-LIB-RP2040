@@ -70,9 +70,11 @@ static inline bool battery_has_driver(void)
 
 void battery_update_status(void);
 void battery_get_status(battery_status_s *out); 
+bool battery_peek_status(battery_status_s *out);
 void battery_set_critical_shutdown(void); 
 // Always safe to call; skips PMIC init on wired-bus boot transports.
 battery_result_t battery_init(void); 
+bool battery_init_complete(void);
 battery_result_t battery_set_charge_rate(uint16_t rate_ma); 
 battery_result_t battery_set_ship_mode(void);
 

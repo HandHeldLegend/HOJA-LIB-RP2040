@@ -88,6 +88,21 @@ void battery_get_status(battery_status_s *out)
     snapshot_battery_read(&_battery_snap, out);
 }
 
+bool battery_init_complete(void)
+{
+    return _battery_init_done;
+}
+
+// Reads the PMIC status without configuring it. False when there's no PMIC to read.
+bool battery_peek_status(battery_status_s *out)
+{
+    if(!_battery_present())
+        return false;
+
+    *out = battery_driver_get_status();
+    return out->connected;
+}
+
 // Init battery PMIC. Always safe to call.
 battery_result_t battery_init(void)
 {

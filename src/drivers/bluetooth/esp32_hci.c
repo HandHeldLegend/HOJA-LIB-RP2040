@@ -532,6 +532,23 @@ static void (*_hci_handler)(uint8_t packet_type, uint8_t *packet, uint16_t size)
 static btstack_data_source_t _hci_source;
 static volatile bool _hci_open = false;
 static bool _radio_requested = false;
+static uint8_t _radio_mac[6];
+
+// The address to start the radio with: the mode's, unless the HAL picked one (Auto mode calls each
+// saved host from the address it paired with)
+static uint8_t _radio_mac_wanted[6];
+static bool _radio_mac_wanted_set = false;
+
+void esp32_hci_set_radio_mac(const uint8_t *mac)
+{
+    memcpy(_radio_mac_wanted, mac, 6);
+    _radio_mac_wanted_set = true;
+}
+
+static const uint8_t *_radio_mac_next(void)
+{
+    return _radio_mac_wanted_set ? _radio_mac_wanted : _params->transport_dev_mac;
+}
 
 // BTstack may use the space in front of a packet
 static uint8_t _hci_in[HCI_INCOMING_PRE_BUFFER_SIZE + HLINK_PACKET_MAX];
@@ -541,7 +558,8 @@ static void _request_radio()
     // The bridge starts its controller with our address. HCI packets queued after this
     // reach it once it is up.
     uint8_t msg[7] = {HLINK_CTRL_START_RADIO};
-    memcpy(&msg[1], _params->transport_dev_mac, 6);
+    memcpy(&msg[1], _radio_mac_next(), 6);
+    memcpy(_radio_mac, _radio_mac_next(), 6);
     _link_send(HLINK_CH_CTRL, msg, sizeof(msg));
     _radio_requested = true;
 
@@ -623,12 +641,32 @@ static void _tick_timer_handler(btstack_timer_source_t *ts)
     btstack_run_loop_add_timer(ts);
 }
 
+// The controller starts once per ESP32 boot, so a new address needs a fresh ESP32 and link
+static void _esp32_restart(void)
+{
+    uint32_t save = spin_lock_blocking(_lock);
+    hlink_init(&_link, _txq, sizeof(_txq), sys_hal_random(), _link_rx, NULL);
+    _rxq_head = 0;
+    _rxq_tail = 0;
+    spin_unlock(_lock, save);
+
+    _esp32_enable(false);
+    sys_hal_sleep_ms(10);
+    _esp32_enable(true);
+
+    uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
+    _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
+    _radio_requested = false;
+}
+
 static int _hci_open_fn()
 {
     btstack_run_loop_set_timer_handler(&_tick_timer, _tick_timer_handler);
     btstack_run_loop_set_timer(&_tick_timer, HCI_TICK_MS);
     btstack_run_loop_add_timer(&_tick_timer);
 
+    if(_radio_requested && memcmp(_radio_mac, _radio_mac_next(), 6))
+        _esp32_restart();
     if(!_radio_requested) _request_radio();
 
     btstack_run_loop_set_data_source_handler(&_hci_source, &_hci_source_poll);

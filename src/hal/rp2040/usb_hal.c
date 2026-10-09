@@ -1,4 +1,5 @@
 #include "board_config.h"
+#include "utilities/autodetect.h"
 
 #if defined(HOJA_TRANSPORT_USB_DRIVER) && (HOJA_TRANSPORT_USB_DRIVER == USB_DRIVER_HAL)
 
@@ -59,6 +60,16 @@ static void _usb_hal_hid_output_report(const uint8_t *buffer, uint16_t len)
     {
         _usb_core_params->core_report_tunnel(buffer, len);
     }
+}
+
+void hhl_tusb_event_device_requested(void)
+{
+    autodetect_on_usb_host();
+}
+
+void hhl_tusb_event_bos_requested(void)
+{
+    autodetect_on_usb_bos();
 }
 
 static void _usb_hal_on_mount(void)

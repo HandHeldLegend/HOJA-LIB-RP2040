@@ -109,6 +109,7 @@ transport_connection_status_t transport_current_connection(void);
 
 void transport_evt_cb(tp_evt_s evt);
 bool transport_init(core_params_s *params);
+void transport_mode_mac(uint8_t *out, core_reportformat_t reportformat);
 void transport_stop();
 
 #endif

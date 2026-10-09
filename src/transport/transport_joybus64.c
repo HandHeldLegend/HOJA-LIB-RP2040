@@ -9,3 +9,7 @@ __attribute__((weak)) void transport_jb64_task(uint64_t timestamp)
 {
     (void) timestamp;
 }
+
+__attribute__((weak)) void transport_jb64_stop(void)
+{
+}
