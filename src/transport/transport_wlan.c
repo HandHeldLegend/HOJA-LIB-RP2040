@@ -21,6 +21,17 @@ __attribute__((weak)) void transport_wlan_task(uint64_t timestamp)
     (void) timestamp;
 }
 
+__attribute__((weak)) bool transport_wlan_take_mode(core_reportformat_t *format)
+{
+    (void)format;
+    return false;
+}
+
+__attribute__((weak)) bool transport_wlan_choosing(void)
+{
+    return false;
+}
+
 __attribute__((weak)) uint8_t transport_wlan_static_supported(void)
 {
     return 0;

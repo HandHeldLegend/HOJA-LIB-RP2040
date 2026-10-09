@@ -12,6 +12,7 @@
 
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
+#include "utilities/boot.h"
 
 #include "pico/cyw43_arch.h"
 #include "pico/rand.h"
@@ -90,6 +91,24 @@ static dongle_mode_t _wlan_mode_from_format(core_reportformat_t fmt)
     }
 }
 
+// Modes the dongle can present, for following it
+static core_reportformat_t _wlan_format_from_mode(dongle_mode_t mode)
+{
+    switch (mode)
+    {
+        case DONGLE_MODE_SWITCH:   return CORE_REPORTFORMAT_SWPRO;
+        case DONGLE_MODE_SINPUT:   return CORE_REPORTFORMAT_SINPUT;
+        case DONGLE_MODE_XINPUT:   return CORE_REPORTFORMAT_XINPUT;
+        case DONGLE_MODE_SLIPPI:   return CORE_REPORTFORMAT_SLIPPI;
+        case DONGLE_MODE_N64:      return CORE_REPORTFORMAT_N64;
+        case DONGLE_MODE_GAMECUBE: return CORE_REPORTFORMAT_GAMECUBE;
+        default:                   return CORE_REPORTFORMAT_UNDEFINED;
+    }
+}
+
+// The dongle's mode, picked up by the task loop (it arrives in the network callback)
+static volatile core_reportformat_t _wlan_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+
 static void _wlan_fill_dgp_cfg(core_params_s *params)
 {
     const hoja_config_s *cfg = hoja_config_get();
@@ -99,7 +118,8 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
     memset(&_wlan_dgp_cfg, 0, sizeof(_wlan_dgp_cfg));
 
     _wlan_dgp_cfg.mode = _wlan_mode_from_format(params->core_report_format);
-    _wlan_dgp_cfg.mode_forced = true;
+    const boot_info_s *boot = boot_get_info();
+    _wlan_dgp_cfg.mode_forced = boot && boot->mode_chosen;
     _wlan_dgp_cfg.pairing = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
     _wlan_dgp_cfg.fw_version = FIRMWARE_VERSION_TIMESTAMP;
     _wlan_dgp_cfg.evt.rumble = true;
@@ -295,6 +315,31 @@ void dongle_api_gamepad_hook_disconnect(void)
     cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
 }
 
+bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
+{
+    core_reportformat_t format = _wlan_format_from_mode(mode);
+    if (format == CORE_REPORTFORMAT_UNDEFINED)
+        return false;
+
+    _wlan_mode_request = format;
+    return true;
+}
+
+bool transport_wlan_take_mode(core_reportformat_t *format)
+{
+    if (!_wlan_running || _wlan_mode_request == CORE_REPORTFORMAT_UNDEFINED)
+        return false;
+
+    *format = _wlan_mode_request;
+    _wlan_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+    return true;
+}
+
+bool transport_wlan_choosing(void)
+{
+    return _wlan_running && !_wlan_dgp_cfg.mode_forced && !dongle_api_gamepad_adopted();
+}
+
 void dongle_api_gamepad_hook_paired(const uint8_t pin[4])
 {
     _wlan_paired_key = dongle_wlan_pin_to_u16(pin);
@@ -436,6 +481,18 @@ void transport_wlan_stop(void)
 
 bool transport_wlan_init(core_params_s *params)
 {
+    // Already up: the mode changed to follow the dongle, so only our identity changes
+    if (_wlan_running)
+    {
+        _wlan_core_params = params;
+        _wlan_fill_dgp_cfg(params);
+        cyw43_arch_lwip_begin();
+        dongle_api_gamepad_set_identity(_wlan_dgp_cfg.mode, _wlan_dgp_cfg.vid, _wlan_dgp_cfg.pid,
+                                        _wlan_dgp_cfg.name, _wlan_dgp_cfg.manufacturer);
+        cyw43_arch_lwip_end();
+        return true;
+    }
+
     _wlan_core_params = params;
     _wlan_fill_dgp_cfg(params);
 

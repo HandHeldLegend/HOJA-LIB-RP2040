@@ -38,6 +38,7 @@
 
 #include "devices/animations/rgb_modes.h"
 #include "utilities/autodetect.h"
+#include "transport/transport_wlan.h"
 
 #if defined(HOJA_RGB_DRIVER) && (HOJA_RGB_DRIVER > 0)
 
@@ -371,16 +372,16 @@ void anm_set_idle_enable(bool enable)
     }
 }
 
-// Auto mode: every LED shows the player LED color until the mode is confirmed, with the player LEDs
-// playing the connecting animation. The mode's own lighting keeps running underneath (static modes
-// only draw once), then fades in.
+// Auto mode, or WLAN following its dongle: every LED shows the player LED color until the mode is
+// confirmed, with the player LEDs playing the connecting animation. The mode's own lighting keeps
+// running underneath (static modes only draw once), then fades in.
 static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 static bool _anm_auto_hold(void)
 {
     static bool holding = false;
 
-    if(!autodetect_pending())
+    if(!autodetect_pending() && !transport_wlan_choosing())
     {
         if(holding)
         {

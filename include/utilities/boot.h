@@ -15,6 +15,7 @@ typedef struct
     gamepad_transport_t transport;
     uint16_t            flags; // COREBOOT_FLAG_WLAN, COREBOOT_FLAG_ALTFLASH, etc.
     bool                pairing;
+    bool                mode_chosen;          // A mode combo was held at power-up (WLAN keeps it rather than follow the dongle)
     bool                usb_bootloader;       // always false after boot_init returns (USB path reboots)
     bool                baseband_bootloader;    // ESP32 firmware-update mode
 } boot_info_s;

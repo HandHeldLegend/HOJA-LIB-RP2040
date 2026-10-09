@@ -11,6 +11,7 @@
 #include "cores/cores.h"
 #include "transport/transport.h"
 #include "transport/transport_usb.h"
+#include "transport/transport_wlan.h"
 
 #include "utilities/callback.h"
 #include "utilities/settings.h"
@@ -364,6 +365,15 @@ void _hoja_task_1()
       _core_format_init();
       _hoja_init_core_tasks();
       autodetect_switch_done();
+    }
+
+    // WLAN following its dongle's mode: change mode, keep the link up
+    if (transport_wlan_take_mode(&format))
+    {
+      core_deinit_keep_transport();
+      boot_set_mode(format, GAMEPAD_TRANSPORT_WLAN);
+      _core_format_init();
+      _hoja_init_core_tasks();
     }
   }
 }

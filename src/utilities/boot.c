@@ -659,6 +659,7 @@ void boot_init(void)
     //    means Auto.
     const autodetect_power_t power = boot_power_source();
     _boot_info.reportformat = boot_resolve_reportformat(&input);
+    _boot_info.mode_chosen = (_boot_info.reportformat != CORE_REPORTFORMAT_UNDEFINED);
     if (_boot_info.reportformat == CORE_REPORTFORMAT_UNDEFINED)
         _boot_info.reportformat = boot_resolve_default(power);
     const bool auto_mode = (_boot_info.reportformat == CORE_REPORTFORMAT_UNDEFINED);

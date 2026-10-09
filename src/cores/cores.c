@@ -216,6 +216,16 @@ void core_deinit()
     transport_stop();
 }
 
+void core_deinit_keep_transport(void)
+{
+    if(_core_params.core_transport_stop)
+        _core_params.core_transport_stop();
+
+    _core_params.core_transport_stop = NULL;
+    _core_params.transport_task = NULL;
+    _core_params.core_report_format = CORE_REPORTFORMAT_UNDEFINED;
+}
+
 void core_task(uint64_t now_us)
 {
     if(!_core_params.transport_task) return;
