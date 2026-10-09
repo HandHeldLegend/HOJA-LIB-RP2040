@@ -11,6 +11,7 @@
 #include "transport/transport_wlan.h"
 
 #include "utilities/settings.h"
+#include "utilities/static_config.h"
 
 #include "pico/cyw43_arch.h"
 #include "pico/rand.h"
@@ -51,6 +52,10 @@ static bool _wlan_idle_shutdown_sent = false;
 
 static dongle_cfg_gamepad_s _wlan_dgp_cfg = {0};
 static dongle_pkt_s _wlan_rx_pkt = {0};
+
+// A newly paired dongle, saved from the task loop (it is found in the network callback)
+static volatile bool _wlan_paired_pending = false;
+static volatile uint16_t _wlan_paired_key = 0;
 
 static void _wlan_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
                            const ip_addr_t *addr, u16_t port);
@@ -94,6 +99,9 @@ static void _wlan_fill_dgp_cfg(core_params_s *params)
     memset(&_wlan_dgp_cfg, 0, sizeof(_wlan_dgp_cfg));
 
     _wlan_dgp_cfg.mode = _wlan_mode_from_format(params->core_report_format);
+    _wlan_dgp_cfg.mode_forced = true;
+    _wlan_dgp_cfg.pairing = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
+    _wlan_dgp_cfg.fw_version = FIRMWARE_VERSION_TIMESTAMP;
     _wlan_dgp_cfg.evt.rumble = true;
     _wlan_dgp_cfg.evt.player_number = true;
     _wlan_dgp_cfg.evt.transport_status = true;
@@ -195,9 +203,11 @@ static void _wlan_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     dongle_api_gamepad_udp_rx(&_wlan_rx_pkt);
 }
 
+// Only a dongle that adopted us counts: beacons from other dongles, and the gaps while trying
+// the next one, must not run the idle shutdown
 static void _wlan_service_rx_activity(uint64_t timestamp)
 {
-    if (!_wlan_rx_pending)
+    if (!_wlan_rx_pending || !dongle_api_gamepad_adopted())
         return;
 
     _wlan_rx_pending = false;
@@ -227,57 +237,95 @@ static void _wlan_check_rx_idle_shutdown(uint64_t timestamp)
 
 // --- dongle_api_gamepad_hook_* ---
 
+// Power saving makes the radio sleep through packets, so it is turned off once per join
+static bool _wlan_pm_set = false;
+
+// Up once joined and given an address by the dongle's DHCP
 dongle_link_status_t dongle_api_gamepad_hook_link_up(void)
 {
-    int link = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
-    return (link == CYW43_LINK_UP) ? DONGLE_LINK_UP : DONGLE_LINK_DOWN;
+    if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) != CYW43_LINK_UP)
+        return DONGLE_LINK_DOWN;
+
+    if (!_wlan_pm_set)
+    {
+        cyw43_wifi_pm(&cyw43_state, CYW43_NONE_PM);
+        _wlan_pm_set = true;
+    }
+
+    return DONGLE_LINK_UP;
 }
 
-bool dongle_api_gamepad_hook_apply_static_ip(uint8_t addr[4], uint8_t mask[4], uint8_t gateway[4])
+static int _wlan_scan_cb(void *env, const cyw43_ev_scan_result_t *result)
 {
-    ip4_addr_t target;
-    ip4_addr_t m;
-    ip4_addr_t gw;
-
-    IP4_ADDR(&target, addr[0], addr[1], addr[2], addr[3]);
-    IP4_ADDR(&m, mask[0], mask[1], mask[2], mask[3]);
-    IP4_ADDR(&gw, gateway[0], gateway[1], gateway[2], gateway[3]);
-
-    struct netif *nif = netif_default;
-    if (nif == NULL)
-        return false;
-
-    /*
-     * dhcp_stop() sends RELEASE and clears the netif; always re-apply the
-     * gamepad address afterward so our source IP matches the dongle RX filter
-     * (192.168.4.16), even when DHCP already offered the correct lease.
-     */
-    dhcp_stop(nif);
-    netif_set_addr(nif, &target, &m, &gw);
-
-    cyw43_wifi_pm(&cyw43_state, CYW43_NONE_PM);
-    //cyw43_wifi_pm(&cyw43_state, CYW43_AGGRESSIVE_PM);
-
-    return true;
+    (void)env;
+    if (result != NULL)
+        dongle_api_gamepad_scan_result((const char *)result->ssid, result->ssid_len, result->rssi);
+    return 0;
 }
 
-void dongle_api_gamepad_hook_connect_async(const char *ssid, const char *pw)
+static void _wlan_sta_setup(void)
 {
     cyw43_arch_enable_sta_mode();
     cyw43_wifi_set_roam_enabled(&cyw43_state, false);
     cyw43_wifi_set_interference_mode(&cyw43_state, CYW43_IFMODE_NONE);
+}
 
+bool dongle_api_gamepad_hook_scan_start(void)
+{
+    _wlan_sta_setup();
+
+    cyw43_wifi_scan_options_t opts = {0};
+    return cyw43_wifi_scan(&cyw43_state, &opts, NULL, _wlan_scan_cb) == 0;
+}
+
+bool dongle_api_gamepad_hook_scan_active(void)
+{
+    return cyw43_wifi_scan_active(&cyw43_state);
+}
+
+void dongle_api_gamepad_hook_connect_async(const char *ssid, const char *pw)
+{
+    _wlan_pm_set = false;
+    _wlan_sta_setup();
     cyw43_arch_wifi_connect_async(ssid, pw, CYW43_AUTH_WPA2_AES_PSK);
 }
 
+void dongle_api_gamepad_hook_disconnect(void)
+{
+    cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
+}
+
+void dongle_api_gamepad_hook_paired(const uint8_t pin[4])
+{
+    _wlan_paired_key = dongle_wlan_pin_to_u16(pin);
+    _wlan_paired_pending = true;
+}
+
+static void _wlan_save_paired(void)
+{
+    if (!_wlan_paired_pending)
+        return;
+
+    _wlan_paired_pending = false;
+    gamepad_config->wlan_dongle_key = _wlan_paired_key;
+    settings_commit_blocks();
+}
+
+// Replies go out from the network callback, but the hello comes from the task loop, where lwIP
+// must be locked against the background interrupt it runs in (the lock nests)
 void dongle_api_gamepad_hook_udp_tx(const dongle_pkt_s *pkt, uint8_t ip[4], uint16_t port)
 {
     if (_wlan_pcb == NULL || pkt == NULL)
         return;
 
+    cyw43_arch_lwip_begin();
+
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(dongle_pkt_s), PBUF_RAM);
     if (p == NULL)
+    {
+        cyw43_arch_lwip_end();
         return;
+    }
 
     memcpy(p->payload, pkt, sizeof(dongle_pkt_s));
 
@@ -287,6 +335,8 @@ void dongle_api_gamepad_hook_udp_tx(const dongle_pkt_s *pkt, uint8_t ip[4], uint
 
     udp_sendto(_wlan_pcb, p, &dst, port);
     pbuf_free(p);
+
+    cyw43_arch_lwip_end();
 }
 
 bool dongle_api_gamepad_hook_get_inputreport(uint8_t data[64], uint16_t *len, bool *reliable)
@@ -412,6 +462,7 @@ void transport_wlan_task(uint64_t timestamp)
 
     _wlan_service_rx_activity(timestamp);
     dongle_api_gamepad_wlan_task();
+    _wlan_save_paired();
     _wlan_check_rx_idle_shutdown(timestamp);
 }
 
