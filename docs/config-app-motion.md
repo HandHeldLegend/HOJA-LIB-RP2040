@@ -68,8 +68,8 @@ moved from 47 to 45. Wii mode has not shipped yet, so there are no saved profile
 | 53 | `WII_CODE_NUNCHUK_FLICK_RIGHT` | Nunchuk Flick Right | Digital | Nunchuk |
 
 Wii defaults are still derived from the Switch defaults. Where the Wii layouts used Shake Remote
-(R, and ZR in Sideways) they now use Remote Flick Down, and LS click in Upright is Nunchuk Flick
-Down. A Switch flick binding becomes the matching Remote flick.
+(R, and ZR in Sideways) they now use Remote Flick Up, and LS click in Upright is Nunchuk Flick
+Up. A Switch flick binding becomes the matching Remote flick.
 
 ## 3. IMU config block: per-mode motion switch
 

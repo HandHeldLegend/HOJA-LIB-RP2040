@@ -190,12 +190,12 @@ Derived from the board's Switch defaults; shown here by Switch button name so th
 | Y | Remote 1 | Classic Y | Remote B |
 | D-pad | Remote D-pad | Classic D-pad | Remote D-pad rotated (Up→Right, Down→Left, Left→Up, Right→Down) |
 | L | Nunchuk C | Classic ZL | Remote A |
-| R | Remote Flick Down | Classic ZR | Remote Flick Down |
+| R | Remote Flick Up | Classic ZR | Remote Flick Up |
 | ZL (analog trigger) | Nunchuk Z | Classic L (analog) | Remote B |
-| ZR (analog trigger) | Remote B | Classic R (analog) | Remote Flick Down |
+| ZR (analog trigger) | Remote B | Classic R (analog) | Remote Flick Up |
 | + / − / Home | Remote + / − / Home | Classic + / − / Home | Remote + / − / Home |
 | Capture | Extension Attach/Detach | Extension Attach/Detach | Extension Attach/Detach |
-| LS click | Nunchuk Flick Down | — | — |
+| LS click | Nunchuk Flick Up | — | — |
 | RS click | Pointer Recenter | Pointer Recenter | Pointer Recenter |
 | Left stick | Nunchuk stick | Classic left stick | Remote D-pad rotated (digital) |
 | Right stick | Pointer (stick aim) | Classic right stick | Pointer (stick aim) |
