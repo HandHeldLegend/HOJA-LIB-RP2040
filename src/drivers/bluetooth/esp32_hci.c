@@ -47,6 +47,10 @@
 #define ENGINE_BACKOFF_US       1000
 // In update mode the ESP32 belongs to esptool; poll it gently
 #define ENGINE_UPDATE_PERIOD_US 5000
+// Data unacked this long means the ESP32 hung. A boot takes under a second.
+#define LINK_DEAD_US            2000000
+// Keeps something waiting on an ack, so a hang shows up while idle too
+#define LINK_PING_US            500000
 
 #define LINK_I2C (BLUETOOTH_DRIVER_I2C_INSTANCE ? i2c1 : i2c0)
 
@@ -87,6 +91,13 @@ typedef struct
 } engine_stats_s;
 
 static engine_stats_s _eng;
+// 32-bit so reads can't tear, differences still work across the wrap
+static volatile uint32_t _link_progress_us = 0;
+static uint32_t _link_ping_us = 0;
+static uint8_t _link_seq_base = 0;
+
+// Held off on purpose (shutting down), so silence is expected
+static volatile bool _stopped = false;
 
 static void _esp32_enable(bool enabled)
 {
@@ -541,6 +552,13 @@ static volatile bool _radio_fault = false;
 // The next open starts the ESP32 afresh
 static bool _radio_fault_restart = false;
 
+// The stack has no timeout on HCI commands, so one the controller never answers would hang it.
+// Answers normally take milliseconds; this also covers the ESP32 booting after a restart.
+#define HCI_COMMAND_TIMEOUT_US 3000000
+static volatile bool _hci_command_pending = false;
+static volatile uint32_t _hci_command_sent_us = 0;
+static uint16_t _hci_command_opcode = 0;
+
 bool esp32_hci_take_radio_fault(void)
 {
     if(!_radio_fault) return false;
@@ -606,6 +624,9 @@ static void _handle_packet(uint8_t channel, uint8_t *data, uint16_t len)
         break;
 
         case HLINK_CH_HCI_EVT:
+        if(len && (data[0] == HCI_EVENT_COMMAND_COMPLETE || data[0] == HCI_EVENT_COMMAND_STATUS))
+            _hci_command_pending = false;
+        // fall through
         case HLINK_CH_HCI_ACL:
         case HLINK_CH_HCI_SCO:
         if(_hci_open && _hci_handler)
@@ -662,15 +683,19 @@ static void _tick_timer_handler(btstack_timer_source_t *ts)
 // The controller starts once per ESP32 boot, so a new address needs a fresh ESP32 and link
 static void _esp32_restart(void)
 {
+    // Hold it in reset first: a frame from the old ESP32 after the reset below would make the
+    // new one look like another restart
+    _esp32_enable(false);
+    sys_hal_sleep_ms(10);
+
     uint32_t save = spin_lock_blocking(_lock);
     hlink_init(&_link, _txq, sizeof(_txq), sys_hal_random(), _link_rx, NULL);
     _rxq_head = 0;
     _rxq_tail = 0;
     spin_unlock(_lock, save);
 
-    _esp32_enable(false);
-    sys_hal_sleep_ms(10);
     _esp32_enable(true);
+    _link_progress_us = (uint32_t)sys_hal_now_us();
 
     uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
     _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
@@ -691,6 +716,8 @@ static int _hci_open_fn()
     btstack_run_loop_set_data_source_handler(&_hci_source, &_hci_source_poll);
     btstack_run_loop_enable_data_source_callbacks(&_hci_source, DATA_SOURCE_CALLBACK_POLL);
     btstack_run_loop_add_data_source(&_hci_source);
+    _hci_command_pending = false;
+    _link_progress_us = (uint32_t)sys_hal_now_us();
     _hci_open = true;
     return 0;
 }
@@ -731,6 +758,16 @@ static int _hci_send_packet(uint8_t packet_type, uint8_t *packet, int size)
         }
     }
 
+    // Time the oldest unanswered command, BTstack resends some. Host Number Of Completed Packets
+    // (our flow control credits to the controller) never gets an answer.
+    if(packet_type == HCI_COMMAND_DATA_PACKET && !_hci_command_pending &&
+       little_endian_read_16(packet, 0) != HCI_OPCODE_HCI_HOST_NUMBER_OF_COMPLETED_PACKETS)
+    {
+        _hci_command_sent_us = (uint32_t)sys_hal_now_us();
+        _hci_command_opcode = little_endian_read_16(packet, 0);
+        _hci_command_pending = true;
+    }
+
     static uint8_t sent[] = {HCI_EVENT_TRANSPORT_PACKET_SENT, 0};
     if(_hci_handler) _hci_handler(HCI_EVENT_PACKET, sent, sizeof(sent));
     return 0;
@@ -756,6 +793,7 @@ const void *esp32_hci_transport_instance(void)
 
 void esp32_hci_backend_stop(void)
 {
+    _stopped = true;
     _esp32_enable(false);
 }
 
@@ -782,6 +820,7 @@ bool esp32_hci_backend_init(core_params_s *params)
     hlink_init(&_link, _txq, sizeof(_txq), sys_hal_random(), _link_rx, NULL);
 
     _altflash = (params->core_boot_flags & COREBOOT_FLAG_ALTFLASH) != 0;
+    _stopped = false;
 
     // Fresh ESP32 boot so the controller gets this run's address
     _esp32_enable(false);
@@ -810,6 +849,50 @@ void esp32_hci_backend_task(uint64_t timestamp)
 
     _engine_poll(timestamp);
     if(!_hci_open) _process_rx();
+
+    // A hung ESP32 that isn't being sent to goes unnoticed otherwise. Its enable pin resets it
+    // however it's stuck. Exchanges alone prove nothing: its I2C hardware keeps answering.
+    if(_hci_open && !_altflash && !_stopped && !_radio_fault)
+    {
+        // The stack runs in an interrupt and updates these. Read them before the clock, flag before
+        // time, so a command sent in between can't look older than it is.
+        bool command_pending = _hci_command_pending;
+        uint32_t command_sent_us = _hci_command_sent_us;
+        uint32_t progress_us = _link_progress_us;
+        uint32_t now_us = (uint32_t)sys_hal_now_us();
+
+        if((now_us - _link_ping_us) > LINK_PING_US)
+        {
+            uint8_t ping[] = {HLINK_CTRL_PING};
+            _link_send(HLINK_CH_CTRL, ping, sizeof(ping));
+            _link_ping_us = now_us;
+        }
+
+        uint32_t save = spin_lock_blocking(_lock);
+        bool waiting = hlink_tx_pending(&_link);
+        uint8_t seq_base = _link.seq_base;
+        spin_unlock(_lock, save);
+
+        if(!waiting || seq_base != _link_seq_base)
+        {
+            progress_us = now_us;
+            _link_progress_us = now_us;
+        }
+        _link_seq_base = seq_base;
+
+        if((now_us - progress_us) > LINK_DEAD_US)
+        {
+            esp32_hci_log("hci: ESP32 stopped answering");
+            _link_progress_us = now_us;
+            _radio_fault = true;
+        }
+        else if(command_pending && (now_us - command_sent_us) > HCI_COMMAND_TIMEOUT_US)
+        {
+            esp32_hci_log("hci: command 0x%04X never answered", _hci_command_opcode);
+            _hci_command_pending = false;
+            _radio_fault = true;
+        }
+    }
 }
 
 // The old baseband and the bridge both answer the old version request
