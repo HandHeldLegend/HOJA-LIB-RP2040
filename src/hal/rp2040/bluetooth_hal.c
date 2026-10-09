@@ -394,13 +394,12 @@ static void _bt_hal_wii_reconnect_timer_stop(void)
     wii_reconnect_timer_active = false;
 }
 
+// Called from Bluetooth callbacks: the shutdown itself runs from transport_bt_task
+static volatile bool _bt_hal_shutdown_pending = false;
+
 static void _bt_hal_shutdown(void)
 {
-    tp_evt_s pevt = {
-        .evt = TP_EVT_POWERCOMMAND,
-        .evt_powercommand = {.power_command=TP_POWERCOMMAND_SHUTDOWN}
-    };
-    transport_evt_cb(pevt);
+    _bt_hal_shutdown_pending = true;
 }
 
 static void _bt_hal_wii_page_stall_handler(btstack_timer_source_t *ts)
@@ -1077,15 +1076,15 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 }
 
                 printf("HID Connected\n");
+                // A connected controller stops answering searches, like a real one. Otherwise a
+                // console searching for another controller finds this one again (on a Wii, pairing
+                // another remote stalled until it restarted, or it locked up).
+                gap_discoverable_control(0);
+
                 if (_bt_hal_is_wii())
                 {
                     // Paired or reconnected: from now on a dropped link pages this Wii again
                     _pairing_mode = false;
-
-                    // A connected remote stops answering searches, like a real one. Otherwise the
-                    // Wii's SYNC search finds it again, and pairing another remote stalls until the
-                    // Wii restarts (or the Wii locks up).
-                    gap_discoverable_control(0);
                 }
                 wii_link_lost_deadline_ms = 0;
                 wii_last_report_ms = btstack_run_loop_get_time_ms();
@@ -1106,7 +1105,7 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 hid_cid = 0;
 
                 // Torn down by our own radio power-cycle; BTSTACK_EVENT_STATE reconnects
-                if (wii_radio_cycling)
+                if (wii_radio_cycling || _bt_power_cycling)
                 {
                     break;
                 }
@@ -1467,7 +1466,28 @@ void transport_bt_task(uint64_t timestamp)
     esp32_hci_backend_task(timestamp);
     if (_bt_hal_update_mode())
         return;
+
+    // The ESP32 lost its links behind the stack's back: restart the stack, which closes them
+    // properly and reconnects
+    if (esp32_hci_take_radio_fault())
+    {
+        _bt_hal_lock();
+        _bt_hal_power_cycle();
+        _bt_hal_unlock();
+    }
 #endif
+
+    // A shutdown asked for from a Bluetooth callback runs here, outside the stack
+    if (_bt_hal_shutdown_pending)
+    {
+        _bt_hal_shutdown_pending = false;
+        tp_evt_s pevt = {
+            .evt = TP_EVT_POWERCOMMAND,
+            .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN}
+        };
+        transport_evt_cb(pevt);
+        return;
+    }
 
     bt_hal_inbound_report_s inbound;
     if (hoja_fifo_bt_inbound_pop(&_bt_inbound_fifo, &inbound))
