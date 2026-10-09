@@ -17,6 +17,13 @@
 #define BQ25180_REG_SYS_REG     0xA
 #define BQ25180_REG_ICHG_CTRL   0x4
 #define BQ25180_REG_IC_CTRL     0x7
+#define BQ25180_REG_TMR_ILIM    0x8
+
+// Holding the power button this long makes the charger power-cycle everything, however stuck the
+// firmware is (a battery pull without opening the controller). Longer than any firmware hold.
+#define BQ25180_SHIP_RST_PUSH_RESET 0b00001001 // Long press = hardware reset, push button on
+#define BQ25180_MR_LPRESS_15S       0b10000000
+#define BQ25180_MR_LPRESS_MASK      0b11000000
 #define BQ25180_REG_MASK_ID     0xC
 
 #define BQ25180_ICHG_CHG_DIS    0x80 // ICHG_CTRL bit 7: 1 = charging disabled
@@ -173,11 +180,14 @@ static bool bq25180_set_source(battery_source_t source)
 {
     uint8_t i2c = _bus();
 
-    // Disable pushbutton
-
-    // Broken code? Causes issues with wired only with 3.3v sources
-    const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, 0b00000000}; // Ship mode with wake on button press/adapter insert
+    // Push button: a 15 s hold power-cycles the controller
+    const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, BQ25180_SHIP_RST_PUSH_RESET};
     int ret1 = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write1, 2, false, BQ25180_I2C_TIMEOUT_US);
+    (void)ret1;
+
+    uint8_t tmr_ilim = 0;
+    if (_reg_read(BQ25180_REG_TMR_ILIM, &tmr_ilim))
+        _reg_write(BQ25180_REG_TMR_ILIM, (uint8_t)((tmr_ilim & ~BQ25180_MR_LPRESS_MASK) | BQ25180_MR_LPRESS_15S));
 
 
     // We want to disable the onboard regulation
@@ -356,7 +366,8 @@ bool battery_driver_set_ship_mode(void)
 {
     uint8_t i2c = _bus();
 
-    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
+    // Ship mode with wake on button press/adapter insert; the long-press reset stays on
+    const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000000 | BQ25180_SHIP_RST_PUSH_RESET};
 
     // A bus that never frees must not hang the shutdown: give up and let the caller reboot
     int ret = -1;

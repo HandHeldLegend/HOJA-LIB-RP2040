@@ -534,6 +534,21 @@ static volatile bool _hci_open = false;
 static bool _radio_requested = false;
 static uint8_t _radio_mac[6];
 
+// The controller lost state the stack still counts on (the bridge restarted on its own, or a packet
+// was dropped). The Bluetooth HAL restarts the stack, which reopens with a fresh ESP32.
+static volatile bool _radio_fault = false;
+
+// The next open starts the ESP32 afresh
+static bool _radio_fault_restart = false;
+
+bool esp32_hci_take_radio_fault(void)
+{
+    if(!_radio_fault) return false;
+    _radio_fault = false;
+    _radio_fault_restart = true;
+    return true;
+}
+
 // The address to start the radio with: the mode's, unless the HAL picked one (Auto mode calls each
 // saved host from the address it paired with)
 static uint8_t _radio_mac_wanted[6];
@@ -584,6 +599,9 @@ static void _handle_packet(uint8_t channel, uint8_t *data, uint16_t len)
             uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
             _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
             if(_radio_requested) _request_radio();
+
+            // Its controller came back empty while the stack still has links on it
+            if(_hci_open) _radio_fault = true;
         }
         break;
 
@@ -665,8 +683,9 @@ static int _hci_open_fn()
     btstack_run_loop_set_timer(&_tick_timer, HCI_TICK_MS);
     btstack_run_loop_add_timer(&_tick_timer);
 
-    if(_radio_requested && memcmp(_radio_mac, _radio_mac_next(), 6))
+    if(_radio_requested && (memcmp(_radio_mac, _radio_mac_next(), 6) || _radio_fault_restart))
         _esp32_restart();
+    _radio_fault_restart = false;
     if(!_radio_requested) _request_radio();
 
     btstack_run_loop_set_data_source_handler(&_hci_source, &_hci_source_poll);
@@ -705,7 +724,9 @@ static int _hci_send_packet(uint8_t packet_type, uint8_t *packet, int size)
         _engine_poll(sys_hal_now_us());
         if(sys_hal_now_us() > until)
         {
+            // The stack now waits on a reply or a credit that never comes: restart it
             esp32_hci_log("hci: link full, packet dropped");
+            _radio_fault = true;
             break;
         }
     }
