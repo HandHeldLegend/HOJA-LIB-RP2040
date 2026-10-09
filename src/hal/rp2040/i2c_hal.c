@@ -201,10 +201,40 @@ static void _bus_exit(uint8_t instance, bool nostop)
   if(!nostop) _bus_hooks[instance]->release();
 }
 
+// A device left mid-byte by our reset (not its own) holds SDA low and every transfer fails. Up to
+// nine clocks let it finish the byte, then a STOP frees the bus.
+static void _i2c_hal_bus_recover(uint32_t sda, uint32_t scl)
+{
+  gpio_init(sda);
+  gpio_init(scl);
+  gpio_pull_up(sda);
+  gpio_pull_up(scl);
+  gpio_put(sda, false);
+  gpio_put(scl, false);
+  busy_wait_us_32(10);
+
+  // Open drain: output low pulls the line down, input lets the pull-up raise it
+  for (int i = 0; i < 9 && !gpio_get(sda); i++)
+  {
+    gpio_set_dir(scl, GPIO_OUT);
+    busy_wait_us_32(5);
+    gpio_set_dir(scl, GPIO_IN);
+    busy_wait_us_32(5);
+  }
+
+  // STOP: SDA rises while SCL is high
+  gpio_set_dir(sda, GPIO_OUT);
+  busy_wait_us_32(5);
+  gpio_set_dir(sda, GPIO_IN);
+  busy_wait_us_32(5);
+}
+
 bool i2c_hal_init(uint8_t instance, uint32_t sda, uint32_t scl, uint32_t baudrate_khz)
 {
   if (instance >= I2C_HAL_MAX_INSTANCES)
     return false;
+
+  _i2c_hal_bus_recover(sda, scl);
 
   _i2c_instances_bauds[instance] = (baudrate_khz * 1000);
 

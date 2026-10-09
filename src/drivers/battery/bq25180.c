@@ -177,7 +177,7 @@ static bool bq25180_set_source(battery_source_t source)
 
     // Broken code? Causes issues with wired only with 3.3v sources
     const uint8_t write1[2] = {BQ25180_REG_SHIP_RST, 0b00000000}; // Ship mode with wake on button press/adapter insert
-    int ret1 = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write1, 2, false);
+    int ret1 = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write1, 2, false, BQ25180_I2C_TIMEOUT_US);
 
 
     // We want to disable the onboard regulation
@@ -206,7 +206,7 @@ static bool bq25180_set_source(battery_source_t source)
 
     uint8_t write[2] = {BQ25180_REG_SYS_REG, new_source};
 
-    int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
+    int ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, BQ25180_I2C_TIMEOUT_US);
 
     if(ret==2) return true; 
 
@@ -305,7 +305,7 @@ bool battery_driver_set_charge_rate(uint16_t rate_ma)
         _charge_disabled = true;
         write[1] = 0b10000101;
 
-        int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
+        int ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, BQ25180_I2C_TIMEOUT_US);
         if(ret==2) 
         {
             return true;
@@ -322,6 +322,7 @@ bool battery_driver_set_charge_rate(uint16_t rate_ma)
         {
             // CODE + 5 = rate
             code = rate - 5;
+            write[1] = code;
         }
         else
         {
@@ -334,7 +335,7 @@ bool battery_driver_set_charge_rate(uint16_t rate_ma)
             code = ((rate - 40) / 10) + 31;
             write[1] = code;
 
-            int ret = i2c_hal_write_blocking(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false);
+            int ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, BQ25180_I2C_TIMEOUT_US);
             if(ret==2) 
             {
                 return true;
@@ -357,15 +358,14 @@ bool battery_driver_set_ship_mode(void)
 
     const uint8_t write[2] = {BQ25180_REG_SHIP_RST, 0b01000001}; // Ship mode with wake on button press/adapter insert
 
-    uint8_t reps = 100;
+    // A bus that never frees must not hang the shutdown: give up and let the caller reboot
     int ret = -1;
-
-    while(reps-- || ret < 0)
+    for(int attempt = 0; attempt < 20 && ret < 0; attempt++)
     {
         ret = i2c_hal_write_timeout_us(i2c, BQ25180_SLAVE_ADDRESS, write, 2, false, 16000);
     }
 
-    return true;
+    return ret == 2;
 }
 
 bool battery_driver_init(void)

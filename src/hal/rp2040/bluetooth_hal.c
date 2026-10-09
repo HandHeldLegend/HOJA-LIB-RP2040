@@ -1081,6 +1081,11 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                 {
                     // Paired or reconnected: from now on a dropped link pages this Wii again
                     _pairing_mode = false;
+
+                    // A connected remote stops answering searches, like a real one. Otherwise the
+                    // Wii's SYNC search finds it again, and pairing another remote stalls until the
+                    // Wii restarts (or the Wii locks up).
+                    gap_discoverable_control(0);
                 }
                 wii_link_lost_deadline_ms = 0;
                 wii_last_report_ms = btstack_run_loop_get_time_ms();
@@ -1123,6 +1128,8 @@ static void _bt_hal_packet_handler(uint8_t packet_type, uint16_t channel, uint8_
                         btstack_run_loop_add_timer(&wii_teardown_timer);
                     }
                     wii_link_lost_deadline_ms = btstack_run_loop_get_time_ms() + BT_HAL_WII_LINK_LOST_WINDOW_MS;
+                    // Findable again while reconnecting, so the Wii can SYNC or connect to us
+                    gap_discoverable_control(1);
                     _bt_hal_wii_reconnect_timer_start();
                     break;
                 }

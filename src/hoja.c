@@ -37,6 +37,10 @@
 #include "devices/fuelgauge.h"
 #include "utilities/autodetect.h"
 
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+#include "drivers/bluetooth/esp32_hci.h"
+#endif
+
 static const hoja_config_s *_hoja_config = NULL;
 
 const hoja_config_s *hoja_config_get(void)
@@ -157,6 +161,12 @@ void hoja_deinit(callback_t cb)
 void hoja_shutdown()
 {
   cb_hoja_shutdown();
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+  // Free the shared bus for the charger
+  esp32_hci_backend_stop();
+  sys_hal_sleep_ms(10);
+#endif
 
   battery_set_ship_mode();
 
@@ -384,6 +394,12 @@ bool _system_requirements_init()
 {
   // System hal init
   sys_hal_init();
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+  // A reset leaves the ESP32 running, and a faulted one can hold the I2C bus it shares with the
+  // charger. It starts again with Bluetooth.
+  esp32_hci_backend_stop();
+#endif
 
   _peripheral_hal_init_from_config();
 
