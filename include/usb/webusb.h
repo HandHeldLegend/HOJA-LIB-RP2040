@@ -19,6 +19,17 @@ typedef enum
   WEBUSB_INPUT_RAW = 255, 
 } webusb_report_id_t;
 
+// Where WebUSB traffic for the config app goes: USB, or the WLAN dongle's tunnel
+typedef struct
+{
+    bool (*send)(const uint8_t *data, uint16_t size);       // Replies, in order and all delivered
+    bool (*send_input)(const uint8_t *data, uint16_t size); // The live input report (newest wins)
+    bool (*ready)(int timeout_ms);
+} webusb_sink_s;
+
+// NULL goes back to USB
+void webusb_set_sink(const webusb_sink_s *sink);
+
 bool webusb_outputting_check();
 void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool success, uint8_t *data, uint32_t size);
 void webusb_send_bulk(const uint8_t *data, uint16_t size);

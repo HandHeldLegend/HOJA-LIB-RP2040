@@ -183,11 +183,23 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
     switch(command)
     {
         case GAMEPAD_CMD_RESET_TO_BOOTLOADER:
+            // Through a WLAN dongle the bootloader would be out of reach: updates need a cable
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN)
+            {
+                cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
+                break;
+            }
             sys_hal_bootloader();
         break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN)
+            {
+                cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
+                break;
+            }
+
             // Persist a boot flag and reboot into ESP32 baseband firmware-update
             // mode (ALTFLASH). This runs inside the USB transport's own RX
             // callback, so we must NOT hoja_deinit() here (that tears down the

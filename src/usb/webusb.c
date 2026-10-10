@@ -17,6 +17,27 @@
 
 #include "hhl_tusb.h"
 
+static bool _webusb_usb_send_input(const uint8_t *data, uint16_t size)
+{
+    if (!hhl_tusb_webusb_report_send(data, size))
+        return false;
+    tasks_mark_sent();
+    return true;
+}
+
+static const webusb_sink_s _webusb_usb_sink = {
+    .send       = hhl_tusb_webusb_report_send,
+    .send_input = _webusb_usb_send_input,
+    .ready      = hhl_tusb_webusb_report_ready_blocking,
+};
+
+static const webusb_sink_s *_webusb_sink = &_webusb_usb_sink;
+
+void webusb_set_sink(const webusb_sink_s *sink)
+{
+    _webusb_sink = sink ? sink : &_webusb_usb_sink;
+}
+
 uint8_t _webusb_focused_hover = 0;
 uint8_t _webusb_report_mode = WEBUSB_INPUT_RAW;
 
@@ -41,7 +62,7 @@ bool webusb_outputting_check()
 // Set timeout to value greater than zero.
 bool webusb_ready_blocking(int timeout)
 {
-    return hhl_tusb_webusb_report_ready_blocking(timeout);
+    return _webusb_sink->ready(timeout);
 }
 
 
@@ -52,7 +73,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
         return;
     }
 
-    if (!hhl_tusb_webusb_report_send(data, size))
+    if (!_webusb_sink->send(data, size))
     {
         _webusb_mark_unready();
     }
@@ -160,13 +181,9 @@ void webusb_send_rawinput(uint64_t timestamp)
             break;
         }
 
-        if (!hhl_tusb_webusb_report_send(webusb_input_report, 64))
+        if (!_webusb_sink->send_input(webusb_input_report, 64))
         {
             _webusb_mark_unready();
-        }
-        else
-        {
-            tasks_mark_sent();
         }
 
         ready = false;

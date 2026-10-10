@@ -13,6 +13,7 @@
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "utilities/boot.h"
+#include "usb/webusb.h"
 
 #include "pico/cyw43_arch.h"
 #include "pico/rand.h"
@@ -53,6 +54,84 @@ static bool _wlan_idle_shutdown_sent = false;
 
 static dongle_cfg_gamepad_s _wlan_dgp_cfg = {0};
 static dongle_pkt_s _wlan_rx_pkt = {0};
+
+// --- Config app through the dongle ---
+
+// Commands from the app arrive in the network callback; they run from the task loop (some write
+// flash)
+#define WLAN_CONFIG_RX_LEN 8
+typedef struct
+{
+    uint16_t len;
+    uint8_t  data[64];
+} wlan_config_rx_s;
+
+static wlan_config_rx_s _wlan_config_rx[WLAN_CONFIG_RX_LEN];
+static volatile uint8_t _wlan_config_rx_head = 0;
+static volatile uint8_t _wlan_config_rx_tail = 0;
+
+void dongle_api_gamepad_hook_config_rx(const uint8_t data[64], uint16_t len)
+{
+    uint8_t next = (uint8_t)((_wlan_config_rx_head + 1u) % WLAN_CONFIG_RX_LEN);
+    if (next == _wlan_config_rx_tail || len == 0 || len > 64)
+        return;
+
+    _wlan_config_rx[_wlan_config_rx_head].len = len;
+    memcpy(_wlan_config_rx[_wlan_config_rx_head].data, data, len);
+    _wlan_config_rx_head = next;
+}
+
+static void _wlan_config_task(uint64_t timestamp)
+{
+    while (_wlan_config_rx_tail != _wlan_config_rx_head)
+    {
+        wlan_config_rx_s *rx = &_wlan_config_rx[_wlan_config_rx_tail];
+        webusb_command_handler(rx->data, rx->len);
+        _wlan_config_rx_tail = (uint8_t)((_wlan_config_rx_tail + 1u) % WLAN_CONFIG_RX_LEN);
+    }
+
+    webusb_send_rawinput(timestamp);
+}
+
+// Replies queue in the dongle library; wait a little if a big block fills it
+#define WLAN_CONFIG_SEND_WAIT_US 200000
+
+static bool _wlan_sink_send(const uint8_t *data, uint16_t size)
+{
+    uint64_t until = time_us_64() + WLAN_CONFIG_SEND_WAIT_US;
+    for (;;)
+    {
+        cyw43_arch_lwip_begin();
+        bool queued = dongle_api_gamepad_config_send(data, size);
+        cyw43_arch_lwip_end();
+
+        if (queued)
+            return true;
+        if (time_us_64() > until)
+            return false;
+        sys_hal_sleep_ms(1);
+    }
+}
+
+static bool _wlan_sink_send_input(const uint8_t *data, uint16_t size)
+{
+    cyw43_arch_lwip_begin();
+    dongle_api_gamepad_bulk_send(data, size);
+    cyw43_arch_lwip_end();
+    return true;
+}
+
+static bool _wlan_sink_ready(int timeout_ms)
+{
+    (void)timeout_ms;
+    return dongle_api_gamepad_adopted();
+}
+
+static const webusb_sink_s _wlan_webusb_sink = {
+    .send       = _wlan_sink_send,
+    .send_input = _wlan_sink_send_input,
+    .ready      = _wlan_sink_ready,
+};
 
 // A newly paired dongle, saved from the task loop (it is found in the network callback)
 static volatile bool _wlan_paired_pending = false;
@@ -469,6 +548,7 @@ void dongle_api_gamepad_hook_reset_network(void)
 
 void transport_wlan_stop(void)
 {
+    webusb_set_sink(NULL);
     _wlan_running = false;
     _wlan_rx_pending = false;
     _wlan_last_rx_us = 0;
@@ -508,6 +588,9 @@ bool transport_wlan_init(core_params_s *params)
     _wlan_last_rx_us = 0;
     _wlan_rx_seen = false;
     _wlan_idle_shutdown_sent = false;
+    _wlan_config_rx_head = 0;
+    _wlan_config_rx_tail = 0;
+    webusb_set_sink(&_wlan_webusb_sink);
     _wlan_running = true;
     return true;
 }
@@ -520,6 +603,7 @@ void transport_wlan_task(uint64_t timestamp)
     _wlan_service_rx_activity(timestamp);
     dongle_api_gamepad_wlan_task();
     _wlan_save_paired();
+    _wlan_config_task(timestamp);
     _wlan_check_rx_idle_shutdown(timestamp);
 }
 
