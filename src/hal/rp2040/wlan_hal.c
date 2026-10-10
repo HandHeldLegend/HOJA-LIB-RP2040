@@ -179,6 +179,7 @@ static core_reportformat_t _wlan_format_from_mode(dongle_mode_t mode)
         case DONGLE_MODE_SINPUT:   return CORE_REPORTFORMAT_SINPUT;
         case DONGLE_MODE_XINPUT:   return CORE_REPORTFORMAT_XINPUT;
         case DONGLE_MODE_SLIPPI:   return CORE_REPORTFORMAT_SLIPPI;
+        case DONGLE_MODE_SNES:     return CORE_REPORTFORMAT_SNES;
         case DONGLE_MODE_N64:      return CORE_REPORTFORMAT_N64;
         case DONGLE_MODE_GAMECUBE: return CORE_REPORTFORMAT_GAMECUBE;
         default:                   return CORE_REPORTFORMAT_UNDEFINED;

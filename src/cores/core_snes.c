@@ -4,6 +4,20 @@
 #include "input/mapper.h"
 #include "input/dpad.h"
 
+#include "hoja.h"
+
+#include <string.h>
+
+// Generic fallback name; identity (name/vid/pid) is overridden at init from the
+// board's hoja config.
+#define CORE_SNES_WLAN_NAME "SNES Controller"
+
+static core_hid_device_t _snes_wlan_hid = {
+    .vid  = 0,
+    .pid  = 0,
+    .name = CORE_SNES_WLAN_NAME,
+};
+
 void _core_snes_report_tunnel_cb(const uint8_t *data, uint16_t len)
 {
     // Unused
@@ -51,6 +65,21 @@ bool core_snes_init(core_params_s *params)
     {
         case GAMEPAD_TRANSPORT_NESBUS:
         params->core_pollrate_us = 1000;
+        break;
+
+        case GAMEPAD_TRANSPORT_WLAN:
+        params->core_pollrate_us = 2000;
+        {
+            const hoja_config_s *cfg = hoja_config_get();
+            if(cfg && cfg->device_name)
+            {
+                memset(_snes_wlan_hid.name, 0, sizeof(_snes_wlan_hid.name));
+                strncpy(_snes_wlan_hid.name, cfg->device_name, sizeof(_snes_wlan_hid.name) - 1u);
+            }
+            if(cfg) _snes_wlan_hid.vid = cfg->usb_vid;
+            if(cfg) _snes_wlan_hid.pid = cfg->usb_pid;
+        }
+        params->hid_device = &_snes_wlan_hid;
         break;
 
         // Unsupported transport methods

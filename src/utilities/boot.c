@@ -379,6 +379,7 @@ static bool boot_format_wlan(core_reportformat_t format)
     case CORE_REPORTFORMAT_SINPUT:
     case CORE_REPORTFORMAT_XINPUT:
     case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_SNES:
     case CORE_REPORTFORMAT_N64:
     case CORE_REPORTFORMAT_GAMECUBE:
         return true;
