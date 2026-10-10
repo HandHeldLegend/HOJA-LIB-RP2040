@@ -24,6 +24,10 @@
 // Switch Pro.
 #define GAMEPAD_DEFAULT_MODE_AUTO 0xFE
 
+// gamepad_default_wireless value for the WLAN dongle: on battery the gamepad joins a dongle and
+// takes the mode it detected
+#define GAMEPAD_DEFAULT_WIRELESS_WLAN 0xFD
+
 // gamepad_defaults_split once the default mode is split into wired and wireless
 #define GAMEPAD_DEFAULTS_SPLIT 0x01
 
@@ -37,7 +41,7 @@ typedef enum
 
 // wired_auto: the wired default is Auto (otherwise only the wireless search runs, on battery).
 // wireless: the wireless default, CORE_REPORTFORMAT_UNDEFINED for Auto.
-void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless);
+void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless, bool wlan);
 
 // Core 1 checks this between task passes and brings up the new mode in place
 bool autodetect_take_switch(core_reportformat_t *format, gamepad_transport_t *transport);

@@ -202,10 +202,22 @@ static bool _nesbus_console_present(uint64_t now_us)
 
 static autodetect_power_t _power = AUTODETECT_POWER_EXTERNAL;
 static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
+// Wireless means the WLAN dongle
+static bool _wlan = false;
 
 // The wireless default: that mode, or for Auto a search of the saved hosts in Switch mode
 static void _wireless_start(boot_info_s *info)
 {
+    // The WLAN dongle detects its host itself, and the gamepad follows it
+    if(_wlan)
+    {
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->reportformat = CORE_REPORTFORMAT_SWPRO;
+        _phase = PHASE_DONE;
+        _confirmed = true;
+        return;
+    }
+
     info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
     if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
     {
@@ -220,16 +232,19 @@ static void _wireless_start(boot_info_s *info)
 
 static void _switch_to_wireless(void)
 {
-    if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
+    if(_wlan)
+        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_WLAN, PHASE_DONE);
+    else if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
         _switch_to(_wireless, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
     else
         _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
 }
 
-void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless)
+void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless, bool wlan)
 {
     _power = power;
     _wireless = wireless;
+    _wlan = wlan;
 
     // Wired default picked by hand, wireless Auto, on battery: only the wireless search runs
     if(!wired_auto && AUTODETECT_BLUETOOTH)

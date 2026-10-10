@@ -13,6 +13,7 @@
 
 #include "hoja.h"
 #include "utilities/autodetect.h"
+#include "transport/transport_wlan.h"
 
 #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
 #define HOJA_BOOT_ANALOG_FACE_DELTA 200
@@ -362,6 +363,34 @@ static core_reportformat_t boot_default_wireless(void)
     return CORE_REPORTFORMAT_UNDEFINED;
 }
 
+// "WLAN dongle" as the wireless default, on a board with WLAN
+static bool boot_default_wlan(void)
+{
+    return (gamepad_config->gamepad_default_wireless == GAMEPAD_DEFAULT_WIRELESS_WLAN) &&
+           transport_wlan_static_supported();
+}
+
+// Modes the WLAN dongle can present
+static bool boot_format_wlan(core_reportformat_t format)
+{
+    switch (format)
+    {
+    case CORE_REPORTFORMAT_SWPRO:
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_XINPUT:
+    case CORE_REPORTFORMAT_SLIPPI:
+    case CORE_REPORTFORMAT_N64:
+    case CORE_REPORTFORMAT_GAMECUBE:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+// On battery, wireless means the WLAN dongle: it is the default and the WLAN button wasn't held
+static bool _boot_prefer_wlan = false;
+
 // The default for this power source. On battery the wireless default applies, except that an N64
 // doesn't power the controller: a wired default of N64 stays, and a wired Auto still answers an N64
 // before going wireless.
@@ -428,19 +457,8 @@ static void boot_apply_wlan_force(boot_info_s *info)
 {
     info->flags |= COREBOOT_FLAG_WLAN;
 
-    switch (info->reportformat)
-    {
-    case CORE_REPORTFORMAT_SLIPPI:
-    case CORE_REPORTFORMAT_GAMECUBE:
-    case CORE_REPORTFORMAT_SINPUT:
-    case CORE_REPORTFORMAT_N64:
-    case CORE_REPORTFORMAT_SWPRO:
+    if (boot_format_wlan(info->reportformat))
         info->transport = GAMEPAD_TRANSPORT_WLAN;
-        break;
-
-    default:
-        break;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -561,7 +579,13 @@ static void boot_apply_battery_transport(boot_info_s *info)
         return;
     }
 
-    // On battery power: pick wireless transport by report format.
+    // On battery power: the WLAN dongle when it is the default, else by report format
+    if (_boot_prefer_wlan && boot_format_wlan(info->reportformat))
+    {
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        return;
+    }
+
     switch (info->reportformat)
     {
     case CORE_REPORTFORMAT_SWPRO:
@@ -670,8 +694,11 @@ void boot_init(void)
     if (boot_combo_pairing(&input))
         _boot_info.pairing = true;
 
-    // 5. WLAN force combo.
-    if (boot_combo_wlan_force(&input))
+    // 5. The WLAN button picks the wireless transport that isn't the default: WLAN when the default
+    //    is Bluetooth, Bluetooth when it is the WLAN dongle.
+    const bool wlan_button = boot_combo_wlan_force(&input);
+    _boot_prefer_wlan = boot_default_wlan() && !wlan_button;
+    if (wlan_button && !boot_default_wlan())
         boot_apply_wlan_force(&_boot_info);
 
     // 6. LB held at boot prefers Bluetooth when transport is still AUTO.
@@ -694,7 +721,7 @@ void boot_init(void)
     if (auto_mode && !from_memory && !_boot_info.pairing && _boot_info.transport == GAMEPAD_TRANSPORT_AUTO)
     {
         const bool wired_auto = (boot_default_wired() == CORE_REPORTFORMAT_UNDEFINED);
-        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless());
+        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless(), _boot_prefer_wlan);
     }
 
     // 9. Battery status resolves AUTO transport to USB / BT / WLAN.
