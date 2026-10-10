@@ -351,8 +351,13 @@ static void _bluetooth_static_refresh_identity(void)
 /** Probe wireless hardware and refresh runtime bluetooth/wlan static fields. */
 static void _bluetooth_static_refresh(void)
 {
-    uint8_t bt_status = transport_bt_static_part_status();
-    uint8_t wlan_status = transport_wlan_static_part_status();
+    // Probing starts and stops the radio. While it carries the link (the config app through a
+    // WLAN dongle) that would drop it, and the radio plainly works.
+    const gamepad_transport_t transport = core_current_params()->transport_type;
+    const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_WLAN) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH);
+
+    uint8_t bt_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_bt_static_part_status();
+    uint8_t wlan_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_wlan_static_part_status();
     uint8_t overall_status = _wireless_part_status_combine(bt_status, wlan_status);
 
     bluetooth_static.wireless_part_status = overall_status;
