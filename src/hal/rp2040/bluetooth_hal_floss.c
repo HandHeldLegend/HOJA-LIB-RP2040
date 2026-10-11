@@ -500,6 +500,15 @@ static uint16_t _diag_deferred = 0;
 static bool _diag_defer_counted = false;
 static uint32_t _diag_task_last_us = 0;
 static uint32_t _diag_task_gap_max_us = 0;
+static uint32_t _diag_gen_us = 0;      // Building this report
+static uint32_t _diag_send_max_us = 0; // Handing reports to the stack, longest since the last report
+static uint32_t _diag_poll_max_us = 0; // floss_poll without the report work inside it
+static uint32_t _diag_nested_us = 0;   // Report work done inside the current floss_poll
+
+static void _bt_hal_diag_put_us(uint8_t *out, uint32_t us)
+{
+    floss_put_le16(out, us > 0xFFFFu ? 0xFFFFu : (uint16_t)us);
+}
 static uint8_t _diag_max_slots = 0;
 
 // Max Slots Change: handle(2) max slots(1)
@@ -540,9 +549,14 @@ static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
     uint8_t *t = &data[35];
     _bt_hal_diag_task_name(&t[0], n1);
     floss_put_le16(&t[2], us1 > 0xFFFFu ? 0xFFFFu : (uint16_t)us1);
-    _bt_hal_diag_task_name(&t[4], n2);
-    floss_put_le16(&t[6], us2 > 0xFFFFu ? 0xFFFFu : (uint16_t)us2);
+    (void)n2;
+    (void)us2;
+    _bt_hal_diag_put_us(&t[4], _diag_gen_us);
+    _bt_hal_diag_put_us(&t[6], _diag_send_max_us);
     t[8] = _diag_max_slots;
+    _bt_hal_diag_put_us(&t[9], _diag_poll_max_us);
+    _diag_send_max_us = 0;
+    _diag_poll_max_us = 0;
 }
 
 // Next interval every BT_DIAG_STEP_US while connected
@@ -590,15 +604,31 @@ static void _bt_hal_try_send(void)
     _wii_last_report_ms = _bt_hal_now_ms();
 
     core_report_s report = {0};
+#if HOJA_BT_FLOSS_DIAG
+    uint32_t gen_start = time_us_32();
+#endif
     if (core_get_generated_report(&report) && report.size >= 1)
     {
+#if HOJA_BT_FLOSS_DIAG
+        _diag_gen_us = time_us_32() - gen_start;
+        _diag_nested_us += _diag_gen_us;
+#endif
 #if HOJA_BT_FLOSS_DIAG
         _diag_defer_counted = false;
         if (_mode_sinput && report.data[0] == 1 && report.size >= BT_DIAG_OFFSET + 17)
             _bt_hal_diag_fill(report.data, floss_hal_time_us());
 #endif
         // Byte 0 is the report ID
+#if HOJA_BT_FLOSS_DIAG
+        uint32_t send_start = time_us_32();
+#endif
         floss_hid_send_input_now(report.data[0], &report.data[1], (uint16_t)(report.size - 1));
+#if HOJA_BT_FLOSS_DIAG
+        uint32_t send_us = time_us_32() - send_start;
+        _diag_nested_us += send_us;
+        if (send_us > _diag_send_max_us)
+            _diag_send_max_us = send_us;
+#endif
         tasks_mark_sent_isr();
     }
 }
@@ -1448,9 +1478,16 @@ void transport_bt_task(uint64_t timestamp)
     if (_diag_task_last_us && (task_now - _diag_task_last_us) > _diag_task_gap_max_us)
         _diag_task_gap_max_us = task_now - _diag_task_last_us;
     _diag_task_last_us = task_now;
+    _diag_nested_us = 0;
 #endif
 
     floss_poll();
+
+#if HOJA_BT_FLOSS_DIAG
+    uint32_t poll_us = (time_us_32() - task_now) - _diag_nested_us;
+    if (poll_us > _diag_poll_max_us)
+        _diag_poll_max_us = poll_us;
+#endif
 
     if (_restart_pending)
     {
