@@ -35,6 +35,11 @@
 
 #include "nwii_lib_hid.h"
 
+// Test builds: report timing diagnostics in SInput reports (see _bt_hal_diag_fill)
+#ifndef HOJA_BT_FLOSS_DIAG
+#define HOJA_BT_FLOSS_DIAG 0
+#endif
+
 /***********************************************/
 /********* FLOSS platform (HAL) ****************/
 
@@ -482,10 +487,78 @@ static void _bt_hal_on_output_report(uint8_t report_id, const uint8_t *data, uin
 }
 
 // The core builds the report at the moment it can leave, as with BTstack's can-send-now
+#if HOJA_BT_FLOSS_DIAG
+// Timing diagnostics for test builds: SInput input reports carry the send time and link state in
+// their reserved bytes, and the report interval steps through _diag_intervals_us.
+#define BT_DIAG_OFFSET   47 // reserved_bulk, after the report ID
+#define BT_DIAG_STEP_US  15000000u
+static const uint32_t _diag_intervals_us[] = {8000, 4000, 2000, 1000};
+static uint8_t _diag_step = 0;
+static uint32_t _diag_step_at_us = 0;
+static uint32_t _diag_tick_due_us = 0;
+static uint16_t _diag_deferred = 0;
+static bool _diag_defer_counted = false;
+static uint32_t _diag_task_last_us = 0;
+static uint32_t _diag_task_gap_max_us = 0;
+
+static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
+{
+    const floss_conn_t *c = floss_hci_conn_by_handle(floss_hid_handle());
+    uint32_t late = now - _diag_tick_due_us;
+    uint8_t *d = &data[BT_DIAG_OFFSET];
+    d[0] = 0xD1;
+    d[1] = (uint8_t)(_report_interval_us / 100u);
+    d[2] = c ? c->mode : 0xFF;
+    floss_put_le16(&d[3], c ? c->sniff_interval : 0);
+    d[5] = c ? (uint8_t)c->inflight : 0xFF;
+    d[6] = (uint8_t)floss_hci_acl_credits();
+    floss_put_le16(&d[7], late > 0xFFFFu ? 0xFFFFu : (uint16_t)late);
+    floss_put_le16(&d[9], _diag_deferred);
+    floss_put_le16(&d[11], _diag_task_gap_max_us > 0xFFFFu ? 0xFFFFu : (uint16_t)_diag_task_gap_max_us);
+    floss_put_le32(&d[13], now);
+    _diag_task_gap_max_us = 0;
+}
+
+// Next interval every BT_DIAG_STEP_US while connected
+static void _bt_hal_diag_step(uint32_t now)
+{
+    if (!_connected)
+    {
+        _diag_step_at_us = 0;
+        return;
+    }
+    if (!_diag_step_at_us)
+    {
+        _diag_step = 0;
+        _diag_step_at_us = now + BT_DIAG_STEP_US;
+        _report_interval_us = _diag_intervals_us[0];
+        return;
+    }
+    if (floss_time_diff(now, _diag_step_at_us) >= 0)
+    {
+        _diag_step = (uint8_t)((_diag_step + 1) % (sizeof(_diag_intervals_us) / sizeof(_diag_intervals_us[0])));
+        _report_interval_us = _diag_intervals_us[_diag_step];
+        _diag_step_at_us = now + BT_DIAG_STEP_US;
+    }
+}
+#endif
+
 static void _bt_hal_try_send(void)
 {
-    if (!_send_pending || !_connected || !floss_hid_can_send_now())
+    if (!_send_pending || !_connected)
         return;
+
+    if (!floss_hid_can_send_now())
+    {
+#if HOJA_BT_FLOSS_DIAG
+        if (!_diag_defer_counted)
+        {
+            _diag_defer_counted = true;
+            _diag_deferred++;
+        }
+#endif
+        return;
+    }
 
     _send_pending = false;
     _wii_last_report_ms = _bt_hal_now_ms();
@@ -493,6 +566,11 @@ static void _bt_hal_try_send(void)
     core_report_s report = {0};
     if (core_get_generated_report(&report) && report.size >= 1)
     {
+#if HOJA_BT_FLOSS_DIAG
+        _diag_defer_counted = false;
+        if (_mode_sinput && report.data[0] == 1 && report.size >= BT_DIAG_OFFSET + 17)
+            _bt_hal_diag_fill(report.data, floss_hal_time_us());
+#endif
         // Byte 0 is the report ID
         floss_hid_send_input_now(report.data[0], &report.data[1], (uint16_t)(report.size - 1));
         tasks_mark_sent_isr();
@@ -507,6 +585,10 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
         return;
 
     uint32_t now = floss_hal_time_us();
+#if HOJA_BT_FLOSS_DIAG
+    _diag_tick_due_us = _report_deadline_us;
+    _bt_hal_diag_step(now);
+#endif
     _report_deadline_us += _report_interval_us;
     if (floss_time_diff(now, _report_deadline_us) >= 0)
     {
@@ -1330,6 +1412,13 @@ bool transport_bt_init(core_params_s *params)
 void transport_bt_task(uint64_t timestamp)
 {
     (void)timestamp;
+
+#if HOJA_BT_FLOSS_DIAG
+    uint32_t task_now = time_us_32();
+    if (_diag_task_last_us && (task_now - _diag_task_last_us) > _diag_task_gap_max_us)
+        _diag_task_gap_max_us = task_now - _diag_task_last_us;
+    _diag_task_last_us = task_now;
+#endif
 
     floss_poll();
 
