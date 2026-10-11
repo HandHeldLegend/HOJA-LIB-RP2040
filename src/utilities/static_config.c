@@ -291,7 +291,7 @@ static void _bluetooth_static_apply_caps(void)
     bluetooth_static.bluetooth_ble_supported = bt_caps.ble_supported;
     bluetooth_static.external_update_supported = bt_caps.external_update_supported;
     bluetooth_static.wlan_supported = transport_wlan_static_supported();
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_HOST_STACK
     bluetooth_static.wii_supported = 1;
 #else
     bluetooth_static.wii_supported = 0;

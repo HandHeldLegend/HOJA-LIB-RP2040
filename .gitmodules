@@ -13,3 +13,6 @@
 [submodule "external/NWII-LIB-HID"]
 	path = external/NWII-LIB-HID
 	url = https://github.com/HandHeldLegend/NWII-LIB-HID
+[submodule "external/floss"]
+	path = external/floss
+	url = https://github.com/mitchellcairns/floss

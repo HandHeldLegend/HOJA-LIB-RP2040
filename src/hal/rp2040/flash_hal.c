@@ -10,9 +10,13 @@
 #include "hardware/structs/xip_ctrl.h"
 #include "board_config.h"
 
-// With BTstack, settings sit below its flash bank at the top of flash. The legacy offset only
-// fit small firmware (a 1 MB chip wraps 1200 KB to 176 KB).
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
+// With a Bluetooth host stack, settings sit below its pairing storage at the top of flash. The
+// legacy offset only fit small firmware (a 1 MB chip wraps 1200 KB to 176 KB).
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+#include "hal/rp2040/bt_flash_bank.h"
+#define BT_IN_USE_FLASH 1
+#define FLASH_START_OFFSET (BT_FLASH_BANK_OFFSET - FLASH_SECTOR_SIZE)
+#elif defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
 #include "pico/btstack_flash_bank.h"
 #define BT_IN_USE_FLASH 1 
 #define FLASH_START_OFFSET (PICO_FLASH_BANK_STORAGE_OFFSET - FLASH_SECTOR_SIZE)

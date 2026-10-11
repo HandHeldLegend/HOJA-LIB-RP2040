@@ -151,9 +151,9 @@ static const mapper_input_code_t k_face_codes[4] = {
     INPUT_CODE_NORTH,
 };
 
-// Wii mode needs BTstack (RM2 or the ESP32 HCI bridge). Without it d-pad up stays out of the boot
+// Wii mode needs a host stack on the RP2040 (BTstack or FLOSS). Without it d-pad up stays out of the boot
 // mode group entirely, so those boards keep the three-way SNES / N64 / GameCube pick.
-#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_BTSTACK
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_HOST_STACK
 #define BOOT_WII_SUPPORTED 1
 #define BOOT_DPAD_COUNT    4
 #else

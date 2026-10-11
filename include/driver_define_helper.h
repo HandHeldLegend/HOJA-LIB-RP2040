@@ -135,9 +135,18 @@
     #define HOJA_BT_IS_ESP32 ((HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HOJA) || \
                               (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI))
 
+    // FLOSS instead of BTstack on the RM2. Set by the build for boards that opt in (board.cmake).
+    #ifndef HOJA_BT_FLOSS
+    #define HOJA_BT_FLOSS 0
+    #endif
+    #define HOJA_BT_USES_FLOSS (HOJA_BT_FLOSS && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL))
+
     // BTstack on the RP2040 (RM2, or the ESP32 HCI bridge)
-    #define HOJA_BT_USES_BTSTACK ((HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL) || \
+    #define HOJA_BT_USES_BTSTACK (((HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_HAL) && !HOJA_BT_FLOSS) || \
                                   (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI))
+
+    // A host stack on the RP2040, BTstack or FLOSS (Wii mode, pairing storage at the top of flash)
+    #define HOJA_BT_HOST_STACK (HOJA_BT_USES_BTSTACK || HOJA_BT_USES_FLOSS)
 
     // USB Drivers
     #define USB_DRIVER_HAL 1
