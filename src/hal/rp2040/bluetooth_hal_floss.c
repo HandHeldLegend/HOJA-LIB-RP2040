@@ -246,6 +246,8 @@ void btstack_cyw43_deinit(async_context_t *context)
 /********* Timing and limits *******************/
 
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
+// SInput: a PC polls the link every 1.25 ms once reports come this often, so they arrive evenly
+#define BT_HAL_SINPUT_POLLING_RATE_MS 4
 // A real Wii Remote reports every 10 ms
 #define BT_HAL_WII_POLLING_RATE_MS 10
 #define BT_HAL_INBOUND_FIFO_LEN 32
@@ -1277,7 +1279,9 @@ static void _bt_hal_mode_setup(core_params_s *params)
 {
     _mode_wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
     _mode_sinput = (params->core_report_format == CORE_REPORTFORMAT_SINPUT);
-    _report_interval_us = (_mode_wii ? BT_HAL_WII_POLLING_RATE_MS : BT_HAL_TARGET_POLLING_RATE_MS) * 1000u;
+    _report_interval_us = (_mode_wii      ? BT_HAL_WII_POLLING_RATE_MS
+                           : _mode_sinput ? BT_HAL_SINPUT_POLLING_RATE_MS
+                                          : BT_HAL_TARGET_POLLING_RATE_MS) * 1000u;
     _pairing_mode = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
     _bt_mode_ready = true;
 }
