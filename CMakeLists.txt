@@ -152,7 +152,28 @@ target_link_libraries(hoja_bt_btstack INTERFACE
   ${BLUETOOTH_DRIVERS}
 )
 
-# BTstack unless the board sets the HOJA_BT_FLOSS target property (its board.cmake)
+# A board's board.cmake calls this to use FLOSS. FLOSS and the radio's bus driver run from RAM:
+# from flash, the rest of the task loop evicts them from the flash cache between reports and
+# every exchange with the radio runs several times slower.
+function(hoja_use_floss TARGET)
+  set_target_properties(${TARGET} PROPERTIES HOJA_BT_FLOSS ON)
+
+  set(_ld_in ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld)
+  set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_floss_ram.ld)
+  file(READ ${_ld_in} _ld)
+  set(_flash_text "*(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)")
+  string(FIND "${_ld}" "${_flash_text}" _at)
+  if(_at EQUAL -1)
+    message(FATAL_ERROR "hoja_use_floss: unexpected linker script ${_ld_in}")
+  endif()
+  string(REPLACE "${_flash_text}"
+    "*(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a: */floss/src/*.c.obj *floss_cyw43.c.obj *bluetooth_hal_floss.c.obj *cyw43_ll.c.obj *cyw43_ctrl.c.obj *cyw43_bus_pio_spi.c.obj *cybt_shared_bus_driver.c.obj) .text*)"
+    _ld "${_ld}")
+  file(WRITE ${_ld_out} "${_ld}")
+  pico_set_linker_script(${TARGET} ${_ld_out})
+endfunction()
+
+# BTstack unless the board sets the HOJA_BT_FLOSS target property (hoja_use_floss)
 if(HOJA_USE_BT_HAL)
   message("HOJA BT DRIVERS IN USE")
   target_link_libraries(hoja_lib INTERFACE
