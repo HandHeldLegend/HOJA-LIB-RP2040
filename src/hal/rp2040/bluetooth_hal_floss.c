@@ -1162,8 +1162,9 @@ static bool _bt_hal_mode_apply(void)
     // The Wii only does legacy PIN pairing, and authenticates on its own terms; asking for
     // security ourselves breaks its temporary (no-pairing) connections
     _hid_cfg.no_security = _mode_wii;
-    // SInput asks the host to poll every report interval
-    _hid_cfg.qos_latency_us = _mode_sinput ? _report_interval_us : 0;
+    // SInput asks the host to poll every slot pair (1.25 ms, Windows' own rate). Asking for the
+    // report interval lets the radio poll coarsely, and each report then waits for the next poll.
+    _hid_cfg.qos_latency_us = _mode_sinput ? 1250u : 0;
 
     if (_mode_wii)
     {
@@ -1247,7 +1248,6 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     // floss_init forgets every timer
     _bt_hal_timers_init();
-    floss_gap_add_listener(_bt_hal_gap_event, NULL);
 
     floss_gap_security_t sec;
     floss_gap_security_defaults(&sec);
@@ -1257,6 +1257,10 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     if (_bt_mode_ready && !_bt_hal_mode_apply())
         return false;
+
+    // Listeners run in the order they were added. HID clears its session when the radio comes
+    // up, so ours goes after it: a reconnect started on that event must not be cleared again.
+    floss_gap_add_listener(_bt_hal_gap_event, NULL);
 
     floss_addr_t addr;
     _bt_hal_addr_from_hoja(mac, &addr);
