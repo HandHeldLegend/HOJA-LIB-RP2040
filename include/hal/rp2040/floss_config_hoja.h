@@ -23,6 +23,11 @@
 #define FLOSS_LOG_LEVEL     FLOSS_LOG_WARN
 #define FLOSS_TRACE_ENTRIES 0
 #define FLOSS_ENABLE_STATS  0
+// Diagnostic test builds watch HCI events through the snoop hook
+#if defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG
+#define FLOSS_ENABLE_SNOOP  1
+#else
 #define FLOSS_ENABLE_SNOOP  0
+#endif
 
 #endif

@@ -64,6 +64,48 @@ void tasks_reset(void)
     _tasks_phase = TASK_PHASE_REQUIRED;
 }
 
+#if defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG
+static const task_s *_diag_worst[2];
+static uint32_t _diag_worst_us[2];
+
+static void _tasks_diag_note(const task_s *task, uint64_t runtime_us)
+{
+    uint32_t us = (uint32_t)runtime_us;
+    if (task == _diag_worst[0])
+    {
+        if (us > _diag_worst_us[0]) _diag_worst_us[0] = us;
+    }
+    else if (task == _diag_worst[1])
+    {
+        if (us > _diag_worst_us[1]) _diag_worst_us[1] = us;
+    }
+    else if (us > _diag_worst_us[1])
+    {
+        _diag_worst[1] = task;
+        _diag_worst_us[1] = us;
+    }
+    // Keep the longest first
+    if (_diag_worst_us[1] > _diag_worst_us[0])
+    {
+        const task_s *t = _diag_worst[0]; _diag_worst[0] = _diag_worst[1]; _diag_worst[1] = t;
+        uint32_t u = _diag_worst_us[0]; _diag_worst_us[0] = _diag_worst_us[1]; _diag_worst_us[1] = u;
+    }
+}
+
+void tasks_diag_take_worst(const char **name1, uint32_t *us1, const char **name2, uint32_t *us2)
+{
+    *name1 = _diag_worst[0] ? _diag_worst[0]->name : NULL;
+    *us1 = _diag_worst_us[0];
+    *name2 = _diag_worst[1] ? _diag_worst[1]->name : NULL;
+    *us2 = _diag_worst_us[1];
+    _diag_worst[0] = _diag_worst[1] = NULL;
+    _diag_worst_us[0] = _diag_worst_us[1] = 0;
+}
+#define TASKS_DIAG_NOTE(task, us) _tasks_diag_note((task), (us))
+#else
+#define TASKS_DIAG_NOTE(task, us) ((void)0)
+#endif
+
 static void _tasks_reset_sm(void)
 {
     uint64_t now_us = sys_hal_now_us();
@@ -104,6 +146,7 @@ static bool _tasks_force_run(task_s *task, bool update_max_runtime)
     task->fn(start_us);
     uint64_t end_us = sys_hal_now_us();
     task->last_run_us = start_us;
+    TASKS_DIAG_NOTE(task, end_us - start_us);
 
     if(!update_max_runtime) return true;
 
@@ -213,6 +256,7 @@ static bool _tasks_try_run(task_s *task, bool update_max_runtime)
     task->fn(start_us);
     uint64_t end_us = sys_hal_now_us();
     task->last_run_us = start_us;
+    TASKS_DIAG_NOTE(task, end_us - start_us);
 
     // Optionally update max runtime of the task
     if(!update_max_runtime) return true;

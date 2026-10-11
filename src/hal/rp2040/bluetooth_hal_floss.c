@@ -500,6 +500,21 @@ static uint16_t _diag_deferred = 0;
 static bool _diag_defer_counted = false;
 static uint32_t _diag_task_last_us = 0;
 static uint32_t _diag_task_gap_max_us = 0;
+static uint8_t _diag_max_slots = 0;
+
+// Max Slots Change: handle(2) max slots(1)
+static void _bt_hal_diag_snoop(uint8_t type, bool is_rx, const uint8_t *pkt, uint16_t len, uint32_t t_us)
+{
+    (void)t_us;
+    if (type == FLOSS_PKT_EVT && is_rx && len >= 5 && pkt[0] == FLOSS_EVT_MAX_SLOTS_CHANGE)
+        _diag_max_slots = pkt[4];
+}
+
+static void _bt_hal_diag_task_name(uint8_t *out, const char *name)
+{
+    out[0] = (name && name[0]) ? (uint8_t)name[0] : '-';
+    out[1] = (name && name[0] && name[1]) ? (uint8_t)name[1] : ' ';
+}
 
 static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
 {
@@ -517,6 +532,17 @@ static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
     floss_put_le16(&d[11], _diag_task_gap_max_us > 0xFFFFu ? 0xFFFFu : (uint16_t)_diag_task_gap_max_us);
     floss_put_le32(&d[13], now);
     _diag_task_gap_max_us = 0;
+
+    // Touchpad bytes (unused on this board): the two longest tasks, and the link's max slots
+    const char *n1, *n2;
+    uint32_t us1, us2;
+    tasks_diag_take_worst(&n1, &us1, &n2, &us2);
+    uint8_t *t = &data[35];
+    _bt_hal_diag_task_name(&t[0], n1);
+    floss_put_le16(&t[2], us1 > 0xFFFFu ? 0xFFFFu : (uint16_t)us1);
+    _bt_hal_diag_task_name(&t[4], n2);
+    floss_put_le16(&t[6], us2 > 0xFFFFu ? 0xFFFFu : (uint16_t)us2);
+    t[8] = _diag_max_slots;
 }
 
 // Next interval every BT_DIAG_STEP_US while connected
@@ -1330,6 +1356,10 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     // floss_init forgets every timer
     _bt_hal_timers_init();
+#if HOJA_BT_FLOSS_DIAG
+    _diag_max_slots = 0;
+    floss_snoop_set_hook(_bt_hal_diag_snoop);
+#endif
 
     floss_gap_security_t sec;
     floss_gap_security_defaults(&sec);
