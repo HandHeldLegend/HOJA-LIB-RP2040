@@ -11,8 +11,11 @@
 
 // Classic HID, and the link profile to a HOJA dongle or the PC app
 #define FLOSS_ENABLE_LE     0
-// RFCOMM: the link to the PC app (HHL Gamepad Link), which takes the dongle's place
-#define FLOSS_ENABLE_RFCOMM 1
+#define FLOSS_ENABLE_RFCOMM 0
+#define FLOSS_ENABLE_SDP_CLIENT 0
+
+// Link mode's live report: sequence, sample time, length and a whole 64-byte report (dongle_link.h)
+#define FLOSS_HID_MAX_REPORT 72
 #define FLOSS_ENABLE_LINK   1
 
 // A live report to the dongle is a length byte plus up to 64 bytes (dongle_link.h)

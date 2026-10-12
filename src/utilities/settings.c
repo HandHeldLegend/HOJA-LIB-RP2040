@@ -198,15 +198,18 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         break;
 
         // Come back up over another transport (boot memory), whatever powers us: in the mode given as
-        // the argument (0x80 | mode; kept, as a boot combo's would be), else in the current one
+        // the argument (0x80 | mode; kept, as a boot combo's would be), else in the current one;
+        // 0x40 also starts pairing, as the pairing boot combo does
         case GAMEPAD_CMD_REBOOT_DONGLE:
         case GAMEPAD_CMD_REBOOT_BLUETOOTH:
         {
-            const uint8_t mode = (uint8_t)(arg & 0x7Fu);
+            const uint8_t mode = (uint8_t)(arg & 0x3Fu);
             const bool chosen = (arg & 0x80u) && arg != 0xFF && mode < (uint8_t)CORE_REPORTFORMAT_MAX;
+            const bool pair = (arg & 0x40u) && arg != 0xFF;
             boot_memory_s mem = {
                 .report_format = chosen ? mode : (uint8_t)core_current_reportformat(),
                 .mode_chosen = chosen,
+                .gamepad_pair = pair,
                 .gamepad_method = (command == GAMEPAD_CMD_REBOOT_DONGLE) ? (uint8_t)GAMEPAD_METHOD_WLAN
                                                                          : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
             };

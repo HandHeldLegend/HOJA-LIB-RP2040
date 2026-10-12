@@ -229,15 +229,8 @@ floss_err_t floss_hal_store_write(uint16_t key, const void *buf, uint16_t len)
     return _bt_store_commit();
 }
 
-#if defined(HOJA_BT_APP_LINK_DIAG)
-static uint8_t _store_deletes; // Diagnostic: keys deleted since boot (shown in the app link trace)
-#endif
-
 floss_err_t floss_hal_store_delete(uint16_t key)
 {
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _store_deletes++;
-#endif
     _bt_store_load();
     bt_store_entry_s *e = _bt_store_find(key);
     if (!e)
@@ -1602,195 +1595,127 @@ static const floss_link_callbacks_t _bt_hal_dongle_callbacks = {
     .on_report_tick = _bt_hal_dongle_tick,
 };
 
-// --- The PC app (HHL Gamepad Link) over RFCOMM ---
+// --- Link mode: the PC app (HHL Gamepad Link) over HID ---
 //
-// The app takes the dongle's place, over the PC's own Bluetooth (dongle_link.h). With a PC saved
-// for SInput, dongle mode calls it first, from the address it paired with, and looks up the app's
-// channel. If the app answers, it is the dongle: the same traffic, framed for RFCOMM. If it
-// doesn't (the PC is off, or the app isn't running), the radio restarts and the link looks for a
-// dongle. If the app closes the channel, it is called again.
+// HHL Gamepad Link on a PC takes the dongle's place, over the PC's own Bluetooth, with the gamepad
+// as a HID device of its own (dongle_link.h, "Link mode"). HID rather than a serial channel: a PC's
+// radio keeps a HID link's timing (measured on an Intel radio: a serial (RFCOMM) link alone loses
+// ~25 ms two or three times a second, with HID none), pairing is the OS's own, and every OS lets
+// an app open a vendor-defined HID collection without a driver.
+//
+// Link mode has its own address (BT_HAL_APP_MAC_OFFSET), so a PC keeps it apart from the gamepad's
+// Bluetooth modes. Dongle mode first calls the PC bonded to that address; if it doesn't connect,
+// or no app answers in BT_HAL_APP_HOST_WAIT_MS, the radio restarts and the link looks for a
+// dongle. Pairing mode: findable for Link for BT_HAL_APP_PAIR_MS, then the dongle search.
 typedef enum
 {
     BT_HAL_APP_OFF = 0, // Not this run: the dongle link runs
-    BT_HAL_APP_WAITING, // Calls the PC once the radio is up
-    BT_HAL_APP_CALLING, // Paging the PC
-    BT_HAL_APP_LOOKUP,  // Asking the PC's SDP for the app's channel
-    BT_HAL_APP_OPENING, // Opening the channel
-    BT_HAL_APP_OPEN,
+    BT_HAL_APP_WAITING, // Calls the PC (or becomes findable) once the radio is up
+    BT_HAL_APP_CALLING, // Opening HID to the bonded PC
+    BT_HAL_APP_PAIRING, // Findable, for a PC to pair
+    BT_HAL_APP_OPEN,    // HID up; running once the app has sent its host info
 } bt_hal_app_state_t;
 
+// Link mode's address: the gamepad's, last byte + this. A PC keeps a HID device's descriptor for its
+// address, also across a new pairing: a new descriptor needs a new address.
+#define BT_HAL_APP_MAC_OFFSET   0x21u
 #define BT_HAL_APP_PAGE_TIMEOUT 0x1000 // 2.56 s: a PC listens for pages every 1.28 s
-#define BT_HAL_APP_MAX_INFLIGHT 2      // Live reports wait while the radio holds this many
+#define BT_HAL_APP_HOST_WAIT_MS 4000u  // HID up but no app: the dongle link takes over
+#define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
+#define BT_HAL_APP_PAIR_MS      30000u // Pairing mode: findable for Link this long
+#define BT_HAL_APP_QOS_US       1250u  // Poll every slot pair, as SInput's HID asks
 
 static bt_hal_app_state_t _app_state = BT_HAL_APP_OFF;
-static bool _app_skip = false; // The app didn't answer: the dongle link runs until the next start
-static uint16_t _app_handle = BT_HAL_NO_HANDLE;
-static floss_rfcomm_dlc_t *_app_dlc = NULL;
-static floss_timer_t _app_timer;
+static bool _app_skip = false; // No PC app this time: the dongle link runs until the next start
+static bool _app_host_seen = false;
+static floss_timer_t _app_timer, _app_wait_timer;
 static uint32_t _app_deadline;
 static uint16_t _app_seq;
 static bool _app_last_tick_msg = false;
-static uint8_t _app_rx[512];
-static uint16_t _app_rx_len;
-static const uint8_t _app_uuid[16] = DONGLE_LINK_APP_UUID;
+static char _app_name[48];
 
-// Bench A/B (HOJA_BT_APP_ASSESS): leave the radio's channel assessment on
-#if defined(HOJA_BT_APP_ASSESS)
-static const bool _app_assess = true;
-#else
-static const bool _app_assess = false;
-#endif
-
-// Diagnostic builds (HOJA_BT_APP_LINK_DIAG): each step of calling the app, as a letter and a byte;
-// when the dongle link takes over, the trace is the gamepad's name on the dongle
+// Diagnostic builds (HOJA_BT_APP_LINK_DIAG): counters, sent every 25 ticks on lane 0x7F
 #if defined(HOJA_BT_APP_LINK_DIAG)
-static char _app_trace[DONGLE_WAKE_NAME_LEN];
-static uint8_t _app_trace_len;
-
-static void _bt_hal_app_trace(char what, uint8_t value)
+static struct
 {
-    static const char hex[] = "0123456789ABCDEF";
-    if (_app_trace_len + 3u >= sizeof(_app_trace))
-        return;
-    _app_trace[_app_trace_len++] = what;
-    _app_trace[_app_trace_len++] = hex[value >> 4];
-    _app_trace[_app_trace_len++] = hex[value & 15];
-    _app_trace[_app_trace_len] = 0;
-}
-
-static void _bt_hal_app_trace_show(void)
-{
-    memset(_dongle_cfg.name, 0, sizeof(_dongle_cfg.name));
-    memcpy(_dongle_cfg.name, _app_trace, _app_trace_len);
-    dongle_api_gamepad_set_identity(_dongle_cfg.mode, _dongle_cfg.vid, _dongle_cfg.pid, _dongle_cfg.name,
-                                    _dongle_cfg.manufacturer);
-}
-#define APP_TRACE(c, v) _bt_hal_app_trace((c), (uint8_t)(v))
-#else
-#define APP_TRACE(c, v) ((void)0)
+    uint16_t outputs, ticks, sent, send_errors;
+    uint8_t last_out_id, last_out_len, last_err, host_seen, can_send, hid_state;
+    uint16_t peeks, msg_fails;
+    uint8_t last_msg_type, last_msg_err, format, mode_request, adopted, msg_len;
+} _app_diag;
 #endif
 
-// The address SInput mode pairs with over Bluetooth, whatever mode the app wants
+// Link mode's HID collection (dongle_link.h): live reports, messages in, messages out
+static const uint8_t _app_descriptor[] = {
+    0x06, 0x48, 0xFF,       // Usage page (vendor, DONGLE_LINK_APP_USAGE_PAGE)
+    0x09, 0x4C,             // Usage (DONGLE_LINK_APP_USAGE)
+    0xA1, 0x01,             // Collection (application)
+    0x15, 0x00,             //   Logical minimum 0
+    0x26, 0xFF, 0x00,       //   Logical maximum 255
+    0x75, 0x08,             //   8 bits
+    0x85, 0x01, 0x09, 0x01, //   Report 1: live
+    0x95, DONGLE_LINK_APP_LIVE_LEN, 0x81, 0x02,
+    0x85, 0x02, 0x09, 0x02, //   Report 2: messages in
+    0x95, DONGLE_LINK_APP_MSG_LEN, 0x81, 0x02,
+    0x85, 0x03, 0x09, 0x03, //   Report 3: messages out
+    0x95, DONGLE_LINK_APP_MSG_LEN, 0x91, 0x02,
+    0xC0,                   // End collection
+};
+
 static void _bt_hal_app_mac(uint8_t *mac)
 {
-    transport_mode_mac(mac, CORE_REPORTFORMAT_SINPUT);
+    memcpy(mac, gamepad_config->gamepad_mac_address, 6);
+    mac[5] = (uint8_t)(mac[5] + BT_HAL_APP_MAC_OFFSET);
+}
+
+// The PC Link mode paired with: a bond made under Link mode's address
+static const floss_bond_t *_bt_hal_app_bond(void)
+{
+    uint8_t mac[6];
+    floss_addr_t local;
+    _bt_hal_app_mac(mac);
+    _bt_hal_addr_from_hoja(mac, &local);
+    const floss_bond_t *found = NULL;
+    for (uint8_t i = 0; i < floss_gap_bond_count(); i++)
+    {
+        const floss_bond_t *b = floss_gap_bond_at(i);
+        if (b && floss_addr_eq(&b->local, &local))
+            found = b; // The newest one wins
+    }
+    return found;
 }
 
 static bool _bt_hal_app_wanted(void)
 {
-    return !_app_skip && !_pairing_mode && _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
+    return !_app_skip && (_pairing_mode || _bt_hal_app_bond() != NULL);
 }
-
-// A HID connection to the PC next to the app link (HOJA_BT_APP_HID): a vendor-defined collection
-// that nothing reads and no report ever goes to. Under test: with HID up, the PC's Intel radio
-// takes no ~25 ms breaks from the link; with RFCOMM alone it does, 2-3 times a second.
-#if defined(HOJA_BT_APP_HID)
-static const uint8_t _app_hid_descriptor[] = {
-    0x06, 0x00, 0xFF, // Usage Page (vendor 0xFF00)
-    0x09, 0x01,       // Usage (1)
-    0xA1, 0x01,       // Collection (application)
-    0x85, 0x01,       //   Report ID 1
-    0x15, 0x00,       //   Logical minimum 0
-    0x26, 0xFF, 0x00, //   Logical maximum 255
-    0x75, 0x08,       //   8 bits
-    0x95, 0x01,       //   1 field
-    0x09, 0x01,       //   Usage (1)
-    0x81, 0x02,       //   Input (data, variable)
-    0xC0,             // End collection
-};
-static bool _app_hid_wanted = true; // Bench A/B (HOJA_BT_APP_HID_AB) turns it off and on
-
-static void _bt_hal_app_hid_connected(const floss_addr_t *host) { (void)host; }
-static void _bt_hal_app_hid_disconnected(uint8_t reason) { (void)reason; }
-static const floss_hid_callbacks_t _bt_hal_app_hid_callbacks = {
-    .on_connected = _bt_hal_app_hid_connected,
-    .on_disconnected = _bt_hal_app_hid_disconnected,
-};
-
-// Registered with the stack before it starts: the HID record in SDP and the HID channels
-static bool _bt_hal_app_hid_init(void)
-{
-    floss_hid_config_defaults(&_hid_cfg);
-    _hid_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
-    _hid_cfg.report_descriptor = _app_hid_descriptor;
-    _hid_cfg.report_descriptor_len = sizeof(_app_hid_descriptor);
-    _hid_cfg.subclass = 0;
-    _hid_cfg.class_of_device = 0x002508;
-    _hid_cfg.auto_discoverable = false;
-    _hid_cfg.auto_reconnect = false;
-    _hid_cfg.app_controls_scan = true;
-    floss_sdp_hid_params_t sp = {
-        .service_name = _hid_cfg.name,
-        .subclass = 0,
-        .country_code = 33,
-        .virtual_cable = true,
-        .reconnect_initiate = true,
-        .battery_power = false,
-        .remote_wake = false,
-        .normally_connectable = false,
-        .boot_device = false,
-        .supervision_timeout = 3200,
-        .ssr_host_max_latency = 0xFFFF,
-        .ssr_host_min_timeout = 0xFFFF,
-        .report_descriptor = _app_hid_descriptor,
-        .report_descriptor_len = sizeof(_app_hid_descriptor),
-    };
-    _hid_cfg.sdp_record = _hid_record;
-    _hid_cfg.sdp_record_len = floss_sdp_build_hid(_hid_record, sizeof(_hid_record), &sp);
-    return floss_hid_init(&_hid_cfg, &_bt_hal_app_hid_callbacks) == FLOSS_OK;
-}
-
-static void _bt_hal_app_hid_connect(void)
-{
-    if (!_app_hid_wanted)
-        return;
-    floss_addr_t pc;
-    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
-    floss_hid_connect(&pc); // On the app link's connection: opens the HID channels
-}
-#endif
 
 // The app went away (call it again) or didn't answer (the dongle link takes over). Either way the
 // radio restarts, which drops the link.
 static void _bt_hal_app_end(bool answered)
 {
     floss_timer_stop(&_app_timer);
+    floss_timer_stop(&_app_wait_timer);
     if (_app_state == BT_HAL_APP_OPEN)
     {
         dongle_api_gamepad_link_set_up(false);
         _bt_hal_dongle_notify_connection(false);
     }
     _app_state = BT_HAL_APP_OFF;
-    _app_dlc = NULL;
     _app_skip = !answered;
-    APP_TRACE('E', answered);
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _bt_hal_app_trace_show();
-#endif
     _bt_hal_restart();
 }
 
-// One frame: [lane][length][header][data]
-static bool _bt_hal_app_send(uint8_t lane, const uint8_t *hdr, uint8_t hdr_len, const uint8_t *data, uint16_t len)
+// [lane][length][payload], padded to the report's size
+static bool _bt_hal_app_send_msg_report(uint8_t lane, const uint8_t *data, uint16_t len)
 {
-    uint8_t f[DONGLE_LINK_APP_FRAME_MAX];
-    uint16_t total = (uint16_t)(2u + hdr_len + len);
-    if (total > sizeof(f))
+    uint8_t r[DONGLE_LINK_APP_MSG_LEN] = {0};
+    if (len > DONGLE_LINK_MSG_MAX)
         return false;
-    f[0] = lane;
-    f[1] = (uint8_t)(hdr_len + len);
-    if (hdr_len)
-        memcpy(&f[2], hdr, hdr_len);
-    if (len)
-        memcpy(&f[2 + hdr_len], data, len);
-    return floss_rfcomm_send(_app_dlc, f, total) == (int)total;
-}
-
-// Newest report only: nothing goes while the radio still holds earlier packets
-static bool _bt_hal_app_ready(void)
-{
-    return _app_state == BT_HAL_APP_OPEN && floss_rfcomm_can_send_now(_app_dlc) &&
-           floss_hci_acl_can_send_fresh(_app_handle, BT_HAL_APP_MAX_INFLIGHT);
+    r[0] = lane;
+    r[1] = (uint8_t)len;
+    memcpy(&r[2], data, len);
+    return floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_MSG, r, sizeof(r)) == FLOSS_OK;
 }
 
 // A reliable message (identity, reports that must arrive, config replies), else the config app's
@@ -1801,21 +1726,32 @@ static bool _bt_hal_app_send_msg(void)
     uint16_t len;
     if (dongle_api_gamepad_link_peek_msg(msg, &len))
     {
-        if (!_bt_hal_app_send(DONGLE_LINK_APP_LANE_MSG, NULL, 0, msg, len))
+#if defined(HOJA_BT_APP_LINK_DIAG)
+        _app_diag.peeks++;
+        _app_diag.last_msg_type = msg[0];
+        _app_diag.msg_len = (uint8_t)len;
+#endif
+        if (!_bt_hal_app_send_msg_report(DONGLE_LINK_APP_LANE_MSG, msg, len))
+        {
+#if defined(HOJA_BT_APP_LINK_DIAG)
+            _app_diag.msg_fails++;
+#endif
             return false;
+        }
         dongle_api_gamepad_link_msg_sent();
         return true;
     }
     if (dongle_api_gamepad_link_take_bulk(msg, &len))
     {
-        _bt_hal_app_send(DONGLE_LINK_APP_LANE_BULK, NULL, 0, msg, len);
+        _bt_hal_app_send_msg_report(DONGLE_LINK_APP_LANE_BULK, msg, len);
         return true;
     }
     return false;
 }
 
-// Paced as the app asks (dongle_link_host_s): one frame per tick, an app message in turn with the
-// live report, as on the dongle link
+// Paced as the app asks (dongle_link_host_s): one report per tick, a message in turn with the live
+// report, as on the dongle link. Nothing goes while the radio still holds earlier reports (HID's
+// in-flight cap): the newest is sent at the next tick instead.
 static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
 {
     (void)arg;
@@ -1828,7 +1764,28 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
         _app_deadline = now + iv; // A whole interval behind: from now, no burst
     floss_timer_start_at(t, _app_deadline);
 
-    if (!_bt_hal_app_ready())
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _app_diag.ticks++;
+    _app_diag.host_seen = _app_host_seen;
+    _app_diag.can_send = floss_hid_can_send_now();
+    _app_diag.hid_state = (uint8_t)floss_hid_state();
+    _app_diag.format = (uint8_t)core_current_reportformat();
+    _app_diag.mode_request = (uint8_t)_dongle_mode_request;
+    _app_diag.adopted = dongle_api_gamepad_adopted();
+    if (_app_state == BT_HAL_APP_OPEN && (_app_diag.ticks % 25u) == 0)
+    {
+        uint8_t d[DONGLE_LINK_APP_MSG_LEN] = {0x7F, (uint8_t)sizeof(_app_diag)};
+        memcpy(&d[2], &_app_diag, sizeof(_app_diag));
+        floss_err_t e = floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_MSG, d, sizeof(d));
+        if (e != FLOSS_OK)
+        {
+            _app_diag.send_errors++;
+            _app_diag.last_err = (uint8_t)e;
+        }
+        return;
+    }
+#endif
+    if (_app_state != BT_HAL_APP_OPEN || !floss_hid_can_send_now())
         return;
 
     bool msg = false;
@@ -1838,189 +1795,178 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
     if (msg)
         return;
 
-    uint8_t report[DONGLE_LINK_REPORT_MAX];
+    uint8_t trimmed[DONGLE_LINK_REPORT_MAX];
     uint16_t n;
     uint32_t sampled = time_us_32();
-    if (!dongle_api_gamepad_link_next_report(report, &n))
+    if (!dongle_api_gamepad_link_next_report(trimmed, &n))
         return;
-#if defined(HOJA_BT_APP_HID_AB)
-    // Bench A/B: HID next to the link for 45 s, then not (closing HID drops the link, and the app
-    // is called again without it); bit 15 of the sequence number is set while HID is up
-    static uint32_t hid_flip_at = 0;
-    if (!hid_flip_at)
-        hid_flip_at = sampled + 45000000u;
-    else if (floss_time_diff(sampled, hid_flip_at) >= 0)
+    uint8_t r[DONGLE_LINK_APP_LIVE_LEN] = {0};
+    r[0] = (uint8_t)_app_seq;
+    r[1] = (uint8_t)(_app_seq >> 8);
+    r[2] = (uint8_t)sampled;
+    r[3] = (uint8_t)(sampled >> 8);
+    r[4] = (uint8_t)(sampled >> 16);
+    r[5] = (uint8_t)(sampled >> 24);
+    r[6] = trimmed[0];                        // The report's full length
+    memcpy(&r[7], &trimmed[1], (size_t)(n - 1u)); // Its bytes; the trimmed zeros stay zero
+    floss_err_t sent = floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_LIVE, r, sizeof(r));
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    if (sent == FLOSS_OK)
+        _app_diag.sent++;
+    else
     {
-        hid_flip_at = sampled + 45000000u;
-        _app_hid_wanted = !_app_hid_wanted;
-        if (_app_hid_wanted)
-            _bt_hal_app_hid_connect();
-        else if (floss_hid_state() == FLOSS_HID_STATE_CONNECTED)
-            floss_hid_disconnect();
+        _app_diag.send_errors++;
+        _app_diag.last_err = (uint8_t)sent;
     }
-    uint16_t seq = (uint16_t)((_app_seq & 0x7FFFu) |
-                              (floss_hid_state() == FLOSS_HID_STATE_CONNECTED ? 0x8000u : 0u));
-#else
-    uint16_t seq = _app_seq;
 #endif
-    const uint8_t hdr[6] = {(uint8_t)seq, (uint8_t)(seq >> 8), (uint8_t)sampled,
-                            (uint8_t)(sampled >> 8), (uint8_t)(sampled >> 16), (uint8_t)(sampled >> 24)};
-    if (_bt_hal_app_send(DONGLE_LINK_APP_LANE_INPUT, hdr, sizeof(hdr), report, n))
+    if (sent == FLOSS_OK)
     {
         _app_seq++;
         tasks_mark_sent_isr();
     }
 }
 
-static void _bt_hal_app_on_open(floss_rfcomm_dlc_t *dlc, uint8_t status)
+// HID is up but no app said hello (the PC is on, the app isn't running), or pairing timed out
+static void _bt_hal_app_wait_expired(floss_timer_t *t, void *arg)
 {
-    APP_TRACE('O', status);
-    if (_app_state != BT_HAL_APP_OPENING)
-        return;
-    if (status != FLOSS_RFCOMM_STATUS_OK)
-    {
+    (void)t;
+    (void)arg;
+    if ((_app_state == BT_HAL_APP_OPEN && !_app_host_seen) || _app_state == BT_HAL_APP_PAIRING)
         _bt_hal_app_end(false);
-        return;
-    }
-    _app_dlc = dlc;
+}
+
+static void _bt_hal_app_on_connected(const floss_addr_t *host)
+{
+    (void)host;
+    const bool just_paired = (_app_state == BT_HAL_APP_PAIRING);
     _app_state = BT_HAL_APP_OPEN;
-    _app_rx_len = 0;
+    _app_host_seen = false;
     _app_last_tick_msg = false;
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _bt_hal_app_trace_show(); // How the app was found, as our name
-#endif
-    autodetect_dongle_found(); // Auto mode: the app counts as a dongle
-#if defined(HOJA_BT_APP_HID)
-    _bt_hal_app_hid_connect();
-#endif
+    floss_gap_set_scan(false, false);
     dongle_api_gamepad_link_set_up(true);
+    floss_timer_start(&_app_wait_timer, (just_paired ? BT_HAL_APP_FIRST_WAIT_MS : BT_HAL_APP_HOST_WAIT_MS) * 1000u);
     _app_deadline = floss_hal_time_us();
     floss_timer_start_at(&_app_timer, _app_deadline + DONGLE_LINK_INTERVAL_DEFAULT_US);
 }
 
-static void _bt_hal_app_on_close(floss_rfcomm_dlc_t *dlc)
+static void _bt_hal_app_on_disconnected(uint8_t reason)
 {
-    (void)dlc;
+    (void)reason;
     if (_app_state == BT_HAL_APP_OPEN)
-        _bt_hal_app_end(true);
+        _bt_hal_app_end(_app_host_seen); // An app that was running is called again
 }
 
-// The app's frames: messages (its host info, outputs, config) and status
-static void _bt_hal_app_on_data(floss_rfcomm_dlc_t *dlc, const uint8_t *data, uint16_t len)
+static void _bt_hal_app_on_connect_failed(uint8_t reason, uint16_t channel_status)
 {
-    (void)dlc;
-    if (len > sizeof(_app_rx) - _app_rx_len)
-    {
-        _app_rx_len = 0; // Out of step: no frame is that long
-        return;
-    }
-    memcpy(&_app_rx[_app_rx_len], data, len);
-    _app_rx_len = (uint16_t)(_app_rx_len + len);
-
-    uint16_t at = 0;
-    while (_app_rx_len - at >= 2u && _app_rx_len - at >= 2u + _app_rx[at + 1u])
-    {
-        const uint8_t lane = _app_rx[at];
-        const uint8_t plen = _app_rx[at + 1u];
-        const uint8_t *p = &_app_rx[at + 2u];
-        if (lane == DONGLE_LINK_APP_LANE_MSG)
-            dongle_api_gamepad_link_rx_msg(p, plen);
-        else if (lane == DONGLE_LINK_APP_LANE_STATUS)
-            dongle_api_gamepad_link_rx_status(p, plen);
-        at = (uint16_t)(at + 2u + plen);
-    }
-    memmove(_app_rx, &_app_rx[at], (size_t)(_app_rx_len - at));
-    _app_rx_len = (uint16_t)(_app_rx_len - at);
-}
-
-static const floss_rfcomm_ops_t _bt_hal_app_ops = {
-    .on_open = _bt_hal_app_on_open,
-    .on_data = _bt_hal_app_on_data,
-    .on_close = _bt_hal_app_on_close,
-};
-
-static void _bt_hal_app_open_channel(uint8_t channel)
-{
-    _app_state = BT_HAL_APP_OPENING;
-    floss_err_t err = floss_rfcomm_connect(_app_handle, channel, &_bt_hal_app_ops, NULL, &_app_dlc);
-    APP_TRACE('R', err);
-    if (err != FLOSS_OK)
+    (void)reason;
+    (void)channel_status;
+    if (_app_state == BT_HAL_APP_CALLING)
         _bt_hal_app_end(false);
 }
 
-// The app's channel from SDP; without a record (an app that doesn't publish one), its fixed one
-static void _bt_hal_app_on_channel(uint16_t handle, int status, uint8_t channel, void *user)
+// The app's reports: messages (its host info, outputs, config) and status
+static void _bt_hal_app_on_output(uint8_t report_id, const uint8_t *data, uint16_t len)
 {
-    (void)user;
-    APP_TRACE('S', status);
-    APP_TRACE('H', channel);
-    if (_app_state != BT_HAL_APP_LOOKUP || handle != _app_handle)
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _app_diag.outputs++;
+    _app_diag.last_out_id = report_id;
+    _app_diag.last_out_len = (uint8_t)len;
+#endif
+    if (report_id != DONGLE_LINK_APP_REPORT_OUT || len < 2u || data[1] > len - 2u)
         return;
-    _bt_hal_app_open_channel(status == 0 ? channel : (uint8_t)DONGLE_LINK_APP_CHANNEL);
+    const uint8_t *p = &data[2];
+    if (data[0] == DONGLE_LINK_APP_LANE_MSG && data[1])
+    {
+        if (p[0] == DONGLE_LINK_MSG_HOST && !_app_host_seen)
+        {
+            _app_host_seen = true;
+            floss_timer_stop(&_app_wait_timer);
+            autodetect_dongle_found(); // Auto mode: the app counts as a dongle
+        }
+        dongle_api_gamepad_link_rx_msg(p, data[1]);
+    }
+    else if (data[0] == DONGLE_LINK_APP_LANE_STATUS)
+        dongle_api_gamepad_link_rx_status(p, data[1]);
 }
 
-// The radio is up: call the PC, from the address it paired with
+static const floss_hid_callbacks_t _bt_hal_app_callbacks = {
+    .on_connected = _bt_hal_app_on_connected,
+    .on_disconnected = _bt_hal_app_on_disconnected,
+    .on_output_report = _bt_hal_app_on_output,
+    .on_connect_failed = _bt_hal_app_on_connect_failed,
+};
+
+// Link mode's HID device, registered before the radio starts
+static bool _bt_hal_app_hid_init(void)
+{
+    const char *name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
+    snprintf(_app_name, sizeof(_app_name), "%s Link", name);
+
+    floss_hid_config_defaults(&_hid_cfg);
+    _hid_cfg.name = _app_name;
+    _hid_cfg.report_descriptor = _app_descriptor;
+    _hid_cfg.report_descriptor_len = sizeof(_app_descriptor);
+    _hid_cfg.subclass = 0;
+    _hid_cfg.class_of_device = 0x002508;
+    _hid_cfg.vendor_id_source = 2; // USB
+    _hid_cfg.vendor_id = _bt_hal_hid ? _bt_hal_hid->vid : 0;
+    _hid_cfg.product_id = _bt_hal_hid ? _bt_hal_hid->pid : 0;
+    _hid_cfg.version = 0x0100;
+    _hid_cfg.auto_discoverable = false;
+    _hid_cfg.auto_reconnect = false;
+    _hid_cfg.app_controls_scan = true;
+    _hid_cfg.qos_latency_us = BT_HAL_APP_QOS_US;
+    floss_sdp_hid_params_t sp = {
+        .service_name = _app_name,
+        .subclass = 0,
+        .country_code = 33,
+        .virtual_cable = true,
+        .reconnect_initiate = true,
+        .battery_power = false,
+        .remote_wake = false,
+        .normally_connectable = false,
+        .boot_device = false,
+        .supervision_timeout = 3200,
+        .ssr_host_max_latency = 0xFFFF,
+        .ssr_host_min_timeout = 0xFFFF,
+        .report_descriptor = _app_descriptor,
+        .report_descriptor_len = sizeof(_app_descriptor),
+    };
+    _hid_cfg.sdp_record = _hid_record;
+    _hid_cfg.sdp_record_len = floss_sdp_build_hid(_hid_record, sizeof(_hid_record), &sp);
+    if (floss_hid_init(&_hid_cfg, &_bt_hal_app_callbacks) != FLOSS_OK)
+        return false;
+    floss_gap_set_default_link_policy(FLOSS_LINK_POLICY_ROLE_SWITCH); // No sniff: it caps the rate
+    return true;
+}
+
+// The radio is up: as Link mode's address, call the PC it paired with, or be findable to pair
 static void _bt_hal_app_call(void)
 {
     uint8_t mac[6];
     _bt_hal_app_mac(mac);
     if (memcmp(_radio_mac, mac, 6))
     {
-        APP_TRACE('M', mac[5]);
         _bt_hal_restart_as(mac); // Back here once the radio is up as that address
         return;
     }
-    _bt_hal_write_page_timeout(BT_HAL_APP_PAGE_TIMEOUT);
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _app_trace_len = 0; // Each call's own steps, after the deletions so far
-    APP_TRACE('X', _store_deletes);
-#endif
-    // No channel assessment of our own: each one is a ~25 ms sweep of all 79 channels with the
-    // link silent (as for HID and the dongle link). The PC runs adaptive hopping as the master.
-    if (!_app_assess)
-        floss_gap_set_afh_assessment(false);
-    floss_addr_t pc;
-    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
-    _app_state = BT_HAL_APP_CALLING;
-    floss_err_t err = floss_gap_connect(&pc);
-    APP_TRACE('C', err);
-    if (err != FLOSS_OK)
-        _bt_hal_app_end(false);
-}
-
-static void _bt_hal_app_gap_event(const floss_gap_evt_t *evt)
-{
-    if (_app_state < BT_HAL_APP_CALLING)
-        return;
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    if (evt->type != FLOSS_GAP_EVT_INQUIRY_RESULT)
-        _bt_hal_app_trace((char)('a' + evt->type), evt->status);
-#endif
-    floss_addr_t pc;
-    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
-
-    switch (evt->type)
+    if (_pairing_mode)
     {
-    case FLOSS_GAP_EVT_CONNECTED:
-        if (_app_state != BT_HAL_APP_CALLING || !floss_addr_eq(&evt->addr, &pc))
-            return;
-        _app_handle = evt->handle;
-        _app_state = BT_HAL_APP_LOOKUP;
-        if (floss_sdp_query_rfcomm_channel(_app_handle, _app_uuid, _bt_hal_app_on_channel, NULL) != FLOSS_OK)
-            _bt_hal_app_open_channel(DONGLE_LINK_APP_CHANNEL);
-        break;
-    case FLOSS_GAP_EVT_CONNECT_FAILED:
-        if (_app_state == BT_HAL_APP_CALLING && floss_addr_eq(&evt->addr, &pc))
-            _bt_hal_app_end(false);
-        break;
-    case FLOSS_GAP_EVT_DISCONNECTED:
-        // Before the channel opened (an open one reports on_close)
-        if (_app_state != BT_HAL_APP_OPEN && evt->handle == _app_handle)
-            _bt_hal_app_end(false);
-        break;
-    default:
-        break;
+        _app_state = BT_HAL_APP_PAIRING;
+        floss_gap_set_scan(true, true); // Findable (dongle mode leaves scanning to us)
+        floss_timer_start(&_app_wait_timer, BT_HAL_APP_PAIR_MS * 1000u);
+        return;
     }
+    const floss_bond_t *pc = _bt_hal_app_bond();
+    if (!pc)
+    {
+        _bt_hal_app_end(false);
+        return;
+    }
+    _bt_hal_write_page_timeout(BT_HAL_APP_PAGE_TIMEOUT);
+    _app_state = BT_HAL_APP_CALLING;
+    if (floss_hid_connect(&pc->addr) != FLOSS_OK)
+        _bt_hal_app_end(false);
 }
 
 static bool _bt_hal_dongle_link_up(void)
@@ -2030,22 +1976,10 @@ static bool _bt_hal_dongle_link_up(void)
 
 static bool _bt_hal_dongle_apply(void)
 {
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    if (!_app_skip && !_bt_hal_app_wanted())
-    {
-        _app_trace_len = 0;
-        APP_TRACE('N', _pairing_mode);
-        APP_TRACE('V', _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput));
-        _bt_hal_app_trace_show();
-    }
-#endif
     if (_bt_hal_app_wanted())
     {
-#if defined(HOJA_BT_APP_HID)
-        _bt_hal_app_hid_init();
-#endif
-        _app_state = BT_HAL_APP_WAITING;
-        return true; // No dongle link this time: the app is called once the radio is up
+        _app_state = BT_HAL_APP_WAITING; // Link mode first, once the radio is up
+        return _bt_hal_app_hid_init();
     }
     floss_link_config_defaults(&_link_cfg, FLOSS_LINK_ROLE_PAD, FLOSS_LINK_CLASSIC);
     _link_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
@@ -2208,9 +2142,6 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
 {
     (void)user;
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-    _bt_hal_app_gap_event(evt);
-#endif
     switch (evt->type)
     {
     case FLOSS_GAP_EVT_READY:
@@ -2384,6 +2315,7 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
     floss_timer_init(&_app_timer, _bt_hal_app_tick, NULL);
+    floss_timer_init(&_app_wait_timer, _bt_hal_app_wait_expired, NULL);
 #endif
 }
 
@@ -2401,8 +2333,6 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _probe_handle = BT_HAL_NO_HANDLE;
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
     _app_state = BT_HAL_APP_OFF;
-    _app_dlc = NULL;
-    _app_handle = BT_HAL_NO_HANDLE;
 #endif
 
     floss_init_t init = {
@@ -2612,6 +2542,7 @@ void transport_wlan_stop(void)
         dongle_api_gamepad_link_set_up(false);
     }
     floss_timer_stop(&_app_timer);
+    floss_timer_stop(&_app_wait_timer);
     _app_state = BT_HAL_APP_OFF;
     _app_skip = false;
     _bt_hal_dongle_notify_connection(false);
