@@ -2006,6 +2006,15 @@ static void _bt_hal_task(uint64_t timestamp)
 
     floss_poll();
 
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    // The next report's send is a deadline for the task loop (see tasks_set_deadline)
+    uint32_t due;
+    if (_mode_dongle && floss_link_next_report_at(&due))
+        tasks_set_deadline(sys_hal_now_us() + (uint64_t)(int64_t)(int32_t)(due - time_us_32()));
+    else
+        tasks_set_deadline(0);
+#endif
+
 #if HOJA_BT_FLOSS_DIAG
     uint32_t poll_us = (time_us_32() - task_now) - _diag_nested_us;
     if (poll_us > _diag_poll_max_us)

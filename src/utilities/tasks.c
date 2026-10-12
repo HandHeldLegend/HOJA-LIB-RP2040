@@ -11,6 +11,13 @@
 #define RUNTIME_MAX_DO_UPDATE true 
 #define RUNTIME_MAX_NO_UPDATE false
 
+// A transport's send deadline (tasks_set_deadline): only tasks starting this close to it are held
+// back, so a long one (a flash write) still runs right after a send instead of never. A deadline
+// this long past is stale (the transport stopped setting it) and holds nothing back.
+#define TASKS_DEADLINE_GUARD_US  800
+#define TASKS_DEADLINE_MARGIN_US 50
+#define TASKS_DEADLINE_STALE_US  2000
+
 volatile bool _tasks_sent_isr_signal = false; 
 volatile bool _tasks_frame_isr_signal = false;
 volatile bool _tasks_shutdown_lock = false;
@@ -52,6 +59,27 @@ typedef struct
 
 static tasks_sm_s _tasks_sm;
 static task_phase_t _tasks_phase = TASK_PHASE_REQUIRED;
+static uint64_t _tasks_send_deadline_us = 0;
+
+void tasks_set_deadline(uint64_t at_us)
+{
+    _tasks_send_deadline_us = at_us;
+}
+
+// May this task start now without holding up the transport's next send? Rapid tasks (the
+// transport itself) always may.
+static bool _tasks_deadline_allows(const task_s *task, uint64_t now_us)
+{
+    const uint64_t deadline = _tasks_send_deadline_us;
+    if (!deadline || (task->type_mask & TASK_TYPE_RAPID))
+        return true;
+    if (now_us >= deadline)
+        return (now_us - deadline) > TASKS_DEADLINE_STALE_US; // due: the transport goes first
+    const uint64_t left = deadline - now_us;
+    if (left > TASKS_DEADLINE_GUARD_US)
+        return true;
+    return task->max_runtime_us + TASKS_DEADLINE_MARGIN_US < left;
+}
 
 void tasks_mark_shutdown(void)
 {
@@ -61,6 +89,7 @@ void tasks_mark_shutdown(void)
 void tasks_reset(void)
 {
     memset(&_tasks_sm, 0, sizeof(tasks_sm_s));
+    _tasks_send_deadline_us = 0;
     _tasks_phase = TASK_PHASE_REQUIRED;
 }
 
@@ -177,6 +206,11 @@ static void _tasks_optional_run(task_s *optional_tasks[TASKS_MAX_COUNT], uint8_t
             continue;
         }
 
+        if(!_tasks_deadline_allows(candidate, now_us))
+        {
+            continue;
+        }
+
         uint64_t d = now_us - (candidate->last_run_us + candidate->optional_interval_us);
         if(d > max_delta)
         {
@@ -210,6 +244,9 @@ static void _tasks_motion_run(uint64_t now_us)
     for(int i = 0; i < _tasks_sm.motion_count; i++)
     {
         task_s *t = _tasks_sm.motion[i];
+
+        // Near a send, the read waits a pass (its guaranteed read too: the flag stays clear)
+        if(!_tasks_deadline_allows(t, now_us)) continue;
 
         // Guaranteed once-per-cycle read. The flag is set unconditionally (even
         // when a shutdown lock makes the task non-runnable) so the packet send
@@ -247,6 +284,8 @@ static bool _tasks_try_run(task_s *task, bool update_max_runtime)
     uint64_t start_us = sys_hal_now_us();
 
     if(!_tasks_interval_due(task, start_us)) return false;
+
+    if(!_tasks_deadline_allows(task, start_us)) return false;
 
     // Confirm there's enough budget remaining
     // Return if not enough time remaining
@@ -393,7 +432,8 @@ void tasks_run(void)
     bool cycle_finished = false;
     if(_tasks_phase == TASK_PHASE_REQUIRED)
     {
-        if(_tasks_sm.required_completed < _tasks_sm.required_count)
+        if(_tasks_sm.required_completed < _tasks_sm.required_count &&
+           _tasks_deadline_allows(_tasks_sm.required[_tasks_sm.required_completed], sys_hal_now_us()))
         {
             t = _tasks_sm.required[_tasks_sm.required_completed];
             _tasks_force_run(t, RUNTIME_MAX_DO_UPDATE);

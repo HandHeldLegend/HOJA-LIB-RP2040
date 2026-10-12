@@ -48,6 +48,11 @@ void tasks_run(void);
 // True once every registered required task has run since the last tasks_mark_sent().
 bool tasks_get_required_done(void);
 
+// A transport's next hard send time (sys_hal_now_us), 0 for none. In the last moments before it,
+// tasks that could still be running then are held back a pass, so the rapid tasks (the transport)
+// reach it on time. Set it again after each send.
+void tasks_set_deadline(uint64_t at_us);
+
 #if (defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG) || (defined(HOJA_TASKS_DIAG) && HOJA_TASKS_DIAG)
 // Test builds: the two longest task runs since the last call (names may be NULL)
 void tasks_diag_take_worst(const char **name1, uint32_t *us1, const char **name2, uint32_t *us2);
