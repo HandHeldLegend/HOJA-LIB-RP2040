@@ -252,8 +252,11 @@ void btstack_cyw43_deinit(async_context_t *context)
 /********* Timing and limits *******************/
 
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
-// SInput: a PC polls the link every 1.25 ms once reports come this often, so they arrive evenly
+// SInput: a PC polls the link every 1.25 ms once reports come this often, so they arrive evenly.
+// A board's build may set another rate.
+#ifndef BT_HAL_SINPUT_POLLING_RATE_MS
 #define BT_HAL_SINPUT_POLLING_RATE_MS 4
+#endif
 // A real Wii Remote reports every 10 ms
 #define BT_HAL_WII_POLLING_RATE_MS 10
 #define BT_HAL_INBOUND_FIFO_LEN 32
