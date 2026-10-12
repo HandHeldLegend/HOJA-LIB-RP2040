@@ -534,7 +534,11 @@ static void boot_apply_persisted_memory(boot_info_s *info)
 
     if (boot_memory.report_format < (uint8_t)CORE_REPORTFORMAT_MAX &&
         boot_format_supported((core_reportformat_t)boot_memory.report_format))
+    {
         info->reportformat = (core_reportformat_t)boot_memory.report_format;
+        if (boot_memory.mode_chosen)
+            info->mode_chosen = true;
+    }
 
     info->pairing = boot_memory.gamepad_pair ? true : false;
 

@@ -1606,6 +1606,9 @@ static bool _bt_hal_dongle_apply(void)
     // reports go to the radio one per period and are never held back and sent in pairs. The dongle
     // sees a report waiting in our radio (after a resend) and moves our clock a period on.
     _link_cfg.max_inflight = 4;
+    // A dongle that is on answers a page within ~160 ms: give up on the remembered one quickly and
+    // search for any other (Auto mode only looks for a dongle for a few seconds at power-up)
+    _link_cfg.classic_page_timeout_ms = 1280;
     return floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) == FLOSS_OK;
 }
 

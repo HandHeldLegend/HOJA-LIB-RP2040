@@ -227,7 +227,7 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
         break;
 
         case WEBUSB_ID_CONFIG_COMMAND:
-            settings_config_command(data[1], data[2]);
+            settings_config_command(data[1], data[2], size > 3 ? data[3] : 0xFF);
         break;
 
         case WEBUSB_ID_INPUT_COMMAND:

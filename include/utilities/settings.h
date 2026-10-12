@@ -105,7 +105,8 @@ extern switchpairConfig_s  *switchpair_config;
 void settings_init();
 void settings_commit_blocks();
 
-void settings_config_command(cfg_block_t block, uint8_t command);
+// arg: the command's optional argument (0xFF when none)
+void settings_config_command(cfg_block_t block, uint8_t command, uint8_t arg);
 void settings_return_static_block(static_block_t block, setting_callback_t cb);
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb);
 void settings_write_config_block(cfg_block_t block, const uint8_t *data);

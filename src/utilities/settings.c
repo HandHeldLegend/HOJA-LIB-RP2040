@@ -178,7 +178,7 @@ void settings_commit_blocks()
     MUTEX_HAL_EXIT(&_settings_mutex);
 }
 
-void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
+void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm_t cb)
 {
     // CFG_BLOCK_GAMEPAD
     switch(command)
@@ -197,12 +197,16 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
         }
         break;
 
-        // Come back up in the current mode over another transport (boot memory), whatever powers us
+        // Come back up over another transport (boot memory), whatever powers us: in the mode given as
+        // the argument (0x80 | mode; kept, as a boot combo's would be), else in the current one
         case GAMEPAD_CMD_REBOOT_DONGLE:
         case GAMEPAD_CMD_REBOOT_BLUETOOTH:
         {
+            const uint8_t mode = (uint8_t)(arg & 0x7Fu);
+            const bool chosen = (arg & 0x80u) && arg != 0xFF && mode < (uint8_t)CORE_REPORTFORMAT_MAX;
             boot_memory_s mem = {
-                .report_format = (uint8_t)core_current_reportformat(),
+                .report_format = chosen ? mode : (uint8_t)core_current_reportformat(),
+                .mode_chosen = chosen,
                 .gamepad_method = (command == GAMEPAD_CMD_REBOOT_DONGLE) ? (uint8_t)GAMEPAD_METHOD_WLAN
                                                                          : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
             };
@@ -240,7 +244,7 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
 }
 
 // Input only commands that don't involve writing data
-void settings_config_command(cfg_block_t block, uint8_t command)
+void settings_config_command(cfg_block_t block, uint8_t command, uint8_t arg)
 {
     switch(block)
     {
@@ -248,7 +252,7 @@ void settings_config_command(cfg_block_t block, uint8_t command)
         return;
 
         case CFG_BLOCK_GAMEPAD:
-            _gamepad_config_command(command, webusb_command_confirm_cb);
+            _gamepad_config_command(command, arg, webusb_command_confirm_cb);
         break;
 
         case CFG_BLOCK_HOVER:

@@ -14,9 +14,10 @@
 #define AUTODETECT_BOS_WAIT_MS      500
 // The probe gives up and lets Switch mode carry on
 #define AUTODETECT_BT_PROBE_MAX_MS  15000
-// No dongle connected by then: look for the saved hosts. Covers a page of the dongle we remember,
-// or one search round for any dongle (FLOSS_LINK_INQUIRY_LENGTH) and the connection after it.
-#define AUTODETECT_DONGLE_WAIT_MS   4000
+// No dongle connected by then: look for the saved hosts. Covers a failed page of the dongle we
+// remember (1.28 s), one search round for any other (2.56 s, FLOSS_LINK_INQUIRY_LENGTH) and the
+// connection after it: measured 4.3 s on the GCU-2 from its radio coming up.
+#define AUTODETECT_DONGLE_WAIT_MS   5500
 // Edges that count as a console on the retro port
 #define AUTODETECT_JOYBUS_EDGES     20
 #define AUTODETECT_LATCH_EDGES      10
