@@ -9,9 +9,10 @@
 // The CYW43 shared-bus transport writes a 4-byte header in front of each packet
 #define FLOSS_TRANSPORT_MAX_HEADROOM 4
 
-// Classic HID, and the link profile to a HOJA dongle
+// Classic HID, and the link profile to a HOJA dongle or the PC app
 #define FLOSS_ENABLE_LE     0
-#define FLOSS_ENABLE_RFCOMM 0
+// RFCOMM: the link to the PC app (HHL Gamepad Link), which takes the dongle's place
+#define FLOSS_ENABLE_RFCOMM 1
 #define FLOSS_ENABLE_LINK   1
 
 // A live report to the dongle is a length byte plus up to 64 bytes (dongle_link.h)

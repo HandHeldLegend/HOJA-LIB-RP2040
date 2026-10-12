@@ -38,6 +38,7 @@
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
 #include "transport/transport_wlan.h"
 #include "utilities/boot.h"
+#include "devices/battery.h"
 #include "usb/webusb.h"
 #include "dongle.h"
 #include "dongle_gamepad.h"
@@ -1594,8 +1595,341 @@ static const floss_link_callbacks_t _bt_hal_dongle_callbacks = {
     .on_report_tick = _bt_hal_dongle_tick,
 };
 
+// --- The PC app (HHL Gamepad Link) over RFCOMM ---
+//
+// The app takes the dongle's place, over the PC's own Bluetooth (dongle_link.h). With a PC saved
+// for SInput, dongle mode calls it first, from the address it paired with, and looks up the app's
+// channel. If the app answers, it is the dongle: the same traffic, framed for RFCOMM. If it
+// doesn't (the PC is off, or the app isn't running), the radio restarts and the link looks for a
+// dongle. If the app closes the channel, it is called again.
+typedef enum
+{
+    BT_HAL_APP_OFF = 0, // Not this run: the dongle link runs
+    BT_HAL_APP_WAITING, // Calls the PC once the radio is up
+    BT_HAL_APP_CALLING, // Paging the PC
+    BT_HAL_APP_LOOKUP,  // Asking the PC's SDP for the app's channel
+    BT_HAL_APP_OPENING, // Opening the channel
+    BT_HAL_APP_OPEN,
+} bt_hal_app_state_t;
+
+#define BT_HAL_APP_PAGE_TIMEOUT 0x1000 // 2.56 s: a PC listens for pages every 1.28 s
+#define BT_HAL_APP_MAX_INFLIGHT 2      // Live reports wait while the radio holds this many
+
+static bt_hal_app_state_t _app_state = BT_HAL_APP_OFF;
+static bool _app_skip = false; // The app didn't answer: the dongle link runs until the next start
+static uint16_t _app_handle = BT_HAL_NO_HANDLE;
+static floss_rfcomm_dlc_t *_app_dlc = NULL;
+static floss_timer_t _app_timer;
+static uint32_t _app_deadline;
+static uint16_t _app_seq;
+static bool _app_last_tick_msg = false;
+static uint8_t _app_rx[512];
+static uint16_t _app_rx_len;
+static const uint8_t _app_uuid[16] = DONGLE_LINK_APP_UUID;
+
+// Diagnostic builds (HOJA_BT_APP_LINK_DIAG): each step of calling the app, as a letter and a byte;
+// when the dongle link takes over, the trace is the gamepad's name on the dongle
+#if defined(HOJA_BT_APP_LINK_DIAG)
+static char _app_trace[DONGLE_WAKE_NAME_LEN];
+static uint8_t _app_trace_len;
+
+static void _bt_hal_app_trace(char what, uint8_t value)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    if (_app_trace_len + 3u >= sizeof(_app_trace))
+        return;
+    _app_trace[_app_trace_len++] = what;
+    _app_trace[_app_trace_len++] = hex[value >> 4];
+    _app_trace[_app_trace_len++] = hex[value & 15];
+    _app_trace[_app_trace_len] = 0;
+}
+
+static void _bt_hal_app_trace_show(void)
+{
+    memset(_dongle_cfg.name, 0, sizeof(_dongle_cfg.name));
+    memcpy(_dongle_cfg.name, _app_trace, _app_trace_len);
+    dongle_api_gamepad_set_identity(_dongle_cfg.mode, _dongle_cfg.vid, _dongle_cfg.pid, _dongle_cfg.name,
+                                    _dongle_cfg.manufacturer);
+}
+#define APP_TRACE(c, v) _bt_hal_app_trace((c), (uint8_t)(v))
+#else
+#define APP_TRACE(c, v) ((void)0)
+#endif
+
+// The address SInput mode pairs with over Bluetooth, whatever mode the app wants
+static void _bt_hal_app_mac(uint8_t *mac)
+{
+    transport_mode_mac(mac, CORE_REPORTFORMAT_SINPUT);
+}
+
+static bool _bt_hal_app_wanted(void)
+{
+    return !_app_skip && !_pairing_mode && _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
+}
+
+// The app went away (call it again) or didn't answer (the dongle link takes over). Either way the
+// radio restarts, which drops the link.
+static void _bt_hal_app_end(bool answered)
+{
+    floss_timer_stop(&_app_timer);
+    if (_app_state == BT_HAL_APP_OPEN)
+    {
+        dongle_api_gamepad_link_set_up(false);
+        _bt_hal_dongle_notify_connection(false);
+    }
+    _app_state = BT_HAL_APP_OFF;
+    _app_dlc = NULL;
+    _app_skip = !answered;
+    APP_TRACE('E', answered);
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _bt_hal_app_trace_show();
+#endif
+    _bt_hal_restart();
+}
+
+// One frame: [lane][length][header][data]
+static bool _bt_hal_app_send(uint8_t lane, const uint8_t *hdr, uint8_t hdr_len, const uint8_t *data, uint16_t len)
+{
+    uint8_t f[DONGLE_LINK_APP_FRAME_MAX];
+    uint16_t total = (uint16_t)(2u + hdr_len + len);
+    if (total > sizeof(f))
+        return false;
+    f[0] = lane;
+    f[1] = (uint8_t)(hdr_len + len);
+    if (hdr_len)
+        memcpy(&f[2], hdr, hdr_len);
+    if (len)
+        memcpy(&f[2 + hdr_len], data, len);
+    return floss_rfcomm_send(_app_dlc, f, total) == (int)total;
+}
+
+// Newest report only: nothing goes while the radio still holds earlier packets
+static bool _bt_hal_app_ready(void)
+{
+    return _app_state == BT_HAL_APP_OPEN && floss_rfcomm_can_send_now(_app_dlc) &&
+           floss_hci_acl_can_send_fresh(_app_handle, BT_HAL_APP_MAX_INFLIGHT);
+}
+
+// A reliable message (identity, reports that must arrive, config replies), else the config app's
+// live report. False when there is none.
+static bool _bt_hal_app_send_msg(void)
+{
+    uint8_t msg[DONGLE_LINK_MSG_MAX];
+    uint16_t len;
+    if (dongle_api_gamepad_link_peek_msg(msg, &len))
+    {
+        if (!_bt_hal_app_send(DONGLE_LINK_APP_LANE_MSG, NULL, 0, msg, len))
+            return false;
+        dongle_api_gamepad_link_msg_sent();
+        return true;
+    }
+    if (dongle_api_gamepad_link_take_bulk(msg, &len))
+    {
+        _bt_hal_app_send(DONGLE_LINK_APP_LANE_BULK, NULL, 0, msg, len);
+        return true;
+    }
+    return false;
+}
+
+// Paced as the app asks (dongle_link_host_s): one frame per tick, an app message in turn with the
+// live report, as on the dongle link
+static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
+{
+    (void)arg;
+    uint16_t iv = dongle_api_gamepad_link_interval_us();
+    if (!iv)
+        iv = DONGLE_LINK_INTERVAL_DEFAULT_US;
+    uint32_t now = floss_hal_time_us();
+    _app_deadline += iv;
+    if (floss_time_diff(now, _app_deadline) >= 0)
+        _app_deadline = now + iv; // A whole interval behind: from now, no burst
+    floss_timer_start_at(t, _app_deadline);
+
+    if (!_bt_hal_app_ready())
+        return;
+
+    bool msg = false;
+    if (!_app_last_tick_msg || !dongle_api_gamepad_adopted())
+        msg = _bt_hal_app_send_msg();
+    _app_last_tick_msg = msg;
+    if (msg)
+        return;
+
+    uint8_t report[DONGLE_LINK_REPORT_MAX];
+    uint16_t n;
+    uint32_t sampled = time_us_32();
+    if (!dongle_api_gamepad_link_next_report(report, &n))
+        return;
+    const uint8_t hdr[6] = {(uint8_t)_app_seq, (uint8_t)(_app_seq >> 8), (uint8_t)sampled,
+                            (uint8_t)(sampled >> 8), (uint8_t)(sampled >> 16), (uint8_t)(sampled >> 24)};
+    if (_bt_hal_app_send(DONGLE_LINK_APP_LANE_INPUT, hdr, sizeof(hdr), report, n))
+    {
+        _app_seq++;
+        tasks_mark_sent_isr();
+    }
+}
+
+static void _bt_hal_app_on_open(floss_rfcomm_dlc_t *dlc, uint8_t status)
+{
+    APP_TRACE('O', status);
+    if (_app_state != BT_HAL_APP_OPENING)
+        return;
+    if (status != FLOSS_RFCOMM_STATUS_OK)
+    {
+        _bt_hal_app_end(false);
+        return;
+    }
+    _app_dlc = dlc;
+    _app_state = BT_HAL_APP_OPEN;
+    _app_rx_len = 0;
+    _app_last_tick_msg = false;
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _bt_hal_app_trace_show(); // How the app was found, as our name
+#endif
+    autodetect_dongle_found(); // Auto mode: the app counts as a dongle
+    dongle_api_gamepad_link_set_up(true);
+    _app_deadline = floss_hal_time_us();
+    floss_timer_start_at(&_app_timer, _app_deadline + DONGLE_LINK_INTERVAL_DEFAULT_US);
+}
+
+static void _bt_hal_app_on_close(floss_rfcomm_dlc_t *dlc)
+{
+    (void)dlc;
+    if (_app_state == BT_HAL_APP_OPEN)
+        _bt_hal_app_end(true);
+}
+
+// The app's frames: messages (its host info, outputs, config) and status
+static void _bt_hal_app_on_data(floss_rfcomm_dlc_t *dlc, const uint8_t *data, uint16_t len)
+{
+    (void)dlc;
+    if (len > sizeof(_app_rx) - _app_rx_len)
+    {
+        _app_rx_len = 0; // Out of step: no frame is that long
+        return;
+    }
+    memcpy(&_app_rx[_app_rx_len], data, len);
+    _app_rx_len = (uint16_t)(_app_rx_len + len);
+
+    uint16_t at = 0;
+    while (_app_rx_len - at >= 2u && _app_rx_len - at >= 2u + _app_rx[at + 1u])
+    {
+        const uint8_t lane = _app_rx[at];
+        const uint8_t plen = _app_rx[at + 1u];
+        const uint8_t *p = &_app_rx[at + 2u];
+        if (lane == DONGLE_LINK_APP_LANE_MSG)
+            dongle_api_gamepad_link_rx_msg(p, plen);
+        else if (lane == DONGLE_LINK_APP_LANE_STATUS)
+            dongle_api_gamepad_link_rx_status(p, plen);
+        at = (uint16_t)(at + 2u + plen);
+    }
+    memmove(_app_rx, &_app_rx[at], (size_t)(_app_rx_len - at));
+    _app_rx_len = (uint16_t)(_app_rx_len - at);
+}
+
+static const floss_rfcomm_ops_t _bt_hal_app_ops = {
+    .on_open = _bt_hal_app_on_open,
+    .on_data = _bt_hal_app_on_data,
+    .on_close = _bt_hal_app_on_close,
+};
+
+static void _bt_hal_app_open_channel(uint8_t channel)
+{
+    _app_state = BT_HAL_APP_OPENING;
+    floss_err_t err = floss_rfcomm_connect(_app_handle, channel, &_bt_hal_app_ops, NULL, &_app_dlc);
+    APP_TRACE('R', err);
+    if (err != FLOSS_OK)
+        _bt_hal_app_end(false);
+}
+
+// The app's channel from SDP; without a record (an app that doesn't publish one), its fixed one
+static void _bt_hal_app_on_channel(uint16_t handle, int status, uint8_t channel, void *user)
+{
+    (void)user;
+    APP_TRACE('S', status);
+    APP_TRACE('H', channel);
+    if (_app_state != BT_HAL_APP_LOOKUP || handle != _app_handle)
+        return;
+    _bt_hal_app_open_channel(status == 0 ? channel : (uint8_t)DONGLE_LINK_APP_CHANNEL);
+}
+
+// The radio is up: call the PC, from the address it paired with
+static void _bt_hal_app_call(void)
+{
+    uint8_t mac[6];
+    _bt_hal_app_mac(mac);
+    if (memcmp(_radio_mac, mac, 6))
+    {
+        APP_TRACE('M', mac[5]);
+        _bt_hal_restart_as(mac); // Back here once the radio is up as that address
+        return;
+    }
+    _bt_hal_write_page_timeout(BT_HAL_APP_PAGE_TIMEOUT);
+    floss_addr_t pc;
+    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
+    _app_state = BT_HAL_APP_CALLING;
+    floss_err_t err = floss_gap_connect(&pc);
+    APP_TRACE('C', err);
+    if (err != FLOSS_OK)
+        _bt_hal_app_end(false);
+}
+
+static void _bt_hal_app_gap_event(const floss_gap_evt_t *evt)
+{
+    if (_app_state < BT_HAL_APP_CALLING)
+        return;
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    if (evt->type != FLOSS_GAP_EVT_INQUIRY_RESULT)
+        _bt_hal_app_trace((char)('a' + evt->type), evt->status);
+#endif
+    floss_addr_t pc;
+    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
+
+    switch (evt->type)
+    {
+    case FLOSS_GAP_EVT_CONNECTED:
+        if (_app_state != BT_HAL_APP_CALLING || !floss_addr_eq(&evt->addr, &pc))
+            return;
+        _app_handle = evt->handle;
+        _app_state = BT_HAL_APP_LOOKUP;
+        if (floss_sdp_query_rfcomm_channel(_app_handle, _app_uuid, _bt_hal_app_on_channel, NULL) != FLOSS_OK)
+            _bt_hal_app_open_channel(DONGLE_LINK_APP_CHANNEL);
+        break;
+    case FLOSS_GAP_EVT_CONNECT_FAILED:
+        if (_app_state == BT_HAL_APP_CALLING && floss_addr_eq(&evt->addr, &pc))
+            _bt_hal_app_end(false);
+        break;
+    case FLOSS_GAP_EVT_DISCONNECTED:
+        // Before the channel opened (an open one reports on_close)
+        if (_app_state != BT_HAL_APP_OPEN && evt->handle == _app_handle)
+            _bt_hal_app_end(false);
+        break;
+    default:
+        break;
+    }
+}
+
+static bool _bt_hal_dongle_link_up(void)
+{
+    return _dongle_rel != NULL || _app_state == BT_HAL_APP_OPEN;
+}
+
 static bool _bt_hal_dongle_apply(void)
 {
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    if (!_app_skip && !_bt_hal_app_wanted())
+    {
+        _app_trace_len = 0;
+        APP_TRACE('N', _pairing_mode);
+        APP_TRACE('V', _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput));
+        _bt_hal_app_trace_show();
+    }
+#endif
+    if (_bt_hal_app_wanted())
+    {
+        _app_state = BT_HAL_APP_WAITING;
+        return true; // No dongle link this time: the app is called once the radio is up
+    }
     floss_link_config_defaults(&_link_cfg, FLOSS_LINK_ROLE_PAD, FLOSS_LINK_CLASSIC);
     _link_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
     _link_cfg.peer_name = DONGLE_LINK_NAME;
@@ -1642,7 +1976,7 @@ static bool _bt_hal_dongle_sink_send(const uint8_t *data, uint16_t size)
     uint64_t until = time_us_64() + BT_HAL_DONGLE_CONFIG_SEND_WAIT_US;
     while (!dongle_api_gamepad_config_send(data, size))
     {
-        if (time_us_64() > until || !_dongle_rel)
+        if (time_us_64() > until || !_bt_hal_dongle_link_up())
             return false;
         floss_poll(); // the link's ticks send the queued replies
     }
@@ -1667,8 +2001,35 @@ static const webusb_sink_s _bt_hal_dongle_webusb_sink = {
     .ready = _bt_hal_dongle_sink_ready,
 };
 
+// Bench builds (HOJA_BT_LINK_ESCAPE_MS): on a cable with no link for this long, come back up on
+// USB, where a broken build can be reached and replaced without a hand on the gamepad
+#if defined(HOJA_BT_LINK_ESCAPE_MS)
+static uint64_t _escape_since_us = 0;
+
+static void _bt_hal_dongle_escape(void)
+{
+    uint64_t now = time_us_64();
+    if (_bt_hal_dongle_link_up() || !_escape_since_us)
+    {
+        _escape_since_us = now;
+        return;
+    }
+    if (now - _escape_since_us < (uint64_t)HOJA_BT_LINK_ESCAPE_MS * 1000u)
+        return;
+    battery_status_s power = {0};
+    battery_get_status(&power);
+    if (!power.plugged)
+        return;
+    boot_clear_memory();
+    sys_hal_reboot();
+}
+#endif
+
 static void _bt_hal_dongle_task(uint64_t timestamp)
 {
+#if defined(HOJA_BT_LINK_ESCAPE_MS)
+    _bt_hal_dongle_escape();
+#endif
     // The app's next command once the replies to the last one are out: answering never waits for
     // room (that would stall the task loop, and the inputs with it)
     while (_dongle_config_rx_tail != _dongle_config_rx_head && !dongle_api_gamepad_config_pending())
@@ -1685,9 +2046,17 @@ static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
 
-    // The link pages the dongle it remembers, else searches. Pairing mode: search for any dongle.
+    // The PC app first, when one is saved; else the link pages the dongle it remembers, else searches.
+    // Pairing mode: search for any dongle.
     if (_mode_dongle)
     {
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+        if (_app_state == BT_HAL_APP_WAITING)
+        {
+            _bt_hal_app_call();
+            return;
+        }
+#endif
         if (_pairing_mode)
             floss_link_pair();
         return;
@@ -1722,6 +2091,9 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
 {
     (void)user;
 
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    _bt_hal_app_gap_event(evt);
+#endif
     switch (evt->type)
     {
     case FLOSS_GAP_EVT_READY:
@@ -1893,6 +2265,9 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    floss_timer_init(&_app_timer, _bt_hal_app_tick, NULL);
+#endif
 }
 
 // (Re)start the stack with this address. A restart resets the controller, which drops every link
@@ -1907,6 +2282,11 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _wii_stale_link = false;
     _probe_chan = NULL;
     _probe_handle = BT_HAL_NO_HANDLE;
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    _app_state = BT_HAL_APP_OFF;
+    _app_dlc = NULL;
+    _app_handle = BT_HAL_NO_HANDLE;
+#endif
 
     floss_init_t init = {
         .transport = floss_cyw43_transport(),
@@ -2032,7 +2412,9 @@ static void _bt_hal_task(uint64_t timestamp)
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
     // The next report's send is a deadline for the task loop (see tasks_set_deadline)
     uint32_t due;
-    if (_mode_dongle && floss_link_next_report_at(&due))
+    if (_mode_dongle && _app_state == BT_HAL_APP_OPEN)
+        tasks_set_deadline(sys_hal_now_us() + (uint64_t)(int64_t)(int32_t)(_app_deadline - time_us_32()));
+    else if (_mode_dongle && floss_link_next_report_at(&due))
         tasks_set_deadline(sys_hal_now_us() + (uint64_t)(int64_t)(int32_t)(due - time_us_32()));
     else
         tasks_set_deadline(0);
@@ -2107,11 +2489,14 @@ void transport_wlan_stop(void)
 {
     // The radio stays up for whatever comes next (Auto mode moving on to a host restarts it)
     webusb_set_sink(NULL);
-    if (_dongle_rel)
+    if (_dongle_rel || _app_state == BT_HAL_APP_OPEN)
     {
         _dongle_rel = NULL;
         dongle_api_gamepad_link_set_up(false);
     }
+    floss_timer_stop(&_app_timer);
+    _app_state = BT_HAL_APP_OFF;
+    _app_skip = false;
     _bt_hal_dongle_notify_connection(false);
     _dongle_running = false;
     _mode_dongle = false;
