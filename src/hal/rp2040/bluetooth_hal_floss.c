@@ -1529,9 +1529,9 @@ static void _bt_hal_slot_read_done(void *ctx, uint16_t opcode, uint8_t status, c
     if (rt > _slot_rt_min + BT_HAL_SLOT_RT_SLACK_US)
         return;
 
-    // CLK27..CLK1: units of one slot (625 us); the read happened somewhere inside it
+    // CLK27..CLK0: ticks of 312.5 us (half a slot); the read happened somewhere inside one
     const uint32_t clk = floss_get_le32(&ret[2]) & 0x0FFFFFFFu;
-    const double b = (double)clk * 625.0 + 312.5;
+    const double b = (double)clk * 312.5 + 156.25;
     const uint32_t t = t0 + rt / 2u;
 
     if (_slot_samples == 0)
