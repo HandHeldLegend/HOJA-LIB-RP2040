@@ -1473,9 +1473,9 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 #define BT_HAL_SLOT_PAIR_US      1250
 #define BT_HAL_SLOT_READ_US      20000u
 #define BT_HAL_SLOT_LEAD_US      400
-#define BT_HAL_SLOT_RT_SLACK_US  100u
-#define BT_HAL_SLOT_FAST_SAMPLES 25u   // quick convergence first
-#define BT_HAL_SLOT_LOCK_SAMPLES 75u   // then placing reports
+#define BT_HAL_SLOT_RT_SLACK_US  400u  // our task loop picks replies up late, by up to ~1 ms
+#define BT_HAL_SLOT_FAST_SAMPLES 15u   // quick convergence first
+#define BT_HAL_SLOT_LOCK_SAMPLES 40u   // then placing reports
 #define BT_HAL_SLOT_ALIGN_TICKS  16
 #define BT_HAL_SLOT_DEADBAND_US  15
 #define BT_HAL_HCI_READ_CLOCK    FLOSS_OPCODE(0x05, 0x0007)
@@ -1531,7 +1531,7 @@ static void _bt_hal_slot_read_done(void *ctx, uint16_t opcode, uint8_t status, c
     if (rt < _slot_rt_min)
         _slot_rt_min = rt;
     else
-        _slot_rt_min++;
+        _slot_rt_min += 8u;
     if (rt > _slot_rt_min + BT_HAL_SLOT_RT_SLACK_US)
         return;
 
