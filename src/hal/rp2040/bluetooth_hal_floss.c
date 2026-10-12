@@ -1491,6 +1491,12 @@ static double _slot_b_ref;     // the radio's clock (us) then
 static double _slot_rate;      // radio us per our us, minus 1
 static int32_t _slot_err_sum;
 static uint8_t _slot_err_n;
+static int32_t _slot_err_last; // test builds (HOJA_BT_SLOT_DIAG)
+
+// Test builds: the lock's state in SInput's plug and charge bytes (readings taken, last error / 4 us)
+#ifndef HOJA_BT_SLOT_DIAG
+#define HOJA_BT_SLOT_DIAG 0
+#endif
 
 static void _bt_hal_slot_reset(uint16_t handle)
 {
@@ -1592,6 +1598,7 @@ static void _bt_hal_slot_align(void)
     if (++_slot_err_n < BT_HAL_SLOT_ALIGN_TICKS)
         return;
     const int32_t avg = _slot_err_sum / BT_HAL_SLOT_ALIGN_TICKS;
+    _slot_err_last = avg;
     _slot_err_sum = 0;
     _slot_err_n = 0;
     if (avg > BT_HAL_SLOT_DEADBAND_US || avg < -BT_HAL_SLOT_DEADBAND_US)
@@ -1608,6 +1615,14 @@ static void _bt_hal_dongle_tick(void)
     uint16_t len;
     if (dongle_api_gamepad_link_next_report(out, &len))
     {
+#if HOJA_BT_SLOT_DIAG
+        if (len >= 4)
+        {
+            out[2] = (uint8_t)(_slot_samples > 255u ? 255u : _slot_samples);
+            int32_t e = _slot_err_last / 4;
+            out[3] = (uint8_t)(int8_t)(e > 127 ? 127 : (e < -127 ? -127 : e));
+        }
+#endif
         floss_link_set_input(DONGLE_LINK_IN_REPORT, out, (uint8_t)len);
         tasks_mark_sent_isr();
     }
