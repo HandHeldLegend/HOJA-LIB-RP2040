@@ -1472,10 +1472,9 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 // between asking and the reply, and a slow reply says little about when.
 #define BT_HAL_SLOT_PAIR_US      1250
 #define BT_HAL_SLOT_READ_US      20000u
-// Covers our task loop running the report tick late (up to ~0.5 ms): a report read and handed over
-// that late still makes its slot. A late tick reads the input late too, so the input is always
-// this much older than its slot, never a slot pair more.
-#define BT_HAL_SLOT_LEAD_US      600
+// Measured on the GCU-2 by sweeping it over the whole pair: fewest late reports around 200-400 us
+// (on our reading of the radio's clock, which is off by however long the radio takes to answer)
+#define BT_HAL_SLOT_LEAD_US      300
 #define BT_HAL_SLOT_RT_SLACK_US  400u  // our task loop picks replies up late, by up to ~1 ms
 #define BT_HAL_SLOT_FAST_SAMPLES 15u   // quick convergence first
 #define BT_HAL_SLOT_LOCK_SAMPLES 40u   // then placing reports
@@ -1584,7 +1583,11 @@ static void _bt_hal_slot_timer(floss_timer_t *t, void *arg)
 
 // From each report tick: how far our hand-over is from BT_HAL_SLOT_LEAD_US before a pair starts,
 // averaged over BT_HAL_SLOT_ALIGN_TICKS (our task loop makes each one wobble), then corrected
-#if HOJA_BT_SLOT_DIAG
+#ifndef HOJA_BT_SLOT_SWEEP
+#define HOJA_BT_SLOT_SWEEP 0
+#endif
+
+#if HOJA_BT_SLOT_SWEEP
 // Test builds: the lead steps through the whole slot pair (0..1125 us), 5 s each, to compare
 static int32_t _bt_hal_slot_lead(void)
 {
