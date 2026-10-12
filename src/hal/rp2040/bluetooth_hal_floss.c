@@ -1517,12 +1517,25 @@ static const floss_l2cap_ops_t _bt_hal_dongle_rel_ops = {
     .on_data = _bt_hal_dongle_rel_data,
 };
 
+// Packet types on the dongle link: the basic ones, and 2 Mbps but not 3 Mbps. A report fits one
+// 2 Mbps slot (2-DH1, 54 bytes), and 3 Mbps needs a cleaner signal: more of its packets are
+// sent again, a slot pair late.
+#define BT_HAL_DONGLE_PACKET_TYPES 0xEE1Cu // DM1 DH1 DM3 DH3 DM5 DH5; 3-DH1, 3-DH3, 3-DH5 excluded
+#define BT_HAL_HCI_CHANGE_CONNECTION_PACKET_TYPE FLOSS_OPCODE(0x01, 0x000F)
+
 static void _bt_hal_dongle_connected(const floss_addr_t *peer)
 {
     // Auto mode: a dongle answered, so this is the mode
     autodetect_dongle_found();
 
     const floss_conn_t *conn = floss_hci_conn_by_addr(peer);
+    if (conn)
+    {
+        uint8_t p[4];
+        floss_put_le16(&p[0], conn->handle);
+        floss_put_le16(&p[2], BT_HAL_DONGLE_PACKET_TYPES);
+        floss_hci_cmd(BT_HAL_HCI_CHANGE_CONNECTION_PACKET_TYPE, p, sizeof(p), NULL, NULL);
+    }
     if (!conn || floss_l2cap_connect(conn->handle, DONGLE_LINK_PSM_RELIABLE, &_bt_hal_dongle_rel_ops, NULL,
                                      FLOSS_SEC_ENCRYPTED, &_dongle_rel) != FLOSS_OK)
     {
