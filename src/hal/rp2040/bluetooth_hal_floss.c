@@ -1472,7 +1472,10 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 // between asking and the reply, and a slow reply says little about when.
 #define BT_HAL_SLOT_PAIR_US      1250
 #define BT_HAL_SLOT_READ_US      20000u
-#define BT_HAL_SLOT_LEAD_US      400
+// Covers our task loop running the report tick late (up to ~0.5 ms): a report read and handed over
+// that late still makes its slot. A late tick reads the input late too, so the input is always
+// this much older than its slot, never a slot pair more.
+#define BT_HAL_SLOT_LEAD_US      600
 #define BT_HAL_SLOT_RT_SLACK_US  400u  // our task loop picks replies up late, by up to ~1 ms
 #define BT_HAL_SLOT_FAST_SAMPLES 15u   // quick convergence first
 #define BT_HAL_SLOT_LOCK_SAMPLES 40u   // then placing reports
