@@ -12,7 +12,12 @@
 // Classic HID only
 #define FLOSS_ENABLE_LE     0
 #define FLOSS_ENABLE_RFCOMM 0
+// Link test builds use FLOSS's pad <-> dongle link profile
+#if defined(HOJA_BT_FLOSS_LINK_TEST) && HOJA_BT_FLOSS_LINK_TEST
+#define FLOSS_ENABLE_LINK   1
+#else
 #define FLOSS_ENABLE_LINK   0
+#endif
 
 // A Switch, a Wii and a few PCs
 #define FLOSS_MAX_BONDS 8

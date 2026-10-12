@@ -166,6 +166,8 @@ function(hoja_use_floss TARGET)
     *floss_hci_acl.c.obj
     *floss_l2cap.c.obj
     *floss_hid.c.obj
+    *floss_link.c.obj
+    *floss_link_classic.c.obj
     *floss_cyw43.c.obj
     *cyw43_ll.c.obj
     *cyw43_ctrl.c.obj

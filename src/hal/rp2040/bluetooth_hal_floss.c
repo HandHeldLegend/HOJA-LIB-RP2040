@@ -40,6 +40,12 @@
 #define HOJA_BT_FLOSS_DIAG 0
 #endif
 
+// Test builds: SInput mode talks to a FLOSS link dongle (FLOSS's pad <-> dongle link profile)
+// instead of a host's HID, to compare the radio link without the PC's adapter in the path
+#ifndef HOJA_BT_FLOSS_LINK_TEST
+#define HOJA_BT_FLOSS_LINK_TEST 0
+#endif
+
 /***********************************************/
 /********* FLOSS platform (HAL) ****************/
 
@@ -423,8 +429,16 @@ static bool _bt_hal_is_wii(void)
 // Connectable whenever no host is connected; discoverable when asked. A connected controller
 // stops answering searches and pages, like a real one (on a Wii, a connected remote that stayed
 // findable stalled pairing another remote, or locked it up).
+#if HOJA_BT_FLOSS_LINK_TEST
+static bool _link_mode = false; // This session runs the link pad (the link profile owns scanning)
+#endif
+
 static void _bt_hal_apply_scan(void)
 {
+#if HOJA_BT_FLOSS_LINK_TEST
+    if (_link_mode)
+        return;
+#endif
     if (_connected)
         floss_gap_set_scan(false, false);
     else
@@ -1172,9 +1186,83 @@ static uint8_t _bt_hal_pin_handler(const floss_addr_t *peer, uint8_t pin[16])
 /***********************************************/
 /********* GAP events **************************/
 
+#if HOJA_BT_FLOSS_LINK_TEST
+static floss_link_config_t _link_cfg;
+static uint8_t _link_counter = 0;
+
+// SInput report -> the link dongle's 13-byte gamepad report (buttons, hat, sticks, triggers). The
+// hat byte's unused high nibble carries a counter so every report differs and none is skipped.
+static void _bt_hal_link_tick(void)
+{
+    core_report_s report = {0};
+    if (!core_get_generated_report(&report) || report.size < 19 || report.data[0] != 1)
+        return;
+
+    // SInput payload: plug, charge, buttons 1-4, LX LY RX RY, LT RT (int16)
+    const uint8_t *p = &report.data[1];
+    const bool up = p[2] & 0x01, down = p[2] & 0x02, left = p[2] & 0x04, right = p[2] & 0x08;
+    uint8_t hat = 8; // centred
+    if (up && right)        hat = 1;
+    else if (down && right) hat = 3;
+    else if (down && left)  hat = 5;
+    else if (up && left)    hat = 7;
+    else if (up)            hat = 0;
+    else if (right)         hat = 2;
+    else if (down)          hat = 4;
+    else if (left)          hat = 6;
+
+    uint8_t out[13];
+    floss_put_le16(&out[0], (uint16_t)(p[3] | (p[4] << 8)));
+    out[2] = (uint8_t)(hat | (uint8_t)(_link_counter++ << 4));
+    memcpy(&out[3], &p[6], 8); // sticks, int16 little endian as the dongle expects
+    out[11] = (uint8_t)(((int32_t)(int16_t)(p[14] | (p[15] << 8)) + 32768) >> 8);
+    out[12] = (uint8_t)(((int32_t)(int16_t)(p[16] | (p[17] << 8)) + 32768) >> 8);
+    floss_link_set_input(1, out, sizeof(out));
+    tasks_mark_sent_isr();
+}
+
+static void _bt_hal_link_connected(const floss_addr_t *peer)
+{
+    (void)peer;
+    if (core_current_params()->core_connected)
+        core_current_params()->core_connected();
+    _connected = true;
+}
+
+static void _bt_hal_link_disconnected(uint8_t reason)
+{
+    (void)reason;
+    _connected = false; // The link reconnects by itself
+}
+
+static const floss_link_callbacks_t _bt_hal_link_callbacks = {
+    .on_connected = _bt_hal_link_connected,
+    .on_disconnected = _bt_hal_link_disconnected,
+    .on_report_tick = _bt_hal_link_tick,
+};
+
+static bool _bt_hal_link_apply(void)
+{
+    floss_link_config_defaults(&_link_cfg, FLOSS_LINK_ROLE_PAD, FLOSS_LINK_CLASSIC);
+    _link_cfg.name = "HOJA Link Pad";
+    _link_cfg.report_interval_us = _report_interval_us;
+    return floss_link_init(&_link_cfg, &_bt_hal_link_callbacks) == FLOSS_OK;
+}
+#endif
+
 static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
+
+#if HOJA_BT_FLOSS_LINK_TEST
+    // Bonded: the dongle pages us. Pairing mode, or no dongle yet: wait for the dongle's search.
+    if (_link_mode)
+    {
+        if (_pairing_mode || floss_link_state() == FLOSS_LINK_STATE_IDLE)
+            floss_link_pair();
+        return;
+    }
+#endif
 
     if (_bt_mode_ready)
     {
@@ -1288,6 +1376,11 @@ static void _bt_hal_mode_setup(core_params_s *params)
 
 static bool _bt_hal_mode_apply(void)
 {
+#if HOJA_BT_FLOSS_LINK_TEST
+    _link_mode = _mode_sinput;
+    if (_link_mode)
+        return _bt_hal_link_apply();
+#endif
     floss_hid_config_defaults(&_hid_cfg);
     _hid_cfg.name = _bt_hal_hid->name;
     _hid_cfg.report_descriptor = _bt_hal_hid->hid_report_descriptor;
@@ -1509,6 +1602,9 @@ void transport_bt_task(uint64_t timestamp)
     }
 
     // The host closed the HID channels; FLOSS closes the link after it
+#if HOJA_BT_FLOSS_LINK_TEST
+    if (!_link_mode)
+#endif
     if (_connected && floss_hid_state() != FLOSS_HID_STATE_CONNECTED)
         _bt_hal_session_closed();
 
