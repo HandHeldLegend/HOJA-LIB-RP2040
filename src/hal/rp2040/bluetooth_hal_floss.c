@@ -1461,9 +1461,8 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 
 // --- The link ---
 
-// Each live report the link asks for: the newest input report, trimmed, and the config app's live
-// report when there is a new one. The dongle's pacing request applies from the next period.
-static void _bt_hal_dongle_tick(void)
+// The next live report: the newest input report, trimmed, into the link's mailbox
+static void _bt_hal_dongle_build(void)
 {
     uint8_t out[DONGLE_LINK_REPORT_MAX];
     uint16_t len;
@@ -1472,8 +1471,35 @@ static void _bt_hal_dongle_tick(void)
         floss_link_set_input(DONGLE_LINK_IN_REPORT, out, (uint8_t)len);
         tasks_mark_sent_isr();
     }
+}
+
+// Reports are built ahead of their send (building takes 0.2-0.4 ms on the GCU-2): the link's tick
+// then only sends, on time, and every report leaves the same age. If the task loop missed that,
+// the tick builds it, late.
+#define BT_HAL_DONGLE_BUILD_LEAD_US 400
+static bool _dongle_built = false;
+
+static void _bt_hal_dongle_prebuild(void)
+{
+    uint32_t due;
+    if (_dongle_built || !floss_link_next_report_at(&due))
+        return;
+    if ((int32_t)(time_us_32() - (due - BT_HAL_DONGLE_BUILD_LEAD_US)) < 0)
+        return;
+    _bt_hal_dongle_build();
+    _dongle_built = true;
+}
+
+// Each report the link sends: the one built ahead (or now), and the config app's live report when
+// there is a new one. The dongle's pacing request applies from the next period.
+static void _bt_hal_dongle_tick(void)
+{
+    if (!_dongle_built)
+        _bt_hal_dongle_build();
+    _dongle_built = false;
 
     uint8_t bulk[64];
+    uint16_t len;
     if (dongle_api_gamepad_link_take_bulk(bulk, &len))
         floss_link_set_input(DONGLE_LINK_IN_BULK, bulk, (uint8_t)len);
 
@@ -1518,25 +1544,12 @@ static const floss_l2cap_ops_t _bt_hal_dongle_rel_ops = {
     .on_data = _bt_hal_dongle_rel_data,
 };
 
-// Packet types on the dongle link: the basic ones, and 2 Mbps but not 3 Mbps. A report fits one
-// 2 Mbps slot (2-DH1, 54 bytes), and 3 Mbps needs a cleaner signal: more of its packets are
-// sent again, a slot pair late.
-#define BT_HAL_DONGLE_PACKET_TYPES 0xEE1Cu // DM1 DH1 DM3 DH3 DM5 DH5; 3-DH1, 3-DH3, 3-DH5 excluded
-#define BT_HAL_HCI_CHANGE_CONNECTION_PACKET_TYPE FLOSS_OPCODE(0x01, 0x000F)
-
 static void _bt_hal_dongle_connected(const floss_addr_t *peer)
 {
     // Auto mode: a dongle answered, so this is the mode
     autodetect_dongle_found();
 
     const floss_conn_t *conn = floss_hci_conn_by_addr(peer);
-    if (conn)
-    {
-        uint8_t p[4];
-        floss_put_le16(&p[0], conn->handle);
-        floss_put_le16(&p[2], BT_HAL_DONGLE_PACKET_TYPES);
-        floss_hci_cmd(BT_HAL_HCI_CHANGE_CONNECTION_PACKET_TYPE, p, sizeof(p), NULL, NULL);
-    }
     if (!conn || floss_l2cap_connect(conn->handle, DONGLE_LINK_PSM_RELIABLE, &_bt_hal_dongle_rel_ops, NULL,
                                      FLOSS_SEC_ENCRYPTED, &_dongle_rel) != FLOSS_OK)
     {
@@ -1984,6 +1997,11 @@ static void _bt_hal_task(uint64_t timestamp)
     _diag_nested_us = 0;
     _diag_nested_txn = 0;
     uint32_t poll_txn0 = _diag_bus_count;
+#endif
+
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    if (_mode_dongle)
+        _bt_hal_dongle_prebuild();
 #endif
 
     floss_poll();

@@ -48,7 +48,7 @@ void tasks_run(void);
 // True once every registered required task has run since the last tasks_mark_sent().
 bool tasks_get_required_done(void);
 
-#if defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG
+#if (defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG) || (defined(HOJA_TASKS_DIAG) && HOJA_TASKS_DIAG)
 // Test builds: the two longest task runs since the last call (names may be NULL)
 void tasks_diag_take_worst(const char **name1, uint32_t *us1, const char **name2, uint32_t *us2);
 #endif

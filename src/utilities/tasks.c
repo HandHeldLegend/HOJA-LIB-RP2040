@@ -64,7 +64,7 @@ void tasks_reset(void)
     _tasks_phase = TASK_PHASE_REQUIRED;
 }
 
-#if defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG
+#if (defined(HOJA_BT_FLOSS_DIAG) && HOJA_BT_FLOSS_DIAG) || (defined(HOJA_TASKS_DIAG) && HOJA_TASKS_DIAG)
 static const task_s *_diag_worst[2];
 static uint32_t _diag_worst_us[2];
 
