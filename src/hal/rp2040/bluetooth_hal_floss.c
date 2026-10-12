@@ -1565,12 +1565,9 @@ static bool _bt_hal_dongle_apply(void)
     _link_cfg.classic_store_keys = false;  // It pairs every time; we remember its address only
     _link_cfg.report_interval_us = DONGLE_LINK_INTERVAL_DEFAULT_US;
     // The radio reports delivered packets two at a time, 3-8 ms late: room for that many, so
-    // reports are never held back and sent in pairs. A report the radio has not delivered within
-    // 3 slots (2 ms rounds to 1.875 ms: the wait for its slot, then one try) is dropped rather than
-    // retried: the next one is newer, and nothing queues behind a retry. The radio counts from when
-    // it is given the report, so 1 ms (2 slots) dropped most of them before their first try.
+    // reports go to the radio one per period and are never held back and sent in pairs. The dongle
+    // sees a report waiting in our radio (after a resend) and moves our clock a period on.
     _link_cfg.max_inflight = 4;
-    _link_cfg.classic_flush_timeout_ms = 2;
     return floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) == FLOSS_OK;
 }
 
