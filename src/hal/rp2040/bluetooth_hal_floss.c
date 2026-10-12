@@ -17,7 +17,6 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <math.h>
 
 #include "transport/transport_bt.h"
 #include "utilities/settings.h"
@@ -1460,168 +1459,6 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
     return true;
 }
 
-// --- Slot lock ---
-//
-// At one report per slot pair the reports must reach the radio just before a slot pair starts:
-// later, and a report waits for the next pair (and the one after it queues behind it); earlier,
-// and it waits for nothing but grows older. Our clock and the radio's drift apart by tens of ppm,
-// enough to slide the hand-over through the whole pair in under a minute. So we read the radio's
-// Bluetooth clock (HCI Read Clock) every BT_HAL_SLOT_READ_US, follow it with a phase-locked loop,
-// and move our report clock (floss_link_shift_phase) to hand reports over BT_HAL_SLOT_LEAD_US
-// before a pair starts. Only replies that came back quickly count: the clock was read somewhere
-// between asking and the reply, and a slow reply says little about when.
-#define BT_HAL_SLOT_PAIR_US      1250
-#define BT_HAL_SLOT_READ_US      20000u
-// Measured on the GCU-2 by sweeping it over the whole pair: fewest late reports around 200-400 us
-// (on our reading of the radio's clock, which is off by however long the radio takes to answer)
-#define BT_HAL_SLOT_LEAD_US      300
-#define BT_HAL_SLOT_RT_SLACK_US  400u  // our task loop picks replies up late, by up to ~1 ms
-#define BT_HAL_SLOT_FAST_SAMPLES 15u   // quick convergence first
-#define BT_HAL_SLOT_LOCK_SAMPLES 40u   // then placing reports
-#define BT_HAL_SLOT_ALIGN_TICKS  16
-#define BT_HAL_SLOT_DEADBAND_US  15
-#define BT_HAL_HCI_READ_CLOCK    FLOSS_OPCODE(0x05, 0x0007)
-
-static floss_timer_t _slot_timer;
-static uint16_t _slot_handle = BT_HAL_NO_HANDLE;
-static uint32_t _slot_t0;      // when the pending read was queued
-static uint8_t _slot_pending;  // timer periods a read has been pending
-static uint32_t _slot_rt_min;  // quickest reply seen, forgotten slowly
-static uint32_t _slot_samples;
-static uint32_t _slot_t_ref;   // our time of the estimate
-static double _slot_b_ref;     // the radio's clock (us) then
-static double _slot_rate;      // radio us per our us, minus 1
-static int32_t _slot_err_sum;
-static uint8_t _slot_err_n;
-static int32_t _slot_err_last; // test builds (HOJA_BT_SLOT_DIAG)
-
-// Test builds: the lock's state in SInput's plug and charge bytes (1 + lead / 125 us once locked, else 0;
-// last error / 4 us), and the lead sweeping (see _bt_hal_slot_lead)
-#ifndef HOJA_BT_SLOT_DIAG
-#define HOJA_BT_SLOT_DIAG 0
-#endif
-
-static void _bt_hal_slot_reset(uint16_t handle)
-{
-    _slot_handle = handle;
-    _slot_pending = 0;
-    _slot_rt_min = UINT32_MAX;
-    _slot_samples = 0;
-    _slot_rate = 0.0;
-    _slot_err_sum = 0;
-    _slot_err_n = 0;
-    floss_timer_stop(&_slot_timer);
-    if (handle != BT_HAL_NO_HANDLE)
-        floss_timer_start(&_slot_timer, BT_HAL_SLOT_READ_US);
-}
-
-static double _bt_hal_slot_radio_us(uint32_t t)
-{
-    return _slot_b_ref + (double)(int32_t)(t - _slot_t_ref) * (1.0 + _slot_rate);
-}
-
-static void _bt_hal_slot_read_done(void *ctx, uint16_t opcode, uint8_t status, const uint8_t *ret, uint16_t ret_len)
-{
-    (void)ctx;
-    (void)opcode;
-    const uint32_t t1 = time_us_32();
-    const uint32_t t0 = _slot_t0;
-    _slot_pending = 0;
-    if (status != 0 || ret_len < 6 || _slot_handle == BT_HAL_NO_HANDLE)
-        return;
-
-    const uint32_t rt = t1 - t0;
-    if (rt < _slot_rt_min)
-        _slot_rt_min = rt;
-    else
-        _slot_rt_min += 8u;
-    if (rt > _slot_rt_min + BT_HAL_SLOT_RT_SLACK_US)
-        return;
-
-    // CLK27..CLK0: ticks of 312.5 us (half a slot); the read happened somewhere inside one
-    const uint32_t clk = floss_get_le32(&ret[2]) & 0x0FFFFFFFu;
-    const double b = (double)clk * 312.5 + 156.25;
-    const uint32_t t = t0 + rt / 2u;
-
-    if (_slot_samples == 0)
-    {
-        _slot_b_ref = b;
-        _slot_t_ref = t;
-        _slot_samples = 1;
-        return;
-    }
-    const double pred = _bt_hal_slot_radio_us(t);
-    const double e = b - pred;
-    const double dt = (double)(int32_t)(t - _slot_t_ref);
-    if (e > 100000.0 || e < -100000.0 || dt <= 0.0)
-    {
-        _bt_hal_slot_reset(_slot_handle); // the clock wrapped, or a reconnect: start over
-        return;
-    }
-    const double kp = (_slot_samples < BT_HAL_SLOT_FAST_SAMPLES) ? 0.3 : 0.05;
-    _slot_b_ref = pred + kp * e;
-    _slot_t_ref = t;
-    _slot_rate += (kp * kp / 4.0) * e / dt;
-    _slot_samples++;
-}
-
-static void _bt_hal_slot_timer(floss_timer_t *t, void *arg)
-{
-    (void)arg;
-    if (_slot_handle == BT_HAL_NO_HANDLE)
-        return;
-    floss_timer_start(t, BT_HAL_SLOT_READ_US);
-    if (_slot_pending && ++_slot_pending < 5)
-        return; // still waiting for the last one
-    uint8_t p[3];
-    floss_put_le16(&p[0], _slot_handle);
-    p[2] = 1; // the piconet clock
-    _slot_t0 = time_us_32();
-    if (floss_hci_cmd(BT_HAL_HCI_READ_CLOCK, p, sizeof(p), _bt_hal_slot_read_done, NULL) == FLOSS_OK)
-        _slot_pending = 1;
-}
-
-// From each report tick: how far our hand-over is from BT_HAL_SLOT_LEAD_US before a pair starts,
-// averaged over BT_HAL_SLOT_ALIGN_TICKS (our task loop makes each one wobble), then corrected
-#ifndef HOJA_BT_SLOT_SWEEP
-#define HOJA_BT_SLOT_SWEEP 0
-#endif
-
-#if HOJA_BT_SLOT_SWEEP
-// Test builds: the lead steps through the whole slot pair (0..1125 us), 5 s each, to compare
-static int32_t _bt_hal_slot_lead(void)
-{
-    return 125 * (int32_t)((time_us_32() / 5000000u) % 10u);
-}
-#else
-#define _bt_hal_slot_lead() BT_HAL_SLOT_LEAD_US
-#endif
-
-static void _bt_hal_slot_align(void)
-{
-    if (_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES || _link_cfg.report_interval_us != BT_HAL_SLOT_PAIR_US)
-        return;
-
-    // A pair starts where the radio's clock is a multiple of 1250 us (CLK1..CLK0 = 00)
-    const double b = _bt_hal_slot_radio_us(time_us_32());
-    const double phase = b - 1250.0 * floor(b / 1250.0);
-    int32_t err = (int32_t)((double)(BT_HAL_SLOT_PAIR_US - _bt_hal_slot_lead()) - phase);
-    if (err > BT_HAL_SLOT_PAIR_US / 2)
-        err -= BT_HAL_SLOT_PAIR_US;
-    if (err < -BT_HAL_SLOT_PAIR_US / 2)
-        err += BT_HAL_SLOT_PAIR_US;
-
-    _slot_err_sum += err;
-    if (++_slot_err_n < BT_HAL_SLOT_ALIGN_TICKS)
-        return;
-    const int32_t avg = _slot_err_sum / BT_HAL_SLOT_ALIGN_TICKS;
-    _slot_err_last = avg;
-    _slot_err_sum = 0;
-    _slot_err_n = 0;
-    if (avg > BT_HAL_SLOT_DEADBAND_US || avg < -BT_HAL_SLOT_DEADBAND_US)
-        floss_link_shift_phase(avg);
-}
-
 // --- The link ---
 
 // Each live report the link asks for: the newest input report, trimmed, and the config app's live
@@ -1632,14 +1469,6 @@ static void _bt_hal_dongle_tick(void)
     uint16_t len;
     if (dongle_api_gamepad_link_next_report(out, &len))
     {
-#if HOJA_BT_SLOT_DIAG
-        if (len >= 4)
-        {
-            out[2] = (uint8_t)(_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES ? 0 : 1 + _bt_hal_slot_lead() / 125);
-            int32_t e = _slot_err_last / 4;
-            out[3] = (uint8_t)(int8_t)(e > 127 ? 127 : (e < -127 ? -127 : e));
-        }
-#endif
         floss_link_set_input(DONGLE_LINK_IN_REPORT, out, (uint8_t)len);
         tasks_mark_sent_isr();
     }
@@ -1652,7 +1481,6 @@ static void _bt_hal_dongle_tick(void)
     if (iv)
         _link_cfg.report_interval_us = iv;
 
-    _bt_hal_slot_align();
 }
 
 static void _bt_hal_dongle_rel_open(floss_l2cap_chan_t *ch, uint16_t status)
@@ -1702,7 +1530,6 @@ static void _bt_hal_dongle_connected(const floss_addr_t *peer)
     autodetect_dongle_found();
 
     const floss_conn_t *conn = floss_hci_conn_by_addr(peer);
-    _bt_hal_slot_reset(conn ? conn->handle : BT_HAL_NO_HANDLE);
     if (conn)
     {
         uint8_t p[4];
@@ -1722,7 +1549,6 @@ static void _bt_hal_dongle_connected(const floss_addr_t *peer)
 static void _bt_hal_dongle_disconnected(uint8_t reason)
 {
     (void)reason; // The link connects again by itself
-    _bt_hal_slot_reset(BT_HAL_NO_HANDLE);
     if (_dongle_rel)
     {
         _dongle_rel = NULL;
@@ -2031,10 +1857,6 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-    floss_timer_init(&_slot_timer, _bt_hal_slot_timer, NULL);
-    _slot_handle = BT_HAL_NO_HANDLE;
-#endif
 }
 
 // (Re)start the stack with this address. A restart resets the controller, which drops every link
