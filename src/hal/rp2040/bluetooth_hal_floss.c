@@ -1674,6 +1674,12 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
         break;
 
     case FLOSS_GAP_EVT_CONNECTED:
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+        // The link only connects to dongles: Auto mode stops looking for hosts once one answers,
+        // before the pairing and channels that follow
+        if (_mode_dongle)
+            autodetect_dongle_found();
+#endif
         _bt_hal_probe_on_connected(evt);
         _wii_page_pending = false;
         floss_timer_stop(&_wii_page_stall_timer);
