@@ -1621,6 +1621,7 @@ typedef enum
 #define BT_HAL_APP_MAC_OFFSET   0x21u
 #define BT_HAL_APP_PAGE_TIMEOUT 0x1000 // 2.56 s: a PC listens for pages every 1.28 s
 #define BT_HAL_APP_HOST_WAIT_MS 4000u  // HID up but no app: the dongle link takes over
+#define BT_HAL_APP_SILENT_MS    3000u  // The app repeats its host info every second; silent this long, it is gone
 #define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
 #define BT_HAL_APP_PAIR_MS      30000u // Pairing mode: findable for Link this long
 #define BT_HAL_APP_QOS_US       1250u  // Poll every slot pair, as SInput's HID asks
@@ -1826,12 +1827,13 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
     }
 }
 
-// HID is up but no app said hello (the PC is on, the app isn't running), or pairing timed out
+// HID is up but no app said hello (the PC is on, the app isn't running), the app went quiet (it
+// quit: the PC keeps HID up without it), or pairing timed out. The dongle link takes over.
 static void _bt_hal_app_wait_expired(floss_timer_t *t, void *arg)
 {
     (void)t;
     (void)arg;
-    if ((_app_state == BT_HAL_APP_OPEN && !_app_host_seen) || _app_state == BT_HAL_APP_PAIRING)
+    if (_app_state == BT_HAL_APP_OPEN || _app_state == BT_HAL_APP_PAIRING)
         _bt_hal_app_end(false);
 }
 
@@ -1874,13 +1876,15 @@ static void _bt_hal_app_on_output(uint8_t report_id, const uint8_t *data, uint16
 #endif
     if (report_id != DONGLE_LINK_APP_REPORT_OUT || len < 2u || data[1] > len - 2u)
         return;
+    if (_app_host_seen)
+        floss_timer_start(&_app_wait_timer, BT_HAL_APP_SILENT_MS * 1000u); // The app is there
     const uint8_t *p = &data[2];
     if (data[0] == DONGLE_LINK_APP_LANE_MSG && data[1])
     {
         if (p[0] == DONGLE_LINK_MSG_HOST && !_app_host_seen)
         {
             _app_host_seen = true;
-            floss_timer_stop(&_app_wait_timer);
+            floss_timer_start(&_app_wait_timer, BT_HAL_APP_SILENT_MS * 1000u);
             autodetect_dongle_found(); // Auto mode: the app counts as a dongle
         }
         dongle_api_gamepad_link_rx_msg(p, data[1]);
