@@ -1496,7 +1496,7 @@ static int32_t _slot_err_sum;
 static uint8_t _slot_err_n;
 static int32_t _slot_err_last; // test builds (HOJA_BT_SLOT_DIAG)
 
-// Test builds: the lock's state in SInput's plug and charge bytes (lead / 10 us once locked, else 0;
+// Test builds: the lock's state in SInput's plug and charge bytes (1 + lead / 125 us once locked, else 0;
 // last error / 4 us), and the lead sweeping (see _bt_hal_slot_lead)
 #ifndef HOJA_BT_SLOT_DIAG
 #define HOJA_BT_SLOT_DIAG 0
@@ -1585,10 +1585,10 @@ static void _bt_hal_slot_timer(floss_timer_t *t, void *arg)
 // From each report tick: how far our hand-over is from BT_HAL_SLOT_LEAD_US before a pair starts,
 // averaged over BT_HAL_SLOT_ALIGN_TICKS (our task loop makes each one wobble), then corrected
 #if HOJA_BT_SLOT_DIAG
-// Test builds: the lead steps through 200..800 us, 5 s each, to compare them in one capture
+// Test builds: the lead steps through the whole slot pair (0..1125 us), 5 s each, to compare
 static int32_t _bt_hal_slot_lead(void)
 {
-    return 200 + 100 * (int32_t)((time_us_32() / 5000000u) % 7u);
+    return 125 * (int32_t)((time_us_32() / 5000000u) % 10u);
 }
 #else
 #define _bt_hal_slot_lead() BT_HAL_SLOT_LEAD_US
@@ -1632,7 +1632,7 @@ static void _bt_hal_dongle_tick(void)
 #if HOJA_BT_SLOT_DIAG
         if (len >= 4)
         {
-            out[2] = (uint8_t)(_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES ? 0 : _bt_hal_slot_lead() / 10);
+            out[2] = (uint8_t)(_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES ? 0 : 1 + _bt_hal_slot_lead() / 125);
             int32_t e = _slot_err_last / 4;
             out[3] = (uint8_t)(int8_t)(e > 127 ? 127 : (e < -127 ? -127 : e));
         }
