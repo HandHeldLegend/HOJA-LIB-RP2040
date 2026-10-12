@@ -229,8 +229,15 @@ floss_err_t floss_hal_store_write(uint16_t key, const void *buf, uint16_t len)
     return _bt_store_commit();
 }
 
+#if defined(HOJA_BT_APP_LINK_DIAG)
+static uint8_t _store_deletes; // Diagnostic: keys deleted since boot (shown in the app link trace)
+#endif
+
 floss_err_t floss_hal_store_delete(uint16_t key)
 {
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _store_deletes++;
+#endif
     _bt_store_load();
     bt_store_entry_s *e = _bt_store_find(key);
     if (!e)
@@ -1627,6 +1634,13 @@ static uint8_t _app_rx[512];
 static uint16_t _app_rx_len;
 static const uint8_t _app_uuid[16] = DONGLE_LINK_APP_UUID;
 
+// Bench A/B (HOJA_BT_APP_ASSESS): leave the radio's channel assessment on
+#if defined(HOJA_BT_APP_ASSESS)
+static const bool _app_assess = true;
+#else
+static const bool _app_assess = false;
+#endif
+
 // Diagnostic builds (HOJA_BT_APP_LINK_DIAG): each step of calling the app, as a letter and a byte;
 // when the dongle link takes over, the trace is the gamepad's name on the dongle
 #if defined(HOJA_BT_APP_LINK_DIAG)
@@ -1666,6 +1680,75 @@ static bool _bt_hal_app_wanted(void)
 {
     return !_app_skip && !_pairing_mode && _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
 }
+
+// A HID connection to the PC next to the app link (HOJA_BT_APP_HID): a vendor-defined collection
+// that nothing reads and no report ever goes to. Under test: with HID up, the PC's Intel radio
+// takes no ~25 ms breaks from the link; with RFCOMM alone it does, 2-3 times a second.
+#if defined(HOJA_BT_APP_HID)
+static const uint8_t _app_hid_descriptor[] = {
+    0x06, 0x00, 0xFF, // Usage Page (vendor 0xFF00)
+    0x09, 0x01,       // Usage (1)
+    0xA1, 0x01,       // Collection (application)
+    0x85, 0x01,       //   Report ID 1
+    0x15, 0x00,       //   Logical minimum 0
+    0x26, 0xFF, 0x00, //   Logical maximum 255
+    0x75, 0x08,       //   8 bits
+    0x95, 0x01,       //   1 field
+    0x09, 0x01,       //   Usage (1)
+    0x81, 0x02,       //   Input (data, variable)
+    0xC0,             // End collection
+};
+static bool _app_hid_wanted = true; // Bench A/B (HOJA_BT_APP_HID_AB) turns it off and on
+
+static void _bt_hal_app_hid_connected(const floss_addr_t *host) { (void)host; }
+static void _bt_hal_app_hid_disconnected(uint8_t reason) { (void)reason; }
+static const floss_hid_callbacks_t _bt_hal_app_hid_callbacks = {
+    .on_connected = _bt_hal_app_hid_connected,
+    .on_disconnected = _bt_hal_app_hid_disconnected,
+};
+
+// Registered with the stack before it starts: the HID record in SDP and the HID channels
+static bool _bt_hal_app_hid_init(void)
+{
+    floss_hid_config_defaults(&_hid_cfg);
+    _hid_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
+    _hid_cfg.report_descriptor = _app_hid_descriptor;
+    _hid_cfg.report_descriptor_len = sizeof(_app_hid_descriptor);
+    _hid_cfg.subclass = 0;
+    _hid_cfg.class_of_device = 0x002508;
+    _hid_cfg.auto_discoverable = false;
+    _hid_cfg.auto_reconnect = false;
+    _hid_cfg.app_controls_scan = true;
+    floss_sdp_hid_params_t sp = {
+        .service_name = _hid_cfg.name,
+        .subclass = 0,
+        .country_code = 33,
+        .virtual_cable = true,
+        .reconnect_initiate = true,
+        .battery_power = false,
+        .remote_wake = false,
+        .normally_connectable = false,
+        .boot_device = false,
+        .supervision_timeout = 3200,
+        .ssr_host_max_latency = 0xFFFF,
+        .ssr_host_min_timeout = 0xFFFF,
+        .report_descriptor = _app_hid_descriptor,
+        .report_descriptor_len = sizeof(_app_hid_descriptor),
+    };
+    _hid_cfg.sdp_record = _hid_record;
+    _hid_cfg.sdp_record_len = floss_sdp_build_hid(_hid_record, sizeof(_hid_record), &sp);
+    return floss_hid_init(&_hid_cfg, &_bt_hal_app_hid_callbacks) == FLOSS_OK;
+}
+
+static void _bt_hal_app_hid_connect(void)
+{
+    if (!_app_hid_wanted)
+        return;
+    floss_addr_t pc;
+    _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
+    floss_hid_connect(&pc); // On the app link's connection: opens the HID channels
+}
+#endif
 
 // The app went away (call it again) or didn't answer (the dongle link takes over). Either way the
 // radio restarts, which drops the link.
@@ -1760,7 +1843,27 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
     uint32_t sampled = time_us_32();
     if (!dongle_api_gamepad_link_next_report(report, &n))
         return;
-    const uint8_t hdr[6] = {(uint8_t)_app_seq, (uint8_t)(_app_seq >> 8), (uint8_t)sampled,
+#if defined(HOJA_BT_APP_HID_AB)
+    // Bench A/B: HID next to the link for 45 s, then not (closing HID drops the link, and the app
+    // is called again without it); bit 15 of the sequence number is set while HID is up
+    static uint32_t hid_flip_at = 0;
+    if (!hid_flip_at)
+        hid_flip_at = sampled + 45000000u;
+    else if (floss_time_diff(sampled, hid_flip_at) >= 0)
+    {
+        hid_flip_at = sampled + 45000000u;
+        _app_hid_wanted = !_app_hid_wanted;
+        if (_app_hid_wanted)
+            _bt_hal_app_hid_connect();
+        else if (floss_hid_state() == FLOSS_HID_STATE_CONNECTED)
+            floss_hid_disconnect();
+    }
+    uint16_t seq = (uint16_t)((_app_seq & 0x7FFFu) |
+                              (floss_hid_state() == FLOSS_HID_STATE_CONNECTED ? 0x8000u : 0u));
+#else
+    uint16_t seq = _app_seq;
+#endif
+    const uint8_t hdr[6] = {(uint8_t)seq, (uint8_t)(seq >> 8), (uint8_t)sampled,
                             (uint8_t)(sampled >> 8), (uint8_t)(sampled >> 16), (uint8_t)(sampled >> 24)};
     if (_bt_hal_app_send(DONGLE_LINK_APP_LANE_INPUT, hdr, sizeof(hdr), report, n))
     {
@@ -1787,6 +1890,9 @@ static void _bt_hal_app_on_open(floss_rfcomm_dlc_t *dlc, uint8_t status)
     _bt_hal_app_trace_show(); // How the app was found, as our name
 #endif
     autodetect_dongle_found(); // Auto mode: the app counts as a dongle
+#if defined(HOJA_BT_APP_HID)
+    _bt_hal_app_hid_connect();
+#endif
     dongle_api_gamepad_link_set_up(true);
     _app_deadline = floss_hal_time_us();
     floss_timer_start_at(&_app_timer, _app_deadline + DONGLE_LINK_INTERVAL_DEFAULT_US);
@@ -1865,6 +1971,14 @@ static void _bt_hal_app_call(void)
         return;
     }
     _bt_hal_write_page_timeout(BT_HAL_APP_PAGE_TIMEOUT);
+#if defined(HOJA_BT_APP_LINK_DIAG)
+    _app_trace_len = 0; // Each call's own steps, after the deletions so far
+    APP_TRACE('X', _store_deletes);
+#endif
+    // No channel assessment of our own: each one is a ~25 ms sweep of all 79 channels with the
+    // link silent (as for HID and the dongle link). The PC runs adaptive hopping as the master.
+    if (!_app_assess)
+        floss_gap_set_afh_assessment(false);
     floss_addr_t pc;
     _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &pc);
     _app_state = BT_HAL_APP_CALLING;
@@ -1927,6 +2041,9 @@ static bool _bt_hal_dongle_apply(void)
 #endif
     if (_bt_hal_app_wanted())
     {
+#if defined(HOJA_BT_APP_HID)
+        _bt_hal_app_hid_init();
+#endif
         _app_state = BT_HAL_APP_WAITING;
         return true; // No dongle link this time: the app is called once the radio is up
     }
