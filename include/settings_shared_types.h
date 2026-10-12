@@ -48,6 +48,8 @@ typedef enum
     GAMEPAD_CMD_REFRESH, 
     GAMEPAD_CMD_RESET_TO_BOOTLOADER, 
     GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
+    GAMEPAD_CMD_REBOOT_DONGLE,    // Reboot into the dongle transport, in the current mode (power ignored)
+    GAMEPAD_CMD_REBOOT_BLUETOOTH, // Reboot into Bluetooth, in the current mode
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 

@@ -24,6 +24,7 @@
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
+#include "devices/battery.h"
 #include "devices/animations/anm_authentic.h"
 
 #define BLOCK_CHUNK_MAX 32
@@ -183,13 +184,31 @@ void _gamepad_config_command(uint8_t command, webreport_cmd_confirm_t cb)
     switch(command)
     {
         case GAMEPAD_CMD_RESET_TO_BOOTLOADER:
-            // Through a WLAN dongle the bootloader would be out of reach: updates need a cable
-            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN)
+        {
+            // Through a dongle the bootloader is out of reach unless a cable is in
+            battery_status_s power = {0};
+            battery_get_status(&power);
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN && !power.plugged)
             {
                 cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
                 break;
             }
             sys_hal_bootloader();
+        }
+        break;
+
+        // Come back up in the current mode over another transport (boot memory), whatever powers us
+        case GAMEPAD_CMD_REBOOT_DONGLE:
+        case GAMEPAD_CMD_REBOOT_BLUETOOTH:
+        {
+            boot_memory_s mem = {
+                .report_format = (uint8_t)core_current_reportformat(),
+                .gamepad_method = (command == GAMEPAD_CMD_REBOOT_DONGLE) ? (uint8_t)GAMEPAD_METHOD_WLAN
+                                                                         : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
+            };
+            boot_set_memory(&mem);
+            sys_hal_reboot();
+        }
         break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
