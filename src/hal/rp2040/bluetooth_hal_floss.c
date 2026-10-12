@@ -1496,7 +1496,8 @@ static int32_t _slot_err_sum;
 static uint8_t _slot_err_n;
 static int32_t _slot_err_last; // test builds (HOJA_BT_SLOT_DIAG)
 
-// Test builds: the lock's state in SInput's plug and charge bytes (readings taken, last error / 4 us)
+// Test builds: the lock's state in SInput's plug and charge bytes (lead / 10 us once locked, else 0;
+// last error / 4 us), and the lead sweeping (see _bt_hal_slot_lead)
 #ifndef HOJA_BT_SLOT_DIAG
 #define HOJA_BT_SLOT_DIAG 0
 #endif
@@ -1583,6 +1584,16 @@ static void _bt_hal_slot_timer(floss_timer_t *t, void *arg)
 
 // From each report tick: how far our hand-over is from BT_HAL_SLOT_LEAD_US before a pair starts,
 // averaged over BT_HAL_SLOT_ALIGN_TICKS (our task loop makes each one wobble), then corrected
+#if HOJA_BT_SLOT_DIAG
+// Test builds: the lead steps through 200..800 us, 5 s each, to compare them in one capture
+static int32_t _bt_hal_slot_lead(void)
+{
+    return 200 + 100 * (int32_t)((time_us_32() / 5000000u) % 7u);
+}
+#else
+#define _bt_hal_slot_lead() BT_HAL_SLOT_LEAD_US
+#endif
+
 static void _bt_hal_slot_align(void)
 {
     if (_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES || _link_cfg.report_interval_us != BT_HAL_SLOT_PAIR_US)
@@ -1591,7 +1602,7 @@ static void _bt_hal_slot_align(void)
     // A pair starts where the radio's clock is a multiple of 1250 us (CLK1..CLK0 = 00)
     const double b = _bt_hal_slot_radio_us(time_us_32());
     const double phase = b - 1250.0 * floor(b / 1250.0);
-    int32_t err = (int32_t)((double)(BT_HAL_SLOT_PAIR_US - BT_HAL_SLOT_LEAD_US) - phase);
+    int32_t err = (int32_t)((double)(BT_HAL_SLOT_PAIR_US - _bt_hal_slot_lead()) - phase);
     if (err > BT_HAL_SLOT_PAIR_US / 2)
         err -= BT_HAL_SLOT_PAIR_US;
     if (err < -BT_HAL_SLOT_PAIR_US / 2)
@@ -1621,7 +1632,7 @@ static void _bt_hal_dongle_tick(void)
 #if HOJA_BT_SLOT_DIAG
         if (len >= 4)
         {
-            out[2] = (uint8_t)(_slot_samples > 255u ? 255u : _slot_samples);
+            out[2] = (uint8_t)(_slot_samples < BT_HAL_SLOT_LOCK_SAMPLES ? 0 : _bt_hal_slot_lead() / 10);
             int32_t e = _slot_err_last / 4;
             out[3] = (uint8_t)(int8_t)(e > 127 ? 127 : (e < -127 ? -127 : e));
         }
