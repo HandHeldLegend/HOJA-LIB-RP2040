@@ -9,15 +9,16 @@
 // The CYW43 shared-bus transport writes a 4-byte header in front of each packet
 #define FLOSS_TRANSPORT_MAX_HEADROOM 4
 
-// Classic HID only
+// Classic HID, and the link profile to a HOJA dongle
 #define FLOSS_ENABLE_LE     0
 #define FLOSS_ENABLE_RFCOMM 0
-// Link test builds use FLOSS's pad <-> dongle link profile
-#if defined(HOJA_BT_FLOSS_LINK_TEST) && HOJA_BT_FLOSS_LINK_TEST
 #define FLOSS_ENABLE_LINK   1
-#else
-#define FLOSS_ENABLE_LINK   0
-#endif
+
+// A live report to the dongle is a length byte plus up to 64 bytes (dongle_link.h)
+#define FLOSS_LINK_MAX_REPORT 65
+
+// Looking for a dongle: one 2.56 s inquiry round at a time, so Auto mode moves on quickly
+#define FLOSS_LINK_INQUIRY_LENGTH 2u
 
 // A Switch, a Wii and a few PCs
 #define FLOSS_MAX_BONDS 8

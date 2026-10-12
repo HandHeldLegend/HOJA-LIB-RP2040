@@ -35,15 +35,18 @@
 
 #include "nwii_lib_hid.h"
 
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#include "transport/transport_wlan.h"
+#include "utilities/boot.h"
+#include "usb/webusb.h"
+#include "dongle.h"
+#include "dongle_gamepad.h"
+#include "dongle_link.h"
+#endif
+
 // Test builds: report timing diagnostics in SInput reports (see _bt_hal_diag_fill)
 #ifndef HOJA_BT_FLOSS_DIAG
 #define HOJA_BT_FLOSS_DIAG 0
-#endif
-
-// Test builds: SInput mode talks to a FLOSS link dongle (FLOSS's pad <-> dongle link profile)
-// instead of a host's HID, to compare the radio link without the PC's adapter in the path
-#ifndef HOJA_BT_FLOSS_LINK_TEST
-#define HOJA_BT_FLOSS_LINK_TEST 0
 #endif
 
 /***********************************************/
@@ -432,16 +435,13 @@ static bool _bt_hal_is_wii(void)
 // Connectable whenever no host is connected; discoverable when asked. A connected controller
 // stops answering searches and pages, like a real one (on a Wii, a connected remote that stayed
 // findable stalled pairing another remote, or locked it up).
-#if HOJA_BT_FLOSS_LINK_TEST
-static bool _link_mode = false; // This session runs the link pad (the link profile owns scanning)
-#endif
+// This session runs the dongle link (the link profile owns scanning)
+static bool _mode_dongle = false;
 
 static void _bt_hal_apply_scan(void)
 {
-#if HOJA_BT_FLOSS_LINK_TEST
-    if (_link_mode)
+    if (_mode_dongle)
         return;
-#endif
     if (_connected)
         floss_gap_set_scan(false, false);
     else
@@ -1283,67 +1283,341 @@ static uint8_t _bt_hal_pin_handler(const floss_addr_t *peer, uint8_t pin[16])
 /***********************************************/
 /********* GAP events **************************/
 
-#if HOJA_BT_FLOSS_LINK_TEST
+// The dongle: the WLAN dongle transport (transport_wlan_*) on a Bluetooth link instead. We connect
+// to the dongle with FLOSS's link profile and open a second, reliable channel; HOJA-LIB-DONGLE
+// carries the session, identity, mode following, status and config traffic over them (see
+// dongle_link.h). The dongle stores nothing and pairs every time; we remember its address only.
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
 static floss_link_config_t _link_cfg;
-static uint8_t _link_counter = 0;
+static bool _dongle_running = false;    // The dongle transport is up (it may be waiting for the link)
+static floss_l2cap_chan_t *_dongle_rel = NULL;
+static dongle_cfg_gamepad_s _dongle_cfg;
 
-// SInput report -> the link dongle's 13-byte gamepad report (buttons, hat, sticks, triggers). The
-// hat byte's unused high nibble carries a counter so every report differs and none is skipped.
-static void _bt_hal_link_tick(void)
+// The dongle's mode, picked up by hoja.c between task passes (transport_wlan_take_mode)
+static volatile core_reportformat_t _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+
+// Config app commands arrive inside floss_poll; they run from the task (some write flash)
+#define BT_HAL_DONGLE_CONFIG_RX_LEN 8
+typedef struct
+{
+    uint16_t len;
+    uint8_t data[64];
+} bt_hal_dongle_config_rx_s;
+
+static bt_hal_dongle_config_rx_s _dongle_config_rx[BT_HAL_DONGLE_CONFIG_RX_LEN];
+static uint8_t _dongle_config_rx_head = 0;
+static uint8_t _dongle_config_rx_tail = 0;
+
+static dongle_mode_t _bt_hal_dongle_mode_from_format(core_reportformat_t fmt)
+{
+    switch (fmt)
+    {
+    case CORE_REPORTFORMAT_SWPRO:    return DONGLE_MODE_SWITCH;
+    case CORE_REPORTFORMAT_SINPUT:   return DONGLE_MODE_SINPUT;
+    case CORE_REPORTFORMAT_XINPUT:   return DONGLE_MODE_XINPUT;
+    case CORE_REPORTFORMAT_SLIPPI:   return DONGLE_MODE_SLIPPI;
+    case CORE_REPORTFORMAT_SNES:     return DONGLE_MODE_SNES;
+    case CORE_REPORTFORMAT_N64:      return DONGLE_MODE_N64;
+    case CORE_REPORTFORMAT_GAMECUBE: return DONGLE_MODE_GAMECUBE;
+    default:                         return DONGLE_MODE_SWITCH;
+    }
+}
+
+// Modes the dongle can present, for following it
+static core_reportformat_t _bt_hal_dongle_format_from_mode(dongle_mode_t mode)
+{
+    switch (mode)
+    {
+    case DONGLE_MODE_SWITCH:   return CORE_REPORTFORMAT_SWPRO;
+    case DONGLE_MODE_SINPUT:   return CORE_REPORTFORMAT_SINPUT;
+    case DONGLE_MODE_XINPUT:   return CORE_REPORTFORMAT_XINPUT;
+    case DONGLE_MODE_SLIPPI:   return CORE_REPORTFORMAT_SLIPPI;
+    case DONGLE_MODE_SNES:     return CORE_REPORTFORMAT_SNES;
+    case DONGLE_MODE_N64:      return CORE_REPORTFORMAT_N64;
+    case DONGLE_MODE_GAMECUBE: return CORE_REPORTFORMAT_GAMECUBE;
+    default:                   return CORE_REPORTFORMAT_UNDEFINED;
+    }
+}
+
+static void _bt_hal_dongle_fill_cfg(core_params_s *params)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    const char *dev_maker = (cfg && cfg->device_maker) ? cfg->device_maker : "HHL";
+    const char *dev_name = (cfg && cfg->device_name) ? cfg->device_name : NULL;
+
+    memset(&_dongle_cfg, 0, sizeof(_dongle_cfg));
+    _dongle_cfg.mode = _bt_hal_dongle_mode_from_format(params->core_report_format);
+    const boot_info_s *boot = boot_get_info();
+    _dongle_cfg.mode_forced = boot && boot->mode_chosen;
+    _dongle_cfg.pairing = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
+    _dongle_cfg.fw_version = FIRMWARE_VERSION_TIMESTAMP;
+    _dongle_cfg.evt.rumble = true;
+    _dongle_cfg.evt.player_number = true;
+    _dongle_cfg.evt.transport_status = true;
+
+    dongle_wake_strcopy(_dongle_cfg.manufacturer, DONGLE_WAKE_MANUFACTURER_LEN, dev_maker);
+    if (params->hid_device != NULL)
+    {
+        _dongle_cfg.vid = params->hid_device->vid;
+        _dongle_cfg.pid = params->hid_device->pid;
+        dongle_wake_strcopy(_dongle_cfg.name, DONGLE_WAKE_NAME_LEN, params->hid_device->name);
+    }
+    else if (cfg && (cfg->usb_vid || cfg->usb_pid))
+    {
+        _dongle_cfg.vid = cfg->usb_vid;
+        _dongle_cfg.pid = cfg->usb_pid;
+        if (dev_name)
+            dongle_wake_strcopy(_dongle_cfg.name, DONGLE_WAKE_NAME_LEN, dev_name);
+    }
+}
+
+// --- HOJA-LIB-DONGLE hooks ---
+
+uint64_t dongle_api_hook_get_time_us_u64(void)
+{
+    return time_us_64();
+}
+
+uint16_t dongle_api_hook_get_rand_u16(void)
+{
+    return (uint16_t)(get_rand_32() & 0xFFFFu);
+}
+
+bool dongle_api_gamepad_hook_get_inputreport(uint8_t data[64], uint16_t *len, bool *reliable)
 {
     core_report_s report = {0};
-    if (!core_get_generated_report(&report) || report.size < 19 || report.data[0] != 1)
+    if (!core_get_generated_report(&report))
+        return false;
+
+    uint16_t n = report.size > 64 ? 64 : report.size;
+    memset(data, 0, 64);
+    memcpy(data, report.data, n);
+    *len = n;
+    *reliable = report.reliable;
+    return true;
+}
+
+void dongle_api_gamepad_hook_set_outputreport(const uint8_t data[64], uint16_t len)
+{
+    core_report_tunnel_cb(data, len);
+}
+
+void dongle_api_gamepad_hook_set_player(uint8_t player_number)
+{
+    tp_evt_s evt = {
+        .evt = TP_EVT_PLAYERLED,
+        .evt_playernumber = {.player_number = player_number},
+    };
+    transport_evt_cb(evt);
+}
+
+static void _bt_hal_dongle_notify_connection(bool connected)
+{
+    tp_evt_s evt = {
+        .evt = TP_EVT_CONNECTIONCHANGE,
+        .evt_connectionchange = {.connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED},
+    };
+    transport_evt_cb(evt);
+}
+
+void dongle_api_gamepad_hook_set_transport(bool connected)
+{
+    _bt_hal_dongle_notify_connection(connected);
+}
+
+void dongle_api_gamepad_hook_set_rumble(uint8_t left, uint8_t right, uint8_t left_brake, uint8_t right_brake)
+{
+    tp_evt_s evt = {
+        .evt = TP_EVT_ERMRUMBLE,
+        .evt_ermrumble = {.left = left, .right = right, .leftbrake = left_brake, .rightbrake = right_brake},
+    };
+    transport_evt_cb(evt);
+}
+
+void dongle_api_gamepad_hook_config_rx(const uint8_t data[64], uint16_t len)
+{
+    uint8_t next = (uint8_t)((_dongle_config_rx_head + 1u) % BT_HAL_DONGLE_CONFIG_RX_LEN);
+    if (next == _dongle_config_rx_tail || len == 0 || len > 64)
         return;
-
-    // SInput payload: plug, charge, buttons 1-4, LX LY RX RY, LT RT (int16)
-    const uint8_t *p = &report.data[1];
-    const bool up = p[2] & 0x01, down = p[2] & 0x02, left = p[2] & 0x04, right = p[2] & 0x08;
-    uint8_t hat = 8; // centred
-    if (up && right)        hat = 1;
-    else if (down && right) hat = 3;
-    else if (down && left)  hat = 5;
-    else if (up && left)    hat = 7;
-    else if (up)            hat = 0;
-    else if (right)         hat = 2;
-    else if (down)          hat = 4;
-    else if (left)          hat = 6;
-
-    uint8_t out[13];
-    floss_put_le16(&out[0], (uint16_t)(p[3] | (p[4] << 8)));
-    out[2] = (uint8_t)(hat | (uint8_t)(_link_counter++ << 4));
-    memcpy(&out[3], &p[6], 8); // sticks, int16 little endian as the dongle expects
-    out[11] = (uint8_t)(((int32_t)(int16_t)(p[14] | (p[15] << 8)) + 32768) >> 8);
-    out[12] = (uint8_t)(((int32_t)(int16_t)(p[16] | (p[17] << 8)) + 32768) >> 8);
-    floss_link_set_input(1, out, sizeof(out));
-    tasks_mark_sent_isr();
+    _dongle_config_rx[_dongle_config_rx_head].len = len;
+    memcpy(_dongle_config_rx[_dongle_config_rx_head].data, data, len);
+    _dongle_config_rx_head = next;
 }
 
-static void _bt_hal_link_connected(const floss_addr_t *peer)
+bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 {
-    (void)peer;
-    if (core_current_params()->core_connected)
-        core_current_params()->core_connected();
-    _connected = true;
+    core_reportformat_t format = _bt_hal_dongle_format_from_mode(mode);
+    if (format == CORE_REPORTFORMAT_UNDEFINED)
+        return false;
+    _dongle_mode_request = format;
+    return true;
 }
 
-static void _bt_hal_link_disconnected(uint8_t reason)
+// --- The link ---
+
+// Each live report the link asks for: the newest input report, trimmed, and the config app's live
+// report when there is a new one. The dongle's pacing request applies from the next period.
+static void _bt_hal_dongle_tick(void)
 {
-    (void)reason;
-    _connected = false; // The link reconnects by itself
+    uint8_t out[DONGLE_LINK_REPORT_MAX];
+    uint16_t len;
+    if (dongle_api_gamepad_link_next_report(out, &len))
+    {
+        floss_link_set_input(DONGLE_LINK_IN_REPORT, out, (uint8_t)len);
+        tasks_mark_sent_isr();
+    }
+
+    uint8_t bulk[64];
+    if (dongle_api_gamepad_link_take_bulk(bulk, &len))
+        floss_link_set_input(DONGLE_LINK_IN_BULK, bulk, (uint8_t)len);
+
+    uint16_t iv = dongle_api_gamepad_link_interval_us();
+    if (iv)
+        _link_cfg.report_interval_us = iv;
 }
 
-static const floss_link_callbacks_t _bt_hal_link_callbacks = {
-    .on_connected = _bt_hal_link_connected,
-    .on_disconnected = _bt_hal_link_disconnected,
-    .on_report_tick = _bt_hal_link_tick,
+static void _bt_hal_dongle_rel_open(floss_l2cap_chan_t *ch, uint16_t status)
+{
+    if (ch != _dongle_rel)
+        return;
+    if (status != 0)
+    {
+        // No reliable channel, no session: drop the link, it connects again
+        _dongle_rel = NULL;
+        floss_gap_disconnect(ch->handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
+        return;
+    }
+    dongle_api_gamepad_link_set_up(true);
+}
+
+static void _bt_hal_dongle_rel_close(floss_l2cap_chan_t *ch)
+{
+    if (ch != _dongle_rel)
+        return;
+    _dongle_rel = NULL;
+    dongle_api_gamepad_link_set_up(false);
+    _bt_hal_dongle_notify_connection(false);
+}
+
+static void _bt_hal_dongle_rel_data(floss_l2cap_chan_t *ch, const uint8_t *data, uint16_t len)
+{
+    if (ch == _dongle_rel)
+        dongle_api_gamepad_link_rx_msg(data, len);
+}
+
+static const floss_l2cap_ops_t _bt_hal_dongle_rel_ops = {
+    .on_open = _bt_hal_dongle_rel_open,
+    .on_close = _bt_hal_dongle_rel_close,
+    .on_data = _bt_hal_dongle_rel_data,
 };
 
-static bool _bt_hal_link_apply(void)
+static void _bt_hal_dongle_connected(const floss_addr_t *peer)
+{
+    // Auto mode: a dongle answered, so this is the mode
+    autodetect_dongle_found();
+
+    const floss_conn_t *conn = floss_hci_conn_by_addr(peer);
+    if (!conn || floss_l2cap_connect(conn->handle, DONGLE_LINK_PSM_RELIABLE, &_bt_hal_dongle_rel_ops, NULL,
+                                     FLOSS_SEC_ENCRYPTED, &_dongle_rel) != FLOSS_OK)
+    {
+        _dongle_rel = NULL;
+        if (conn)
+            floss_gap_disconnect(conn->handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
+    }
+}
+
+static void _bt_hal_dongle_disconnected(uint8_t reason)
+{
+    (void)reason; // The link connects again by itself
+    if (_dongle_rel)
+    {
+        _dongle_rel = NULL;
+        dongle_api_gamepad_link_set_up(false);
+        _bt_hal_dongle_notify_connection(false);
+    }
+}
+
+static void _bt_hal_dongle_output(uint8_t report_id, const uint8_t *data, uint8_t len)
+{
+    if (report_id == DONGLE_LINK_OUT_STATUS)
+        dongle_api_gamepad_link_rx_status(data, len);
+}
+
+static const floss_link_callbacks_t _bt_hal_dongle_callbacks = {
+    .on_connected = _bt_hal_dongle_connected,
+    .on_disconnected = _bt_hal_dongle_disconnected,
+    .on_output = _bt_hal_dongle_output,
+    .on_report_tick = _bt_hal_dongle_tick,
+};
+
+static bool _bt_hal_dongle_apply(void)
 {
     floss_link_config_defaults(&_link_cfg, FLOSS_LINK_ROLE_PAD, FLOSS_LINK_CLASSIC);
-    _link_cfg.name = "HOJA Link Pad";
-    _link_cfg.report_interval_us = _report_interval_us;
-    return floss_link_init(&_link_cfg, &_bt_hal_link_callbacks) == FLOSS_OK;
+    _link_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
+    _link_cfg.peer_name = DONGLE_LINK_NAME;
+    _link_cfg.classic_pad_connects = true; // We find the dongle and run the link
+    _link_cfg.classic_store_keys = false;  // It pairs every time; we remember its address only
+    _link_cfg.report_interval_us = DONGLE_LINK_INTERVAL_DEFAULT_US;
+    return floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) == FLOSS_OK;
+}
+
+// Reliable messages out (our identity, reports that must arrive, config replies), one per pass
+static void _bt_hal_dongle_send(void)
+{
+    if (!_dongle_rel || _dongle_rel->state != FLOSS_L2CAP_OPEN)
+        return;
+
+    uint8_t msg[DONGLE_LINK_MSG_MAX];
+    uint16_t len;
+    if (dongle_api_gamepad_link_peek_msg(msg, &len) && floss_l2cap_send(_dongle_rel, msg, len) == FLOSS_OK)
+        dongle_api_gamepad_link_msg_sent();
+}
+
+// Config replies queue in the dongle library; a big block may fill it, so keep the radio going
+#define BT_HAL_DONGLE_CONFIG_SEND_WAIT_US 200000
+
+static bool _bt_hal_dongle_sink_send(const uint8_t *data, uint16_t size)
+{
+    uint64_t until = time_us_64() + BT_HAL_DONGLE_CONFIG_SEND_WAIT_US;
+    while (!dongle_api_gamepad_config_send(data, size))
+    {
+        if (time_us_64() > until || !_dongle_rel)
+            return false;
+        floss_poll();
+        _bt_hal_dongle_send();
+    }
+    return true;
+}
+
+static bool _bt_hal_dongle_sink_send_input(const uint8_t *data, uint16_t size)
+{
+    dongle_api_gamepad_bulk_send(data, size);
+    return true;
+}
+
+static bool _bt_hal_dongle_sink_ready(int timeout_ms)
+{
+    (void)timeout_ms;
+    return dongle_api_gamepad_adopted();
+}
+
+static const webusb_sink_s _bt_hal_dongle_webusb_sink = {
+    .send = _bt_hal_dongle_sink_send,
+    .send_input = _bt_hal_dongle_sink_send_input,
+    .ready = _bt_hal_dongle_sink_ready,
+};
+
+static void _bt_hal_dongle_task(uint64_t timestamp)
+{
+    _bt_hal_dongle_send();
+
+    while (_dongle_config_rx_tail != _dongle_config_rx_head)
+    {
+        bt_hal_dongle_config_rx_s *rx = &_dongle_config_rx[_dongle_config_rx_tail];
+        webusb_command_handler(rx->data, rx->len);
+        _dongle_config_rx_tail = (uint8_t)((_dongle_config_rx_tail + 1u) % BT_HAL_DONGLE_CONFIG_RX_LEN);
+    }
+    webusb_send_rawinput(timestamp);
 }
 #endif
 
@@ -1351,15 +1625,13 @@ static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
 
-#if HOJA_BT_FLOSS_LINK_TEST
-    // Bonded: the dongle pages us. Pairing mode, or no dongle yet: wait for the dongle's search.
-    if (_link_mode)
+    // The link pages the dongle it remembers, else searches. Pairing mode: search for any dongle.
+    if (_mode_dongle)
     {
-        if (_pairing_mode || floss_link_state() == FLOSS_LINK_STATE_IDLE)
+        if (_pairing_mode)
             floss_link_pair();
         return;
     }
-#endif
 
     if (_bt_mode_ready)
     {
@@ -1473,10 +1745,9 @@ static void _bt_hal_mode_setup(core_params_s *params)
 
 static bool _bt_hal_mode_apply(void)
 {
-#if HOJA_BT_FLOSS_LINK_TEST
-    _link_mode = _mode_sinput;
-    if (_link_mode)
-        return _bt_hal_link_apply();
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    if (_mode_dongle)
+        return _bt_hal_dongle_apply();
 #endif
     floss_hid_config_defaults(&_hid_cfg);
     _hid_cfg.name = _bt_hal_hid->name;
@@ -1629,7 +1900,10 @@ void transport_bt_stop()
 {
 }
 
-bool transport_bt_init(core_params_s *params)
+// Bring the radio up for this transport's mode, or back with it when already running (Auto mode
+// moving on, or the dongle giving way to a host). Auto mode checks the saved hosts before any mode
+// is set up.
+static bool _bt_hal_stack_bringup(core_params_s *params)
 {
     _bt_hal_params = params;
 
@@ -1637,6 +1911,11 @@ bool transport_bt_init(core_params_s *params)
         return false;
 
     _bt_hal_hid = _bt_hal_params->hid_device;
+
+    if (autodetect_bt_probe_pending() && !_mode_dongle)
+        _bt_mode_ready = false;
+    else
+        _bt_hal_mode_setup(params);
 
     if (!_bt_stack_up)
     {
@@ -1649,21 +1928,21 @@ bool transport_bt_init(core_params_s *params)
             sys_hal_sleep_ms(1000);
         }
         _bt_stack_up = true;
-
-        // Auto mode checks the saved hosts before any mode is set up
-        if (!autodetect_bt_probe_pending())
-            _bt_hal_mode_setup(params);
-
         return _bt_hal_stack_start(params->transport_dev_mac);
     }
 
-    // Already running (Auto mode picked this mode): set it up and bring the radio back with it
-    _bt_hal_mode_setup(params);
     _bt_hal_restart();
     return true;
 }
 
-void transport_bt_task(uint64_t timestamp)
+bool transport_bt_init(core_params_s *params)
+{
+    _mode_dongle = false;
+    return _bt_hal_stack_bringup(params);
+}
+
+// The stack's share of the task loop, for both transports
+static void _bt_hal_task(uint64_t timestamp)
 {
     (void)timestamp;
 
@@ -1703,10 +1982,15 @@ void transport_bt_task(uint64_t timestamp)
         return;
     }
 
-    // The host closed the HID channels; FLOSS closes the link after it
-#if HOJA_BT_FLOSS_LINK_TEST
-    if (!_link_mode)
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    if (_mode_dongle)
+    {
+        _bt_hal_dongle_task(timestamp);
+        return;
+    }
 #endif
+
+    // The host closed the HID channels; FLOSS closes the link after it
     if (_connected && floss_hid_state() != FLOSS_HID_STATE_CONNECTED)
         _bt_hal_session_closed();
 
@@ -1729,6 +2013,91 @@ void transport_bt_task(uint64_t timestamp)
         core_report_tunnel_cb(inbound.data, inbound.len);
     }
 }
+
+void transport_bt_task(uint64_t timestamp)
+{
+    _bt_hal_task(timestamp);
+}
+
+/***********************************************/
+/********* Dongle (transport_wlan_*) ***********/
+
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+void transport_wlan_stop(void)
+{
+    // The radio stays up for whatever comes next (Auto mode moving on to a host restarts it)
+    webusb_set_sink(NULL);
+    if (_dongle_rel)
+    {
+        _dongle_rel = NULL;
+        dongle_api_gamepad_link_set_up(false);
+    }
+    _bt_hal_dongle_notify_connection(false);
+    _dongle_running = false;
+    _mode_dongle = false;
+    _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+}
+
+bool transport_wlan_init(core_params_s *params)
+{
+    _bt_hal_dongle_fill_cfg(params);
+
+    // Already up: the mode changed to follow the dongle, so only our identity changes
+    if (_dongle_running)
+    {
+        _bt_hal_params = params;
+        _bt_hal_hid = params->hid_device;
+        dongle_api_gamepad_set_identity(_dongle_cfg.mode, _dongle_cfg.vid, _dongle_cfg.pid, _dongle_cfg.name,
+                                        _dongle_cfg.manufacturer);
+        return true;
+    }
+
+    dongle_api_gamepad_link_init(&_dongle_cfg);
+    _dongle_rel = NULL;
+    _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+    _dongle_config_rx_head = 0;
+    _dongle_config_rx_tail = 0;
+    _mode_dongle = true;
+    if (!_bt_hal_stack_bringup(params))
+    {
+        _mode_dongle = false;
+        return false;
+    }
+    webusb_set_sink(&_bt_hal_dongle_webusb_sink);
+    _dongle_running = true;
+    return true;
+}
+
+void transport_wlan_task(uint64_t timestamp)
+{
+    if (_dongle_running)
+        _bt_hal_task(timestamp);
+}
+
+bool transport_wlan_take_mode(core_reportformat_t *format)
+{
+    if (!_dongle_running || _dongle_mode_request == CORE_REPORTFORMAT_UNDEFINED)
+        return false;
+    *format = _dongle_mode_request;
+    _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+    return true;
+}
+
+bool transport_wlan_choosing(void)
+{
+    return _dongle_running && !_dongle_cfg.mode_forced && !dongle_api_gamepad_adopted();
+}
+
+uint8_t transport_wlan_static_supported(void)
+{
+    return 1;
+}
+
+uint8_t transport_wlan_static_part_status(void)
+{
+    return transport_bt_static_part_status();
+}
+#endif
 
 /***********************************************/
 /********* Static info *************************/

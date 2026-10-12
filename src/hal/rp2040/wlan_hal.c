@@ -1,6 +1,7 @@
 #include "board_config.h"
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER) && (HOJA_TRANSPORT_WLAN_DRIVER == WLAN_DRIVER_HAL)
+// On FLOSS boards the dongle runs over Bluetooth instead (bluetooth_hal_floss.c)
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER) && (HOJA_TRANSPORT_WLAN_DRIVER == WLAN_DRIVER_HAL) && !HOJA_BT_USES_FLOSS
 
 #include <string.h>
 

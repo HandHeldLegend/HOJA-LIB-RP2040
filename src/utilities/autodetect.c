@@ -14,6 +14,9 @@
 #define AUTODETECT_BOS_WAIT_MS      500
 // The probe gives up and lets Switch mode carry on
 #define AUTODETECT_BT_PROBE_MAX_MS  15000
+// No dongle connected by then: look for the saved hosts. Covers a page of the dongle we remember,
+// or one search round for any dongle (FLOSS_LINK_INQUIRY_LENGTH) and the connection after it.
+#define AUTODETECT_DONGLE_WAIT_MS   4000
 // Edges that count as a console on the retro port
 #define AUTODETECT_JOYBUS_EDGES     20
 #define AUTODETECT_LATCH_EDGES      10
@@ -43,11 +46,19 @@
 #define AUTODETECT_BLUETOOTH 0
 #endif
 
+// The dongle over Bluetooth (FLOSS boards): Auto looks for it before the saved hosts
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER) && defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+#define AUTODETECT_DONGLE 1
+#else
+#define AUTODETECT_DONGLE 0
+#endif
+
 typedef enum
 {
     PHASE_OFF = 0,
     PHASE_N64,   // Answering as an N64 controller, waiting for polls
     PHASE_WIRED, // SInput over USB, watching USB and the retro port
+    PHASE_DONGLE, // Looking for a dongle over Bluetooth; it then tells us the mode
     PHASE_BT,    // Switch over Bluetooth, checking the saved hosts first
     PHASE_DONE,  // Mode picked, no more switching
 } phase_t;
@@ -227,6 +238,12 @@ static void _wireless_start(boot_info_s *info)
         return;
     }
     info->reportformat = CORE_REPORTFORMAT_SWPRO;
+    if(AUTODETECT_DONGLE)
+    {
+        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        _phase = PHASE_DONGLE;
+        return;
+    }
     _phase = PHASE_BT;
 }
 
@@ -236,6 +253,8 @@ static void _switch_to_wireless(void)
         _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_WLAN, PHASE_DONE);
     else if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
         _switch_to(_wireless, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
+    else if(AUTODETECT_DONGLE)
+        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_WLAN, PHASE_DONGLE);
     else
         _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
 }
@@ -313,6 +332,13 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
     _confirmed = true;
     _phase = PHASE_DONE;
     return true;
+}
+
+void autodetect_dongle_found(void)
+{
+    if(_phase != PHASE_DONGLE || _confirmed) return;
+    _confirmed = true;
+    _phase = PHASE_DONE;
 }
 
 void autodetect_switch_done(void)
@@ -407,6 +433,11 @@ void autodetect_task(uint64_t now_us)
             _retro_port_watch(false, false);
             _switch_to_wireless();
         }
+        break;
+
+        case PHASE_DONGLE:
+        if(elapsed_ms >= AUTODETECT_DONGLE_WAIT_MS)
+            _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
         break;
 
         case PHASE_BT:
