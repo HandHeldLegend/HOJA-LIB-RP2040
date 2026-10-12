@@ -1444,6 +1444,12 @@ void dongle_api_gamepad_hook_config_rx(const uint8_t data[64], uint16_t len)
     _dongle_config_rx_head = next;
 }
 
+// The dongle lines our reports up with its console sends
+void dongle_api_gamepad_hook_shift_reports(int16_t delta_us)
+{
+    floss_link_shift_phase(delta_us);
+}
+
 bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 {
     core_reportformat_t format = _bt_hal_dongle_format_from_mode(mode);
