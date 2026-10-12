@@ -525,6 +525,90 @@ static void _bt_hal_diag_put_us(uint8_t *out, uint32_t us)
 {
     floss_put_le16(out, us > 0xFFFFu ? 0xFFFFu : (uint16_t)us);
 }
+
+// Radio bus transactions: the diagnostic build links with --wrap for the cyw43 driver's bus
+// calls, which counts and times every transaction
+static uint32_t _diag_bus_count = 0;
+static uint32_t _diag_bus_us = 0;
+static uint8_t _diag_send_txn = 0;      // Transactions in the last send
+static uint16_t _diag_send_bus_us = 0;  // Their time
+static uint8_t _diag_poll_txn_max = 0;  // Most transactions in one poll (without sends)
+static uint32_t _diag_nested_txn = 0;   // Transactions of sends inside the current poll
+
+#define BT_DIAG_BUS_BEGIN() uint32_t _bus_t0 = time_us_32()
+#define BT_DIAG_BUS_END()   do { _diag_bus_us += time_us_32() - _bus_t0; _diag_bus_count++; } while (0)
+
+int __real_cyw43_read_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, uint8_t *buf);
+int __wrap_cyw43_read_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, uint8_t *buf)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_read_bytes(self, fn, addr, len, buf);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_write_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, const uint8_t *src);
+int __wrap_cyw43_write_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, const uint8_t *src)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_write_bytes(self, fn, addr, len, src);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+uint32_t __real_cyw43_read_reg_u32(void *self, uint32_t fn, uint32_t reg);
+uint32_t __wrap_cyw43_read_reg_u32(void *self, uint32_t fn, uint32_t reg)
+{
+    BT_DIAG_BUS_BEGIN();
+    uint32_t r = __real_cyw43_read_reg_u32(self, fn, reg);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_read_reg_u16(void *self, uint32_t fn, uint32_t reg);
+int __wrap_cyw43_read_reg_u16(void *self, uint32_t fn, uint32_t reg)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_read_reg_u16(self, fn, reg);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_read_reg_u8(void *self, uint32_t fn, uint32_t reg);
+int __wrap_cyw43_read_reg_u8(void *self, uint32_t fn, uint32_t reg)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_read_reg_u8(self, fn, reg);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_write_reg_u32(void *self, uint32_t fn, uint32_t reg, uint32_t val);
+int __wrap_cyw43_write_reg_u32(void *self, uint32_t fn, uint32_t reg, uint32_t val)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_write_reg_u32(self, fn, reg, val);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_write_reg_u16(void *self, uint32_t fn, uint32_t reg, uint16_t val);
+int __wrap_cyw43_write_reg_u16(void *self, uint32_t fn, uint32_t reg, uint16_t val)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_write_reg_u16(self, fn, reg, val);
+    BT_DIAG_BUS_END();
+    return r;
+}
+
+int __real_cyw43_write_reg_u8(void *self, uint32_t fn, uint32_t reg, uint32_t val);
+int __wrap_cyw43_write_reg_u8(void *self, uint32_t fn, uint32_t reg, uint32_t val)
+{
+    BT_DIAG_BUS_BEGIN();
+    int r = __real_cyw43_write_reg_u8(self, fn, reg, val);
+    BT_DIAG_BUS_END();
+    return r;
+}
 static uint8_t _diag_max_slots = 0;
 
 // Max Slots Change: handle(2) max slots(1)
@@ -558,15 +642,20 @@ static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
     floss_put_le32(&d[13], now);
     _diag_task_gap_max_us = 0;
 
-    // Touchpad bytes (unused on this board): the two longest tasks, and the link's max slots
+    // Touchpad bytes (unused on this board): radio bus transactions per send and per poll, the
+    // last send's bus time, report timing, and the link's max slots
     const char *n1, *n2;
     uint32_t us1, us2;
     tasks_diag_take_worst(&n1, &us1, &n2, &us2);
-    uint8_t *t = &data[35];
-    _bt_hal_diag_task_name(&t[0], n1);
-    floss_put_le16(&t[2], us1 > 0xFFFFu ? 0xFFFFu : (uint16_t)us1);
+    (void)n1;
+    (void)us1;
     (void)n2;
     (void)us2;
+    uint8_t *t = &data[35];
+    t[0] = _diag_send_txn;
+    t[1] = _diag_poll_txn_max;
+    _bt_hal_diag_put_us(&t[2], _diag_send_bus_us);
+    _diag_poll_txn_max = 0;
     _bt_hal_diag_put_us(&t[4], _diag_gen_us);
     _bt_hal_diag_put_us(&t[6], _diag_send_max_us);
     t[8] = _diag_max_slots;
@@ -637,9 +726,14 @@ static void _bt_hal_try_send(void)
         // Byte 0 is the report ID
 #if HOJA_BT_FLOSS_DIAG
         uint32_t send_start = time_us_32();
+        uint32_t send_txn0 = _diag_bus_count, send_bus0 = _diag_bus_us;
 #endif
         floss_hid_send_input_now(report.data[0], &report.data[1], (uint16_t)(report.size - 1));
 #if HOJA_BT_FLOSS_DIAG
+        uint32_t send_txn = _diag_bus_count - send_txn0;
+        _diag_send_txn = (uint8_t)(send_txn > 255u ? 255u : send_txn);
+        _diag_send_bus_us = (uint16_t)(_diag_bus_us - send_bus0);
+        _diag_nested_txn += send_txn;
         uint32_t send_us = time_us_32() - send_start;
         _diag_nested_us += send_us;
         if (send_us > _diag_send_max_us)
@@ -1576,6 +1670,8 @@ void transport_bt_task(uint64_t timestamp)
         _diag_task_gap_max_us = task_now - _diag_task_last_us;
     _diag_task_last_us = task_now;
     _diag_nested_us = 0;
+    _diag_nested_txn = 0;
+    uint32_t poll_txn0 = _diag_bus_count;
 #endif
 
     floss_poll();
@@ -1584,6 +1680,9 @@ void transport_bt_task(uint64_t timestamp)
     uint32_t poll_us = (time_us_32() - task_now) - _diag_nested_us;
     if (poll_us > _diag_poll_max_us)
         _diag_poll_max_us = poll_us;
+    uint32_t poll_txn = (_diag_bus_count - poll_txn0) - _diag_nested_txn;
+    if (poll_txn > _diag_poll_txn_max)
+        _diag_poll_txn_max = (uint8_t)(poll_txn > 255u ? 255u : poll_txn);
 #endif
 
     if (_restart_pending)
