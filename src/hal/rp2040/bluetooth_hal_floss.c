@@ -1461,16 +1461,14 @@ bool dongle_api_gamepad_hook_mode_request(dongle_mode_t mode)
 
 // --- The link ---
 
-// The next live report: the newest input report, trimmed, into the link's mailbox
+// The next live report: the newest input report, trimmed, ready for the tick to publish
+static uint8_t _dongle_report[DONGLE_LINK_REPORT_MAX];
+static uint16_t _dongle_report_len;
+static bool _dongle_have_report = false;
+
 static void _bt_hal_dongle_build(void)
 {
-    uint8_t out[DONGLE_LINK_REPORT_MAX];
-    uint16_t len;
-    if (dongle_api_gamepad_link_next_report(out, &len))
-    {
-        floss_link_set_input(DONGLE_LINK_IN_REPORT, out, (uint8_t)len);
-        tasks_mark_sent_isr();
-    }
+    _dongle_have_report = dongle_api_gamepad_link_next_report(_dongle_report, &_dongle_report_len);
 }
 
 // Reports are built ahead of their send (building takes 0.2-0.4 ms on the GCU-2): the link's tick
@@ -1490,23 +1488,36 @@ static void _bt_hal_dongle_prebuild(void)
     _dongle_built = true;
 }
 
-// Each report the link sends: the one built ahead (or now), and the config app's live report when
-// there is a new one. The dongle's pacing request applies from the next period.
+static bool _bt_hal_dongle_send_app(void);
+static bool _dongle_last_tick_app = false;
+
+// Each tick sends one packet, so nothing queues behind it in the radio (at one report per slot
+// pair the air has no room for a second): the report built ahead (or now), or, in turn with it,
+// one message of the config app's when one is waiting (a reply, or the app's live report). With
+// no app traffic every tick is a report. The dongle's pacing request applies from the next period.
 static void _bt_hal_dongle_tick(void)
 {
-    if (!_dongle_built)
-        _bt_hal_dongle_build();
-    _dongle_built = false;
+    bool app = false;
+    if (!_dongle_last_tick_app || !dongle_api_gamepad_adopted())
+        app = _bt_hal_dongle_send_app();
+    _dongle_last_tick_app = app;
 
-    uint8_t bulk[64];
-    uint16_t len;
-    if (dongle_api_gamepad_link_take_bulk(bulk, &len))
-        floss_link_set_input(DONGLE_LINK_IN_BULK, bulk, (uint8_t)len);
+    if (!app)
+    {
+        if (!_dongle_built)
+            _bt_hal_dongle_build();
+        if (_dongle_have_report)
+        {
+            floss_link_set_input(DONGLE_LINK_IN_REPORT, _dongle_report, (uint8_t)_dongle_report_len);
+            tasks_mark_sent_isr();
+        }
+    }
+    _dongle_built = false; // a report built for an app tick is dropped; the next one is fresh
+    _dongle_have_report = false;
 
     uint16_t iv = dongle_api_gamepad_link_interval_us();
     if (iv)
         _link_cfg.report_interval_us = iv;
-
 }
 
 static void _bt_hal_dongle_rel_open(floss_l2cap_chan_t *ch, uint16_t status)
@@ -1599,15 +1610,25 @@ static bool _bt_hal_dongle_apply(void)
 }
 
 // Reliable messages out (our identity, reports that must arrive, config replies), one per pass
-static void _bt_hal_dongle_send(void)
+// One app packet for this tick: a reliable message (our identity, reports that must arrive, config
+// replies) first, else the app's live report. False when there is none (or no room).
+static bool _bt_hal_dongle_send_app(void)
 {
-    if (!_dongle_rel || _dongle_rel->state != FLOSS_L2CAP_OPEN)
-        return;
-
     uint8_t msg[DONGLE_LINK_MSG_MAX];
     uint16_t len;
-    if (dongle_api_gamepad_link_peek_msg(msg, &len) && floss_l2cap_send(_dongle_rel, msg, len) == FLOSS_OK)
+    if (_dongle_rel && _dongle_rel->state == FLOSS_L2CAP_OPEN && dongle_api_gamepad_link_peek_msg(msg, &len))
+    {
+        if (floss_l2cap_send(_dongle_rel, msg, len) != FLOSS_OK)
+            return false;
         dongle_api_gamepad_link_msg_sent();
+        return true;
+    }
+    if (dongle_api_gamepad_link_take_bulk(msg, &len))
+    {
+        floss_link_set_input(DONGLE_LINK_IN_BULK, msg, (uint8_t)len);
+        return true;
+    }
+    return false;
 }
 
 // Config replies queue in the dongle library; a big block may fill it, so keep the radio going
@@ -1620,8 +1641,7 @@ static bool _bt_hal_dongle_sink_send(const uint8_t *data, uint16_t size)
     {
         if (time_us_64() > until || !_dongle_rel)
             return false;
-        floss_poll();
-        _bt_hal_dongle_send();
+        floss_poll(); // the link's ticks send the queued replies
     }
     return true;
 }
@@ -1646,9 +1666,9 @@ static const webusb_sink_s _bt_hal_dongle_webusb_sink = {
 
 static void _bt_hal_dongle_task(uint64_t timestamp)
 {
-    _bt_hal_dongle_send();
-
-    while (_dongle_config_rx_tail != _dongle_config_rx_head)
+    // The app's next command once the replies to the last one are out: answering never waits for
+    // room (that would stall the task loop, and the inputs with it)
+    while (_dongle_config_rx_tail != _dongle_config_rx_head && !dongle_api_gamepad_config_pending())
     {
         bt_hal_dongle_config_rx_s *rx = &_dongle_config_rx[_dongle_config_rx_tail];
         webusb_command_handler(rx->data, rx->len);
