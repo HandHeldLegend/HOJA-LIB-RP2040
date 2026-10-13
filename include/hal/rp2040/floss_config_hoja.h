@@ -10,12 +10,9 @@
 #define FLOSS_TRANSPORT_MAX_HEADROOM 4
 
 // Classic HID, and the link profile to a HOJA dongle or the PC app
-// LE only in the bench build that measures advertising next to Classic (HOJA_BT_LE_AB)
-#if defined(HOJA_BT_LE_AB)
+// LE: advertising and the call service next to the direct Bluetooth modes (dongle_link.h, "Calling
+// it to Link"). Measured: advertising every 1 s costs a Classic gamepad link nothing.
 #define FLOSS_ENABLE_LE     1
-#else
-#define FLOSS_ENABLE_LE     0
-#endif
 #define FLOSS_ENABLE_RFCOMM 0
 #define FLOSS_ENABLE_SDP_CLIENT 0
 

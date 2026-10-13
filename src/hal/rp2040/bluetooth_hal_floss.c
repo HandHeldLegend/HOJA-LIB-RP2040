@@ -258,8 +258,10 @@ void btstack_cyw43_deinit(async_context_t *context)
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
 // SInput: a PC polls the link every 1.25 ms once reports come this often, so they arrive evenly.
 // A board's build may set another rate.
-#ifndef BT_HAL_SINPUT_POLLING_RATE_MS
-#define BT_HAL_SINPUT_POLLING_RATE_MS 4
+// SInput: three slot pairs (3.75 ms). Reports cross the air on Bluetooth's 1.25 ms grid, so a whole
+// number of slot pairs keeps them evenly spaced (measured: 76% within 0.3 ms of nominal, 4 ms 46%)
+#ifndef BT_HAL_SINPUT_INTERVAL_US
+#define BT_HAL_SINPUT_INTERVAL_US 3750
 #endif
 // A real Wii Remote reports every 10 ms
 #define BT_HAL_WII_POLLING_RATE_MS 10
@@ -1719,7 +1721,9 @@ static floss_timer_t _app_timer, _app_wait_timer;
 static uint32_t _app_deadline;
 static uint16_t _app_seq;
 static bool _app_last_tick_msg = false;
+static bool _app_token_due = false; // The call token goes to the app (DONGLE_LINK_MSG_TOKEN)
 static char _app_name[48];
+static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN]);
 
 // Diagnostic builds (HOJA_BT_APP_LINK_DIAG): counters, sent every 25 ticks on lane 0x7F
 #if defined(HOJA_BT_APP_LINK_DIAG)
@@ -1811,6 +1815,19 @@ static bool _bt_hal_app_send_msg(void)
 {
     uint8_t msg[DONGLE_LINK_MSG_MAX];
     uint16_t len;
+    if (_app_token_due && dongle_api_gamepad_adopted())
+    {
+        msg[0] = DONGLE_LINK_MSG_TOKEN;
+        if (!_bt_hal_call_token(&msg[1]))
+        {
+            _app_token_due = false;
+            return false;
+        }
+        if (!_bt_hal_app_send_msg_report(DONGLE_LINK_APP_LANE_MSG, msg, 1u + DONGLE_LINK_CALL_TOKEN_LEN))
+            return false;
+        _app_token_due = false;
+        return true;
+    }
     if (dongle_api_gamepad_link_peek_msg(msg, &len))
     {
 #if defined(HOJA_BT_APP_LINK_DIAG)
@@ -1970,6 +1987,7 @@ static void _bt_hal_app_on_output(uint8_t report_id, const uint8_t *data, uint16
         if (p[0] == DONGLE_LINK_MSG_HOST && !_app_host_seen)
         {
             _app_host_seen = true;
+            _app_token_due = true;
             floss_timer_start(&_app_wait_timer, BT_HAL_APP_SILENT_MS * 1000u);
             autodetect_dongle_found(); // Auto mode: the app counts as a dongle
         }
@@ -2057,6 +2075,104 @@ static void _bt_hal_app_call(void)
     _app_state = BT_HAL_APP_CALLING;
     if (floss_hid_connect(&pc->addr) != FLOSS_OK)
         _bt_hal_app_end(false);
+}
+
+// --- Calling it to Link (dongle_link.h): LE advertising and the call service ---
+//
+// In the direct Bluetooth modes, a gamepad with a Link pairing advertises (every 1 s) so the PC app
+// can see it wherever it is connected, and call it over to Link with the token it was given.
+
+#define BT_HAL_CALL_STORE_KEY   (FLOSS_STORE_KEY_APP_BASE + 1u) // The call token
+#define BT_HAL_CALL_ADV_INTERVAL 1600u                          // 1 s, in 0.625 ms units
+
+// UUIDs little-endian, as GATT and AD structures carry them
+static const uint8_t _call_uuid[16] = {0x16, 0x01, 0x49, 0xEF, 0x17, 0xC6, 0xE8, 0x91,
+                                       0x05, 0x45, 0x54, 0x6D, 0xE1, 0xDF, 0x16, 0x2A};
+static const uint8_t _call_cmd_uuid[16] = {0xCB, 0xB7, 0x21, 0x58, 0x6B, 0x4E, 0x27, 0xA9,
+                                           0x71, 0x45, 0x18, 0xEA, 0x7A, 0x11, 0x10, 0xA2};
+static bool _call_pending = false; // Called: restart into dongle mode from the task
+
+// The gamepad's call token, made the first time it is needed and kept
+static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN])
+{
+    if (floss_hal_store_read(BT_HAL_CALL_STORE_KEY, token, DONGLE_LINK_CALL_TOKEN_LEN) == DONGLE_LINK_CALL_TOKEN_LEN)
+        return true;
+    for (unsigned i = 0; i < DONGLE_LINK_CALL_TOKEN_LEN; i += 4)
+    {
+        uint32_t r = get_rand_32();
+        memcpy(&token[i], &r, 4);
+    }
+    return floss_hal_store_write(BT_HAL_CALL_STORE_KEY, token, DONGLE_LINK_CALL_TOKEN_LEN) == FLOSS_OK;
+}
+
+static uint8_t _bt_hal_call_write(uint16_t conn, uint16_t attr_handle, const floss_gatt_attr_t *attr,
+                                  uint16_t offset, const uint8_t *data, uint16_t len, uint8_t flags)
+{
+    (void)conn;
+    (void)attr_handle;
+    (void)attr;
+    (void)flags;
+    uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN];
+    if (offset != 0 || len != 1u + DONGLE_LINK_CALL_TOKEN_LEN || data[0] != DONGLE_LINK_CALL_TO_LINK)
+        return FLOSS_ATT_ERR_VALUE_NOT_ALLOWED;
+    if (!_bt_hal_call_token(token) || memcmp(token, &data[1], sizeof(token)))
+        return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
+    _call_pending = true; // The answer goes out first; the task restarts us
+    return 0;
+}
+
+static const floss_gatt_attr_t _call_service[] = {
+    FLOSS_GATT_PRIMARY_SERVICE128(_call_uuid),
+    FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_WRITE),
+    {.uuid128 = _call_cmd_uuid, .perms = FLOSS_GATT_P_WRITE, .write = _bt_hal_call_write,
+     .max_len = 1u + DONGLE_LINK_CALL_TOKEN_LEN},
+};
+
+// Direct Bluetooth modes, with a Link pairing: the call service and advertising. Before the radio
+// starts (the GATT table is fixed once it runs); advertising starts once it is up.
+static void _bt_hal_call_setup(void)
+{
+    if (_mode_dongle || !_bt_hal_app_bond())
+        return;
+    floss_gatt_register(_call_service, FLOSS_ARRAY_SIZE(_call_service));
+
+    floss_le_adv_params_t p;
+    floss_le_adv_params_defaults(&p);
+    p.interval_min = BT_HAL_CALL_ADV_INTERVAL;
+    p.interval_max = BT_HAL_CALL_ADV_INTERVAL;
+    floss_le_adv_set_params(&p);
+
+    // Flags, then service data: [uuid][version][mode][Link address as shown]
+    uint8_t mac[6];
+    _bt_hal_app_mac(mac);
+    uint8_t sd[16 + 2 + 6];
+    memcpy(sd, _call_uuid, 16);
+    sd[16] = DONGLE_LINK_CALL_VERSION;
+    sd[17] = (uint8_t)core_current_reportformat();
+    memcpy(&sd[18], mac, 6);
+    floss_le_ad_t ad;
+    floss_le_ad_init(&ad);
+    floss_le_ad_flags(&ad, 0x06); // General discoverable, LE only
+    floss_le_ad_add(&ad, 0x21, sd, sizeof(sd)); // Service data, 128-bit UUID
+    floss_le_adv_set_data(ad.data, ad.len);
+    static const uint8_t no_scan_rsp[1] = {0};
+    floss_le_adv_set_scan_rsp(no_scan_rsp, 0);
+    floss_le_adv_start();
+}
+
+// Called: come back up in dongle mode, in the same mode, where Link mode calls the paired PC
+static void _bt_hal_call_task(void)
+{
+    if (!_call_pending)
+        return;
+    _call_pending = false;
+    boot_memory_s mem = {
+        .report_format = (uint8_t)core_current_reportformat(),
+        .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
+    };
+    boot_set_memory(&mem);
+    sys_hal_sleep_ms(100); // The write response leaves first
+    sys_hal_reboot();
 }
 
 static bool _bt_hal_dongle_link_up(void)
@@ -2312,9 +2428,9 @@ static void _bt_hal_mode_setup(core_params_s *params)
 {
     _mode_wii = (params->core_report_format == CORE_REPORTFORMAT_WII);
     _mode_sinput = (params->core_report_format == CORE_REPORTFORMAT_SINPUT);
-    _report_interval_us = (_mode_wii      ? BT_HAL_WII_POLLING_RATE_MS
-                           : _mode_sinput ? BT_HAL_SINPUT_POLLING_RATE_MS
-                                          : BT_HAL_TARGET_POLLING_RATE_MS) * 1000u;
+    _report_interval_us = _mode_wii      ? BT_HAL_WII_POLLING_RATE_MS * 1000u
+                          : _mode_sinput ? BT_HAL_SINPUT_INTERVAL_US
+                                         : BT_HAL_TARGET_POLLING_RATE_MS * 1000u;
     _pairing_mode = (params->core_boot_flags & COREBOOT_FLAG_PAIR) != 0;
     _bt_mode_ready = true;
 }
@@ -2447,6 +2563,10 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     if (_bt_mode_ready && !_bt_hal_mode_apply())
         return false;
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    if (_bt_mode_ready)
+        _bt_hal_call_setup();
+#endif
 #if defined(HOJA_BT_LE_AB)
     _bt_hal_le_ab_setup();
 #endif
@@ -2575,6 +2695,9 @@ static void _bt_hal_task(uint64_t timestamp)
         _bt_hal_stack_start(_restart_mac);
         return;
     }
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    _bt_hal_call_task();
+#endif
 
     if (_wii_stale_link)
     {
