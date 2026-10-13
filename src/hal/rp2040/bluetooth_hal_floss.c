@@ -1702,6 +1702,16 @@ static const uint8_t _app_descriptor[] = {
     0xC0,                   // End collection
 };
 
+// The gamepad's model whatever its mode ("GCU 2", not Switch mode's "Pro Controller"): the board's
+// device name, else its mode's
+static const char *_bt_hal_model_name(void)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    if (cfg && cfg->device_name)
+        return cfg->device_name;
+    return _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
+}
+
 static void _bt_hal_app_mac(uint8_t *mac)
 {
     memcpy(mac, gamepad_config->gamepad_mac_address, 6);
@@ -1937,8 +1947,7 @@ static const floss_hid_callbacks_t _bt_hal_app_callbacks = {
 // Link mode's HID device, registered before the radio starts
 static bool _bt_hal_app_hid_init(void)
 {
-    const char *name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
-    snprintf(_app_name, sizeof(_app_name), "%s Link", name);
+    snprintf(_app_name, sizeof(_app_name), "%s Link", _bt_hal_model_name());
 
     floss_hid_config_defaults(&_hid_cfg);
     _hid_cfg.name = _app_name;
@@ -2096,9 +2105,10 @@ static uint16_t _bt_hal_call_info(uint8_t *out, uint16_t cap)
     buf[n++] = _bt_hal_app_bond() ? DONGLE_LINK_CALL_F_LINKED : 0u;
     _bt_hal_app_mac(&buf[n]);
     n += 6;
-    uint8_t len = (uint8_t)strnlen(_bt_hal_hid ? _bt_hal_hid->name : "", DONGLE_WAKE_NAME_LEN);
+    const char *model = _bt_hal_model_name();
+    uint8_t len = (uint8_t)strnlen(model, DONGLE_WAKE_NAME_LEN);
     buf[n++] = len;
-    memcpy(&buf[n], _bt_hal_hid ? _bt_hal_hid->name : "", len);
+    memcpy(&buf[n], model, len);
     n += len;
     len = (uint8_t)strnlen((const char *)user_config->user_name, sizeof(user_config->user_name));
     buf[n++] = len;
@@ -2217,8 +2227,9 @@ static void _bt_hal_call_setup(void)
     // company 0xFFFF, as much as fits)
     floss_le_ad_t rsp;
     floss_le_ad_init(&rsp);
-    uint8_t name_len = (uint8_t)strnlen(_bt_hal_hid->name, BT_HAL_CALL_NAME_MAX);
-    floss_le_ad_add(&rsp, FLOSS_AD_NAME_COMPLETE, (const uint8_t *)_bt_hal_hid->name, name_len);
+    const char *model = _bt_hal_model_name();
+    uint8_t name_len = (uint8_t)strnlen(model, BT_HAL_CALL_NAME_MAX);
+    floss_le_ad_add(&rsp, FLOSS_AD_NAME_COMPLETE, (const uint8_t *)model, name_len);
     uint8_t user[2 + sizeof(user_config->user_name)] = {0xFF, 0xFF};
     uint8_t user_len = (uint8_t)strnlen((const char *)user_config->user_name, sizeof(user_config->user_name));
     uint8_t room = (uint8_t)(FLOSS_LE_ADV_DATA_MAX - rsp.len - 2u - 2u); // AD header, company
