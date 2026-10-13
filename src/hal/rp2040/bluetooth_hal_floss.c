@@ -692,6 +692,73 @@ static void _bt_hal_diag_step(uint32_t now)
 }
 #endif
 
+// Bench A/B (HOJA_BT_LE_AB), direct SInput over Bluetooth at 3.75 ms: four states for 15 s each, in
+// turn, for 4 minutes: LE advertising off; every 1 s on all three channels; every 1 s on one
+// channel; every 4 s on all three. Reports carry [seq u16][sent_us u32][state u8] at byte 47.
+// Then, on a cable, back to USB.
+#if defined(HOJA_BT_LE_AB)
+#define LE_AB_PHASE_US 10000000u
+#define LE_AB_PHASES   48u
+static uint32_t _le_ab_t0;
+static uint8_t _le_ab_state = 0xFF;
+static uint16_t _le_ab_seq;
+
+static void _bt_hal_le_ab_params(uint16_t interval, uint8_t channels)
+{
+    floss_le_adv_params_t p;
+    floss_le_adv_params_defaults(&p);
+    p.interval_min = interval; // 0.625 ms units
+    p.interval_max = interval;
+    p.channel_map = channels;
+    p.auto_restart = false;
+    floss_le_adv_set_params(&p);
+}
+
+static void _bt_hal_le_ab_setup(void)
+{
+    _bt_hal_le_ab_params(1600, 0x07);
+    floss_le_ad_t ad;
+    floss_le_ad_init(&ad);
+    floss_le_ad_flags(&ad, 0x06); // General discoverable, LE only
+    floss_le_ad_name(&ad, "HOJA");
+    floss_le_adv_set_data(ad.data, ad.len);
+    static const uint8_t no_scan_rsp[1] = {0};
+    floss_le_adv_set_scan_rsp(no_scan_rsp, 0);
+}
+
+static void _bt_hal_le_ab_step(uint32_t now)
+{
+    if (!_le_ab_t0)
+        _le_ab_t0 = now ? now : 1;
+    uint32_t phase = (now - _le_ab_t0) / LE_AB_PHASE_US;
+    if (phase >= LE_AB_PHASES)
+    {
+        battery_status_s power = {0};
+        battery_get_status(&power);
+        if (power.plugged)
+        {
+            boot_clear_memory();
+            sys_hal_reboot();
+        }
+        return;
+    }
+    uint8_t state = (uint8_t)(phase % 2u); // Off, then every 1 s on all three channels
+    if (state == _le_ab_state)
+        return;
+    _le_ab_state = state;
+    _report_interval_us = 3750u;
+    floss_le_adv_stop();
+    if (state == 1u)
+        _bt_hal_le_ab_params(1600, 0x07); // 1 s, channels 37-39
+    else if (state == 2u)
+        _bt_hal_le_ab_params(1600, 0x01); // 1 s, channel 37
+    else if (state == 3u)
+        _bt_hal_le_ab_params(6400, 0x07); // 4 s, channels 37-39
+    if (state != 0u)
+        floss_le_adv_start();
+}
+#endif
+
 static void _bt_hal_try_send(void)
 {
     if (!_send_pending || !_connected)
@@ -727,6 +794,21 @@ static void _bt_hal_try_send(void)
         if (_mode_sinput && report.data[0] == 1 && report.size >= BT_DIAG_OFFSET + 17)
             _bt_hal_diag_fill(report.data, floss_hal_time_us());
 #endif
+#if defined(HOJA_BT_LE_AB)
+        if (_mode_sinput && report.data[0] == 1 && report.size >= 56)
+        {
+            uint32_t t = floss_hal_time_us();
+            uint8_t *d = &report.data[47];
+            d[0] = (uint8_t)_le_ab_seq;
+            d[1] = (uint8_t)(_le_ab_seq >> 8);
+            d[2] = (uint8_t)t;
+            d[3] = (uint8_t)(t >> 8);
+            d[4] = (uint8_t)(t >> 16);
+            d[5] = (uint8_t)(t >> 24);
+            d[6] = _le_ab_state;
+            _le_ab_seq++;
+        }
+#endif
         // Byte 0 is the report ID
 #if HOJA_BT_FLOSS_DIAG
         uint32_t send_start = time_us_32();
@@ -758,6 +840,10 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
 #if HOJA_BT_FLOSS_DIAG
     _diag_tick_due_us = _report_deadline_us;
     _bt_hal_diag_step(now);
+#endif
+#if defined(HOJA_BT_LE_AB)
+    if (_mode_sinput)
+        _bt_hal_le_ab_step(now);
 #endif
     _report_deadline_us += _report_interval_us;
     if (floss_time_diff(now, _report_deadline_us) >= 0)
@@ -2361,6 +2447,9 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     if (_bt_mode_ready && !_bt_hal_mode_apply())
         return false;
+#if defined(HOJA_BT_LE_AB)
+    _bt_hal_le_ab_setup();
+#endif
 
     // Listeners run in the order they were added. HID clears its session when the radio comes
     // up, so ours goes after it: a reconnect started on that event must not be cleared again.

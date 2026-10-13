@@ -10,7 +10,12 @@
 #define FLOSS_TRANSPORT_MAX_HEADROOM 4
 
 // Classic HID, and the link profile to a HOJA dongle or the PC app
+// LE only in the bench build that measures advertising next to Classic (HOJA_BT_LE_AB)
+#if defined(HOJA_BT_LE_AB)
+#define FLOSS_ENABLE_LE     1
+#else
 #define FLOSS_ENABLE_LE     0
+#endif
 #define FLOSS_ENABLE_RFCOMM 0
 #define FLOSS_ENABLE_SDP_CLIENT 0
 
