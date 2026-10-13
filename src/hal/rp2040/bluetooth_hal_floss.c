@@ -1239,6 +1239,10 @@ static bool _bt_hal_probe_start(void)
 /***********************************************/
 /********* HID callbacks ***********************/
 
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+static void _bt_hal_call_adv_rate(bool host_connected);
+#endif
+
 static void _bt_hal_on_connected(const floss_addr_t *host)
 {
     floss_timer_stop(&_wii_reconnect_timer);
@@ -1279,6 +1283,9 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
         core_current_params()->core_connected();
 
     _connected = true;
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    _bt_hal_call_adv_rate(true);
+#endif
     _discoverable = false;
     _bt_hal_apply_scan();
     _bt_hal_report_timer_start();
@@ -1294,6 +1301,9 @@ static void _bt_hal_session_closed(void)
     _connected = false;
     _send_pending = false;
     floss_timer_stop(&_report_timer);
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    _bt_hal_call_adv_rate(false);
+#endif
 
     // Torn down by our own restart: the stack comes back and reconnects
     if (_restart_pending)
@@ -2103,13 +2113,59 @@ static void _bt_hal_app_call(void)
 // with the gamepad's pairing combo).
 
 #define BT_HAL_CALL_STORE_KEY   (FLOSS_STORE_KEY_APP_BASE + 1u) // The call token
-#define BT_HAL_CALL_ADV_INTERVAL 1600u                          // 1 s, in 0.625 ms units
+// Advertising: every 1 s while a host is connected (measured: costs its link nothing), every 100 ms
+// while not (no link to disturb), so the PC app finds the gamepad in about a second. 0.625 ms units.
+#define BT_HAL_CALL_ADV_CONNECTED 1600u
+#define BT_HAL_CALL_ADV_IDLE      160u
 
 // UUIDs little-endian, as GATT and AD structures carry them
 static const uint8_t _call_uuid[16] = {0x16, 0x01, 0x49, 0xEF, 0x17, 0xC6, 0xE8, 0x91,
                                        0x05, 0x45, 0x54, 0x6D, 0xE1, 0xDF, 0x16, 0x2A};
 static const uint8_t _call_cmd_uuid[16] = {0xCB, 0xB7, 0x21, 0x58, 0x6B, 0x4E, 0x27, 0xA9,
                                            0x71, 0x45, 0x18, 0xEA, 0x7A, 0x11, 0x10, 0xA2};
+static const uint8_t _call_info_uuid[16] = {0x8C, 0x0A, 0x7A, 0x2D, 0xBD, 0x19, 0xCD, 0xBF,
+                                            0x79, 0x40, 0x6B, 0x88, 0x62, 0xF0, 0x64, 0xC8};
+
+// The info characteristic: what the advertisement and scan response say, in one read
+static uint16_t _bt_hal_call_info(uint8_t *out, uint16_t cap)
+{
+    uint8_t buf[3 + 6 + 1 + DONGLE_WAKE_NAME_LEN + 1 + sizeof(user_config->user_name)];
+    uint16_t n = 0;
+    buf[n++] = DONGLE_LINK_CALL_VERSION;
+    buf[n++] = (uint8_t)core_current_reportformat();
+    buf[n++] = _bt_hal_app_bond() ? DONGLE_LINK_CALL_F_LINKED : 0u;
+    _bt_hal_app_mac(&buf[n]);
+    n += 6;
+    uint8_t len = (uint8_t)strnlen(_bt_hal_hid ? _bt_hal_hid->name : "", DONGLE_WAKE_NAME_LEN);
+    buf[n++] = len;
+    memcpy(&buf[n], _bt_hal_hid ? _bt_hal_hid->name : "", len);
+    n += len;
+    len = (uint8_t)strnlen((const char *)user_config->user_name, sizeof(user_config->user_name));
+    buf[n++] = len;
+    memcpy(&buf[n], user_config->user_name, len);
+    n += len;
+    if (n > cap)
+        n = cap;
+    memcpy(out, buf, n);
+    return n;
+}
+
+static int _bt_hal_call_info_read(uint16_t conn, uint16_t attr_handle, const floss_gatt_attr_t *attr,
+                                  uint16_t offset, uint8_t *out, uint16_t cap)
+{
+    (void)conn;
+    (void)attr_handle;
+    (void)attr;
+    uint8_t info[96];
+    uint16_t n = _bt_hal_call_info(info, sizeof(info));
+    if (offset > n)
+        return -FLOSS_ATT_ERR_INVALID_OFFSET;
+    uint16_t take = (uint16_t)(n - offset);
+    if (take > cap)
+        take = cap;
+    memcpy(out, &info[offset], take);
+    return take;
+}
 static bool _call_pending = false; // Called: restart into dongle mode from the task
 static uint32_t _pair_asked_ms = 0; // Asked to pair: waiting for the user to confirm since then (0: not)
 static uint32_t _pair_held_ms = 0;  // The confirming input held since then (0: not held)
@@ -2155,7 +2211,20 @@ static const floss_gatt_attr_t _call_service[] = {
     FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_WRITE),
     {.uuid128 = _call_cmd_uuid, .perms = FLOSS_GATT_P_WRITE, .write = _bt_hal_call_write,
      .max_len = 1u + DONGLE_LINK_CALL_TOKEN_LEN},
+    FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_READ),
+    {.uuid128 = _call_info_uuid, .perms = FLOSS_GATT_P_READ, .read = _bt_hal_call_info_read, .max_len = 96},
 };
+
+static void _bt_hal_call_adv_rate(bool host_connected)
+{
+    if (_mode_dongle)
+        return;
+    floss_le_adv_params_t p;
+    floss_le_adv_params_defaults(&p);
+    p.interval_min = host_connected ? BT_HAL_CALL_ADV_CONNECTED : BT_HAL_CALL_ADV_IDLE;
+    p.interval_max = p.interval_min;
+    floss_le_adv_set_params(&p);
+}
 
 // Direct Bluetooth modes: the call service and advertising. Before the radio starts (the GATT table
 // is fixed once it runs); advertising starts once it is up.
@@ -2165,11 +2234,7 @@ static void _bt_hal_call_setup(void)
         return;
     floss_gatt_register(_call_service, FLOSS_ARRAY_SIZE(_call_service));
 
-    floss_le_adv_params_t p;
-    floss_le_adv_params_defaults(&p);
-    p.interval_min = BT_HAL_CALL_ADV_INTERVAL;
-    p.interval_max = BT_HAL_CALL_ADV_INTERVAL;
-    floss_le_adv_set_params(&p);
+    _bt_hal_call_adv_rate(false);
 
     // Flags, then service data: [uuid][version][mode][flags][Link address as shown]
     uint8_t mac[6];
