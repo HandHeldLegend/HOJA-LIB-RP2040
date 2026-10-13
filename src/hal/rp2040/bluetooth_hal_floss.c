@@ -1652,7 +1652,8 @@ typedef enum
 #define BT_HAL_APP_HOST_WAIT_MS  4000u  // HID up but no app: the dongle link takes over
 #define BT_HAL_APP_SILENT_MS     3000u  // The app sends its host info every second: silent this long, gone
 #define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
-#define BT_HAL_APP_QOS_US        1250u  // Poll every slot pair, as SInput's HID asks
+#define BT_HAL_APP_SLOT_PAIR_US  1250u  // A PC polls us in slot pairs
+#define BT_HAL_APP_QOS_US        BT_HAL_APP_SLOT_PAIR_US // Poll every slot pair, as SInput's HID asks
 
 #define BT_HAL_APP_PAIR_MS            30000u // Pairing: findable for Link this long
 #define BT_HAL_APP_PAIR_PAGES         3u     // Pages to the PC that asked (5.12 s each), then only findable
@@ -1792,15 +1793,25 @@ static bool _bt_hal_app_send_msg(void)
     return false;
 }
 
-// Paced as the app asks (dongle_link_host_s): one report per tick, a message in turn with the live
-// report, as on the dongle link. Nothing goes while the radio still holds earlier reports (HID's
-// in-flight cap): the newest is sent at the next tick instead.
+// The app's report interval (dongle_link_host_s), to the nearest whole slot pair. Off that grid,
+// sends miss the PC's polls. Measured on Windows: 4 ms gave 146 reports/s with an 11 ms median
+// delay, 3.75 ms 254/s with 0.4 ms; 2 ms gave 444/s at 1.0 ms, 2.5 ms 372/s at 0.4 ms.
+static uint32_t _bt_hal_app_interval_us(void)
+{
+    uint32_t asked = dongle_api_gamepad_link_interval_us();
+    if (!asked)
+        asked = DONGLE_LINK_INTERVAL_DEFAULT_US;
+    uint32_t pairs = (asked + BT_HAL_APP_SLOT_PAIR_US / 2u) / BT_HAL_APP_SLOT_PAIR_US;
+    return (pairs ? pairs : 1u) * BT_HAL_APP_SLOT_PAIR_US;
+}
+
+// Paced as the app asks: one report per tick, a message in turn with the live report, as on the
+// dongle link. Nothing goes while the radio still holds earlier reports (HID's in-flight cap): the
+// newest is sent at the next tick instead.
 static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
 {
     (void)arg;
-    uint16_t iv = dongle_api_gamepad_link_interval_us();
-    if (!iv)
-        iv = DONGLE_LINK_INTERVAL_DEFAULT_US;
+    uint32_t iv = _bt_hal_app_interval_us();
     uint32_t now = floss_hal_time_us();
     _app_deadline += iv;
     if (floss_time_diff(now, _app_deadline) >= 0)
@@ -1867,7 +1878,7 @@ static void _bt_hal_app_on_connected(const floss_addr_t *host)
     dongle_api_gamepad_link_set_up(true);
     floss_timer_start(&_app_wait_timer, wait_ms * 1000u);
     _app_deadline = floss_hal_time_us();
-    floss_timer_start_at(&_app_timer, _app_deadline + DONGLE_LINK_INTERVAL_DEFAULT_US);
+    floss_timer_start_at(&_app_timer, _app_deadline + _bt_hal_app_interval_us());
 }
 
 static void _bt_hal_app_on_disconnected(uint8_t reason)
