@@ -54,16 +54,6 @@ static bool _macro_pairing_pressed(const mapper_input_s *input)
     return _macro_code_pressed(input, cfg->sync_macro_code[1]);
 }
 
-bool macro_pairing_available(void)
-{
-    return _macro_pairing_enabled();
-}
-
-bool macro_pairing_combo_pressed(const mapper_input_s *input)
-{
-    return input && _macro_pairing_pressed(input);
-}
-
 void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 {
     if (!_macro_pairing_enabled())

@@ -39,9 +39,6 @@
 #include "transport/transport_wlan.h"
 #include "utilities/boot.h"
 #include "devices/battery.h"
-#include "input/mapper.h"
-#include "input/macros/macro_pairing.h"
-#include "utilities/static_config.h"
 #include "usb/webusb.h"
 #include "dongle.h"
 #include "dongle_gamepad.h"
@@ -2108,9 +2105,8 @@ static void _bt_hal_app_call(void)
 
 // --- Calling it to Link (dongle_link.h): LE advertising and the call service ---
 //
-// In the direct Bluetooth modes the gamepad advertises (every 1 s) so the PC app can see it wherever
-// it is connected: call it over to Link with the token it was given, or ask it to pair (confirmed
-// with the gamepad's pairing combo).
+// In the direct Bluetooth modes the gamepad advertises so the PC app can see it wherever it is
+// connected: call it over to Link with the token it was given, or pair it (while it isn't in use).
 
 #define BT_HAL_CALL_STORE_KEY   (FLOSS_STORE_KEY_APP_BASE + 1u) // The call token
 // Advertising: every 1 s while a host is connected (measured: costs its link nothing), every 100 ms
@@ -2167,8 +2163,7 @@ static int _bt_hal_call_info_read(uint16_t conn, uint16_t attr_handle, const flo
     return take;
 }
 static bool _call_pending = false; // Called: restart into dongle mode from the task
-static uint32_t _pair_asked_ms = 0; // Asked to pair: waiting for the user to confirm since then (0: not)
-static uint32_t _pair_held_ms = 0;  // The confirming input held since then (0: not held)
+static bool _pair_pending = false; // Asked to pair: restart pairing from the task
 
 // The gamepad's call token, made the first time it is needed and kept
 static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN])
@@ -2193,9 +2188,10 @@ static uint8_t _bt_hal_call_write(uint16_t conn, uint16_t attr_handle, const flo
     uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN];
     if (offset == 0 && len == 1u && data[0] == DONGLE_LINK_CALL_PAIR)
     {
-        _pair_asked_ms = _bt_hal_now_ms() | 1u; // Confirmed (or not) on the gamepad, from the task
-        _pair_held_ms = 0;
-        rgb_set_pulsing(COLOR_BLUE);
+        // Not while a host is connected: nobody nearby takes a gamepad out of a game
+        if (_connected)
+            return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
+        _pair_pending = true; // The answer goes out first; the task restarts us
         return 0;
     }
     if (offset != 0 || len != 1u + DONGLE_LINK_CALL_TOKEN_LEN || data[0] != DONGLE_LINK_CALL_TO_LINK)
@@ -2270,50 +2266,13 @@ static void _bt_hal_call_setup(void)
     floss_le_adv_start();
 }
 
-// What confirms a pairing request: the pairing combo, else Home, else Start; held, not tapped, so a
-// press during play doesn't confirm a request the user didn't make
-static bool _bt_hal_pair_confirm_held(const mapper_input_s *input)
-{
-    if (macro_pairing_available())
-        return macro_pairing_combo_pressed(input);
-    mapper_input_code_t code = input_static.input_info[INPUT_CODE_HOME].input_type != MAPPER_INPUT_TYPE_UNUSED
-                                   ? INPUT_CODE_HOME
-                                   : INPUT_CODE_START;
-    return input->presses[code];
-}
-
-// Asked to pair: the confirming input held for DONGLE_LINK_CALL_CONFIRM_MS within
-// DONGLE_LINK_CALL_PAIR_MS brings the gamepad up in dongle mode, pairing (findable for Link mode first)
+// Asked to pair: come back up in dongle mode, pairing (findable for Link mode first)
 static void _bt_hal_pair_task(void)
 {
-    if (!_pair_asked_ms)
+    if (!_pair_pending)
         return;
-    if (_bt_hal_now_ms() - _pair_asked_ms > DONGLE_LINK_CALL_PAIR_MS)
-    {
-        _pair_asked_ms = 0;
-        rgb_clear_pulsing();
-        return;
-    }
-    mapper_input_s input = mapper_get_input();
-    uint32_t now = _bt_hal_now_ms();
-#if defined(HOJA_BT_PAIR_AUTOCONFIRM)
-    // Bench builds: confirmed after 2 s, as if it were held
-    (void)input;
-    if (now - _pair_asked_ms < 2000u)
-        return;
-#else
-    if (!_bt_hal_pair_confirm_held(&input))
-    {
-        _pair_held_ms = 0;
-        return;
-    }
-    if (!_pair_held_ms)
-        _pair_held_ms = now | 1u;
-    if (now - _pair_held_ms < DONGLE_LINK_CALL_CONFIRM_MS)
-        return;
-#endif
-    _pair_asked_ms = 0;
-    rgb_clear_pulsing();
+    _pair_pending = false;
+    sys_hal_sleep_ms(100); // The write response leaves first
     boot_memory_s mem = {
         .report_format = (uint8_t)core_current_reportformat(),
         .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
