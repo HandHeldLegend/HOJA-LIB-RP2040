@@ -184,6 +184,45 @@ void hoja_restart()
   sys_hal_reboot();
 }
 
+// The config app asked for another USB mode. Core 1's loop changes mode in place, as Auto mode does,
+// once the command's reply has had time to reach the app. It lasts until the gamepad is unplugged
+// (an unplug shuts it down); the saved mode stays as it is. Only modes the app can reach again: not
+// XInput, where Windows' Xbox 360 driver takes the whole device.
+#define HOJA_USB_MODE_REPLY_US 20000
+
+static volatile core_reportformat_t _usb_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+static volatile uint64_t _usb_mode_request_us = 0;
+static bool _usb_mode_by_app = false;
+
+bool hoja_request_usb_mode(core_reportformat_t format)
+{
+  core_params_s *params = core_current_params();
+  if (!params || params->transport_type != GAMEPAD_TRANSPORT_USB)
+    return false;
+
+  switch (format)
+  {
+    case CORE_REPORTFORMAT_SWPRO:
+    case CORE_REPORTFORMAT_SINPUT:
+    case CORE_REPORTFORMAT_SLIPPI:
+    {
+      uint64_t now_us;
+      sys_hal_time_us(&now_us);
+      _usb_mode_request_us = now_us;
+      _usb_mode_request = format;
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
+bool hoja_usb_mode_by_app(void)
+{
+  return _usb_mode_by_app;
+}
+
 // Replace with proper boot function later TODO
 bool _core_format_init(void)
 {
@@ -365,6 +404,22 @@ void _hoja_task_1()
       _core_format_init();
       _hoja_init_core_tasks();
       autodetect_switch_done();
+    }
+
+    // The config app changing the USB mode
+    if (_usb_mode_request != CORE_REPORTFORMAT_UNDEFINED)
+    {
+      sys_hal_time_us(&c1_timestamp);
+      if (c1_timestamp - _usb_mode_request_us >= HOJA_USB_MODE_REPLY_US)
+      {
+        format = _usb_mode_request;
+        _usb_mode_request = CORE_REPORTFORMAT_UNDEFINED;
+        _usb_mode_by_app = true;
+        core_deinit();
+        boot_set_mode(format, GAMEPAD_TRANSPORT_USB);
+        _core_format_init();
+        _hoja_init_core_tasks();
+      }
     }
 
     // WLAN following its dongle's mode: change mode, keep the link up

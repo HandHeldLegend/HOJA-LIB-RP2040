@@ -50,6 +50,7 @@ typedef enum
     GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD, 
     GAMEPAD_CMD_REBOOT_DONGLE,    // Reboot into the dongle transport (power ignored); argument 0x80 | mode, else the current one
     GAMEPAD_CMD_REBOOT_BLUETOOTH, // Reboot into Bluetooth; argument 0x80 | mode, else the current one
+    GAMEPAD_CMD_USB_MODE,         // On USB, another mode now, until unplugged (no reboot); argument the mode
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 

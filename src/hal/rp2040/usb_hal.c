@@ -191,6 +191,11 @@ bool transport_usb_init(core_params_s *params)
 #if (HHL_TUSB_DRIVER_SLIPPI_ENABLE)
         _usb_frames = 1;
         tcfg.driver = HHL_TUSB_DRIVER_SLIPPI;
+        // The config app's interface beside the adapter when the app switched us here: the host is a
+        // computer then. Otherwise the plain adapter, as a console knows it.
+        tcfg.webusb.enabled = hoja_usb_mode_by_app();
+        tcfg.webusb.url = USB_WEBUSB_URL;
+        tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
         break;
 #else
         return false;

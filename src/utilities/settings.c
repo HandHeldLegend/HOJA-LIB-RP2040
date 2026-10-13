@@ -224,6 +224,11 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         }
         break;
 
+        // On USB, another mode now, in place (see hoja_request_usb_mode)
+        case GAMEPAD_CMD_USB_MODE:
+            cb(CFG_BLOCK_GAMEPAD, command, hoja_request_usb_mode((core_reportformat_t)arg), NULL, 0);
+            break;
+
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {
             if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN)

@@ -301,6 +301,12 @@ void cb_hoja_read_input(mapper_input_s *input);
 void cb_hoja_init();
 
 void hoja_restart();
+
+// The config app's USB mode change: Switch, SInput or Slippi, on USB only. False otherwise.
+bool hoja_request_usb_mode(core_reportformat_t format);
+
+// The current USB mode came from the config app (so the host is a computer)
+bool hoja_usb_mode_by_app(void);
 void hoja_shutdown();
 void hoja_deinit(callback_t cb);
 void hoja_init(const hoja_config_s *config);
