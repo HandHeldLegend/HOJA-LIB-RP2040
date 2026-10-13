@@ -1708,6 +1708,10 @@ typedef enum
 // address, also across a new pairing: a new descriptor needs a new address.
 #define BT_HAL_APP_MAC_OFFSET   0x21u
 #define BT_HAL_APP_PAGE_TIMEOUT 0x1000 // 2.56 s: a PC listens for pages every 1.28 s
+// Called to Link by the app: the PC is there and wants it, but its radio may be busy for a moment
+// (it just lost the gamepad's other connection). Longer pages, and a few of them.
+#define BT_HAL_APP_CALLED_PAGE_TIMEOUT 0x2000 // 5.12 s
+#define BT_HAL_APP_CALLED_TRIES        3u
 #define BT_HAL_APP_HOST_WAIT_MS 4000u  // HID up but no app: the dongle link takes over
 #define BT_HAL_APP_SILENT_MS    3000u  // The app repeats its host info every second; silent this long, it is gone
 #define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
@@ -1717,6 +1721,7 @@ typedef enum
 static bt_hal_app_state_t _app_state = BT_HAL_APP_OFF;
 static bool _app_skip = false; // No PC app this time: the dongle link runs until the next start
 static bool _app_host_seen = false;
+static uint8_t _app_called_tries = 0; // Calls to the PC left, when the app called us to Link
 static floss_timer_t _app_timer, _app_wait_timer;
 static uint32_t _app_deadline;
 static uint16_t _app_seq;
@@ -1965,8 +1970,16 @@ static void _bt_hal_app_on_connect_failed(uint8_t reason, uint16_t channel_statu
 {
     (void)reason;
     (void)channel_status;
-    if (_app_state == BT_HAL_APP_CALLING)
-        _bt_hal_app_end(false);
+    if (_app_state != BT_HAL_APP_CALLING)
+        return;
+    if (_app_called_tries)
+    {
+        // Called by the app: call the PC again (the radio restarts, so from the top)
+        _app_state = BT_HAL_APP_OFF;
+        _bt_hal_restart();
+        return;
+    }
+    _bt_hal_app_end(false);
 }
 
 // The app's reports: messages (its host info, outputs, config) and status
@@ -2071,7 +2084,10 @@ static void _bt_hal_app_call(void)
         _bt_hal_app_end(false);
         return;
     }
-    _bt_hal_write_page_timeout(BT_HAL_APP_PAGE_TIMEOUT);
+    if (_app_called_tries)
+        _app_called_tries--;
+    _bt_hal_write_page_timeout(_app_called_tries || boot_get_info()->link_called ? BT_HAL_APP_CALLED_PAGE_TIMEOUT
+                                                                                  : BT_HAL_APP_PAGE_TIMEOUT);
     _app_state = BT_HAL_APP_CALLING;
     if (floss_hid_connect(&pc->addr) != FLOSS_OK)
         _bt_hal_app_end(false);
@@ -2169,6 +2185,7 @@ static void _bt_hal_call_task(void)
     boot_memory_s mem = {
         .report_format = (uint8_t)core_current_reportformat(),
         .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
+        .link_called = 1,
     };
     boot_set_memory(&mem);
     sys_hal_sleep_ms(100); // The write response leaves first
@@ -2182,6 +2199,15 @@ static bool _bt_hal_dongle_link_up(void)
 
 static bool _bt_hal_dongle_apply(void)
 {
+    // Called to Link by the app: a few calls to the PC before the dongle search, once per boot
+    static bool called_armed = false;
+    if (!called_armed)
+    {
+        called_armed = true;
+        const boot_info_s *boot = boot_get_info();
+        if (boot && boot->link_called)
+            _app_called_tries = BT_HAL_APP_CALLED_TRIES;
+    }
     if (_bt_hal_app_wanted())
     {
         _app_state = BT_HAL_APP_WAITING; // Link mode first, once the radio is up
