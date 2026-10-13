@@ -1705,6 +1705,11 @@ static const floss_link_callbacks_t _bt_hal_dongle_callbacks = {
 // Bluetooth modes. Dongle mode first calls the PC bonded to that address; if it doesn't connect,
 // or no app answers in BT_HAL_APP_HOST_WAIT_MS, the radio restarts and the link looks for a
 // dongle. Pairing mode: findable for Link for BT_HAL_APP_PAIR_MS, then the dongle search.
+//
+// The PC app can also pair Link mode from a Bluetooth mode (the call service, below): the radio
+// alone restarts as Link mode's and pages that PC, which pairs it, then the gamepad restarts in
+// Link mode. Measured on a GCU-2: paired in about a second this way, where pairing right after a
+// restart into dongle mode took until about 20 s after boot.
 typedef enum
 {
     BT_HAL_APP_OFF = 0, // Not this run: the dongle link runs
@@ -1727,18 +1732,21 @@ typedef enum
 #define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
 #define BT_HAL_APP_PAIR_MS      30000u // Pairing mode: findable for Link this long
 #define BT_HAL_APP_QOS_US       1250u  // Poll every slot pair, as SInput's HID asks
-#define BT_HAL_APP_PAIR_PC_KEY  (FLOSS_STORE_KEY_APP_BASE + 2u) // The PC that asked to pair, for the next start
-#define BT_HAL_APP_PAIR_PAGES   3u     // Pages to that PC (5.12 s each) before only waiting to be found
+#define BT_HAL_APP_PAIR_PAGES   3u     // Pages to the PC that asked to pair (5.12 s each), then only findable
 #define BT_HAL_APP_PAIR_AUTH_MS 8000u  // Linked to it, and it hasn't paired: we start pairing
+#define BT_HAL_APP_PAIR_SETTLE_MS 1000u // It has set up Link mode's HID device: a moment, then Link mode
 
 static bt_hal_app_state_t _app_state = BT_HAL_APP_OFF;
 static bool _app_skip = false; // No PC app this time: the dongle link runs until the next start
 static bool _app_host_seen = false;
 static uint8_t _app_called_tries = 0; // Calls to the PC left, when the app called us to Link
+static bool _app_pair_here = false;        // Pairing Link mode from a Bluetooth mode (the PC app asked)
+static bool _app_pair_set_up = false;      // ...and that PC has set up Link mode's HID device
 static floss_addr_t _app_pair_pc;          // The PC whose app asked us to pair
 static uint8_t _app_pair_pages = 0;        // Pages to it left (0: not paging it)
 static uint16_t _app_pair_handle;          // Its link, to pair on
 static floss_timer_t _app_pair_auth_timer; // Starts pairing on it: again until the request is queued
+static bool _call_pending = false;         // Called to Link mode: the task restarts us
 static floss_timer_t _app_timer, _app_wait_timer;
 static uint32_t _app_deadline;
 static uint16_t _app_seq;
@@ -1865,6 +1873,7 @@ static void _bt_hal_app_end(bool answered)
     }
     _app_state = BT_HAL_APP_OFF;
     _app_skip = !answered;
+    _app_pair_here = false;
     _bt_hal_restart();
 }
 
@@ -2016,20 +2025,29 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
 }
 
 // HID is up but no app said hello (the PC is on, the app isn't running), the app went quiet (it
-// quit: the PC keeps HID up without it), or pairing timed out. The dongle link takes over.
+// quit: the PC keeps HID up without it), or pairing timed out. The dongle link takes over (or,
+// pairing from a Bluetooth mode, that mode comes back). Paired from one: on to Link mode.
 static void _bt_hal_app_wait_expired(floss_timer_t *t, void *arg)
 {
     (void)t;
     (void)arg;
-    if (_app_state == BT_HAL_APP_OPEN || _app_state == BT_HAL_APP_PAIRING)
+    if (_app_pair_here && _app_pair_set_up)
+        _call_pending = true;
+    else if (_app_state == BT_HAL_APP_OPEN || _app_state == BT_HAL_APP_PAIRING)
         _bt_hal_app_end(false);
 }
 
 static void _bt_hal_app_on_connected(const floss_addr_t *host)
 {
     (void)host;
-    const bool just_paired = (_app_state == BT_HAL_APP_PAIRING);
     PAIR_DIAG(0x42, 0);
+    if (_app_pair_here)
+    {
+        _app_pair_set_up = true;
+        floss_timer_start(&_app_wait_timer, BT_HAL_APP_PAIR_SETTLE_MS * 1000u);
+        return;
+    }
+    const bool just_paired = (_app_state == BT_HAL_APP_PAIRING);
     _app_state = BT_HAL_APP_OPEN;
     _app_host_seen = false;
     _app_last_tick_msg = false;
@@ -2142,16 +2160,13 @@ static bool _bt_hal_app_hid_init(void)
     return true;
 }
 
-// Asked to pair by the app on a PC (the call service): page that PC and pair with it, rather than
-// wait for it to find us (an inquiry takes 5 s a round, and a PC repeats it). The app there accepts
-// the pairing, then turns on Link mode's HID, and the PC connects it.
+// Asked to pair by the app on a PC: page that PC rather than wait for it to find us (an inquiry
+// takes 5 s a round). The app there pairs on the link, then turns on Link mode's HID, and the PC
+// connects it.
 static void _bt_hal_app_pair_page(void)
 {
-    uint8_t mac[6];
-    if (floss_hal_store_read(BT_HAL_APP_PAIR_PC_KEY, mac, sizeof(mac)) != (int)sizeof(mac))
+    if (!_app_pair_here)
         return;
-    floss_hal_store_delete(BT_HAL_APP_PAIR_PC_KEY);
-    _bt_hal_addr_from_hoja(mac, &_app_pair_pc);
     floss_gap_bond_delete(&_app_pair_pc); // The PC dropped its side before asking: pair afresh
     _app_pair_pages = BT_HAL_APP_PAIR_PAGES;
 #if defined(HOJA_BT_PAIR_DIAG)
@@ -2163,9 +2178,7 @@ static void _bt_hal_app_pair_page(void)
     floss_gap_connect(&_app_pair_pc);
 }
 
-// The PC hasn't paired on our link: we start pairing ourselves (an app that only waits for us).
-// Either way the pairing ends about 20 s after the radio powered up (measured: the CYW43 can't
-// finish one sooner); a paired link reconnects with its key in a few seconds.
+// The PC hasn't paired on our link: we start pairing ourselves (an app that only waits for us)
 static void _bt_hal_app_pair_auth(floss_timer_t *t, void *arg)
 {
     (void)arg;
@@ -2211,7 +2224,7 @@ static void _bt_hal_app_call(void)
         _bt_hal_restart_as(mac); // Back here once the radio is up as that address
         return;
     }
-    if (_pairing_mode)
+    if (_pairing_mode || _app_pair_here)
     {
         _app_state = BT_HAL_APP_PAIRING;
         floss_gap_set_scan(true, true); // Findable (dongle mode leaves scanning to us)
@@ -2293,11 +2306,9 @@ static int _bt_hal_call_info_read(uint16_t conn, uint16_t attr_handle, const flo
     memcpy(out, &info[offset], take);
     return take;
 }
-static bool _call_pending = false; // Called: restart into dongle mode from the task
-static bool _pair_pending = false; // Asked to pair: restart pairing from the task
-static uint8_t _pair_pc[6];        // The PC that asked (as shown), to page once restarted
-static bool _pair_pc_given = false;
-static uint16_t _pair_le_conn;     // The LE link the request came on
+static uint64_t _pair_close_at = 0;   // Asked to pair: the LE link closes then (0: not asked)...
+static uint64_t _pair_restart_at = 0; // ...and the radio restarts as Link mode's then
+static uint16_t _pair_le_conn;        // The LE link the request came on
 
 // The gamepad's call token, made the first time it is needed and kept
 static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN])
@@ -2319,16 +2330,15 @@ static uint8_t _bt_hal_call_write(uint16_t conn, uint16_t attr_handle, const flo
     (void)attr;
     (void)flags;
     uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN];
-    if (offset == 0 && (len == 1u || len == 1u + sizeof(_pair_pc)) && data[0] == DONGLE_LINK_CALL_PAIR)
+    if (offset == 0 && len == 7u && data[0] == DONGLE_LINK_CALL_PAIR)
     {
         // Not while a host is connected: nobody nearby takes a gamepad out of a game
         if (_connected)
             return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
-        _pair_pc_given = (len > 1u);
+        _bt_hal_addr_from_hoja(&data[1], &_app_pair_pc);
         _pair_le_conn = conn;
-        if (_pair_pc_given)
-            memcpy(_pair_pc, &data[1], sizeof(_pair_pc));
-        _pair_pending = true; // The answer goes out first; the task restarts us
+        _pair_close_at = time_us_64() + 150000u; // The answer goes out first
+        _pair_restart_at = _pair_close_at + 150000u;
         return 0;
     }
     if (offset != 0 || len != 1u + DONGLE_LINK_CALL_TOKEN_LEN || data[0] != DONGLE_LINK_CALL_TO_LINK)
@@ -2350,7 +2360,7 @@ static const floss_gatt_attr_t _call_service[] = {
 
 static void _bt_hal_call_adv_rate(bool host_connected)
 {
-    if (_mode_dongle)
+    if (_mode_dongle || _app_pair_here)
         return;
     floss_le_adv_params_t p;
     floss_le_adv_params_defaults(&p);
@@ -2363,7 +2373,7 @@ static void _bt_hal_call_adv_rate(bool host_connected)
 // is fixed once it runs); advertising starts once it is up.
 static void _bt_hal_call_setup(void)
 {
-    if (_mode_dongle)
+    if (_mode_dongle || _app_pair_here)
         return;
     floss_gatt_register(_call_service, FLOSS_ARRAY_SIZE(_call_service));
 
@@ -2403,38 +2413,24 @@ static void _bt_hal_call_setup(void)
     floss_le_adv_start();
 }
 
-// Asked to pair: come back up in dongle mode, pairing (Link mode first: paging the PC that asked)
+// Asked to pair: the LE link is closed (so the PC isn't left holding a dead one), then the radio
+// restarts as Link mode's, to pair with the PC that asked
 static void _bt_hal_pair_task(void)
 {
-    static uint64_t reboot_at = 0, close_at = 0;
-    if (_pair_pending)
+    uint64_t now = time_us_64();
+    if (_pair_close_at && now >= _pair_close_at)
     {
-        _pair_pending = false;
-        // Link mode pages this PC once restarted (kept in flash: boot memory has no room for it)
-        if (_pair_pc_given)
-            floss_hal_store_write(BT_HAL_APP_PAIR_PC_KEY, _pair_pc, sizeof(_pair_pc));
-        else
-            floss_hal_store_delete(BT_HAL_APP_PAIR_PC_KEY);
-        // The write response leaves first; then the LE link is closed, so the PC isn't left
-        // holding a dead one, and we restart
-        close_at = time_us_64() + 150000u;
-        reboot_at = time_us_64() + 250000u;
-        return;
-    }
-    if (close_at && time_us_64() >= close_at)
-    {
-        close_at = 0;
+        _pair_close_at = 0;
         floss_le_disconnect(_pair_le_conn, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
     }
-    if (!reboot_at || time_us_64() < reboot_at)
+    if (!_pair_restart_at || now < _pair_restart_at)
         return;
-    boot_memory_s mem = {
-        .report_format = (uint8_t)core_current_reportformat(),
-        .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
-        .gamepad_pair = 1,
-    };
-    boot_set_memory(&mem);
-    sys_hal_reboot();
+    _pair_restart_at = 0;
+    uint8_t mac[6];
+    _bt_hal_app_mac(mac);
+    _app_pair_here = true;
+    _app_pair_set_up = false;
+    _bt_hal_restart_as(mac);
 }
 
 // Called: come back up in dongle mode, in the same mode, where Link mode calls the paired PC
@@ -2591,17 +2587,17 @@ static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
 
-    // The PC app first, when one is saved; else the link pages the dongle it remembers, else searches.
-    // Pairing mode: search for any dongle.
+#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    // Link mode first (the PC app), when one is saved or being paired
+    if (_app_state == BT_HAL_APP_WAITING)
+    {
+        _bt_hal_app_call();
+        return;
+    }
+#endif
+    // Dongle mode: the link pages the dongle it remembers, else searches (pairing mode: any dongle)
     if (_mode_dongle)
     {
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-        if (_app_state == BT_HAL_APP_WAITING)
-        {
-            _bt_hal_app_call();
-            return;
-        }
-#endif
         if (_pairing_mode)
             floss_link_pair();
         return;
@@ -2636,7 +2632,8 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
 {
     (void)user;
 #if defined(HOJA_BT_PAIR_DIAG) && defined(HOJA_TRANSPORT_WLAN_DRIVER)
-    if (_pairing_mode && evt->type != FLOSS_GAP_EVT_MODE_CHANGE && evt->type != FLOSS_GAP_EVT_RSSI)
+    if ((_pairing_mode || _app_pair_here) && evt->type != FLOSS_GAP_EVT_MODE_CHANGE &&
+        evt->type != FLOSS_GAP_EVT_RSSI)
         PAIR_DIAG(evt->type, evt->status);
 #endif
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
@@ -2733,6 +2730,11 @@ static void _bt_hal_mode_setup(core_params_s *params)
 static bool _bt_hal_mode_apply(void)
 {
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+    if (_app_pair_here)
+    {
+        _app_state = BT_HAL_APP_WAITING;
+        return _bt_hal_app_hid_init();
+    }
     if (_mode_dongle)
         return _bt_hal_dongle_apply();
 #endif
@@ -2872,10 +2874,9 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     floss_gap_add_listener(_bt_hal_gap_event, NULL);
 
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-    // Link mode goes first: up as its address straight away. Changing the address of a running
-    // radio means a second start, and the CYW43 isn't power cycled for that.
+    // Link mode goes first: up as its address straight away, not in a second start
     uint8_t app_mac[6];
-    if (_mode_dongle && _app_state == BT_HAL_APP_WAITING)
+    if (_app_state == BT_HAL_APP_WAITING)
     {
         _bt_hal_app_mac(app_mac);
         mac = app_mac;
