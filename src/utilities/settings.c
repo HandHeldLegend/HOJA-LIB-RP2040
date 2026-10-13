@@ -36,6 +36,12 @@
 
 #define BLOCK_CHUNK_HEADER_SIZE 4
 
+// GAMEPAD_CMD_REBOOT_* argument: 0xFF for none, else [mode given 0x80][pair 0x40][mode, 6 bits]
+#define REBOOT_ARG_NONE      0xFFu
+#define REBOOT_ARG_MODE_SET  0x80u
+#define REBOOT_ARG_PAIR      0x40u
+#define REBOOT_ARG_MODE_MASK 0x3Fu
+
 settings_live_s     live_settings = {0};
 gamepadConfig_s     *gamepad_config    = NULL;
 hoverConfig_s       *hover_config      = NULL;
@@ -197,21 +203,21 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         }
         break;
 
-        // Come back up over another transport (boot memory), whatever powers us: in the mode given as
-        // the argument (0x80 | mode; kept, as a boot combo's would be), else in the current one;
-        // 0x40 also starts pairing, as the pairing boot combo does
+        // Come back up over another transport (boot memory), whatever powers us: in the mode given
+        // (kept, as a boot combo's would be), else in the current one; pairing, as the pairing boot
+        // combo does, when asked
         case GAMEPAD_CMD_REBOOT_DONGLE:
         case GAMEPAD_CMD_REBOOT_BLUETOOTH:
         {
-            const uint8_t mode = (uint8_t)(arg & 0x3Fu);
-            const bool chosen = (arg & 0x80u) && arg != 0xFF && mode < (uint8_t)CORE_REPORTFORMAT_MAX;
-            const bool pair = (arg & 0x40u) && arg != 0xFF;
+            const bool given = (arg != REBOOT_ARG_NONE);
+            const uint8_t mode = (uint8_t)(arg & REBOOT_ARG_MODE_MASK);
+            const bool chosen = given && (arg & REBOOT_ARG_MODE_SET) && mode < (uint8_t)CORE_REPORTFORMAT_MAX;
+            const bool dongle = (command == GAMEPAD_CMD_REBOOT_DONGLE);
             boot_memory_s mem = {
                 .report_format = chosen ? mode : (uint8_t)core_current_reportformat(),
                 .mode_chosen = chosen,
-                .gamepad_pair = pair,
-                .gamepad_method = (command == GAMEPAD_CMD_REBOOT_DONGLE) ? (uint8_t)GAMEPAD_METHOD_WLAN
-                                                                         : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
+                .gamepad_pair = given && (arg & REBOOT_ARG_PAIR),
+                .gamepad_method = dongle ? (uint8_t)GAMEPAD_METHOD_WLAN : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
             };
             boot_set_memory(&mem);
             sys_hal_reboot();

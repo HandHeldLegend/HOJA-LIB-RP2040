@@ -130,7 +130,7 @@ typedef struct
     bt_store_entry_s entries[BT_STORE_ENTRIES];
 } bt_store_image_s;
 
-#define BT_STORE_IMAGE_BYTES (((sizeof(bt_store_image_s) + FLASH_PAGE_SIZE - 1u) / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE)
+#define BT_STORE_IMAGE_BYTES     (((sizeof(bt_store_image_s) + FLASH_PAGE_SIZE - 1u) / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE)
 
 static union
 {
@@ -687,77 +687,10 @@ static void _bt_hal_diag_step(uint32_t now)
     }
     if (floss_time_diff(now, _diag_step_at_us) >= 0)
     {
-        _diag_step = (uint8_t)((_diag_step + 1) % (sizeof(_diag_intervals_us) / sizeof(_diag_intervals_us[0])));
+        _diag_step = (uint8_t)((_diag_step + 1) % FLOSS_ARRAY_SIZE(_diag_intervals_us));
         _report_interval_us = _diag_intervals_us[_diag_step];
         _diag_step_at_us = now + BT_DIAG_STEP_US;
     }
-}
-#endif
-
-// Bench A/B (HOJA_BT_LE_AB), direct SInput over Bluetooth at 3.75 ms: four states for 15 s each, in
-// turn, for 4 minutes: LE advertising off; every 1 s on all three channels; every 1 s on one
-// channel; every 4 s on all three. Reports carry [seq u16][sent_us u32][state u8] at byte 47.
-// Then, on a cable, back to USB.
-#if defined(HOJA_BT_LE_AB)
-#define LE_AB_PHASE_US 10000000u
-#define LE_AB_PHASES   48u
-static uint32_t _le_ab_t0;
-static uint8_t _le_ab_state = 0xFF;
-static uint16_t _le_ab_seq;
-
-static void _bt_hal_le_ab_params(uint16_t interval, uint8_t channels)
-{
-    floss_le_adv_params_t p;
-    floss_le_adv_params_defaults(&p);
-    p.interval_min = interval; // 0.625 ms units
-    p.interval_max = interval;
-    p.channel_map = channels;
-    p.auto_restart = false;
-    floss_le_adv_set_params(&p);
-}
-
-static void _bt_hal_le_ab_setup(void)
-{
-    _bt_hal_le_ab_params(1600, 0x07);
-    floss_le_ad_t ad;
-    floss_le_ad_init(&ad);
-    floss_le_ad_flags(&ad, 0x06); // General discoverable, LE only
-    floss_le_ad_name(&ad, "HOJA");
-    floss_le_adv_set_data(ad.data, ad.len);
-    static const uint8_t no_scan_rsp[1] = {0};
-    floss_le_adv_set_scan_rsp(no_scan_rsp, 0);
-}
-
-static void _bt_hal_le_ab_step(uint32_t now)
-{
-    if (!_le_ab_t0)
-        _le_ab_t0 = now ? now : 1;
-    uint32_t phase = (now - _le_ab_t0) / LE_AB_PHASE_US;
-    if (phase >= LE_AB_PHASES)
-    {
-        battery_status_s power = {0};
-        battery_get_status(&power);
-        if (power.plugged)
-        {
-            boot_clear_memory();
-            sys_hal_reboot();
-        }
-        return;
-    }
-    uint8_t state = (uint8_t)(phase % 2u); // Off, then every 1 s on all three channels
-    if (state == _le_ab_state)
-        return;
-    _le_ab_state = state;
-    _report_interval_us = 3750u;
-    floss_le_adv_stop();
-    if (state == 1u)
-        _bt_hal_le_ab_params(1600, 0x07); // 1 s, channels 37-39
-    else if (state == 2u)
-        _bt_hal_le_ab_params(1600, 0x01); // 1 s, channel 37
-    else if (state == 3u)
-        _bt_hal_le_ab_params(6400, 0x07); // 4 s, channels 37-39
-    if (state != 0u)
-        floss_le_adv_start();
 }
 #endif
 
@@ -796,21 +729,6 @@ static void _bt_hal_try_send(void)
         if (_mode_sinput && report.data[0] == 1 && report.size >= BT_DIAG_OFFSET + 17)
             _bt_hal_diag_fill(report.data, floss_hal_time_us());
 #endif
-#if defined(HOJA_BT_LE_AB)
-        if (_mode_sinput && report.data[0] == 1 && report.size >= 56)
-        {
-            uint32_t t = floss_hal_time_us();
-            uint8_t *d = &report.data[47];
-            d[0] = (uint8_t)_le_ab_seq;
-            d[1] = (uint8_t)(_le_ab_seq >> 8);
-            d[2] = (uint8_t)t;
-            d[3] = (uint8_t)(t >> 8);
-            d[4] = (uint8_t)(t >> 16);
-            d[5] = (uint8_t)(t >> 24);
-            d[6] = _le_ab_state;
-            _le_ab_seq++;
-        }
-#endif
         // Byte 0 is the report ID
 #if HOJA_BT_FLOSS_DIAG
         uint32_t send_start = time_us_32();
@@ -842,10 +760,6 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
 #if HOJA_BT_FLOSS_DIAG
     _diag_tick_due_us = _report_deadline_us;
     _bt_hal_diag_step(now);
-#endif
-#if defined(HOJA_BT_LE_AB)
-    if (_mode_sinput)
-        _bt_hal_le_ab_step(now);
 #endif
     _report_deadline_us += _report_interval_us;
     if (floss_time_diff(now, _report_deadline_us) >= 0)
@@ -1073,7 +987,8 @@ static void _bt_hal_probe_finish(core_reportformat_t found)
     _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
 
     // No console answered: a saved PC gets SInput, otherwise Switch mode waits for the Switch
-    if (found == CORE_REPORTFORMAT_UNDEFINED && _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
+    bool saved_pc = _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
+    if (found == CORE_REPORTFORMAT_UNDEFINED && saved_pc)
         found = CORE_REPORTFORMAT_SINPUT;
 
     // Switch mode carries on: set it up now and bring the radio back with it. Otherwise core 1
@@ -1163,7 +1078,9 @@ static void _bt_hal_probe_on_connected(const floss_gap_evt_t *evt)
 
     _probe_handle = evt->handle;
     floss_timer_start(&_probe_timer, BT_HAL_PROBE_ANSWER_MS * 1000u);
-    if (floss_l2cap_connect(evt->handle, FLOSS_PSM_SDP, &_probe_ops, NULL, FLOSS_SEC_NONE, &_probe_chan) != FLOSS_OK)
+    floss_err_t err = floss_l2cap_connect(evt->handle, FLOSS_PSM_SDP, &_probe_ops, NULL, FLOSS_SEC_NONE,
+                                          &_probe_chan);
+    if (err != FLOSS_OK)
     {
         _probe_chan = NULL;
         _bt_hal_probe_host_done(false);
@@ -1514,7 +1431,9 @@ static void _bt_hal_dongle_notify_connection(bool connected)
 {
     tp_evt_s evt = {
         .evt = TP_EVT_CONNECTIONCHANGE,
-        .evt_connectionchange = {.connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED},
+        .evt_connectionchange = {
+            .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED,
+        },
     };
     transport_evt_cb(evt);
 }
@@ -1719,101 +1638,51 @@ typedef enum
     BT_HAL_APP_OPEN,    // HID up; running once the app has sent its host info
 } bt_hal_app_state_t;
 
-// Link mode's address: the gamepad's, last byte + this. A PC keeps a HID device's descriptor for its
-// address, also across a new pairing: a new descriptor needs a new address.
-#define BT_HAL_APP_MAC_OFFSET   0x21u
-#define BT_HAL_APP_PAGE_TIMEOUT 0x1000 // 2.56 s: a PC listens for pages every 1.28 s
-// Called to Link by the app: the PC is there and wants it, but its radio may be busy for a moment
-// (it just lost the gamepad's other connection). Longer pages, and a few of them.
+// Link mode's address: the gamepad's, last byte + this. A PC keeps a HID device's descriptor for
+// its address, also across a new pairing: a new descriptor needs a new address.
+#define BT_HAL_APP_MAC_OFFSET 0x21u
+
+// Pages to the PC, in 0.625 ms slots; a PC listens for pages every 1.28 s. Called to Link by the
+// app, the PC is there and wants us, but its radio may be busy for a moment (it just lost the
+// gamepad's other connection): longer pages, and a few of them.
+#define BT_HAL_APP_PAGE_TIMEOUT        0x1000 // 2.56 s
 #define BT_HAL_APP_CALLED_PAGE_TIMEOUT 0x2000 // 5.12 s
 #define BT_HAL_APP_CALLED_TRIES        3u
-#define BT_HAL_APP_HOST_WAIT_MS 4000u  // HID up but no app: the dongle link takes over
-#define BT_HAL_APP_SILENT_MS    3000u  // The app repeats its host info every second; silent this long, it is gone
+
+#define BT_HAL_APP_HOST_WAIT_MS  4000u  // HID up but no app: the dongle link takes over
+#define BT_HAL_APP_SILENT_MS     3000u  // The app sends its host info every second: silent this long, gone
 #define BT_HAL_APP_FIRST_WAIT_MS 30000u // Just paired: the PC installs the HID device first
-#define BT_HAL_APP_PAIR_MS      30000u // Pairing mode: findable for Link this long
-#define BT_HAL_APP_QOS_US       1250u  // Poll every slot pair, as SInput's HID asks
-#define BT_HAL_APP_PAIR_PAGES   3u     // Pages to the PC that asked to pair (5.12 s each), then only findable
-#define BT_HAL_APP_PAIR_AUTH_MS 8000u  // Linked to it, and it hasn't paired: we start pairing
-#define BT_HAL_APP_PAIR_SETTLE_MS 1000u // It has set up Link mode's HID device: a moment, then Link mode
+#define BT_HAL_APP_QOS_US        1250u  // Poll every slot pair, as SInput's HID asks
+
+#define BT_HAL_APP_PAIR_MS            30000u // Pairing: findable for Link this long
+#define BT_HAL_APP_PAIR_PAGES         3u     // Pages to the PC that asked (5.12 s each), then only findable
+#define BT_HAL_APP_PAIR_AUTH_MS       8000u  // Linked to it and it hasn't paired: we start pairing
+#define BT_HAL_APP_PAIR_AUTH_RETRY_US 2000u  // Our pairing request didn't fit the command queue
+#define BT_HAL_APP_PAIR_SETTLE_MS     1000u  // It set up Link mode's HID device: a moment, then Link mode
 
 static bt_hal_app_state_t _app_state = BT_HAL_APP_OFF;
-static bool _app_skip = false; // No PC app this time: the dongle link runs until the next start
-static bool _app_host_seen = false;
-static uint8_t _app_called_tries = 0; // Calls to the PC left, when the app called us to Link
-static bool _app_pair_here = false;        // Pairing Link mode from a Bluetooth mode (the PC app asked)
+static bool _app_skip = false;          // No PC app this time: the dongle link runs until the next start
+static bool _app_host_seen = false;     // The app sent its host info
+static bool _app_token_due = false;     // The call token goes to the app (DONGLE_LINK_MSG_TOKEN)
+static bool _app_last_tick_msg = false; // Messages take turns with live reports
+static uint8_t _app_called_tries = 0;   // Calls to the PC left, when the app called us to Link
+static floss_timer_t _app_timer;        // Paces the reports
+static floss_timer_t _app_wait_timer;   // Waits for the app, or for pairing
+static uint32_t _app_deadline;          // The next report's tick
+static uint16_t _app_seq;               // Live report sequence number
+static char _app_name[48];              // "<gamepad> Link"
+
+// Pairing from a Bluetooth mode, for the PC app that asked (the call service)
+static bool _app_pair_here = false;        // The radio restarted as Link mode's to pair
 static bool _app_pair_set_up = false;      // ...and that PC has set up Link mode's HID device
-static floss_addr_t _app_pair_pc;          // The PC whose app asked us to pair
+static floss_addr_t _app_pair_pc;          // The PC that asked
 static uint8_t _app_pair_pages = 0;        // Pages to it left (0: not paging it)
 static uint16_t _app_pair_handle;          // Its link, to pair on
-static floss_timer_t _app_pair_auth_timer; // Starts pairing on it: again until the request is queued
-static bool _call_pending = false;         // Called to Link mode: the task restarts us
-static floss_timer_t _app_timer, _app_wait_timer;
-static uint32_t _app_deadline;
-static uint16_t _app_seq;
-static bool _app_last_tick_msg = false;
-static bool _app_token_due = false; // The call token goes to the app (DONGLE_LINK_MSG_TOKEN)
-static char _app_name[48];
+static floss_timer_t _app_pair_auth_timer; // Starts pairing on it ourselves
+
+static uint64_t _call_restart_at = 0; // Called to Link mode: the gamepad restarts then (0: not called)
+
 static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN]);
-
-// Diagnostic builds (HOJA_BT_APP_LINK_DIAG): counters, sent every 25 ticks on lane 0x7F
-#if defined(HOJA_BT_APP_LINK_DIAG)
-static struct
-{
-    uint16_t outputs, ticks, sent, send_errors;
-    uint8_t last_out_id, last_out_len, last_err, host_seen, can_send, hid_state;
-    uint16_t peeks, msg_fails;
-    uint8_t last_msg_type, last_msg_err, format, mode_request, adopted, msg_len;
-} _app_diag;
-#endif
-
-// Diagnostic builds (HOJA_BT_PAIR_DIAG): how a pairing went, [kind][code][extra][ms since boot,
-// u16] (kinds: 'G' GAP event, 'H' ours, 'E' HCI event in, 'C' HCI command out, 'S'/'s' L2CAP
-// signalling in/out), sent in 13-entry chunks on lane 0x7E once Link mode opens
-#if defined(HOJA_BT_PAIR_DIAG)
-#define PAIR_DIAG_MAX 104u
-static uint8_t _pair_diag[PAIR_DIAG_MAX][5];
-static uint8_t _pair_diag_n = 0;
-static uint8_t _pair_diag_sent = 0;
-static bool _pair_diag_on = false; // From the page to the PC on
-static void _bt_hal_pair_diag_add(uint8_t kind, uint8_t code, uint8_t extra)
-{
-    if (!_pair_diag_on || _pair_diag_n >= PAIR_DIAG_MAX)
-        return;
-    uint16_t ms = (uint16_t)(floss_hal_time_us() / 1000u);
-    uint8_t *e = _pair_diag[_pair_diag_n++];
-    e[0] = kind;
-    e[1] = code;
-    e[2] = extra;
-    e[3] = (uint8_t)ms;
-    e[4] = (uint8_t)(ms >> 8);
-}
-static void _bt_hal_pair_diag(uint8_t event, uint8_t status)
-{
-    _bt_hal_pair_diag_add(event < 0x40u ? 'G' : 'H', event, status);
-}
-static void _bt_hal_pair_snoop(uint8_t type, bool is_rx, const uint8_t *pkt, uint16_t len, uint32_t t_us)
-{
-    (void)t_us;
-    if (type == FLOSS_PKT_EVT && is_rx && len >= 2)
-    {
-        if (pkt[0] == 0x13) // Number of completed packets
-            return;
-        if (pkt[0] == 0x0E && len >= 6) // Command complete: opcode low
-            _bt_hal_pair_diag_add('E', 0x0E, pkt[3]);
-        else if (pkt[0] == 0x0F && len >= 6) // Command status: opcode low, status in extra
-            _bt_hal_pair_diag_add('E', 0x0F, pkt[4]);
-        else
-            _bt_hal_pair_diag_add('E', pkt[0], len >= 3 ? pkt[2] : 0);
-    }
-    else if (type == FLOSS_PKT_CMD && !is_rx && len >= 2)
-        _bt_hal_pair_diag_add('C', pkt[0], (uint8_t)(pkt[1] >> 2)); // OCF low, OGF
-    else if (type == FLOSS_PKT_ACL && len >= 9 && pkt[6] == 0x01 && pkt[7] == 0x00) // L2CAP signalling
-        _bt_hal_pair_diag_add(is_rx ? 'S' : 's', pkt[8], len >= 14 ? pkt[12] : 0); // code, PSM low (conn req)
-}
-#define PAIR_DIAG(e, st) _bt_hal_pair_diag((uint8_t)(e), (uint8_t)(st))
-#else
-#define PAIR_DIAG(e, st) ((void)0)
-#endif
 
 // Link mode's HID collection (dongle_link.h): live reports, messages in, messages out
 static const uint8_t _app_descriptor[] = {
@@ -1889,8 +1758,8 @@ static bool _bt_hal_app_send_msg_report(uint8_t lane, const uint8_t *data, uint1
     return floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_MSG, r, sizeof(r)) == FLOSS_OK;
 }
 
-// A reliable message (identity, reports that must arrive, config replies), else the config app's
-// live report. False when there is none.
+// One message for the app: the call token when it's due, else a reliable message (identity, reports
+// that must arrive, config replies), else the config app's live report. False when there's none.
 static bool _bt_hal_app_send_msg(void)
 {
     uint8_t msg[DONGLE_LINK_MSG_MAX];
@@ -1910,18 +1779,8 @@ static bool _bt_hal_app_send_msg(void)
     }
     if (dongle_api_gamepad_link_peek_msg(msg, &len))
     {
-#if defined(HOJA_BT_APP_LINK_DIAG)
-        _app_diag.peeks++;
-        _app_diag.last_msg_type = msg[0];
-        _app_diag.msg_len = (uint8_t)len;
-#endif
         if (!_bt_hal_app_send_msg_report(DONGLE_LINK_APP_LANE_MSG, msg, len))
-        {
-#if defined(HOJA_BT_APP_LINK_DIAG)
-            _app_diag.msg_fails++;
-#endif
             return false;
-        }
         dongle_api_gamepad_link_msg_sent();
         return true;
     }
@@ -1948,41 +1807,6 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
         _app_deadline = now + iv; // A whole interval behind: from now, no burst
     floss_timer_start_at(t, _app_deadline);
 
-#if defined(HOJA_BT_PAIR_DIAG)
-    if (_app_state == BT_HAL_APP_OPEN && _app_host_seen && _pair_diag_sent < _pair_diag_n && floss_hid_can_send_now())
-    {
-        _pair_diag_on = false;
-        uint8_t n = (uint8_t)(_pair_diag_n - _pair_diag_sent);
-        if (n > 13u)
-            n = 13u;
-        uint8_t d[DONGLE_LINK_APP_MSG_LEN] = {0x7E, (uint8_t)(n * 5u)};
-        memcpy(&d[2], _pair_diag[_pair_diag_sent], n * 5u);
-        if (floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_MSG, d, sizeof(d)) == FLOSS_OK)
-            _pair_diag_sent = (uint8_t)(_pair_diag_sent + n);
-        return;
-    }
-#endif
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _app_diag.ticks++;
-    _app_diag.host_seen = _app_host_seen;
-    _app_diag.can_send = floss_hid_can_send_now();
-    _app_diag.hid_state = (uint8_t)floss_hid_state();
-    _app_diag.format = (uint8_t)core_current_reportformat();
-    _app_diag.mode_request = (uint8_t)_dongle_mode_request;
-    _app_diag.adopted = dongle_api_gamepad_adopted();
-    if (_app_state == BT_HAL_APP_OPEN && (_app_diag.ticks % 25u) == 0)
-    {
-        uint8_t d[DONGLE_LINK_APP_MSG_LEN] = {0x7F, (uint8_t)sizeof(_app_diag)};
-        memcpy(&d[2], &_app_diag, sizeof(_app_diag));
-        floss_err_t e = floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_MSG, d, sizeof(d));
-        if (e != FLOSS_OK)
-        {
-            _app_diag.send_errors++;
-            _app_diag.last_err = (uint8_t)e;
-        }
-        return;
-    }
-#endif
     if (_app_state != BT_HAL_APP_OPEN || !floss_hid_can_send_now())
         return;
 
@@ -1998,26 +1822,13 @@ static void _bt_hal_app_tick(floss_timer_t *t, void *arg)
     uint32_t sampled = time_us_32();
     if (!dongle_api_gamepad_link_next_report(trimmed, &n))
         return;
+    // [seq u16][sampled_us u32][full length][bytes]: the trimmed zeros stay zero
     uint8_t r[DONGLE_LINK_APP_LIVE_LEN] = {0};
-    r[0] = (uint8_t)_app_seq;
-    r[1] = (uint8_t)(_app_seq >> 8);
-    r[2] = (uint8_t)sampled;
-    r[3] = (uint8_t)(sampled >> 8);
-    r[4] = (uint8_t)(sampled >> 16);
-    r[5] = (uint8_t)(sampled >> 24);
-    r[6] = trimmed[0];                        // The report's full length
-    memcpy(&r[7], &trimmed[1], (size_t)(n - 1u)); // Its bytes; the trimmed zeros stay zero
-    floss_err_t sent = floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_LIVE, r, sizeof(r));
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    if (sent == FLOSS_OK)
-        _app_diag.sent++;
-    else
-    {
-        _app_diag.send_errors++;
-        _app_diag.last_err = (uint8_t)sent;
-    }
-#endif
-    if (sent == FLOSS_OK)
+    floss_put_le16(&r[0], _app_seq);
+    floss_put_le32(&r[2], sampled);
+    r[6] = trimmed[0];
+    memcpy(&r[7], &trimmed[1], (size_t)(n - 1u));
+    if (floss_hid_send_input_now(DONGLE_LINK_APP_REPORT_LIVE, r, sizeof(r)) == FLOSS_OK)
     {
         _app_seq++;
         tasks_mark_sent_isr();
@@ -2032,7 +1843,7 @@ static void _bt_hal_app_wait_expired(floss_timer_t *t, void *arg)
     (void)t;
     (void)arg;
     if (_app_pair_here && _app_pair_set_up)
-        _call_pending = true;
+        _call_restart_at = time_us_64();
     else if (_app_state == BT_HAL_APP_OPEN || _app_state == BT_HAL_APP_PAIRING)
         _bt_hal_app_end(false);
 }
@@ -2040,7 +1851,7 @@ static void _bt_hal_app_wait_expired(floss_timer_t *t, void *arg)
 static void _bt_hal_app_on_connected(const floss_addr_t *host)
 {
     (void)host;
-    PAIR_DIAG(0x42, 0);
+    // Paired from a Bluetooth mode, and the PC has set up Link mode's HID: on to Link mode proper
     if (_app_pair_here)
     {
         _app_pair_set_up = true;
@@ -2048,12 +1859,13 @@ static void _bt_hal_app_on_connected(const floss_addr_t *host)
         return;
     }
     const bool just_paired = (_app_state == BT_HAL_APP_PAIRING);
+    const uint32_t wait_ms = just_paired ? BT_HAL_APP_FIRST_WAIT_MS : BT_HAL_APP_HOST_WAIT_MS;
     _app_state = BT_HAL_APP_OPEN;
     _app_host_seen = false;
     _app_last_tick_msg = false;
     floss_gap_set_scan(false, false);
     dongle_api_gamepad_link_set_up(true);
-    floss_timer_start(&_app_wait_timer, (just_paired ? BT_HAL_APP_FIRST_WAIT_MS : BT_HAL_APP_HOST_WAIT_MS) * 1000u);
+    floss_timer_start(&_app_wait_timer, wait_ms * 1000u);
     _app_deadline = floss_hal_time_us();
     floss_timer_start_at(&_app_timer, _app_deadline + DONGLE_LINK_INTERVAL_DEFAULT_US);
 }
@@ -2084,11 +1896,6 @@ static void _bt_hal_app_on_connect_failed(uint8_t reason, uint16_t channel_statu
 // The app's reports: messages (its host info, outputs, config) and status
 static void _bt_hal_app_on_output(uint8_t report_id, const uint8_t *data, uint16_t len)
 {
-#if defined(HOJA_BT_APP_LINK_DIAG)
-    _app_diag.outputs++;
-    _app_diag.last_out_id = report_id;
-    _app_diag.last_out_len = (uint8_t)len;
-#endif
     if (report_id != DONGLE_LINK_APP_REPORT_OUT || len < 2u || data[1] > len - 2u)
         return;
     if (_app_host_seen)
@@ -2127,7 +1934,7 @@ static bool _bt_hal_app_hid_init(void)
     _hid_cfg.report_descriptor = _app_descriptor;
     _hid_cfg.report_descriptor_len = sizeof(_app_descriptor);
     _hid_cfg.subclass = 0;
-    _hid_cfg.class_of_device = 0x002508;
+    _hid_cfg.class_of_device = FLOSS_COD_GAMEPAD;
     _hid_cfg.vendor_id_source = 2; // USB
     _hid_cfg.vendor_id = _bt_hal_hid ? _bt_hal_hid->vid : 0;
     _hid_cfg.product_id = _bt_hal_hid ? _bt_hal_hid->pid : 0;
@@ -2165,15 +1972,8 @@ static bool _bt_hal_app_hid_init(void)
 // connects it.
 static void _bt_hal_app_pair_page(void)
 {
-    if (!_app_pair_here)
-        return;
     floss_gap_bond_delete(&_app_pair_pc); // The PC dropped its side before asking: pair afresh
     _app_pair_pages = BT_HAL_APP_PAIR_PAGES;
-#if defined(HOJA_BT_PAIR_DIAG)
-    _pair_diag_on = true;
-    floss_snoop_set_hook(_bt_hal_pair_snoop);
-#endif
-    PAIR_DIAG(0x40, 0);
     _bt_hal_write_page_timeout(BT_HAL_APP_CALLED_PAGE_TIMEOUT);
     floss_gap_connect(&_app_pair_pc);
 }
@@ -2184,10 +1984,8 @@ static void _bt_hal_app_pair_auth(floss_timer_t *t, void *arg)
     (void)arg;
     if (_app_state != BT_HAL_APP_PAIRING)
         return;
-    floss_err_t e = floss_gap_authenticate(_app_pair_handle);
-    PAIR_DIAG(0x41, (uint8_t)e);
-    if (e != FLOSS_OK)
-        floss_timer_start(t, 2000u); // The command queue was full
+    if (floss_gap_authenticate(_app_pair_handle) != FLOSS_OK)
+        floss_timer_start(t, BT_HAL_APP_PAIR_AUTH_RETRY_US);
 }
 
 // Paging the PC that asked to pair: a page that times out goes again. Once the link is up the
@@ -2229,7 +2027,8 @@ static void _bt_hal_app_call(void)
         _app_state = BT_HAL_APP_PAIRING;
         floss_gap_set_scan(true, true); // Findable (dongle mode leaves scanning to us)
         floss_timer_start(&_app_wait_timer, BT_HAL_APP_PAIR_MS * 1000u);
-        _bt_hal_app_pair_page();
+        if (_app_pair_here)
+            _bt_hal_app_pair_page();
         return;
     }
     const floss_bond_t *pc = _bt_hal_app_bond();
@@ -2240,8 +2039,8 @@ static void _bt_hal_app_call(void)
     }
     if (_app_called_tries)
         _app_called_tries--;
-    _bt_hal_write_page_timeout(_app_called_tries || boot_get_info()->link_called ? BT_HAL_APP_CALLED_PAGE_TIMEOUT
-                                                                                  : BT_HAL_APP_PAGE_TIMEOUT);
+    const bool called = _app_called_tries || boot_get_info()->link_called;
+    _bt_hal_write_page_timeout(called ? BT_HAL_APP_CALLED_PAGE_TIMEOUT : BT_HAL_APP_PAGE_TIMEOUT);
     _app_state = BT_HAL_APP_CALLING;
     if (floss_hid_connect(&pc->addr) != FLOSS_OK)
         _bt_hal_app_end(false);
@@ -2252,11 +2051,21 @@ static void _bt_hal_app_call(void)
 // In the direct Bluetooth modes the gamepad advertises so the PC app can see it wherever it is
 // connected: call it over to Link with the token it was given, or pair it (while it isn't in use).
 
-#define BT_HAL_CALL_STORE_KEY   (FLOSS_STORE_KEY_APP_BASE + 1u) // The call token
+#define BT_HAL_CALL_STORE_KEY     (FLOSS_STORE_KEY_APP_BASE + 1u) // The call token
+#define BT_HAL_CALL_PAIR_LEN      7u      // [DONGLE_LINK_CALL_PAIR][PC address, 6]
+#define BT_HAL_CALL_INFO_MAX      96u     // The info characteristic's value, at most
+#define BT_HAL_CALL_NAME_MAX      20u     // The gamepad's name in the scan response, at most
+#define BT_HAL_CALL_ANSWER_US     150000u // A write's answer goes out before we act on it
+#define BT_HAL_AD_SERVICE_DATA128 0x21    // AD type: service data, 128-bit UUID
+
 // Advertising: every 1 s while a host is connected (measured: costs its link nothing), every 100 ms
 // while not (no link to disturb), so the PC app finds the gamepad in about a second. 0.625 ms units.
 #define BT_HAL_CALL_ADV_CONNECTED 1600u
 #define BT_HAL_CALL_ADV_IDLE      160u
+
+static uint64_t _pair_close_at = 0;   // Asked to pair: the LE link closes then (0: not asked)...
+static uint64_t _pair_restart_at = 0; // ...and the radio restarts as Link mode's then
+static uint16_t _pair_le_conn;        // The LE link the request came on
 
 // UUIDs little-endian, as GATT and AD structures carry them
 static const uint8_t _call_uuid[16] = {0x16, 0x01, 0x49, 0xEF, 0x17, 0xC6, 0xE8, 0x91,
@@ -2296,7 +2105,7 @@ static int _bt_hal_call_info_read(uint16_t conn, uint16_t attr_handle, const flo
     (void)conn;
     (void)attr_handle;
     (void)attr;
-    uint8_t info[96];
+    uint8_t info[BT_HAL_CALL_INFO_MAX];
     uint16_t n = _bt_hal_call_info(info, sizeof(info));
     if (offset > n)
         return -FLOSS_ATT_ERR_INVALID_OFFSET;
@@ -2306,14 +2115,12 @@ static int _bt_hal_call_info_read(uint16_t conn, uint16_t attr_handle, const flo
     memcpy(out, &info[offset], take);
     return take;
 }
-static uint64_t _pair_close_at = 0;   // Asked to pair: the LE link closes then (0: not asked)...
-static uint64_t _pair_restart_at = 0; // ...and the radio restarts as Link mode's then
-static uint16_t _pair_le_conn;        // The LE link the request came on
 
 // The gamepad's call token, made the first time it is needed and kept
 static bool _bt_hal_call_token(uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN])
 {
-    if (floss_hal_store_read(BT_HAL_CALL_STORE_KEY, token, DONGLE_LINK_CALL_TOKEN_LEN) == DONGLE_LINK_CALL_TOKEN_LEN)
+    const int len = DONGLE_LINK_CALL_TOKEN_LEN;
+    if (floss_hal_store_read(BT_HAL_CALL_STORE_KEY, token, len) == len)
         return true;
     for (unsigned i = 0; i < DONGLE_LINK_CALL_TOKEN_LEN; i += 4)
     {
@@ -2330,22 +2137,22 @@ static uint8_t _bt_hal_call_write(uint16_t conn, uint16_t attr_handle, const flo
     (void)attr;
     (void)flags;
     uint8_t token[DONGLE_LINK_CALL_TOKEN_LEN];
-    if (offset == 0 && len == 7u && data[0] == DONGLE_LINK_CALL_PAIR)
+    if (offset == 0 && len == BT_HAL_CALL_PAIR_LEN && data[0] == DONGLE_LINK_CALL_PAIR)
     {
         // Not while a host is connected: nobody nearby takes a gamepad out of a game
         if (_connected)
             return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
         _bt_hal_addr_from_hoja(&data[1], &_app_pair_pc);
         _pair_le_conn = conn;
-        _pair_close_at = time_us_64() + 150000u; // The answer goes out first
-        _pair_restart_at = _pair_close_at + 150000u;
+        _pair_close_at = time_us_64() + BT_HAL_CALL_ANSWER_US;
+        _pair_restart_at = _pair_close_at + BT_HAL_CALL_ANSWER_US; // The close goes out too
         return 0;
     }
     if (offset != 0 || len != 1u + DONGLE_LINK_CALL_TOKEN_LEN || data[0] != DONGLE_LINK_CALL_TO_LINK)
         return FLOSS_ATT_ERR_VALUE_NOT_ALLOWED;
     if (!_bt_hal_call_token(token) || memcmp(token, &data[1], sizeof(token)))
         return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
-    _call_pending = true; // The answer goes out first; the task restarts us
+    _call_restart_at = time_us_64() + BT_HAL_CALL_ANSWER_US;
     return 0;
 }
 
@@ -2355,7 +2162,8 @@ static const floss_gatt_attr_t _call_service[] = {
     {.uuid128 = _call_cmd_uuid, .perms = FLOSS_GATT_P_WRITE, .write = _bt_hal_call_write,
      .max_len = 1u + DONGLE_LINK_CALL_TOKEN_LEN},
     FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_READ),
-    {.uuid128 = _call_info_uuid, .perms = FLOSS_GATT_P_READ, .read = _bt_hal_call_info_read, .max_len = 96},
+    {.uuid128 = _call_info_uuid, .perms = FLOSS_GATT_P_READ, .read = _bt_hal_call_info_read,
+     .max_len = BT_HAL_CALL_INFO_MAX},
 };
 
 static void _bt_hal_call_adv_rate(bool host_connected)
@@ -2390,24 +2198,25 @@ static void _bt_hal_call_setup(void)
     memcpy(&sd[19], mac, 6);
     floss_le_ad_t ad;
     floss_le_ad_init(&ad);
-    floss_le_ad_flags(&ad, 0x06); // General discoverable, LE only
-    floss_le_ad_add(&ad, 0x21, sd, sizeof(sd)); // Service data, 128-bit UUID
+    floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC | FLOSS_AD_FLAG_NO_BREDR);
+    floss_le_ad_add(&ad, BT_HAL_AD_SERVICE_DATA128, sd, sizeof(sd));
     floss_le_adv_set_data(ad.data, ad.len);
 
     // Scan response: the gamepad's name, and the user's from the config app (manufacturer data,
     // company 0xFFFF, as much as fits)
     floss_le_ad_t rsp;
     floss_le_ad_init(&rsp);
-    floss_le_ad_add(&rsp, 0x09, (const uint8_t *)_bt_hal_hid->name, (uint8_t)strnlen(_bt_hal_hid->name, 20));
-    uint8_t user[2 + 20] = {0xFF, 0xFF};
+    uint8_t name_len = (uint8_t)strnlen(_bt_hal_hid->name, BT_HAL_CALL_NAME_MAX);
+    floss_le_ad_add(&rsp, FLOSS_AD_NAME_COMPLETE, (const uint8_t *)_bt_hal_hid->name, name_len);
+    uint8_t user[2 + sizeof(user_config->user_name)] = {0xFF, 0xFF};
     uint8_t user_len = (uint8_t)strnlen((const char *)user_config->user_name, sizeof(user_config->user_name));
-    uint8_t room = (uint8_t)(31u - rsp.len - 2u - 2u);
+    uint8_t room = (uint8_t)(FLOSS_LE_ADV_DATA_MAX - rsp.len - 2u - 2u); // AD header, company
     if (user_len > room)
         user_len = room;
     if (user_len)
     {
         memcpy(&user[2], user_config->user_name, user_len);
-        floss_le_ad_add(&rsp, 0xFF, user, (uint8_t)(2u + user_len));
+        floss_le_ad_add(&rsp, FLOSS_AD_MANUFACTURER, user, (uint8_t)(2u + user_len));
     }
     floss_le_adv_set_scan_rsp(rsp.data, rsp.len);
     floss_le_adv_start();
@@ -2433,20 +2242,18 @@ static void _bt_hal_pair_task(void)
     _bt_hal_restart_as(mac);
 }
 
-// Called: come back up in dongle mode, in the same mode, where Link mode calls the paired PC
+// Called to Link mode: restart in dongle mode, in the same mode, where Link mode calls the PC
 static void _bt_hal_call_task(void)
 {
     _bt_hal_pair_task();
-    if (!_call_pending)
+    if (!_call_restart_at || time_us_64() < _call_restart_at)
         return;
-    _call_pending = false;
     boot_memory_s mem = {
         .report_format = (uint8_t)core_current_reportformat(),
         .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
         .link_called = 1,
     };
     boot_set_memory(&mem);
-    sys_hal_sleep_ms(100); // The write response leaves first
     sys_hal_reboot();
 }
 
@@ -2487,7 +2294,6 @@ static bool _bt_hal_dongle_apply(void)
     return floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) == FLOSS_OK;
 }
 
-// Reliable messages out (our identity, reports that must arrive, config replies), one per pass
 // One app packet for this tick: a reliable message (our identity, reports that must arrive, config
 // replies) first, else the app's live report. False when there is none (or no room).
 static bool _bt_hal_dongle_send_app(void)
@@ -2542,35 +2348,8 @@ static const webusb_sink_s _bt_hal_dongle_webusb_sink = {
     .ready = _bt_hal_dongle_sink_ready,
 };
 
-// Bench builds (HOJA_BT_LINK_ESCAPE_MS): on a cable with no link for this long, come back up on
-// USB, where a broken build can be reached and replaced without a hand on the gamepad
-#if defined(HOJA_BT_LINK_ESCAPE_MS)
-static uint64_t _escape_since_us = 0;
-
-static void _bt_hal_dongle_escape(void)
-{
-    uint64_t now = time_us_64();
-    if (_bt_hal_dongle_link_up() || !_escape_since_us)
-    {
-        _escape_since_us = now;
-        return;
-    }
-    if (now - _escape_since_us < (uint64_t)HOJA_BT_LINK_ESCAPE_MS * 1000u)
-        return;
-    battery_status_s power = {0};
-    battery_get_status(&power);
-    if (!power.plugged)
-        return;
-    boot_clear_memory();
-    sys_hal_reboot();
-}
-#endif
-
 static void _bt_hal_dongle_task(uint64_t timestamp)
 {
-#if defined(HOJA_BT_LINK_ESCAPE_MS)
-    _bt_hal_dongle_escape();
-#endif
     // The app's next command once the replies to the last one are out: answering never waits for
     // room (that would stall the task loop, and the inputs with it)
     while (_dongle_config_rx_tail != _dongle_config_rx_head && !dongle_api_gamepad_config_pending())
@@ -2631,11 +2410,6 @@ static void _bt_hal_on_ready(void)
 static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
 {
     (void)user;
-#if defined(HOJA_BT_PAIR_DIAG) && defined(HOJA_TRANSPORT_WLAN_DRIVER)
-    if ((_pairing_mode || _app_pair_here) && evt->type != FLOSS_GAP_EVT_MODE_CHANGE &&
-        evt->type != FLOSS_GAP_EVT_RSSI)
-        PAIR_DIAG(evt->type, evt->status);
-#endif
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
     _bt_hal_app_pair_page_event(evt);
 #endif
@@ -2796,8 +2570,10 @@ static bool _bt_hal_mode_apply(void)
     // Every mode lets the host take the master role. A Wii in particular hangs up on a remote that
     // refuses the role switch once other remotes are connected or a game is running. Sniff on a PC
     // (12.5 ms on Windows) caps SInput below its report rate.
-    floss_gap_set_default_link_policy(_mode_sinput ? FLOSS_LINK_POLICY_ROLE_SWITCH
-                                                   : (FLOSS_LINK_POLICY_ROLE_SWITCH | FLOSS_LINK_POLICY_SNIFF));
+    uint16_t policy = FLOSS_LINK_POLICY_ROLE_SWITCH;
+    if (!_mode_sinput)
+        policy |= FLOSS_LINK_POLICY_SNIFF;
+    floss_gap_set_default_link_policy(policy);
 
     if (_mode_wii)
     {
@@ -2864,9 +2640,6 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 #if defined(HOJA_TRANSPORT_WLAN_DRIVER)
     if (_bt_mode_ready)
         _bt_hal_call_setup();
-#endif
-#if defined(HOJA_BT_LE_AB)
-    _bt_hal_le_ab_setup();
 #endif
 
     // Listeners run in the order they were added. HID clears its session when the radio comes
