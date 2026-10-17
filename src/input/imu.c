@@ -263,6 +263,11 @@ static void _imu_read_quaternion(uint64_t timestamp)
 
   _imu_apply_gestures(&this_imu[2], timestamp);
 
+  // The sample as the standard mode would publish it, for the config app's motion view while a
+  // game uses the quaternion (through the dongle or BLE)
+  this_imu[2].timestamp = timestamp;
+  snapshot_imu_write(&_imu_snap, &this_imu[2]);
+
   ns_gyrodata_s sample = {0};
   sample.ax = this_imu[2].ax;
   sample.ay = this_imu[2].ay;
