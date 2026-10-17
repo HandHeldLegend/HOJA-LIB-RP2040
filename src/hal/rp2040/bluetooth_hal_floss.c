@@ -323,6 +323,12 @@ void btstack_cyw43_deinit(async_context_t *context)
 #define BT_HAL_PROBE_PAGE_TIMEOUT   0x0A00 // x 0.625 ms, 1.6 s per host
 // The mode of the host that connected last, which Auto calls first (an app key of the pairing store)
 #define BT_HAL_STORE_KEY_LAST_FORMAT 0x8000
+
+// Swift Pair: while SInput pairs, an LE beacon makes a nearby Windows PC offer "Connect". Microsoft
+// wants it gone 30 s before pairing ends; the pad sleeps after 5 minutes idle.
+#define BT_HAL_SWIFT_PAIR_MS       (3u * 60u * 1000u)
+// 100 ms: the shortest a beacon may use before Bluetooth 5.0 (the ESP32's controller)
+#define BT_HAL_SWIFT_PAIR_INTERVAL 0x00A0
 #define BT_HAL_PROBE_ANSWER_MS      1500
 #define BT_HAL_DEFAULT_PAGE_TIMEOUT 0x6000 // As the BTstack backend
 
@@ -409,11 +415,13 @@ static bool _probe_running = false;
 static floss_l2cap_chan_t *_probe_chan = NULL;
 static uint16_t _probe_handle = BT_HAL_NO_HANDLE;
 static floss_timer_t _probe_timer;
+static floss_timer_t _swift_pair_timer;
 
 static void _bt_hal_mode_setup(core_params_s *params);
 static void _bt_hal_restart(void);
 static void _bt_hal_restart_as(const uint8_t *mac);
 static void _bt_hal_probe_next(void);
+static void _bt_hal_swift_pair_stop(void);
 
 /***********************************************/
 /********* Helpers *****************************/
@@ -1235,6 +1243,7 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
     _connected = true;
     _discoverable = false;
     _bt_hal_apply_scan();
+    _bt_hal_swift_pair_stop();
     _bt_hal_report_timer_start();
 }
 
@@ -1732,6 +1741,47 @@ static void _bt_hal_dongle_task(uint64_t timestamp)
 }
 #endif
 
+// Microsoft's beacon for a device that pairs over BR/EDR: vendor 0x0006, beacon 0x03, sub scenario
+// 0x01, a reserved RSSI byte, our BR/EDR address and class of device. The name goes in the same
+// advert (Windows doesn't send scan requests).
+static void _bt_hal_swift_pair_start(void)
+{
+    uint8_t ms[14] = {0x06, 0x00, 0x03, 0x01, 0x80};
+    floss_addr_t addr;
+    _bt_hal_addr_from_hoja(_radio_mac, &addr);
+    memcpy(&ms[5], addr.b, 6); // Wire order, least significant byte first
+    floss_put_le24(&ms[11], _hid_cfg.class_of_device);
+
+    floss_le_ad_t ad;
+    floss_le_ad_init(&ad);
+    floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC);
+    floss_le_ad_add(&ad, FLOSS_AD_MANUFACTURER, ms, sizeof(ms));
+    floss_le_ad_name(&ad, _bt_hal_hid->name);
+
+    floss_le_adv_params_t p;
+    floss_le_adv_params_defaults(&p);
+    p.interval_min = BT_HAL_SWIFT_PAIR_INTERVAL;
+    p.interval_max = BT_HAL_SWIFT_PAIR_INTERVAL;
+    p.non_connectable = true;
+    floss_le_adv_set_params(&p);
+    floss_le_adv_set_data(ad.data, ad.len);
+    floss_le_adv_start();
+    floss_timer_start(&_swift_pair_timer, BT_HAL_SWIFT_PAIR_MS * 1000u);
+}
+
+static void _bt_hal_swift_pair_stop(void)
+{
+    floss_timer_stop(&_swift_pair_timer);
+    floss_le_adv_stop();
+}
+
+static void _bt_hal_swift_pair_timeout(floss_timer_t *t, void *arg)
+{
+    (void)t;
+    (void)arg;
+    floss_le_adv_stop();
+}
+
 static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
@@ -1754,6 +1804,8 @@ static void _bt_hal_on_ready(void)
     if (_pairing_mode)
     {
         _bt_hal_set_discoverable(true);
+        if (_mode_sinput)
+            _bt_hal_swift_pair_start();
         return;
     }
     else if (!_bt_mode_ready && !autodetect_bt_probe_pending())
@@ -1946,6 +1998,7 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
+    floss_timer_init(&_swift_pair_timer, _bt_hal_swift_pair_timeout, NULL);
 }
 
 // (Re)start the stack with this address. A restart resets the controller, which drops every link
