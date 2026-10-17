@@ -17,6 +17,9 @@
 
 #include "hhl_tusb.h"
 
+#include "pico.h"
+#include "hardware/sync.h"
+
 static bool _webusb_usb_send_input(const uint8_t *data, uint16_t size)
 {
     if (!hhl_tusb_webusb_report_send(data, size))
@@ -33,9 +36,21 @@ static const webusb_sink_s _webusb_usb_sink = {
 
 static const webusb_sink_s *_webusb_sink = &_webusb_usb_sink;
 
+// The dongle's and BLE's sinks run the radio stack, which belongs to the core that set them. A
+// packet from the other core (the stick processing's snapback capture) waits here, and that core's
+// task loop sends it (webusb_send_rawinput).
+#define WEBUSB_DEFERRED_LEN 4
+static uint8_t _webusb_deferred[WEBUSB_DEFERRED_LEN][64];
+static uint8_t _webusb_deferred_size[WEBUSB_DEFERRED_LEN];
+static volatile uint8_t _webusb_deferred_head = 0;
+static volatile uint8_t _webusb_deferred_tail = 0;
+static uint _webusb_sink_core = 0;
+
 void webusb_set_sink(const webusb_sink_s *sink)
 {
     _webusb_sink = sink ? sink : &_webusb_usb_sink;
+    _webusb_sink_core = get_core_num();
+    _webusb_deferred_tail = _webusb_deferred_head;
 }
 
 const webusb_sink_s *webusb_get_sink(void)
@@ -71,10 +86,41 @@ bool webusb_ready_blocking(int timeout)
 }
 
 
+static void _webusb_defer(const uint8_t *data, uint16_t size)
+{
+    uint32_t irq = save_and_disable_interrupts();
+    uint8_t next = (uint8_t)((_webusb_deferred_head + 1u) % WEBUSB_DEFERRED_LEN);
+    if (next != _webusb_deferred_tail && size <= 64)
+    {
+        memcpy(_webusb_deferred[_webusb_deferred_head], data, size);
+        _webusb_deferred_size[_webusb_deferred_head] = (uint8_t)size;
+        __dmb();
+        _webusb_deferred_head = next;
+    }
+    restore_interrupts(irq);
+}
+
+static void _webusb_send_deferred(void)
+{
+    while (_webusb_deferred_tail != _webusb_deferred_head)
+    {
+        uint8_t i = _webusb_deferred_tail;
+        if (!_webusb_sink->send(_webusb_deferred[i], _webusb_deferred_size[i]))
+            _webusb_mark_unready();
+        _webusb_deferred_tail = (uint8_t)((i + 1u) % WEBUSB_DEFERRED_LEN);
+    }
+}
+
 void webusb_send_bulk(const uint8_t *data, uint16_t size)
 {
     if (!_ready_to_go)
     {
+        return;
+    }
+
+    if ((_webusb_sink != &_webusb_usb_sink) && (get_core_num() != _webusb_sink_core))
+    {
+        _webusb_defer(data, size);
         return;
     }
 
@@ -94,6 +140,8 @@ void webusb_send_rawinput(uint64_t timestamp)
     static bool ready = false;
 
     if(!_ready_to_go) return;
+
+    _webusb_send_deferred();
 
     if(!ready)
     {
@@ -211,7 +259,9 @@ void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool succe
 
 void webusb_command_handler(uint8_t *data, uint32_t size)
 {
-    if (!_ready_to_go)
+    // The app's motion view wants standard IMU data. Through the dongle or BLE a game may be using
+    // the IMU in another mode (a Switch's quaternions), so leave it be.
+    if (!_ready_to_go && (_webusb_sink == &_webusb_usb_sink))
     {
         imu_set_read_mode(IMU_MODE_STANDARD);
     }
