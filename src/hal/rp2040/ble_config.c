@@ -35,6 +35,8 @@
 #define BLE_CFG_FRAME_MAX   (1u + 64u)
 // A big config block fills the notification buffers; keep the radio going until they drain
 #define BLE_CFG_SEND_WAIT_US 200000u
+// An app that hasn't written for this long (it pings every 2 s) is gone
+#define BLE_CFG_QUIET_US     5000000u
 
 typedef enum
 {
@@ -42,6 +44,7 @@ typedef enum
     BLE_CFG_TO_PAD_PAIR = 0x02,       // Ask for a code
     BLE_CFG_TO_PAD_DATA = 0x03,       // [WebUSB packet]
     BLE_CFG_TO_PAD_BYE = 0x04,        // The app is done: the gamepad closes the link
+    BLE_CFG_TO_PAD_PING = 0x05,       // The app is still there (every 2 s while connected)
     BLE_CFG_TO_APP_AUTH = 0x81,       // [0 allowed, 1 refused]
     BLE_CFG_TO_APP_CODE = 0x82,       // [six letters: A B X Y as printed, U D L R for the d-pad]
     BLE_CFG_TO_APP_CODE_STATE = 0x83, // [presses entered][0 entering, 1 wrong (a new code follows), 2 timed out]
@@ -83,6 +86,7 @@ static bool _ble_cfg_slow = false;
 static uint64_t _ble_cfg_beacon_until = 0; // 0: no beacon
 static bool _ble_cfg_beacon_pending = false; // Plus + Minus asked for it while a link was open
 static bool _ble_cfg_close = false;          // Close the app's link (from the task, after the write's answer)
+static volatile uint64_t _ble_cfg_heard_us = 0; // When the app last wrote anything
 static bool _ble_cfg_chord = false;        // Plus + Minus were down at the last look
 
 static uint16_t _ble_cfg_conn = 0xFFFFu;   // The app's LE link
@@ -396,6 +400,7 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
     int link = floss_le_link_index(conn);
     if (link >= 0)
         _ble_cfg_tx_cccd.v[link] |= FLOSS_GATT_CCCD_NOTIFY;
+    _ble_cfg_heard_us = sys_hal_now_us();
 
     switch (data[0])
     {
@@ -419,6 +424,9 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
 
     case BLE_CFG_TO_PAD_BYE:
         _ble_cfg_close = true;
+        return 0;
+
+    case BLE_CFG_TO_PAD_PING:
         return 0;
 
     case BLE_CFG_TO_PAD_DATA:
@@ -446,6 +454,7 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
     {
     case FLOSS_LE_EVT_CONNECTED:
         _ble_cfg_conn = evt->handle;
+        _ble_cfg_heard_us = sys_hal_now_us();
         _ble_cfg_beacon_until = 0;
         _ble_cfg_rx_head = _ble_cfg_rx_tail = 0;
         break;
@@ -542,14 +551,15 @@ void ble_config_task(uint64_t now_us)
     mapper_input_s in = {0};
     hover_access_safe(&in);
 
-    // Plus and Minus pressed together open the beacon (again). A link still open (a browser closed
-    // its side but the computer kept the link) is closed first: the press always starts afresh.
+    // Plus and Minus pressed together open the beacon (again). An app still talking keeps its
+    // session. A link gone quiet (a browser closed its side but the computer kept the link, or a tab
+    // crashed) is closed first, so the press starts afresh.
     bool chord = in.presses[INPUT_CODE_START] && in.presses[INPUT_CODE_SELECT];
     if (chord && !_ble_cfg_chord && _ble_cfg_tx_handle)
     {
         if (_ble_cfg_conn == 0xFFFFu)
             _ble_cfg_beacon_start(now_us);
-        else
+        else if (!_ble_cfg_allowed || (now_us - _ble_cfg_heard_us) > BLE_CFG_QUIET_US)
         {
             _ble_cfg_beacon_pending = true;
             _ble_cfg_close = true;
