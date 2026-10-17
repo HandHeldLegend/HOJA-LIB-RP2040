@@ -632,9 +632,14 @@ void boot_init(void)
     if (auto_mode)
         _boot_info.reportformat = CORE_REPORTFORMAT_SWPRO;
 
-    // 4. Pairing enable combo.
+    // 4. Pairing enable combo. Auto on battery pairs a PC (SInput) over Bluetooth: a Switch pairs
+    //    over USB, so on a cable Auto stays in Switch mode.
     if (boot_combo_pairing(&input))
+    {
         _boot_info.pairing = true;
+        if (auto_mode && (power == AUTODETECT_POWER_BATTERY) && boot_format_supported(CORE_REPORTFORMAT_SINPUT))
+            _boot_info.reportformat = CORE_REPORTFORMAT_SINPUT;
+    }
 
     // 5. LB held at boot goes straight to Bluetooth (no dongle search) when transport is still AUTO.
     boot_apply_lb_bt_hint(&input, &_boot_info);
