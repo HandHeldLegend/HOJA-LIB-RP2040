@@ -6,6 +6,7 @@
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
 #include "hal/rp2040/ble_config.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "floss/floss.h"
@@ -16,6 +17,8 @@
 #include "input_shared_types.h"
 #include "usb/webusb.h"
 #include "utilities/static_config.h"
+#include "utilities/settings.h"
+#include "hoja.h"
 
 // Plus + Minus opens the beacon for this long; the app shows the browser's device list meanwhile
 #define BLE_CFG_BEACON_US   10000000u
@@ -460,8 +463,25 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
     }
 }
 
+// The name the browser's device list shows: the model, and the user's name from the config app
+// when set ("GCU 2 (Mitch)"), not the mode's HID name (Switch mode would say "Pro Controller")
+static void _ble_cfg_beacon_name(char *out, size_t cap)
+{
+    const hoja_config_s *cfg = hoja_config_get();
+    const char *model = (cfg && cfg->device_name) ? cfg->device_name : _ble_cfg_name;
+    char user[sizeof(user_config->user_name) + 1] = {0};
+    memcpy(user, user_config->user_name, sizeof(user_config->user_name));
+    if (user[0])
+        snprintf(out, cap, "%s (%s)", model, user);
+    else
+        snprintf(out, cap, "%s", model);
+}
+
 static void _ble_cfg_beacon_start(uint64_t now_us)
 {
+    char name[30];
+    _ble_cfg_beacon_name(name, sizeof(name));
+
     floss_le_adv_params_t p;
     floss_le_adv_params_defaults(&p);
     p.interval_min = _ble_cfg_slow ? BLE_CFG_ADV_SLOW : BLE_CFG_ADV_FAST;
@@ -477,12 +497,12 @@ static void _ble_cfg_beacon_start(uint64_t now_us)
     floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC | FLOSS_AD_FLAG_NO_BREDR);
     floss_le_ad_add(&ad, FLOSS_AD_UUID128_ALL, _ble_cfg_uuid, sizeof(_ble_cfg_uuid));
     if (FLOSS_LE_ADV_DATA_MAX - ad.len >= 3)
-        floss_le_ad_name(&ad, _ble_cfg_name);
+        floss_le_ad_name(&ad, name);
     floss_le_adv_set_data(ad.data, ad.len);
 
     floss_le_ad_t rsp;
     floss_le_ad_init(&rsp);
-    floss_le_ad_name(&rsp, _ble_cfg_name);
+    floss_le_ad_name(&rsp, name);
     floss_le_adv_set_scan_rsp(rsp.data, rsp.len);
 
     floss_le_adv_start();
