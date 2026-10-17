@@ -151,10 +151,13 @@ static bool _ble_cfg_sink_send(const uint8_t *data, uint16_t size)
     return _ble_cfg_notify_wait(BLE_CFG_TO_APP_DATA, data, size);
 }
 
-// The live input report: the newest one wins, so a full buffer just skips this one
+// The live input report: the newest one wins, so it goes only when nothing else waits on the link.
+// A slow link (the ESP32 empties its LE queue slower than 125 reports a second) would otherwise fill
+// the queue with input nobody wants any more, and the app's replies would wait behind it.
 static bool _ble_cfg_sink_send_input(const uint8_t *data, uint16_t size)
 {
-    _ble_cfg_notify(BLE_CFG_TO_APP_INPUT, data, size);
+    if (_ble_cfg_conn != 0xFFFFu && floss_hci_acl_can_send_fresh(_ble_cfg_conn, 1))
+        _ble_cfg_notify(BLE_CFG_TO_APP_INPUT, data, size);
     return true;
 }
 
