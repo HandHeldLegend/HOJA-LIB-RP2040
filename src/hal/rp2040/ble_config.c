@@ -44,6 +44,7 @@ typedef enum
     BLE_CFG_TO_APP_PAIRED = 0x84,     // [token 16]: allowed from now on
     BLE_CFG_TO_APP_DATA = 0x85,       // [WebUSB packet]
     BLE_CFG_TO_APP_INPUT = 0x86,      // [live input report]
+    BLE_CFG_TO_APP_LINK = 0x87,       // [interval, latency, ATT MTU, LL tx octets: u16 LE][tx PHY][rx PHY]
 } ble_cfg_frame_t;
 
 typedef enum
@@ -199,6 +200,23 @@ static void _ble_cfg_token_add(const uint8_t *token)
     floss_hal_store_write(BLE_CFG_STORE_KEY, tokens, sizeof(tokens));
 }
 
+// What the LE link runs with, for the app (and bench work): changes as the browser and the
+// controller settle the parameters, data length and PHY after connecting
+static void _ble_cfg_link_report(void)
+{
+    const floss_le_link_t *l = floss_le_link(_ble_cfg_conn);
+    if (!l || !_ble_cfg_allowed)
+        return;
+    uint8_t msg[10];
+    floss_put_le16(&msg[0], l->interval);
+    floss_put_le16(&msg[2], l->latency);
+    floss_put_le16(&msg[4], l->att_mtu);
+    floss_put_le16(&msg[6], l->tx_octets);
+    msg[8] = l->tx_phy;
+    msg[9] = l->rx_phy;
+    _ble_cfg_notify(BLE_CFG_TO_APP_LINK, msg, sizeof(msg));
+}
+
 static void _ble_cfg_allow(bool allowed)
 {
     if (allowed == _ble_cfg_allowed)
@@ -209,6 +227,7 @@ static void _ble_cfg_allow(bool allowed)
         // The app's traffic comes here until it disconnects, then goes back (USB, or the dongle)
         _ble_cfg_prev_sink = webusb_get_sink();
         webusb_set_sink(&_ble_cfg_sink);
+        _ble_cfg_link_report();
     }
     else
     {
@@ -409,6 +428,14 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
         _ble_cfg_conn = evt->handle;
         _ble_cfg_beacon_until = 0;
         _ble_cfg_rx_head = _ble_cfg_rx_tail = 0;
+        break;
+
+    case FLOSS_LE_EVT_CONN_PARAMS:
+    case FLOSS_LE_EVT_MTU:
+    case FLOSS_LE_EVT_DATA_LENGTH:
+    case FLOSS_LE_EVT_PHY:
+        if (evt->handle == _ble_cfg_conn)
+            _ble_cfg_link_report();
         break;
 
     case FLOSS_LE_EVT_DISCONNECTED:

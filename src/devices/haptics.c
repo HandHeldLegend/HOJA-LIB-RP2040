@@ -33,8 +33,13 @@ void haptic_config_cmd(haptic_cmd_t cmd, webreport_cmd_confirm_t cb)
     }
 }
 
+// The host's rumble waits while the test buzz plays: a console sends its (often silent) rumble with
+// every report and would cut the buzz up, now that the app can run a test while one is connected
 void haptics_set_ns_hd(ns_haptics_packet_raw_s *in)
 {
+    if (_haptic_test_remaining > 0)
+        return;
+
     haptic_packet_s translated = {0};
 
     pcm_ns_to_fp(in, &translated);
@@ -46,6 +51,9 @@ void haptics_set_ns_hd(ns_haptics_packet_raw_s *in)
 
 void haptics_set_hd(haptic_packet_s *packet)
 {
+    if (_haptic_test_remaining > 0)
+        return;
+
     #if defined(HOJA_HAPTICS_PUSH_AMFM)
     HOJA_HAPTICS_PUSH_AMFM(packet);
     #endif
@@ -53,6 +61,9 @@ void haptics_set_hd(haptic_packet_s *packet)
 
 void haptics_set_std(uint8_t amplitude, bool brake)
 {
+    if (_haptic_test_remaining > 0)
+        return;
+
     #if defined(HOJA_HAPTICS_SET_STD)
     HOJA_HAPTICS_SET_STD(amplitude, brake);
     #endif
