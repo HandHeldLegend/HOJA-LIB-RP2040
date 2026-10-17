@@ -387,6 +387,13 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
     if (conn != _ble_cfg_conn || offset != 0 || len < 1)
         return FLOSS_ATT_ERR_UNLIKELY;
 
+    // Every answer is a notification, so an app that writes wants them. A browser that kept its
+    // subscription from an earlier link may not write the CCCD again on this one (it is cleared
+    // when a link drops), and would then never hear back.
+    int link = floss_le_link_index(conn);
+    if (link >= 0)
+        _ble_cfg_tx_cccd.v[link] |= FLOSS_GATT_CCCD_NOTIFY;
+
     switch (data[0])
     {
     case BLE_CFG_TO_PAD_AUTH:
