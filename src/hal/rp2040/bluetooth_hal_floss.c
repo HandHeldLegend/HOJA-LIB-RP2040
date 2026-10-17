@@ -2053,6 +2053,11 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     floss_snoop_set_hook(_bt_hal_diag_snoop);
 #endif
 
+    // The config app over BLE, registered first so its handles are the same in every mode: Windows
+    // caches the GATT layout per address, and the address stays. The dongle link fills the air, so
+    // its beacon is gentler.
+    ble_config_setup(_bt_hal_hid ? _bt_hal_hid->name : NULL, _mode_dongle);
+
     floss_gap_security_t sec;
     floss_gap_security_defaults(&sec);
     sec.secure_connections = false; // Keys from USB pairing are P-192
@@ -2065,9 +2070,6 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     // Listeners run in the order they were added. HID clears its session when the radio comes
     // up, so ours goes after it: a reconnect started on that event must not be cleared again.
     floss_gap_add_listener(_bt_hal_gap_event, NULL);
-
-    // The config app over BLE. The dongle link fills the air, so its beacon is gentler.
-    ble_config_setup(_bt_hal_hid ? _bt_hal_hid->name : NULL, _mode_dongle);
 
     floss_addr_t addr;
     _bt_hal_addr_from_hoja(mac, &addr);
