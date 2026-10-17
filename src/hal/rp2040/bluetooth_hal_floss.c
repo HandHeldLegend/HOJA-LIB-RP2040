@@ -256,12 +256,12 @@ void btstack_cyw43_deinit(async_context_t *context)
 /********* Timing and limits *******************/
 
 #define BT_HAL_TARGET_POLLING_RATE_MS 8
-// SInput: a PC polls the link every 1.25 ms once reports come this often, so they arrive evenly.
-// A board's build may set another rate.
-// SInput: three slot pairs (3.75 ms). Reports cross the air on Bluetooth's 1.25 ms grid, so a whole
-// number of slot pairs keeps them evenly spaced (measured: 76% within 0.3 ms of nominal, 4 ms 46%)
+// SInput: two slot pairs (2.5 ms). Reports cross the air on Bluetooth's 1.25 ms grid, so a whole
+// number of slot pairs keeps them evenly spaced (measured: 3.75 ms 76% within 0.3 ms of nominal,
+// 4 ms 46%). Measured on a PC (GCU-2, Intel 8087:0AA7, 3 x 30 s each): 2.5 ms 307-317 reports/s
+// with ~9% of gaps 8 ms or longer; 3.75 ms 230-232/s with ~13%. A board's build may set another rate.
 #ifndef BT_HAL_SINPUT_INTERVAL_US
-#define BT_HAL_SINPUT_INTERVAL_US 3750
+#define BT_HAL_SINPUT_INTERVAL_US 2500
 #endif
 // A real Wii Remote reports every 10 ms
 #define BT_HAL_WII_POLLING_RATE_MS 10
