@@ -235,10 +235,6 @@ typedef struct
     mapper_input_code_t baseband_update_code[2];
 #endif
 
-    // Hold at boot to force the dongle transport when supported. Set to
-    // INPUT_CODE_UNUSED to disable.
-    mapper_input_code_t dongle_force_code;
-
     // ---- Bluetooth pairing (sync) ----
     // Hold sync_on_boot_code during power-on to enter BT pairing. Set to
     // INPUT_CODE_UNUSED to disable.

@@ -214,57 +214,67 @@ static bool _nesbus_console_present(uint64_t now_us)
 
 static autodetect_power_t _power = AUTODETECT_POWER_EXTERNAL;
 static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
-// Wireless means the dongle
-static bool _dongle = false;
 
-// The wireless default: that mode, or for Auto a search of the saved hosts in Switch mode
+// Where the dongle search falls back to: Bluetooth in this mode, then this phase
+static core_reportformat_t _fallback_format = CORE_REPORTFORMAT_SWPRO;
+static phase_t _fallback_phase = PHASE_BT;
+
+// Modes with a Bluetooth fallback that the dongle can also carry
+static bool _dongle_first(core_reportformat_t format)
+{
+    return AUTODETECT_DONGLE && ((format == CORE_REPORTFORMAT_SWPRO) || (format == CORE_REPORTFORMAT_SINPUT));
+}
+
+// Wireless in this mode: the dongle first, then Bluetooth. Auto (undefined) is Switch mode, and
+// over Bluetooth it checks the saved hosts first.
+static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format, gamepad_transport_t *transport,
+                           phase_t *phase)
+{
+    *format = (mode == CORE_REPORTFORMAT_UNDEFINED) ? CORE_REPORTFORMAT_SWPRO : mode;
+    _fallback_format = *format;
+    _fallback_phase = (mode == CORE_REPORTFORMAT_UNDEFINED) ? PHASE_BT : PHASE_DONE;
+
+    if(_dongle_first(*format))
+    {
+        *transport = GAMEPAD_TRANSPORT_DONGLE;
+        *phase = PHASE_DONGLE;
+    }
+    else
+    {
+        *transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        *phase = _fallback_phase;
+    }
+}
+
 static void _wireless_start(boot_info_s *info)
 {
-    // The dongle detects its host itself, and the gamepad follows it
-    if(_dongle)
-    {
-        info->transport = GAMEPAD_TRANSPORT_DONGLE;
-        info->reportformat = CORE_REPORTFORMAT_SWPRO;
-        _phase = PHASE_DONE;
+    phase_t phase;
+    _wireless_plan(_wireless, &info->reportformat, &info->transport, &phase);
+    _phase = phase;
+    if(phase == PHASE_DONE)
         _confirmed = true;
-        return;
-    }
-
-    info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
-    if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
-    {
-        info->reportformat = _wireless;
-        _phase = PHASE_DONE;
-        _confirmed = true;
-        return;
-    }
-    info->reportformat = CORE_REPORTFORMAT_SWPRO;
-    if(AUTODETECT_DONGLE)
-    {
-        info->transport = GAMEPAD_TRANSPORT_DONGLE;
-        _phase = PHASE_DONGLE;
-        return;
-    }
-    _phase = PHASE_BT;
 }
 
 static void _switch_to_wireless(void)
 {
-    if(_dongle)
-        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONE);
-    else if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
-        _switch_to(_wireless, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
-    else if(AUTODETECT_DONGLE)
-        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
-    else
-        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
+    core_reportformat_t format;
+    gamepad_transport_t transport;
+    phase_t phase;
+    _wireless_plan(_wireless, &format, &transport, &phase);
+    _switch_to(format, transport, phase);
 }
 
-void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless, bool dongle)
+void autodetect_wireless(boot_info_s *info, core_reportformat_t format)
+{
+    _power = AUTODETECT_POWER_BATTERY;
+    _wireless = format;
+    _wireless_start(info);
+}
+
+void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless)
 {
     _power = power;
     _wireless = wireless;
-    _dongle = dongle;
 
     // Wired default picked by hand, wireless Auto, on battery: only the wireless search runs
     if(!wired_auto && AUTODETECT_BLUETOOTH)
@@ -438,7 +448,7 @@ void autodetect_task(uint64_t now_us)
 
         case PHASE_DONGLE:
         if(elapsed_ms >= AUTODETECT_DONGLE_WAIT_MS)
-            _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
+            _switch_to(_fallback_format, GAMEPAD_TRANSPORT_BLUETOOTH, _fallback_phase);
         break;
 
         case PHASE_BT:

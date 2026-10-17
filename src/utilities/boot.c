@@ -13,7 +13,6 @@
 
 #include "hoja.h"
 #include "utilities/autodetect.h"
-#include "transport/transport_dongle.h"
 
 #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
 #define HOJA_BOOT_ANALOG_FACE_DELTA 200
@@ -363,35 +362,6 @@ static core_reportformat_t boot_default_wireless(void)
     return CORE_REPORTFORMAT_UNDEFINED;
 }
 
-// The dongle as the wireless default, on a board that has the dongle link
-static bool boot_default_dongle(void)
-{
-    return (gamepad_config->gamepad_default_wireless == GAMEPAD_DEFAULT_WIRELESS_DONGLE) &&
-           transport_dongle_static_supported();
-}
-
-// Modes the dongle can present
-static bool boot_format_dongle(core_reportformat_t format)
-{
-    switch (format)
-    {
-    case CORE_REPORTFORMAT_SWPRO:
-    case CORE_REPORTFORMAT_SINPUT:
-    case CORE_REPORTFORMAT_XINPUT:
-    case CORE_REPORTFORMAT_SLIPPI:
-    case CORE_REPORTFORMAT_SNES:
-    case CORE_REPORTFORMAT_N64:
-    case CORE_REPORTFORMAT_GAMECUBE:
-        return true;
-
-    default:
-        return false;
-    }
-}
-
-// On battery, wireless means the dongle: it is the default and the dongle button wasn't held
-static bool _boot_prefer_dongle = false;
-
 // The default for this power source. On battery the wireless default applies, except that an N64
 // doesn't power the controller: a wired default of N64 stays, and a wired Auto still answers an N64
 // before going wireless.
@@ -405,7 +375,7 @@ static core_reportformat_t boot_resolve_default(autodetect_power_t power)
 }
 
 // ---------------------------------------------------------------------------
-// Boot combos (USB bootloader, baseband update, pairing, dongle force)
+// Boot combos (USB bootloader, baseband update, pairing)
 // ---------------------------------------------------------------------------
 
 static bool boot_combo_usb_bootloader(const mapper_input_s *input)
@@ -435,29 +405,6 @@ static bool boot_combo_pairing(const mapper_input_s *input)
         return false;
 
     return boot_input_pressed(input, cfg->sync_on_boot_code);
-}
-
-static bool boot_combo_dongle_force(const mapper_input_s *input)
-{
-    const hoja_config_s *cfg = hoja_config_get();
-    if (!cfg || cfg->dongle_force_code == INPUT_CODE_UNUSED)
-        return false;
-
-    if (boot_combo_usb_bootloader(input))
-        return false;
-
-#if HOJA_BT_IS_ESP32
-    if (boot_combo_baseband_update(input))
-        return false;
-#endif
-
-    return boot_input_pressed(input, cfg->dongle_force_code);
-}
-
-static void boot_apply_dongle_force(boot_info_s *info)
-{
-    if (boot_format_dongle(info->reportformat))
-        info->transport = GAMEPAD_TRANSPORT_DONGLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -579,18 +526,13 @@ static void boot_apply_battery_transport(boot_info_s *info)
         return;
     }
 
-    // On battery power: the dongle when it is the default, else by report format
-    if (_boot_prefer_dongle && boot_format_dongle(info->reportformat))
-    {
-        info->transport = GAMEPAD_TRANSPORT_DONGLE;
-        return;
-    }
-
+    // On battery power, by report format. Switch and SInput look for a dongle first, then go to
+    // Bluetooth; the others only reach a computer or console through the dongle.
     switch (info->reportformat)
     {
     case CORE_REPORTFORMAT_SWPRO:
     case CORE_REPORTFORMAT_SINPUT:
-        info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+        autodetect_wireless(info, info->reportformat);
         break;
 
     case CORE_REPORTFORMAT_SLIPPI:
@@ -694,20 +636,13 @@ void boot_init(void)
     if (boot_combo_pairing(&input))
         _boot_info.pairing = true;
 
-    // 5. The dongle button picks the wireless transport that isn't the default: the dongle when the
-    //    default is Bluetooth, Bluetooth when it is the dongle.
-    const bool dongle_button = boot_combo_dongle_force(&input);
-    _boot_prefer_dongle = boot_default_dongle() && !dongle_button;
-    if (dongle_button && !boot_default_dongle())
-        boot_apply_dongle_force(&_boot_info);
-
-    // 6. LB held at boot prefers Bluetooth when transport is still AUTO.
+    // 5. LB held at boot goes straight to Bluetooth (no dongle search) when transport is still AUTO.
     boot_apply_lb_bt_hint(&input, &_boot_info);
 
-    // 7. Wired formats default to their bus transport, Wii to Bluetooth.
+    // 6. Wired formats default to their bus transport, Wii to Bluetooth.
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
 
-    // 8. Runtime reboot memory (pairing macro, etc.) overrides selections above.
+    // 7. Runtime reboot memory (pairing macro, etc.) overrides selections above.
     boot_memory_s boot_memory = {0};
     boot_get_memory(&boot_memory);
     const bool from_memory = (boot_memory.val != 0);
@@ -716,14 +651,15 @@ void boot_init(void)
     // A wired format chosen through boot memory still needs its bus
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
 
-    // Auto with nothing in boot memory and nothing else picked (pairing, LB, dongle force): detect,
+    // Auto with nothing in boot memory and nothing else picked (pairing, LB): detect,
     // starting from the power source
     if (auto_mode && !from_memory && !_boot_info.pairing && _boot_info.transport == GAMEPAD_TRANSPORT_AUTO)
     {
         const bool wired_auto = (boot_default_wired() == CORE_REPORTFORMAT_UNDEFINED);
-        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless(), _boot_prefer_dongle);
+        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless());
     }
 
-    // 9. Battery status resolves AUTO transport to USB / BT / the dongle.
+    // 8. Battery status resolves AUTO transport to USB, or wireless: the dongle first, then
+    //    Bluetooth.
     boot_apply_battery_transport(&_boot_info);
 }
