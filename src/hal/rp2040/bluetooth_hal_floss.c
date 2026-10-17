@@ -13,6 +13,7 @@
 #include "hardware/sync.h"
 
 #include "floss/floss.h"
+#include "hal/rp2040/ble_config.h"
 
 #if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
 #define BT_HAL_ESP32 1
@@ -349,6 +350,15 @@ static bool _bt_mode_ready = false; // A mode is set up (Auto mode may probe hos
 static bool _mode_wii = false;
 static bool _mode_sinput = false;
 static uint32_t _report_interval_us = BT_HAL_TARGET_POLLING_RATE_MS * 1000;
+
+// The report period: the mode's, slowed while the config app is connected over BLE so its LE link
+// gets air time
+static uint32_t _bt_hal_report_period(void)
+{
+    if (ble_config_connected() && _report_interval_us < BLE_CONFIG_REPORT_INTERVAL_US)
+        return BLE_CONFIG_REPORT_INTERVAL_US;
+    return _report_interval_us;
+}
 
 static volatile bool _connected = false; // HID session up
 static bool _pairing_mode = false;
@@ -791,11 +801,11 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
     _diag_tick_due_us = _report_deadline_us;
     _bt_hal_diag_step(now);
 #endif
-    _report_deadline_us += _report_interval_us;
+    _report_deadline_us += _bt_hal_report_period();
     if (floss_time_diff(now, _report_deadline_us) >= 0)
     {
         // A whole interval behind, restart from now instead of bursting
-        _report_deadline_us = now + _report_interval_us;
+        _report_deadline_us = now + _bt_hal_report_period();
     }
     floss_timer_start_at(t, _report_deadline_us);
 
@@ -805,7 +815,7 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
 
 static void _bt_hal_report_timer_start(void)
 {
-    _report_deadline_us = floss_hal_time_us() + _report_interval_us;
+    _report_deadline_us = floss_hal_time_us() + _bt_hal_report_period();
     _send_pending = true;
     floss_timer_start_at(&_report_timer, _report_deadline_us);
 }
@@ -1344,6 +1354,7 @@ static uint8_t _bt_hal_pin_handler(const floss_addr_t *peer, uint8_t pin[16])
 // dongle_link.h). The dongle stores nothing and pairs every time; we remember its address only.
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static floss_link_config_t _link_cfg;
+static uint32_t _dongle_link_iv = DONGLE_LINK_INTERVAL_DEFAULT_US; // The pacing the dongle asked for
 static bool _dongle_running = false;    // The dongle transport is up (it may be waiting for the link)
 static floss_l2cap_chan_t *_dongle_rel = NULL;
 static dongle_cfg_gamepad_s _dongle_cfg;
@@ -1573,7 +1584,11 @@ static void _bt_hal_dongle_tick(void)
 
     uint16_t iv = dongle_api_gamepad_link_interval_us();
     if (iv)
-        _link_cfg.report_interval_us = (iv < BT_HAL_DONGLE_INTERVAL_MIN_US) ? BT_HAL_DONGLE_INTERVAL_MIN_US : iv;
+        _dongle_link_iv = (iv < BT_HAL_DONGLE_INTERVAL_MIN_US) ? BT_HAL_DONGLE_INTERVAL_MIN_US : iv;
+    // The config app connected over BLE slows the link, leaving its LE link air time
+    _link_cfg.report_interval_us = (ble_config_connected() && _dongle_link_iv < BLE_CONFIG_REPORT_INTERVAL_US)
+                                       ? BLE_CONFIG_REPORT_INTERVAL_US
+                                       : _dongle_link_iv;
 }
 
 static void _bt_hal_dongle_rel_open(floss_l2cap_chan_t *ch, uint16_t status)
@@ -1663,6 +1678,7 @@ static bool _bt_hal_dongle_apply(void)
     _link_cfg.classic_pad_connects = true; // We find the dongle and run the link
     _link_cfg.classic_store_keys = false;  // It pairs every time; we remember its address only
     _link_cfg.report_interval_us = DONGLE_LINK_INTERVAL_DEFAULT_US;
+    _dongle_link_iv = DONGLE_LINK_INTERVAL_DEFAULT_US;
     // The radio reports delivered packets two at a time, 3-8 ms late: room for that many, so
     // reports go to the radio one per period and are never held back and sent in pairs. The dongle
     // sees a report waiting in our radio (after a resend) and moves our clock a period on.
@@ -2050,6 +2066,9 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     // up, so ours goes after it: a reconnect started on that event must not be cleared again.
     floss_gap_add_listener(_bt_hal_gap_event, NULL);
 
+    // The config app over BLE. The dongle link fills the air, so its beacon is gentler.
+    ble_config_setup(_bt_hal_hid ? _bt_hal_hid->name : NULL, _mode_dongle);
+
     floss_addr_t addr;
     _bt_hal_addr_from_hoja(mac, &addr);
     floss_hci_set_addr_override(&addr);
@@ -2227,6 +2246,8 @@ static void _bt_hal_task(uint64_t timestamp)
             _bt_hal_wii_radio_cycle();
         return;
     }
+
+    ble_config_task(timestamp);
 
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_mode_dongle)

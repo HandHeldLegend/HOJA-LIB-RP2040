@@ -1245,6 +1245,13 @@ core_reportformat_t mapper_get_palette_format(void)
     return core_current_reportformat();
 }
 
+static volatile bool _mapper_neutral = false;
+
+void mapper_hold_neutral(bool hold)
+{
+    _mapper_neutral = hold;
+}
+
 mapper_input_s mapper_get_translated_input()
 {
     analog_data_s joysticks;
@@ -1252,6 +1259,11 @@ mapper_input_s mapper_get_translated_input()
 
     analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
     hover_access_safe(&hovers);
+    if (_mapper_neutral)
+    {
+        memset(&joysticks, 0, sizeof(joysticks));
+        memset(&hovers, 0, sizeof(hovers));
+    }
 
     _all_inputs = hovers;
     _all_inputs.inputs[INPUT_CODE_LX_LEFT] = joysticks.lx < 0 ? -joysticks.lx : 0;
@@ -1273,6 +1285,11 @@ mapper_input_s mapper_get_input()
 
     analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
     hover_access_safe(&hovers);
+    if (_mapper_neutral)
+    {
+        memset(&joysticks, 0, sizeof(joysticks));
+        memset(&hovers, 0, sizeof(hovers));
+    }
 
     _all_inputs = hovers;
     _all_inputs.inputs[INPUT_CODE_LX_LEFT] = joysticks.lx < 0 ? -joysticks.lx : 0;

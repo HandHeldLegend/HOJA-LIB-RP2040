@@ -38,6 +38,11 @@ void webusb_set_sink(const webusb_sink_s *sink)
     _webusb_sink = sink ? sink : &_webusb_usb_sink;
 }
 
+const webusb_sink_s *webusb_get_sink(void)
+{
+    return (_webusb_sink == &_webusb_usb_sink) ? NULL : _webusb_sink;
+}
+
 uint8_t _webusb_focused_hover = 0;
 uint8_t _webusb_report_mode = WEBUSB_INPUT_RAW;
 

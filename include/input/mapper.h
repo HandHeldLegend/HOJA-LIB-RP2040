@@ -21,5 +21,8 @@ void mapper_webusb_remap_preview_end(void);
 void mapper_set_wii_profile(mapper_wii_profile_t profile);
 mapper_input_s mapper_get_translated_input();
 mapper_input_s mapper_get_input();
+// Hold every output at rest (buttons up, sticks centred) while the presses mean something else,
+// such as a BLE config code being entered
+void mapper_hold_neutral(bool hold);
 
 #endif

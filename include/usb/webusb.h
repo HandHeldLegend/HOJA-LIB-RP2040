@@ -29,6 +29,8 @@ typedef struct
 
 // NULL goes back to USB
 void webusb_set_sink(const webusb_sink_s *sink);
+// The current sink, NULL for USB
+const webusb_sink_s *webusb_get_sink(void);
 
 bool webusb_outputting_check();
 void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool success, uint8_t *data, uint32_t size);
