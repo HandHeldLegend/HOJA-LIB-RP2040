@@ -539,7 +539,6 @@ static void boot_apply_persisted_memory(boot_info_s *info)
     }
 
     info->pairing = boot_memory.gamepad_pair ? true : false;
-    info->link_called = boot_memory.link_called ? true : false;
 
     if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_BLUETOOTH)
         info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
