@@ -8,8 +8,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Wireless links run no faster than this while the app is connected, leaving it air time
+// Wireless links run no faster than this while BLE config is active (the beacon or a connected app),
+// leaving it air time. A host asked to poll every slot pair is asked for this latency meanwhile: the
+// ESP32's controller gets no gap for LE otherwise.
 #define BLE_CONFIG_REPORT_INTERVAL_US 8000u
+#define BLE_CONFIG_POLL_LATENCY_US    7500u
 
 // After floss_init, before floss_start: the GATT service (the table is fixed once the radio runs)
 // and the LE listener. name: shown in the browser's device list. slow_beacon: a link that
@@ -21,5 +24,8 @@ void ble_config_task(uint64_t now_us);
 
 // An app is connected over LE
 bool ble_config_connected(void);
+
+// The beacon runs or an app is connected: links leave LE air time
+bool ble_config_active(void);
 
 #endif

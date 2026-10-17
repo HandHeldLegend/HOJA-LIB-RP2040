@@ -598,4 +598,9 @@ bool ble_config_connected(void)
     return _ble_cfg_conn != 0xFFFFu;
 }
 
+bool ble_config_active(void)
+{
+    return _ble_cfg_beacon_until || _ble_cfg_beacon_pending || (_ble_cfg_conn != 0xFFFFu);
+}
+
 #endif

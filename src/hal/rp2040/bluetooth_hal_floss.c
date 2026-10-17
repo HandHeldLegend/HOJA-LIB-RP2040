@@ -351,11 +351,11 @@ static bool _mode_wii = false;
 static bool _mode_sinput = false;
 static uint32_t _report_interval_us = BT_HAL_TARGET_POLLING_RATE_MS * 1000;
 
-// The report period: the mode's, slowed while the config app is connected over BLE so its LE link
-// gets air time
+// The report period: the mode's, slowed while BLE config is active (the beacon, or the app
+// connected) so LE gets air time
 static uint32_t _bt_hal_report_period(void)
 {
-    if (ble_config_connected() && _report_interval_us < BLE_CONFIG_REPORT_INTERVAL_US)
+    if (ble_config_active() && _report_interval_us < BLE_CONFIG_REPORT_INTERVAL_US)
         return BLE_CONFIG_REPORT_INTERVAL_US;
     return _report_interval_us;
 }
@@ -811,6 +811,23 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
 
     _send_pending = true;
     _bt_hal_try_send();
+}
+
+// While BLE config is active, a host polling every slot pair (SInput's QoS) is asked to poll at
+// the config latency instead, and back after: the ESP32's controller otherwise never finds a gap to
+// advertise or keep the LE link
+static void _bt_hal_ble_config_poll(void)
+{
+    static bool relaxed = false;
+    bool want = ble_config_active() && _connected && _hid_cfg.qos_latency_us &&
+                (_hid_cfg.qos_latency_us < BLE_CONFIG_POLL_LATENCY_US);
+    if (want == relaxed)
+        return;
+    uint16_t handle = floss_hid_handle();
+    if (handle == BT_HAL_NO_HANDLE)
+        return;
+    if (floss_gap_qos_setup(handle, want ? BLE_CONFIG_POLL_LATENCY_US : _hid_cfg.qos_latency_us, 0) == FLOSS_OK)
+        relaxed = want;
 }
 
 static void _bt_hal_report_timer_start(void)
@@ -1586,7 +1603,7 @@ static void _bt_hal_dongle_tick(void)
     if (iv)
         _dongle_link_iv = (iv < BT_HAL_DONGLE_INTERVAL_MIN_US) ? BT_HAL_DONGLE_INTERVAL_MIN_US : iv;
     // The config app connected over BLE slows the link, leaving its LE link air time
-    _link_cfg.report_interval_us = (ble_config_connected() && _dongle_link_iv < BLE_CONFIG_REPORT_INTERVAL_US)
+    _link_cfg.report_interval_us = (ble_config_active() && _dongle_link_iv < BLE_CONFIG_REPORT_INTERVAL_US)
                                        ? BLE_CONFIG_REPORT_INTERVAL_US
                                        : _dongle_link_iv;
 }
@@ -2250,6 +2267,7 @@ static void _bt_hal_task(uint64_t timestamp)
     }
 
     ble_config_task(timestamp);
+    _bt_hal_ble_config_poll();
 
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_mode_dongle)
