@@ -319,8 +319,10 @@ void btstack_cyw43_deinit(async_context_t *context)
 #define BT_HAL_RECONNECT_MIN_MS    1000
 #define BT_HAL_RECONNECT_SPREAD_MS 2000
 
-// Auto mode: hosts listen for calls every 1.28 s, so each gets two of those windows
-#define BT_HAL_PROBE_PAGE_TIMEOUT   0x1000 // x 0.625 ms, 2.56 s per host
+// Auto mode: hosts listen for calls every 1.28 s, so 1.6 s catches each one awake (TEST: was 2.56 s)
+#define BT_HAL_PROBE_PAGE_TIMEOUT   0x0A00 // x 0.625 ms, 1.6 s per host
+// The mode of the host that connected last, which Auto calls first (an app key of the pairing store)
+#define BT_HAL_STORE_KEY_LAST_FORMAT 0x8000
 #define BT_HAL_PROBE_ANSWER_MS      1500
 #define BT_HAL_DEFAULT_PAGE_TIMEOUT 0x6000 // As the BTstack backend
 
@@ -1156,8 +1158,20 @@ static bool _bt_hal_probe_start(void)
 
     _probe_count = 0;
     _probe_index = 0;
+
+    // The host that connected last first, then Switch, Wii and the PC
+    uint8_t last = 0;
+    if (floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1)
+        last = CORE_REPORTFORMAT_UNDEFINED;
+    if (last == CORE_REPORTFORMAT_SWPRO)
+        _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
+    else if (last == CORE_REPORTFORMAT_WII)
+        _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
+    else if (last == CORE_REPORTFORMAT_SINPUT)
+        _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
     _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
     _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
+    _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
 
     if (!_probe_count)
     {
@@ -1202,6 +1216,12 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
         memcpy(addr_location, mac, 6);
         settings_commit_blocks();
     }
+
+    // Auto calls this host first next time. Written only when it changes.
+    uint8_t last = 0;
+    uint8_t format = (uint8_t)core_current_reportformat();
+    if ((floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1) || (last != format))
+        floss_hal_store_write(BT_HAL_STORE_KEY_LAST_FORMAT, &format, 1);
 
     // Paired or reconnected: from now on a dropped link pages this host again
     if (_bt_hal_is_wii())
