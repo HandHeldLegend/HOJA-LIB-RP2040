@@ -1,19 +1,27 @@
 #include "board_config.h"
 
-// FLOSS Bluetooth for the RM2 (CYW43). Same behaviour as the BTstack backend (bluetooth_hal.c):
-// Switch, SInput and Wii modes, Auto mode's host probe, the Wii's reload and standby handling.
+// FLOSS Bluetooth for the RM2 (CYW43), or an ESP32 running the HCI bridge (esp32_hci.c). Same
+// behaviour as the BTstack backend (bluetooth_hal.c): Switch, SInput and Wii modes, Auto mode's
+// host probe, the Wii's reload and standby handling.
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
 #include "hal/bluetooth_hal.h"
 #include "hal/rp2040/bt_flash_bank.h"
 #include "pico/stdlib.h"
 #include "pico/rand.h"
 #include "pico/flash.h"
-#include "pico/cyw43_arch.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 
 #include "floss/floss.h"
+
+#if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
+#define BT_HAL_ESP32 1
+#include "drivers/bluetooth/esp32_hci.h"
+#else
+#define BT_HAL_ESP32 0
+#include "pico/cyw43_arch.h"
 #include "floss_cyw43.h"
+#endif
 
 #include <string.h>
 #include <stdio.h>
@@ -90,7 +98,7 @@ void floss_hal_random(uint8_t *buf, size_t len)
 
 void floss_hal_log_write(const char *text, size_t len)
 {
-#if HOJA_BT_LOGGING_DEBUG
+#if HOJA_BT_LOGGING_DEBUG || (BT_HAL_ESP32 && ESP32_HCI_CONSOLE)
     printf("%.*s", (int)len, text);
 #else
     (void)text;
@@ -239,6 +247,7 @@ floss_err_t floss_hal_store_delete(uint16_t key)
     return _bt_store_commit();
 }
 
+#if !BT_HAL_ESP32
 // cyw43_arch sets up BTstack's run loop when the radio firmware is enabled. FLOSS runs from the
 // transport task instead, so there is nothing to set up.
 bool btstack_cyw43_init(async_context_t *context)
@@ -251,6 +260,7 @@ void btstack_cyw43_deinit(async_context_t *context)
 {
     (void)context;
 }
+#endif
 
 /***********************************************/
 /********* Timing and limits *******************/
@@ -261,7 +271,17 @@ void btstack_cyw43_deinit(async_context_t *context)
 // 4 ms 46%). Measured on a PC (GCU-2, Intel 8087:0AA7, 3 x 30 s each): 2.5 ms 307-317 reports/s
 // with ~9% of gaps 8 ms or longer; 3.75 ms 230-232/s with ~13%. A board's build may set another rate.
 #ifndef BT_HAL_SINPUT_INTERVAL_US
+#if BT_HAL_ESP32
+#define BT_HAL_SINPUT_INTERVAL_US ESP32_HCI_REPORT_INTERVAL_MIN_US
+#else
 #define BT_HAL_SINPUT_INTERVAL_US 2500
+#endif
+#endif
+// The fastest pacing the dongle may ask of us (0: whatever it asks)
+#if BT_HAL_ESP32
+#define BT_HAL_DONGLE_INTERVAL_MIN_US ESP32_HCI_REPORT_INTERVAL_MIN_US
+#else
+#define BT_HAL_DONGLE_INTERVAL_MIN_US 0
 #endif
 // A real Wii Remote reports every 10 ms
 #define BT_HAL_WII_POLLING_RATE_MS 10
@@ -1524,7 +1544,7 @@ static void _bt_hal_dongle_tick(void)
 
     uint16_t iv = dongle_api_gamepad_link_interval_us();
     if (iv)
-        _link_cfg.report_interval_us = iv;
+        _link_cfg.report_interval_us = (iv < BT_HAL_DONGLE_INTERVAL_MIN_US) ? BT_HAL_DONGLE_INTERVAL_MIN_US : iv;
 }
 
 static void _bt_hal_dongle_rel_open(floss_l2cap_chan_t *ch, uint16_t status)
@@ -1921,10 +1941,19 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _probe_chan = NULL;
     _probe_handle = BT_HAL_NO_HANDLE;
 
+#if BT_HAL_ESP32
+    // The bridge starts its controller with the address, so a new one restarts the ESP32
+    esp32_hci_set_radio_mac(mac);
+    floss_init_t init = {
+        .transport = esp32_hci_floss_transport(),
+        .chipset = &esp32_hci_floss_chipset,
+    };
+#else
     floss_init_t init = {
         .transport = floss_cyw43_transport(),
         .chipset = &floss_chipset_cyw43,
     };
+#endif
     if (floss_init(&init) != FLOSS_OK)
         return false;
 
@@ -1975,8 +2004,24 @@ static void _bt_hal_restart(void)
 /***********************************************/
 /********* Transport Defines *******************/
 
+#if BT_HAL_ESP32
+static bool _esp32_legacy = false; // The ESP32 is still on the old baseband
+static bool _esp32_update = false; // The ESP32 is being updated (no stack)
+
+// True when the ESP32 runs the HCI bridge. An old baseband answers the version request too.
+static bool _bt_hal_esp32_bridge(void)
+{
+    uint16_t version = esp32_hci_firmware_version();
+    return !version || version >= ESP32_HCI_BRIDGE_VERSION_MIN;
+}
+#endif
+
 void transport_bt_stop()
 {
+#if BT_HAL_ESP32
+    if (_esp32_legacy)
+        esp32_legacy_bt_stop();
+#endif
 }
 
 // Bring the radio up for this transport's mode, or back with it when already running (Auto mode
@@ -2001,11 +2046,17 @@ static bool _bt_hal_stack_bringup(core_params_s *params)
         if (!_floss_lock)
             _floss_lock = spin_lock_init((uint)spin_lock_claim_unused(true));
 
+#if BT_HAL_ESP32
+        // The link to the bridge; the stack's transport open starts its controller
+        if (!esp32_hci_backend_init(params))
+            return false;
+#else
         // Radio firmware, the shared bus and its background worker
         while (cyw43_arch_init())
         {
             sys_hal_sleep_ms(1000);
         }
+#endif
         _bt_stack_up = true;
         return _bt_hal_stack_start(params->transport_dev_mac);
     }
@@ -2017,6 +2068,28 @@ static bool _bt_hal_stack_bringup(core_params_s *params)
 bool transport_bt_init(core_params_s *params)
 {
     _mode_dongle = false;
+
+#if BT_HAL_ESP32
+    if (!params)
+        return false;
+
+    // ESP32 firmware update (no core or HID device)
+    if (params->core_boot_flags & COREBOOT_FLAG_ALTFLASH)
+    {
+        _esp32_update = true;
+        return esp32_hci_backend_init(params);
+    }
+
+    // Old baseband: its own driver until the ESP32 is updated
+    if (!_bt_hal_esp32_bridge())
+    {
+        _esp32_legacy = true;
+        bool ok = esp32_legacy_bt_init(params);
+        esp32_hci_console_attach();
+        return ok;
+    }
+#endif
+
     return _bt_hal_stack_bringup(params);
 }
 
@@ -2024,6 +2097,14 @@ bool transport_bt_init(core_params_s *params)
 static void _bt_hal_task(uint64_t timestamp)
 {
     (void)timestamp;
+
+#if BT_HAL_ESP32
+    esp32_hci_backend_task(timestamp);
+    // The ESP32 lost its links behind the stack's back: restart the stack, which opens the
+    // transport with a fresh ESP32
+    if (esp32_hci_take_radio_fault())
+        _bt_hal_restart();
+#endif
 
 #if HOJA_BT_FLOSS_DIAG
     uint32_t task_now = time_us_32();
@@ -2108,6 +2189,18 @@ static void _bt_hal_task(uint64_t timestamp)
 
 void transport_bt_task(uint64_t timestamp)
 {
+#if BT_HAL_ESP32
+    if (_esp32_legacy)
+    {
+        esp32_legacy_bt_task(timestamp);
+        return;
+    }
+    if (_esp32_update)
+    {
+        esp32_hci_backend_task(timestamp);
+        return;
+    }
+#endif
     _bt_hal_task(timestamp);
 }
 
@@ -2143,6 +2236,12 @@ bool transport_dongle_init(core_params_s *params)
                                         _dongle_cfg.manufacturer);
         return true;
     }
+
+#if BT_HAL_ESP32
+    // The old baseband has no HCI for the link
+    if (!_bt_hal_esp32_bridge())
+        return false;
+#endif
 
     dongle_api_gamepad_link_init(&_dongle_cfg);
     _dongle_rel = NULL;
@@ -2194,6 +2293,8 @@ uint8_t transport_dongle_static_part_status(void)
 /***********************************************/
 /********* Static info *************************/
 
+// The ESP32 driver provides its own (esp32_hci.c)
+#if !BT_HAL_ESP32
 static uint32_t _bt_hal_probe_wireless(void)
 {
     // If the init fails it returns true lol
@@ -2232,5 +2333,6 @@ const char *bluetooth_driver_part_code(void)
 {
     return "RPI RM2";
 }
+#endif
 
 #endif

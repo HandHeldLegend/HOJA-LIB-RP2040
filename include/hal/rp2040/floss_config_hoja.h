@@ -32,7 +32,12 @@
 // HOJA retries connections itself, per mode
 #define FLOSS_HID_RECONNECT_RETRIES 0
 
+// The ESP32 bridge's console build shows the stack's log
+#if defined(ESP32_HCI_CONSOLE) && ESP32_HCI_CONSOLE
+#define FLOSS_LOG_LEVEL     FLOSS_LOG_INFO
+#else
 #define FLOSS_LOG_LEVEL     FLOSS_LOG_WARN
+#endif
 #define FLOSS_TRACE_ENTRIES 0
 #define FLOSS_ENABLE_STATS  0
 // Diagnostic test builds watch HCI events through the snoop hook

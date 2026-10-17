@@ -119,14 +119,26 @@ target_link_libraries(hoja_lib INTERFACE
 set(FLOSS_ROOT ${CMAKE_CURRENT_LIST_DIR}/external/floss)
 file(GLOB_RECURSE FLOSS_C "${FLOSS_ROOT}/src/*.c")
 
+# The stack alone, for a radio whose driver is part of HOJA (the ESP32 HCI bridge, esp32_hci.c)
+add_library(hoja_bt_floss_core INTERFACE)
+target_sources(hoja_bt_floss_core INTERFACE
+  ${FLOSS_C}
+)
+target_include_directories(hoja_bt_floss_core INTERFACE
+  ${FLOSS_ROOT}/include
+  ${FLOSS_ROOT}/src
+)
+target_compile_definitions(hoja_bt_floss_core INTERFACE
+  HOJA_BT_FLOSS=1
+  FLOSS_USER_CONFIG_FILE="floss_config_hoja.h"
+)
+
+# The stack with FLOSS's CYW43 transport, for the RM2
 add_library(hoja_bt_floss INTERFACE)
 target_sources(hoja_bt_floss INTERFACE
-  ${FLOSS_C}
   ${FLOSS_ROOT}/transport/cyw43/floss_cyw43.c
 )
 target_include_directories(hoja_bt_floss INTERFACE
-  ${FLOSS_ROOT}/include
-  ${FLOSS_ROOT}/src
   ${FLOSS_ROOT}/transport/cyw43
   # cyw43_arch includes this when the radio firmware is enabled; the shared-bus header is for
   # FLOSS's fast bus path
@@ -134,11 +146,10 @@ target_include_directories(hoja_bt_floss INTERFACE
   ${PICO_SDK_PATH}/src/rp2_common/pico_cyw43_driver/cybt_shared_bus
 )
 target_compile_definitions(hoja_bt_floss INTERFACE
-  HOJA_BT_FLOSS=1
-  FLOSS_USER_CONFIG_FILE="floss_config_hoja.h"
   CYW43_ENABLE_BLUETOOTH=1 # Combined WLAN + radio firmware
 )
 target_link_libraries(hoja_bt_floss INTERFACE
+  hoja_bt_floss_core
   pico_cyw43_arch_none
   pico_cyw43_driver
 )
@@ -169,6 +180,8 @@ function(hoja_use_floss TARGET)
     *cyw43_ctrl.c.obj
     *cyw43_bus_pio_spi.c.obj
     *cybt_shared_bus_driver.c.obj
+    *esp32_hci.c.obj
+    *hlink.c.obj
   )
 
   set(_ld_in ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld)
@@ -192,6 +205,11 @@ if(HOJA_USE_BT_HAL)
   message("HOJA BT DRIVERS IN USE")
   target_link_libraries(hoja_lib INTERFACE
     $<IF:$<BOOL:$<TARGET_PROPERTY:HOJA_BT_FLOSS>>,hoja_bt_floss,hoja_bt_btstack>
+  )
+else()
+  # Boards without the RM2 (the ESP32 HCI bridge) link their own stack, or FLOSS through this
+  target_link_libraries(hoja_lib INTERFACE
+    $<$<BOOL:$<TARGET_PROPERTY:HOJA_BT_FLOSS>>:hoja_bt_floss_core>
   )
 endif()
 
