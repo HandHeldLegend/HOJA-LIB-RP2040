@@ -191,7 +191,7 @@ bool core_slippi_init(core_params_s *params)
         params->core_pollrate_us = 1000;
         break;
 
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 2000;
         break;
 

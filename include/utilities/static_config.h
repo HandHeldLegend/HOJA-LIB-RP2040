@@ -112,7 +112,7 @@ typedef struct
     uint8_t     bluetooth_ble_supported;
     uint8_t     wireless_part_status;
     uint8_t     fcc_id[24];
-    uint8_t     wlan_supported;        // 1 when RPI RM2 WLAN dongle transport is available
+    uint8_t     dongle_supported;        // 1 when the dongle link is available
     uint8_t     wii_supported;         // 1 when Wii console mode is available (BTstack Bluetooth)
 } bluetoothInfoStatic_s;
 

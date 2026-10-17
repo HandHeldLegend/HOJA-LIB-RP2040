@@ -56,7 +56,7 @@ why.
 | Structs | `name_s` | `rgb_group_cfg_s`, `boot_info_s` |
 | Enums, other typedefs | `name_t` | `gamepad_transport_t`, `callback_t` |
 | Macros and constants | `MODULE_NAME`, unit last | `NESBUS_DISCONNECT_US`, `BT_HAL_APP_PAIR_MS` |
-| Build options | `HOJA_*` | `HOJA_RGB_DRIVER`, `HOJA_TRANSPORT_WLAN_DRIVER` |
+| Build options | `HOJA_*` | `HOJA_RGB_DRIVER`, `HOJA_TRANSPORT_DONGLE_DRIVER` |
 | Header guards | `DIR_FILE_H` | `DEVICES_RGB_H` |
 
 - Everything file-local is `static`. A leading `_` means "file-local", so a non-static `_name` is
@@ -140,7 +140,7 @@ why.
 ## 7. Commits
 
 - Subject: `<area>: <imperative summary>`. At most 72 characters, no full stop.
-  - Areas: `bt`, `link`, `wlan`, `usb`, `core/<name>`, `input`, `rgb`, `haptics`, `battery`,
+  - Areas: `bt`, `link`, `dongle`, `usb`, `core/<name>`, `input`, `rgb`, `haptics`, `battery`,
     `hal`, `boot`, `settings`, `config`, `build`, `docs`, `tools`.
   - In a board firmware repo: `deps` for library pointer updates, `builds` for release images.
 - Body: why, then what, wrapped at 72 columns. Include measurements that justify the change.

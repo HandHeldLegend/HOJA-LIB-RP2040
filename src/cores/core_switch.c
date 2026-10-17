@@ -337,11 +337,11 @@ bool core_switch_init(core_params_s *params)
         break;
 
         /*
-         * HOJA WLAN dongle mode: the dongle owns USB to the console. NS-LIB is
-         * configured as USB (same as Pico-W-NS-Example ns_wlan.c); transport_wlan
-         * tunnels the 64-byte Switch reports over Wi-Fi.
+         * HOJA dongle mode: the dongle owns USB to the console. NS-LIB is
+         * configured as USB (same as Pico-W-NS-Example); transport_dongle
+         * tunnels the 64-byte Switch reports over the dongle link.
          */
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         _core_switch_report_size = 64;
         cfg.transport = NS_TRANSPORT_USB;
         usb_transport = true;

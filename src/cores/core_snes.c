@@ -10,12 +10,12 @@
 
 // Generic fallback name; identity (name/vid/pid) is overridden at init from the
 // board's hoja config.
-#define CORE_SNES_WLAN_NAME "SNES Controller"
+#define CORE_SNES_DONGLE_NAME "SNES Controller"
 
-static core_hid_device_t _snes_wlan_hid = {
+static core_hid_device_t _snes_dongle_hid = {
     .vid  = 0,
     .pid  = 0,
-    .name = CORE_SNES_WLAN_NAME,
+    .name = CORE_SNES_DONGLE_NAME,
 };
 
 void _core_snes_report_tunnel_cb(const uint8_t *data, uint16_t len)
@@ -67,19 +67,19 @@ bool core_snes_init(core_params_s *params)
         params->core_pollrate_us = 1000;
         break;
 
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 2000;
         {
             const hoja_config_s *cfg = hoja_config_get();
             if(cfg && cfg->device_name)
             {
-                memset(_snes_wlan_hid.name, 0, sizeof(_snes_wlan_hid.name));
-                strncpy(_snes_wlan_hid.name, cfg->device_name, sizeof(_snes_wlan_hid.name) - 1u);
+                memset(_snes_dongle_hid.name, 0, sizeof(_snes_dongle_hid.name));
+                strncpy(_snes_dongle_hid.name, cfg->device_name, sizeof(_snes_dongle_hid.name) - 1u);
             }
-            if(cfg) _snes_wlan_hid.vid = cfg->usb_vid;
-            if(cfg) _snes_wlan_hid.pid = cfg->usb_pid;
+            if(cfg) _snes_dongle_hid.vid = cfg->usb_vid;
+            if(cfg) _snes_dongle_hid.pid = cfg->usb_pid;
         }
-        params->hid_device = &_snes_wlan_hid;
+        params->hid_device = &_snes_dongle_hid;
         break;
 
         // Unsupported transport methods

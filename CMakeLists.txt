@@ -67,16 +67,12 @@ target_include_directories(hoja_lib INTERFACE
 
 target_compile_definitions(hoja_lib
   INTERFACE
-  #CYW43_LWIP=0
-  LWIP_DEBUG=0
-  LWIP_STATS=0
-  LWIP_STATS_DISPLAY=0
   # Float helpers run on every input cycle: keep them out of the flash cache's way
   PICO_FLOAT_IN_RAM=1
 )
 
 set(BLUETOOTH_DRIVERS 
-    pico_cyw43_arch_lwip_threadsafe_background 
+    pico_cyw43_arch_none 
     pico_cyw43_driver 
     pico_btstack_cyw43 
     pico_btstack_hci_transport_cyw43 
@@ -143,7 +139,7 @@ target_compile_definitions(hoja_bt_floss INTERFACE
   CYW43_ENABLE_BLUETOOTH=1 # Combined WLAN + radio firmware
 )
 target_link_libraries(hoja_bt_floss INTERFACE
-  pico_cyw43_arch_lwip_threadsafe_background
+  pico_cyw43_arch_none
   pico_cyw43_driver
 )
 

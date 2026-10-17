@@ -186,7 +186,7 @@ typedef struct
 
     // ---- Device identity + app-facing URLs ----
     // Surfaced to the config tool / update flow. NULL fields fall back to a
-    // sane library default. device_name also drives the WLAN dongle HID name.
+    // sane library default. device_name also names the gamepad to the dongle.
     const char *device_name;   // e.g. "GCU-2"
     const char *device_maker;  // e.g. "HHL"
     const char *manifest_url;  // firmware-update manifest (NULL disables updates)
@@ -195,7 +195,7 @@ typedef struct
     const char *fcc_id;        // FCC certification ID (NULL falls back to "N/A")
 
     // ---- USB identity ----
-    // Used for the USB device descriptor and advertised over WLAN/SInput.
+    // Used for the USB device descriptor and advertised over the dongle/SInput.
     // 0 falls back to the library default (Raspberry Pi VID / Hoja PID).
     uint16_t usb_vid;
     uint16_t usb_pid;
@@ -235,9 +235,9 @@ typedef struct
     mapper_input_code_t baseband_update_code[2];
 #endif
 
-    // Hold at boot to force WLAN dongle transport when supported. Set to
+    // Hold at boot to force the dongle transport when supported. Set to
     // INPUT_CODE_UNUSED to disable.
-    mapper_input_code_t wlan_force_code;
+    mapper_input_code_t dongle_force_code;
 
     // ---- Bluetooth pairing (sync) ----
     // Hold sync_on_boot_code during power-on to enter BT pairing. Set to

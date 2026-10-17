@@ -12,12 +12,12 @@
 
 // Generic fallback name; identity (name/vid/pid) is overridden at init from the
 // board's hoja config.
-#define CORE_GC_WLAN_NAME "GameCube Controller"
+#define CORE_GC_DONGLE_NAME "GameCube Controller"
 
-static core_hid_device_t _gamecube_wlan_hid = {
+static core_hid_device_t _gamecube_dongle_hid = {
     .vid  = 0,
     .pid  = 0,
-    .name = CORE_GC_WLAN_NAME,
+    .name = CORE_GC_DONGLE_NAME,
 };
 
 #define CORE_GC_CLAMP(val, min, max) ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
@@ -101,19 +101,19 @@ bool core_gamecube_init(core_params_s *params)
         params->core_pollrate_us = 1000;
         break;
 
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 2000;
         {
             const hoja_config_s *cfg = hoja_config_get();
             if(cfg && cfg->device_name)
             {
-                memset(_gamecube_wlan_hid.name, 0, sizeof(_gamecube_wlan_hid.name));
-                strncpy(_gamecube_wlan_hid.name, cfg->device_name, sizeof(_gamecube_wlan_hid.name) - 1u);
+                memset(_gamecube_dongle_hid.name, 0, sizeof(_gamecube_dongle_hid.name));
+                strncpy(_gamecube_dongle_hid.name, cfg->device_name, sizeof(_gamecube_dongle_hid.name) - 1u);
             }
-            if(cfg) _gamecube_wlan_hid.vid = cfg->usb_vid;
-            if(cfg) _gamecube_wlan_hid.pid = cfg->usb_pid;
+            if(cfg) _gamecube_dongle_hid.vid = cfg->usb_vid;
+            if(cfg) _gamecube_dongle_hid.pid = cfg->usb_pid;
         }
-        params->hid_device = &_gamecube_wlan_hid;
+        params->hid_device = &_gamecube_dongle_hid;
         break;
 
         // Unsupported transport methods

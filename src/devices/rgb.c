@@ -103,7 +103,7 @@ void rgb_clear_notification(void)
 static bool _rgb_transport_is_wireless(gamepad_transport_t transport)
 {
     return transport == GAMEPAD_TRANSPORT_BLUETOOTH
-        || transport == GAMEPAD_TRANSPORT_WLAN;
+        || transport == GAMEPAD_TRANSPORT_DONGLE;
 }
 
 static uint16_t _rgb_cap_brightness_wireless(uint16_t brightness)

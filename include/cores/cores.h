@@ -40,7 +40,6 @@ typedef void (*core_gyro_task_t)(void);
 typedef core_hid_device_t* (*core_get_hid_device_t)(void);
 
 #define COREBOOT_FLAG_PAIR (0b1)
-#define COREBOOT_FLAG_WLAN (0b10)
 #define COREBOOT_FLAG_ALTFLASH (0b10000000)
 
 typedef struct 
@@ -71,7 +70,7 @@ bool core_get_generated_report(core_report_s *out);
 void core_report_tunnel_cb(const uint8_t *data, uint16_t len);
 
 void core_deinit();
-// Stop the mode but keep its transport running for the next mode (WLAN following its dongle)
+// Stop the mode but keep its transport running for the next mode (following the dongle's mode)
 void core_deinit_keep_transport(void);
 bool core_init(void);
 void core_task(uint64_t now_us);

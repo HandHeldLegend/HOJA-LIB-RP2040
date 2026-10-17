@@ -48,7 +48,7 @@
 #endif
 
 // The dongle over Bluetooth (FLOSS boards): Auto looks for it before the saved hosts
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER) && defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER) && defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
 #define AUTODETECT_DONGLE 1
 #else
 #define AUTODETECT_DONGLE 0
@@ -214,16 +214,16 @@ static bool _nesbus_console_present(uint64_t now_us)
 
 static autodetect_power_t _power = AUTODETECT_POWER_EXTERNAL;
 static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
-// Wireless means the WLAN dongle
-static bool _wlan = false;
+// Wireless means the dongle
+static bool _dongle = false;
 
 // The wireless default: that mode, or for Auto a search of the saved hosts in Switch mode
 static void _wireless_start(boot_info_s *info)
 {
-    // The WLAN dongle detects its host itself, and the gamepad follows it
-    if(_wlan)
+    // The dongle detects its host itself, and the gamepad follows it
+    if(_dongle)
     {
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
         info->reportformat = CORE_REPORTFORMAT_SWPRO;
         _phase = PHASE_DONE;
         _confirmed = true;
@@ -241,7 +241,7 @@ static void _wireless_start(boot_info_s *info)
     info->reportformat = CORE_REPORTFORMAT_SWPRO;
     if(AUTODETECT_DONGLE)
     {
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
         _phase = PHASE_DONGLE;
         return;
     }
@@ -250,21 +250,21 @@ static void _wireless_start(boot_info_s *info)
 
 static void _switch_to_wireless(void)
 {
-    if(_wlan)
-        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_WLAN, PHASE_DONE);
+    if(_dongle)
+        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONE);
     else if(_wireless != CORE_REPORTFORMAT_UNDEFINED)
         _switch_to(_wireless, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
     else if(AUTODETECT_DONGLE)
-        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_WLAN, PHASE_DONGLE);
+        _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
     else
         _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
 }
 
-void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless, bool wlan)
+void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_auto, core_reportformat_t wireless, bool dongle)
 {
     _power = power;
     _wireless = wireless;
-    _wlan = wlan;
+    _dongle = dongle;
 
     // Wired default picked by hand, wireless Auto, on battery: only the wireless search runs
     if(!wired_auto && AUTODETECT_BLUETOOTH)

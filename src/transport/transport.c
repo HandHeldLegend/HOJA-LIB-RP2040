@@ -13,7 +13,7 @@
 #include "transport/transport_joybus64.h"
 #include "transport/transport_joybusgc.h"
 #include "transport/transport_nesbus.h"
-#include "transport/transport_wlan.h"
+#include "transport/transport_dongle.h"
 
 #include "devices/haptics.h"
 #include "utilities/settings.h"
@@ -184,8 +184,8 @@ static bool _transport_supported(gamepad_transport_t type)
 #if defined(HOJA_TRANSPORT_BT_DRIVER)
         case GAMEPAD_TRANSPORT_BLUETOOTH: return true;
 #endif
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-        case GAMEPAD_TRANSPORT_WLAN:      return true;
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+        case GAMEPAD_TRANSPORT_DONGLE:      return true;
 #endif
 #if defined(HOJA_TRANSPORT_NESBUS_DRIVER)
         case GAMEPAD_TRANSPORT_NESBUS:    return true;
@@ -271,11 +271,11 @@ bool transport_init(core_params_s *params)
         }
         else return false;
 
-        case GAMEPAD_TRANSPORT_WLAN:
-        if(transport_wlan_init(params))
+        case GAMEPAD_TRANSPORT_DONGLE:
+        if(transport_dongle_init(params))
         {
-            _tp_stop_cb = transport_wlan_stop;
-            params->transport_task = transport_wlan_task;
+            _tp_stop_cb = transport_dongle_stop;
+            params->transport_task = transport_dongle_task;
             return true;
         }
         else return false;

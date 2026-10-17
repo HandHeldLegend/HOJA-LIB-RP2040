@@ -194,7 +194,7 @@ _Static_assert((PCM_AMFM_QUEUE_SIZE & (PCM_AMFM_QUEUE_SIZE - 1)) == 0,
 
 // Lock-free SPSC ring of AmFm pairs. pcm_amfm_push() is the only producer and
 // pcm_generate_buffer() on core 1 the only consumer. Rumble can arrive in IRQ
-// context (WLAN delivers it from the cyw43 background IRQ), so nothing on this
+// context (the cyw43 background IRQ may deliver it), so nothing on this
 // path may take a lock, and only the consumer may empty the ring.
 HOJA_CROSSCORE_FIFO_TYPE(amfm, haptic_processed_s, PCM_AMFM_QUEUE_SIZE);
 static hoja_fifo_amfm_t _pcm_amfm_fifo = {0};

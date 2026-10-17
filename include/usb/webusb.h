@@ -19,7 +19,7 @@ typedef enum
   WEBUSB_INPUT_RAW = 255, 
 } webusb_report_id_t;
 
-// Where WebUSB traffic for the config app goes: USB, or the WLAN dongle's tunnel
+// Where WebUSB traffic for the config app goes: USB, or the dongle's tunnel
 typedef struct
 {
     bool (*send)(const uint8_t *data, uint16_t size);       // Replies, in order and all delivered

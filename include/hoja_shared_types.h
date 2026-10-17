@@ -32,7 +32,7 @@ typedef enum
     GAMEPAD_METHOD_WIRED = 0,       // Used for modes that should retain power even when unplugged
     GAMEPAD_METHOD_USB   = 1,       // Use for USB modes where we should power off when unplugged
     GAMEPAD_METHOD_BLUETOOTH = 2,   // Wireless Bluetooth modes
-    GAMEPAD_METHOD_WLAN = 3,        // Wireless WLAN modes (dongle)
+    GAMEPAD_METHOD_DONGLE = 3,        // The dongle (3 in saved boot memory)
 } gamepad_method_t;
 
 typedef enum 
@@ -44,7 +44,7 @@ typedef enum
     GAMEPAD_TRANSPORT_JOYBUSGC,
     GAMEPAD_TRANSPORT_USB,
     GAMEPAD_TRANSPORT_BLUETOOTH,
-    GAMEPAD_TRANSPORT_WLAN,
+    GAMEPAD_TRANSPORT_DONGLE,
 } gamepad_transport_t;
 
 typedef struct 

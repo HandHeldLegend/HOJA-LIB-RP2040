@@ -252,7 +252,7 @@ bool core_sinput_init(core_params_s *params)
         params->core_pollrate_us = 8000;
         break;
 
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 4000;
         break;
 

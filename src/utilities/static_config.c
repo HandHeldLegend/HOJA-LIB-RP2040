@@ -10,7 +10,7 @@
 // Bluetooth driver nonsense
 #include "devices/bluetooth.h"
 #include "transport/transport_bt.h"
-#include "transport/transport_wlan.h"
+#include "transport/transport_dongle.h"
 
 #include <string.h>
 
@@ -290,7 +290,7 @@ static void _bluetooth_static_apply_caps(void)
     bluetooth_static.bluetooth_bdr_supported = bt_caps.bdr_supported;
     bluetooth_static.bluetooth_ble_supported = bt_caps.ble_supported;
     bluetooth_static.external_update_supported = bt_caps.external_update_supported;
-    bluetooth_static.wlan_supported = transport_wlan_static_supported();
+    bluetooth_static.dongle_supported = transport_dongle_static_supported();
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_HOST_STACK
     bluetooth_static.wii_supported = 1;
 #else
@@ -298,17 +298,17 @@ static void _bluetooth_static_apply_caps(void)
 #endif
 }
 
-static uint8_t _wireless_part_status_combine(uint8_t bt_status, uint8_t wlan_status)
+static uint8_t _wireless_part_status_combine(uint8_t bt_status, uint8_t dongle_status)
 {
-    if (bt_status == WIRELESS_PART_STATUS_ERROR || wlan_status == WIRELESS_PART_STATUS_ERROR)
+    if (bt_status == WIRELESS_PART_STATUS_ERROR || dongle_status == WIRELESS_PART_STATUS_ERROR)
     {
         return WIRELESS_PART_STATUS_ERROR;
     }
 
     bool bt_probed = bt_status != WIRELESS_PART_STATUS_NA;
-    bool wlan_probed = wlan_status != WIRELESS_PART_STATUS_NA;
+    bool dongle_probed = dongle_status != WIRELESS_PART_STATUS_NA;
 
-    if (!bt_probed && !wlan_probed)
+    if (!bt_probed && !dongle_probed)
     {
         return WIRELESS_PART_STATUS_NA;
     }
@@ -318,7 +318,7 @@ static uint8_t _wireless_part_status_combine(uint8_t bt_status, uint8_t wlan_sta
         return WIRELESS_PART_STATUS_ERROR;
     }
 
-    if (wlan_probed && wlan_status != WIRELESS_PART_STATUS_OK)
+    if (dongle_probed && dongle_status != WIRELESS_PART_STATUS_OK)
     {
         return WIRELESS_PART_STATUS_ERROR;
     }
@@ -348,17 +348,17 @@ static void _bluetooth_static_refresh_identity(void)
     strncpy((char *)bluetooth_static.fcc_id, fcc, sizeof(bluetooth_static.fcc_id) - 1u);
 }
 
-/** Probe wireless hardware and refresh runtime bluetooth/wlan static fields. */
+/** Probe wireless hardware and refresh runtime bluetooth/dongle static fields. */
 static void _bluetooth_static_refresh(void)
 {
     // Probing starts and stops the radio. While it carries the link (the config app through a
-    // WLAN dongle) that would drop it, and the radio plainly works.
+    // dongle) that would drop it, and the radio plainly works.
     const gamepad_transport_t transport = core_current_params()->transport_type;
-    const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_WLAN) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH);
+    const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_DONGLE) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH);
 
     uint8_t bt_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_bt_static_part_status();
-    uint8_t wlan_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_wlan_static_part_status();
-    uint8_t overall_status = _wireless_part_status_combine(bt_status, wlan_status);
+    uint8_t dongle_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_dongle_static_part_status();
+    uint8_t overall_status = _wireless_part_status_combine(bt_status, dongle_status);
 
     bluetooth_static.wireless_part_status = overall_status;
     bluetooth_static.external_version_number = transport_bt_static_external_version();

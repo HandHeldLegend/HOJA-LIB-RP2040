@@ -101,9 +101,6 @@ void settings_init()
         memset(gamepad_config->host_mac_switch, 0, 6);
         memset(gamepad_config->host_mac_sinput, 0, 6);
 
-        // Reset wlan key
-        gamepad_config->wlan_dongle_key = 0;
-
         // Reset WebUSB popup Setting
         gamepad_config->webusb_enable_popup = 0;
 
@@ -194,7 +191,7 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
             // Through a dongle the bootloader is out of reach unless a cable is in
             battery_status_s power = {0};
             battery_get_status(&power);
-            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN && !power.plugged)
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_DONGLE && !power.plugged)
             {
                 cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
                 break;
@@ -217,7 +214,7 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
                 .report_format = chosen ? mode : (uint8_t)core_current_reportformat(),
                 .mode_chosen = chosen,
                 .gamepad_pair = given && (arg & REBOOT_ARG_PAIR),
-                .gamepad_method = dongle ? (uint8_t)GAMEPAD_METHOD_WLAN : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
+                .gamepad_method = dongle ? (uint8_t)GAMEPAD_METHOD_DONGLE : (uint8_t)GAMEPAD_METHOD_BLUETOOTH,
             };
             boot_set_memory(&mem);
             sys_hal_reboot();
@@ -231,7 +228,7 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {
-            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_WLAN)
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_DONGLE)
             {
                 cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
                 break;
@@ -322,11 +319,6 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_GAMEPAD:
             write_to_ptr = live_settings.gamepad_configuration_block;
-            if (completed)
-            {
-                gamepad_config->wlan_dongle_key =
-                    (uint16_t)(gamepad_config->wlan_dongle_key % 10000u);
-            }
         break;
 
         case CFG_BLOCK_HOVER:

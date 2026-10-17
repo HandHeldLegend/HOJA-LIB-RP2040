@@ -160,10 +160,10 @@ bool core_xinput_init(core_params_s *params)
         break;
 
         /*
-         * WLAN dongle mode: the dongle owns USB to the host. Advertise XInput
-         * identity in the WAKE packet and tunnel reports over Wi-Fi.
+         * Dongle mode: the dongle owns USB to the host. Advertise XInput
+         * identity in the WAKE packet and tunnel reports over the dongle link.
          */
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 2000;
         break;
 

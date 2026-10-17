@@ -154,7 +154,7 @@ bool core_init(void)
         break;
 
 
-        case GAMEPAD_TRANSPORT_WLAN:
+        case GAMEPAD_TRANSPORT_DONGLE:
         case GAMEPAD_TRANSPORT_BLUETOOTH:
         battery_set_charge_rate(250);
         break;

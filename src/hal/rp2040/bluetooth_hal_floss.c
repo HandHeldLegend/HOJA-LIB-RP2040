@@ -35,8 +35,8 @@
 
 #include "nwii_lib_hid.h"
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-#include "transport/transport_wlan.h"
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+#include "transport/transport_dongle.h"
 #include "utilities/boot.h"
 #include "devices/battery.h"
 #include "usb/webusb.h"
@@ -1153,7 +1153,7 @@ static bool _bt_hal_probe_start(void)
 /***********************************************/
 /********* HID callbacks ***********************/
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static void _bt_hal_call_adv_rate(bool host_connected);
 #endif
 
@@ -1197,7 +1197,7 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
         core_current_params()->core_connected();
 
     _connected = true;
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     _bt_hal_call_adv_rate(true);
 #endif
     _discoverable = false;
@@ -1215,7 +1215,7 @@ static void _bt_hal_session_closed(void)
     _connected = false;
     _send_pending = false;
     floss_timer_stop(&_report_timer);
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     _bt_hal_call_adv_rate(false);
 #endif
 
@@ -1299,17 +1299,17 @@ static uint8_t _bt_hal_pin_handler(const floss_addr_t *peer, uint8_t pin[16])
 /***********************************************/
 /********* GAP events **************************/
 
-// The dongle: the WLAN dongle transport (transport_wlan_*) on a Bluetooth link instead. We connect
+// The dongle: the dongle transport (transport_dongle_*) on a Bluetooth link. We connect
 // to the dongle with FLOSS's link profile and open a second, reliable channel; HOJA-LIB-DONGLE
 // carries the session, identity, mode following, status and config traffic over them (see
 // dongle_link.h). The dongle stores nothing and pairs every time; we remember its address only.
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static floss_link_config_t _link_cfg;
 static bool _dongle_running = false;    // The dongle transport is up (it may be waiting for the link)
 static floss_l2cap_chan_t *_dongle_rel = NULL;
 static dongle_cfg_gamepad_s _dongle_cfg;
 
-// The dongle's mode, picked up by hoja.c between task passes (transport_wlan_take_mode)
+// The dongle's mode, picked up by hoja.c between task passes (transport_dongle_take_mode)
 static volatile core_reportformat_t _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
 
 // Config app commands arrive inside floss_poll; they run from the task (some write flash)
@@ -2272,7 +2272,7 @@ static void _bt_hal_call_task(void)
         return;
     boot_memory_s mem = {
         .report_format = (uint8_t)core_current_reportformat(),
-        .gamepad_method = (uint8_t)GAMEPAD_METHOD_WLAN,
+        .gamepad_method = (uint8_t)GAMEPAD_METHOD_DONGLE,
         .link_called = 1,
     };
     boot_set_memory(&mem);
@@ -2388,7 +2388,7 @@ static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     // Link mode first (the PC app), when one is saved or being paired
     if (_app_state == BT_HAL_APP_WAITING)
     {
@@ -2432,7 +2432,7 @@ static void _bt_hal_on_ready(void)
 static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
 {
     (void)user;
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     _bt_hal_app_pair_page_event(evt);
 #endif
 
@@ -2448,7 +2448,7 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
         break;
 
     case FLOSS_GAP_EVT_CONNECTED:
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
         // The link only connects to dongles: Auto mode stops looking for hosts once one answers,
         // before the pairing and channels that follow
         if (_mode_dongle)
@@ -2525,7 +2525,7 @@ static void _bt_hal_mode_setup(core_params_s *params)
 
 static bool _bt_hal_mode_apply(void)
 {
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_app_pair_here)
     {
         _app_state = BT_HAL_APP_WAITING;
@@ -2614,7 +2614,7 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     floss_timer_init(&_app_timer, _bt_hal_app_tick, NULL);
     floss_timer_init(&_app_wait_timer, _bt_hal_app_wait_expired, NULL);
     floss_timer_init(&_app_pair_auth_timer, _bt_hal_app_pair_auth, NULL);
@@ -2633,7 +2633,7 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _wii_stale_link = false;
     _probe_chan = NULL;
     _probe_handle = BT_HAL_NO_HANDLE;
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     _app_state = BT_HAL_APP_OFF;
 #endif
 
@@ -2659,7 +2659,7 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
 
     if (_bt_mode_ready && !_bt_hal_mode_apply())
         return false;
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_bt_mode_ready)
         _bt_hal_call_setup();
 #endif
@@ -2668,7 +2668,7 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     // up, so ours goes after it: a reconnect started on that event must not be cleared again.
     floss_gap_add_listener(_bt_hal_gap_event, NULL);
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     // Link mode goes first: up as its address straight away, not in a second start
     uint8_t app_mac[6];
     if (_app_state == BT_HAL_APP_WAITING)
@@ -2764,14 +2764,14 @@ static void _bt_hal_task(uint64_t timestamp)
     uint32_t poll_txn0 = _diag_bus_count;
 #endif
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_mode_dongle)
         _bt_hal_dongle_prebuild();
 #endif
 
     floss_poll();
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     // The next report's send is a deadline for the task loop (see tasks_set_deadline)
     uint32_t due;
     if (_mode_dongle && _app_state == BT_HAL_APP_OPEN)
@@ -2797,7 +2797,7 @@ static void _bt_hal_task(uint64_t timestamp)
         _bt_hal_stack_start(_restart_mac);
         return;
     }
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     _bt_hal_call_task();
 #endif
 
@@ -2809,7 +2809,7 @@ static void _bt_hal_task(uint64_t timestamp)
         return;
     }
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_mode_dongle)
     {
         _bt_hal_dongle_task(timestamp);
@@ -2847,10 +2847,10 @@ void transport_bt_task(uint64_t timestamp)
 }
 
 /***********************************************/
-/********* Dongle (transport_wlan_*) ***********/
+/********* Dongle (transport_dongle_*) ***********/
 
-#if defined(HOJA_TRANSPORT_WLAN_DRIVER)
-void transport_wlan_stop(void)
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+void transport_dongle_stop(void)
 {
     // The radio stays up for whatever comes next (Auto mode moving on to a host restarts it)
     webusb_set_sink(NULL);
@@ -2869,7 +2869,7 @@ void transport_wlan_stop(void)
     _dongle_mode_request = CORE_REPORTFORMAT_UNDEFINED;
 }
 
-bool transport_wlan_init(core_params_s *params)
+bool transport_dongle_init(core_params_s *params)
 {
     _bt_hal_dongle_fill_cfg(params);
 
@@ -2899,13 +2899,13 @@ bool transport_wlan_init(core_params_s *params)
     return true;
 }
 
-void transport_wlan_task(uint64_t timestamp)
+void transport_dongle_task(uint64_t timestamp)
 {
     if (_dongle_running)
         _bt_hal_task(timestamp);
 }
 
-bool transport_wlan_take_mode(core_reportformat_t *format)
+bool transport_dongle_take_mode(core_reportformat_t *format)
 {
     if (!_dongle_running || _dongle_mode_request == CORE_REPORTFORMAT_UNDEFINED)
         return false;
@@ -2914,17 +2914,17 @@ bool transport_wlan_take_mode(core_reportformat_t *format)
     return true;
 }
 
-bool transport_wlan_choosing(void)
+bool transport_dongle_choosing(void)
 {
     return _dongle_running && !_dongle_cfg.mode_forced && !dongle_api_gamepad_adopted();
 }
 
-uint8_t transport_wlan_static_supported(void)
+uint8_t transport_dongle_static_supported(void)
 {
     return 1;
 }
 
-uint8_t transport_wlan_static_part_status(void)
+uint8_t transport_dongle_static_part_status(void)
 {
     return transport_bt_static_part_status();
 }

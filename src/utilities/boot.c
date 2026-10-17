@@ -13,7 +13,7 @@
 
 #include "hoja.h"
 #include "utilities/autodetect.h"
-#include "transport/transport_wlan.h"
+#include "transport/transport_dongle.h"
 
 #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
 #define HOJA_BOOT_ANALOG_FACE_DELTA 200
@@ -363,15 +363,15 @@ static core_reportformat_t boot_default_wireless(void)
     return CORE_REPORTFORMAT_UNDEFINED;
 }
 
-// "WLAN dongle" as the wireless default, on a board with WLAN
-static bool boot_default_wlan(void)
+// The dongle as the wireless default, on a board that has the dongle link
+static bool boot_default_dongle(void)
 {
-    return (gamepad_config->gamepad_default_wireless == GAMEPAD_DEFAULT_WIRELESS_WLAN) &&
-           transport_wlan_static_supported();
+    return (gamepad_config->gamepad_default_wireless == GAMEPAD_DEFAULT_WIRELESS_DONGLE) &&
+           transport_dongle_static_supported();
 }
 
-// Modes the WLAN dongle can present
-static bool boot_format_wlan(core_reportformat_t format)
+// Modes the dongle can present
+static bool boot_format_dongle(core_reportformat_t format)
 {
     switch (format)
     {
@@ -389,8 +389,8 @@ static bool boot_format_wlan(core_reportformat_t format)
     }
 }
 
-// On battery, wireless means the WLAN dongle: it is the default and the WLAN button wasn't held
-static bool _boot_prefer_wlan = false;
+// On battery, wireless means the dongle: it is the default and the dongle button wasn't held
+static bool _boot_prefer_dongle = false;
 
 // The default for this power source. On battery the wireless default applies, except that an N64
 // doesn't power the controller: a wired default of N64 stays, and a wired Auto still answers an N64
@@ -405,7 +405,7 @@ static core_reportformat_t boot_resolve_default(autodetect_power_t power)
 }
 
 // ---------------------------------------------------------------------------
-// Boot combos (USB bootloader, baseband update, pairing, WLAN force)
+// Boot combos (USB bootloader, baseband update, pairing, dongle force)
 // ---------------------------------------------------------------------------
 
 static bool boot_combo_usb_bootloader(const mapper_input_s *input)
@@ -437,10 +437,10 @@ static bool boot_combo_pairing(const mapper_input_s *input)
     return boot_input_pressed(input, cfg->sync_on_boot_code);
 }
 
-static bool boot_combo_wlan_force(const mapper_input_s *input)
+static bool boot_combo_dongle_force(const mapper_input_s *input)
 {
     const hoja_config_s *cfg = hoja_config_get();
-    if (!cfg || cfg->wlan_force_code == INPUT_CODE_UNUSED)
+    if (!cfg || cfg->dongle_force_code == INPUT_CODE_UNUSED)
         return false;
 
     if (boot_combo_usb_bootloader(input))
@@ -451,15 +451,13 @@ static bool boot_combo_wlan_force(const mapper_input_s *input)
         return false;
 #endif
 
-    return boot_input_pressed(input, cfg->wlan_force_code);
+    return boot_input_pressed(input, cfg->dongle_force_code);
 }
 
-static void boot_apply_wlan_force(boot_info_s *info)
+static void boot_apply_dongle_force(boot_info_s *info)
 {
-    info->flags |= COREBOOT_FLAG_WLAN;
-
-    if (boot_format_wlan(info->reportformat))
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
+    if (boot_format_dongle(info->reportformat))
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -545,11 +543,8 @@ static void boot_apply_persisted_memory(boot_info_s *info)
 
     if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_BLUETOOTH)
         info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
-    else if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_WLAN)
-    {
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
-        info->flags |= COREBOOT_FLAG_WLAN;
-    }
+    else if (boot_memory.gamepad_method == (uint8_t)GAMEPAD_METHOD_DONGLE)
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
 }
 
 static void boot_apply_battery_transport(boot_info_s *info)
@@ -559,7 +554,7 @@ static void boot_apply_battery_transport(boot_info_s *info)
     case GAMEPAD_TRANSPORT_NESBUS:
     case GAMEPAD_TRANSPORT_JOYBUS64:
     case GAMEPAD_TRANSPORT_JOYBUSGC:
-    case GAMEPAD_TRANSPORT_WLAN:
+    case GAMEPAD_TRANSPORT_DONGLE:
     case GAMEPAD_TRANSPORT_BLUETOOTH:
     case GAMEPAD_TRANSPORT_USB:
         return;
@@ -585,10 +580,10 @@ static void boot_apply_battery_transport(boot_info_s *info)
         return;
     }
 
-    // On battery power: the WLAN dongle when it is the default, else by report format
-    if (_boot_prefer_wlan && boot_format_wlan(info->reportformat))
+    // On battery power: the dongle when it is the default, else by report format
+    if (_boot_prefer_dongle && boot_format_dongle(info->reportformat))
     {
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
         return;
     }
 
@@ -603,7 +598,7 @@ static void boot_apply_battery_transport(boot_info_s *info)
     case CORE_REPORTFORMAT_N64:
     case CORE_REPORTFORMAT_GAMECUBE:
     case CORE_REPORTFORMAT_XINPUT:
-        info->transport = GAMEPAD_TRANSPORT_WLAN;
+        info->transport = GAMEPAD_TRANSPORT_DONGLE;
         break;
 
     default:
@@ -700,12 +695,12 @@ void boot_init(void)
     if (boot_combo_pairing(&input))
         _boot_info.pairing = true;
 
-    // 5. The WLAN button picks the wireless transport that isn't the default: WLAN when the default
-    //    is Bluetooth, Bluetooth when it is the WLAN dongle.
-    const bool wlan_button = boot_combo_wlan_force(&input);
-    _boot_prefer_wlan = boot_default_wlan() && !wlan_button;
-    if (wlan_button && !boot_default_wlan())
-        boot_apply_wlan_force(&_boot_info);
+    // 5. The dongle button picks the wireless transport that isn't the default: the dongle when the
+    //    default is Bluetooth, Bluetooth when it is the dongle.
+    const bool dongle_button = boot_combo_dongle_force(&input);
+    _boot_prefer_dongle = boot_default_dongle() && !dongle_button;
+    if (dongle_button && !boot_default_dongle())
+        boot_apply_dongle_force(&_boot_info);
 
     // 6. LB held at boot prefers Bluetooth when transport is still AUTO.
     boot_apply_lb_bt_hint(&input, &_boot_info);
@@ -722,14 +717,14 @@ void boot_init(void)
     // A wired format chosen through boot memory still needs its bus
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
 
-    // Auto with nothing in boot memory and nothing else picked (pairing, LB, WLAN force): detect,
+    // Auto with nothing in boot memory and nothing else picked (pairing, LB, dongle force): detect,
     // starting from the power source
     if (auto_mode && !from_memory && !_boot_info.pairing && _boot_info.transport == GAMEPAD_TRANSPORT_AUTO)
     {
         const bool wired_auto = (boot_default_wired() == CORE_REPORTFORMAT_UNDEFINED);
-        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless(), _boot_prefer_wlan);
+        autodetect_boot(&_boot_info, power, wired_auto, boot_default_wireless(), _boot_prefer_dongle);
     }
 
-    // 9. Battery status resolves AUTO transport to USB / BT / WLAN.
+    // 9. Battery status resolves AUTO transport to USB / BT / the dongle.
     boot_apply_battery_transport(&_boot_info);
 }

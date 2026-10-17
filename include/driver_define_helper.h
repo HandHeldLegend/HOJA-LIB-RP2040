@@ -79,8 +79,8 @@
     // See hoja.h (HOJA_FUELGAUGE_CFG_TYPE) for the override hook.
     #define FUELGAUGE_DRIVER_CUSTOM 0xFF
 
-    // WLAN Drivers
-    #define WLAN_DRIVER_HAL 1
+    // Dongle drivers (the dongle link over the board's Bluetooth radio)
+    #define DONGLE_DRIVER_HAL 1
 
     // Bluetooth Drivers 
     #define BLUETOOTH_DRIVER_HAL 1
@@ -150,9 +150,6 @@
 
     // USB Drivers
     #define USB_DRIVER_HAL 1
-
-    // WLAN Drivers
-    #define WLAN_DRIVER_HAL 1
 
     // Button layout for SEWN types
     #define SEWN_LAYOUT_ABXY 0 // Xbox Style

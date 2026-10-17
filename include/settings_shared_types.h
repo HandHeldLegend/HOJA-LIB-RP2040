@@ -242,7 +242,7 @@ typedef struct
     uint8_t  host_mac_switch[6];    // Mac address of the Switch we are paired to
     uint8_t  host_mac_sinput[6];    // Mac address of the SInput device we are paired to
     uint8_t  webusb_enable_popup;   // Whether or not the WebUSB toast should show
-    uint16_t wlan_dongle_key;       // WLAN dongle pairing pin (0000-9999)
+    uint8_t  reserved_pin[2];       // Was the WLAN dongle's PIN; settings saved before keep it
     uint8_t  host_mac_wii[6];       // Mac address of the Wii we are paired to
     uint8_t  gamepad_default_wireless; // Default on battery: SWPRO, SINPUT, WII, or Auto
     uint8_t  gamepad_defaults_split;   // GAMEPAD_DEFAULTS_SPLIT once the default is split in two
