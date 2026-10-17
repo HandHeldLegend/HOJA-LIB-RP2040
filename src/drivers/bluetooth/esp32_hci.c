@@ -20,12 +20,16 @@
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
 
+#if HOJA_BT_USES_FLOSS
+#include "floss/floss.h"
+#else
 #include "btstack_config.h"
 #include "btstack_run_loop.h"
 #include "btstack_util.h"
 #include "hci.h"
 #include "hci_transport.h"
 #include "gap.h"
+#endif
 
 #include "hardware/i2c.h"
 #include "hardware/dma.h"
@@ -68,6 +72,8 @@ static core_params_s *_params = NULL;
 static bool _altflash = false;
 static uint16_t _esp32_version = 0;
 static bool _esp32_version_read = false;
+// The address the radio runs with
+static uint8_t _radio_mac[6];
 static volatile uint16_t _battery_mv = 0;
 
 // Link engine: one exchange is a write of our frame, then a read of the ESP32's.
@@ -544,6 +550,12 @@ static void _console(const char *line)
     }
     else if(!strcmp(line, "bt"))
     {
+        #if HOJA_BT_USES_FLOSS
+        esp32_hci_log("hci %s, address %02X:%02X:%02X:%02X:%02X:%02X, mode %u, esp32 fw 0x%04X, battery %u mV",
+                      floss_hci_ready() ? "ready" : "starting", _radio_mac[0], _radio_mac[1], _radio_mac[2],
+                      _radio_mac[3], _radio_mac[4], _radio_mac[5], _params->core_report_format,
+                      _esp32_version, _battery_mv);
+        #else
         static const char *states[] = {"off", "initializing", "working", "halting", "sleeping", "falling asleep"};
         bd_addr_t addr;
         gap_local_bd_addr(addr);
@@ -551,6 +563,7 @@ static void _console(const char *line)
         esp32_hci_log("hci %s, address %s, mode %u, esp32 fw 0x%04X, battery %u mV",
                       st < 6 ? states[st] : "?", bd_addr_to_str(addr), _params->core_report_format,
                       _esp32_version, _battery_mv);
+        #endif
     }
     else if(!strncmp(line, "flood ", 6))
     {
@@ -616,13 +629,10 @@ static void _handle_ctrl(const uint8_t *msg, uint16_t len)
     }
 }
 
-// HCI transport for BTstack. HCI packets use the link channels matching their H4 type.
-// While open, BTstack's run loop reads the receive queue; otherwise the task loop does.
-static void (*_hci_handler)(uint8_t packet_type, uint8_t *packet, uint16_t size) = NULL;
-static btstack_data_source_t _hci_source;
+// HCI transport to the host stack (BTstack or FLOSS). HCI packets use the link channels matching
+// their H4 type. While open, the stack reads the receive queue; otherwise the task loop does.
 static volatile bool _hci_open = false;
 static bool _radio_requested = false;
-static uint8_t _radio_mac[6];
 
 // The controller lost state the stack still counts on (the bridge restarted on its own, or a packet
 // was dropped). The Bluetooth HAL restarts the stack, which reopens with a fresh ESP32.
@@ -631,9 +641,13 @@ static volatile bool _radio_fault = false;
 // The next open starts the ESP32 afresh
 static bool _radio_fault_restart = false;
 
-// The stack has no timeout on HCI commands, so one the controller never answers would hang it.
+// The stack may have no timeout on HCI commands, so one the controller never answers would hang it.
 // Answers normally take milliseconds; this also covers the ESP32 booting after a restart.
 #define HCI_COMMAND_TIMEOUT_US 3000000
+#define HCI_EVT_COMMAND_COMPLETE 0x0E
+#define HCI_EVT_COMMAND_STATUS   0x0F
+// Host Number Of Completed Packets (our flow control credits to the controller) never gets an answer
+#define HCI_OPCODE_HOST_NUM_COMPLETED_PACKETS 0x0C35
 static volatile bool _hci_command_pending = false;
 static volatile uint32_t _hci_command_sent_us = 0;
 static uint16_t _hci_command_opcode = 0;
@@ -663,7 +677,12 @@ static const uint8_t *_radio_mac_next(void)
 }
 
 // BTstack may use the space in front of a packet
-static uint8_t _hci_in[HCI_INCOMING_PRE_BUFFER_SIZE + HLINK_PACKET_MAX];
+#if HOJA_BT_USES_FLOSS
+#define HCI_IN_PRE_BUFFER 0
+#else
+#define HCI_IN_PRE_BUFFER HCI_INCOMING_PRE_BUFFER_SIZE
+#endif
+static uint8_t _hci_in[HCI_IN_PRE_BUFFER + HLINK_PACKET_MAX];
 
 static void _request_radio()
 {
@@ -686,6 +705,8 @@ static void _request_radio()
     #endif
 }
 
+static void _hci_deliver(uint8_t channel, uint8_t *data, uint16_t len);
+
 static void _handle_packet(uint8_t channel, uint8_t *data, uint16_t len)
 {
     switch(channel)
@@ -703,13 +724,13 @@ static void _handle_packet(uint8_t channel, uint8_t *data, uint16_t len)
         break;
 
         case HLINK_CH_HCI_EVT:
-        if(len && (data[0] == HCI_EVENT_COMMAND_COMPLETE || data[0] == HCI_EVENT_COMMAND_STATUS))
+        if(len && (data[0] == HCI_EVT_COMMAND_COMPLETE || data[0] == HCI_EVT_COMMAND_STATUS))
             _hci_command_pending = false;
         // fall through
         case HLINK_CH_HCI_ACL:
         case HLINK_CH_HCI_SCO:
-        if(_hci_open && _hci_handler)
-            _hci_handler(channel, data, len);
+        if(_hci_open)
+            _hci_deliver(channel, data, len);
         break;
 
         case HLINK_CH_CTRL:
@@ -721,13 +742,216 @@ static void _handle_packet(uint8_t channel, uint8_t *data, uint16_t len)
     }
 }
 
-static void _process_rx()
+static int _process_rx()
 {
-    uint8_t *data = &_hci_in[HCI_INCOMING_PRE_BUFFER_SIZE];
+    uint8_t *data = &_hci_in[HCI_IN_PRE_BUFFER];
     uint8_t channel;
     uint16_t len;
+    int count = 0;
     while(_rxq_get(&channel, data, &len, HLINK_PACKET_MAX))
+    {
         _handle_packet(channel, data, len);
+        count++;
+    }
+    return count;
+}
+
+// The controller starts once per ESP32 boot, so a new address needs a fresh ESP32 and link
+static void _esp32_restart(void)
+{
+    // Hold it in reset first: a frame from the old ESP32 after the reset below would make the
+    // new one look like another restart
+    _esp32_enable(false);
+    sys_hal_sleep_ms(10);
+
+    uint32_t save = spin_lock_blocking(_lock);
+    hlink_init(&_link, _txq, sizeof(_txq), sys_hal_random(), _link_rx, NULL);
+    _rxq_head = 0;
+    _rxq_tail = 0;
+    spin_unlock(_lock, save);
+
+    _esp32_enable(true);
+    _link_progress_us = (uint32_t)sys_hal_now_us();
+
+    uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
+    _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
+    _radio_requested = false;
+}
+
+// The stack opens the transport: start the controller with the address it should have
+static void _hci_open_common(void)
+{
+    if(_radio_requested && (memcmp(_radio_mac, _radio_mac_next(), 6) || _radio_fault_restart))
+        _esp32_restart();
+    _radio_fault_restart = false;
+    if(!_radio_requested) _request_radio();
+
+    _hci_command_pending = false;
+    _link_progress_us = (uint32_t)sys_hal_now_us();
+    _hci_open = true;
+}
+
+// Time the oldest unanswered command, the stack resends some
+static void _hci_command_sent(const uint8_t *packet)
+{
+    uint16_t opcode = packet[0] | (packet[1] << 8);
+    if(_hci_command_pending || opcode == HCI_OPCODE_HOST_NUM_COMPLETED_PACKETS) return;
+    _hci_command_sent_us = (uint32_t)sys_hal_now_us();
+    _hci_command_opcode = opcode;
+    _hci_command_pending = true;
+}
+
+#if HOJA_BT_USES_FLOSS
+
+// FLOSS polls the transport from the task loop, so the engine interrupt has nothing to wake
+static void _rx_notify()
+{
+}
+
+// A Switch report is 54 bytes on air, which exactly fills a 2-DH1 packet. On an active link (a PC)
+// the ESP32 keeps falling back from those to smaller packets, splitting each report over several
+// polls (~20 reports/s), so 1-slot EDR is left out and every report goes out in one 3-slot packet.
+// In sniff (a Switch, 5 ms windows) only 1-slot packets fit, so every packet type stays allowed.
+#define PACKET_TYPES_MULTISLOT 0xCC1E // DM1 DH1 DM3 DH3 DM5 DH5, no 2-DH1 or 3-DH1
+#define PACKET_TYPES_ALL       0xCC18
+#define HCI_EVT_CONNECTION_COMPLETE 0x03
+#define HCI_EVT_MODE_CHANGE         0x14
+#define HCI_EVT_MAX_SLOTS_CHANGE    0x1B
+#define HCI_OPCODE_CHANGE_CONNECTION_PACKET_TYPE 0x040F
+
+static uint16_t _pt_handle = 0xFFFF;
+static uint16_t _pt_current = PACKET_TYPES_ALL;
+static uint8_t _pt_max_slots = 1;
+static bool _pt_sniff = false;
+
+static void _packet_type_link(uint16_t handle)
+{
+    if(handle == _pt_handle) return;
+    // New link, controller defaults
+    _pt_handle = handle;
+    _pt_current = PACKET_TYPES_ALL;
+    _pt_max_slots = 1;
+    _pt_sniff = false;
+}
+
+static void _packet_type_event(const uint8_t *evt, uint16_t len)
+{
+    if(len < 2) return;
+
+    switch(evt[0])
+    {
+        case HCI_EVT_CONNECTION_COMPLETE:
+        // status, handle
+        if(len < 5 || evt[2]) return;
+        _packet_type_link(evt[3] | (evt[4] << 8));
+        return;
+
+        case HCI_EVT_MODE_CHANGE:
+        // status, handle, mode (2: sniff), interval
+        if(len < 6 || evt[2]) return;
+        _packet_type_link(evt[3] | (evt[4] << 8));
+        _pt_sniff = (evt[5] == 2);
+        break;
+
+        case HCI_EVT_MAX_SLOTS_CHANGE:
+        // handle, max slots
+        if(len < 5) return;
+        _packet_type_link(evt[2] | (evt[3] << 8));
+        _pt_max_slots = evt[4];
+        break;
+
+        default:
+        return;
+    }
+
+    uint16_t types = (!_pt_sniff && _pt_max_slots >= 3) ? PACKET_TYPES_MULTISLOT : PACKET_TYPES_ALL;
+    if(types == _pt_current) return;
+
+    uint8_t p[4] = {_pt_handle & 0xFF, (_pt_handle >> 8) & 0x0F, types & 0xFF, types >> 8};
+    if(floss_hci_cmd(HCI_OPCODE_CHANGE_CONNECTION_PACKET_TYPE, p, sizeof(p), NULL, NULL) == FLOSS_OK)
+        _pt_current = types;
+}
+
+static floss_transport_t _floss_transport;
+
+static void _hci_deliver(uint8_t channel, uint8_t *data, uint16_t len)
+{
+    floss_transport_deliver(&_floss_transport, channel, data, len);
+    if(channel == HLINK_CH_HCI_EVT)
+        _packet_type_event(data, len);
+}
+
+static floss_err_t _floss_open(floss_transport_t *t)
+{
+    (void)t;
+    _pt_handle = 0xFFFF;
+    _hci_open_common();
+    return FLOSS_OK;
+}
+
+static void _floss_close(floss_transport_t *t)
+{
+    (void)t;
+    _hci_open = false;
+}
+
+static floss_err_t _floss_send(floss_transport_t *t, uint8_t type, uint8_t *pkt, uint16_t len)
+{
+    (void)t;
+    // The link copies the packet. Full: FLOSS keeps it and retries on a later poll.
+    if(!_link_send(type, pkt, len))
+        return FLOSS_ERR_BUSY;
+    if(type == FLOSS_PKT_CMD)
+        _hci_command_sent(pkt);
+    return FLOSS_OK;
+}
+
+static int _floss_poll(floss_transport_t *t)
+{
+    (void)t;
+    _engine_poll(sys_hal_now_us());
+    return _process_rx();
+}
+
+static const floss_transport_ops_t _floss_ops = {
+    .name = "esp32-hlink",
+    .headroom = 0,
+    .open = _floss_open,
+    .close = _floss_close,
+    .send = _floss_send,
+    .poll = _floss_poll,
+};
+
+static floss_transport_t _floss_transport = {
+    .ops = &_floss_ops,
+};
+
+// Completions come back late over the link, so more reports wait in the controller (floss_transport.h)
+#ifndef ESP32_HCI_COMPLETION_BATCH
+#define ESP32_HCI_COMPLETION_BATCH 2
+#endif
+
+// The bridge starts its controller with our address (_request_radio), so the stack doesn't set it
+const floss_chipset_t esp32_hci_floss_chipset = {
+    .name = "esp32",
+    .set_addr_opcode = 0,
+    .completion_batch = ESP32_HCI_COMPLETION_BATCH,
+};
+
+floss_transport_t *esp32_hci_floss_transport(void)
+{
+    return &_floss_transport;
+}
+
+#else
+
+static void (*_hci_handler)(uint8_t packet_type, uint8_t *packet, uint16_t size) = NULL;
+static btstack_data_source_t _hci_source;
+
+static void _hci_deliver(uint8_t channel, uint8_t *data, uint16_t len)
+{
+    if(_hci_handler)
+        _hci_handler(channel, data, len);
 }
 
 // From the engine interrupt
@@ -759,45 +983,16 @@ static void _tick_timer_handler(btstack_timer_source_t *ts)
     btstack_run_loop_add_timer(ts);
 }
 
-// The controller starts once per ESP32 boot, so a new address needs a fresh ESP32 and link
-static void _esp32_restart(void)
-{
-    // Hold it in reset first: a frame from the old ESP32 after the reset below would make the
-    // new one look like another restart
-    _esp32_enable(false);
-    sys_hal_sleep_ms(10);
-
-    uint32_t save = spin_lock_blocking(_lock);
-    hlink_init(&_link, _txq, sizeof(_txq), sys_hal_random(), _link_rx, NULL);
-    _rxq_head = 0;
-    _rxq_tail = 0;
-    spin_unlock(_lock, save);
-
-    _esp32_enable(true);
-    _link_progress_us = (uint32_t)sys_hal_now_us();
-
-    uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
-    _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
-    _radio_requested = false;
-}
-
 static int _hci_open_fn()
 {
     btstack_run_loop_set_timer_handler(&_tick_timer, _tick_timer_handler);
     btstack_run_loop_set_timer(&_tick_timer, HCI_TICK_MS);
     btstack_run_loop_add_timer(&_tick_timer);
 
-    if(_radio_requested && (memcmp(_radio_mac, _radio_mac_next(), 6) || _radio_fault_restart))
-        _esp32_restart();
-    _radio_fault_restart = false;
-    if(!_radio_requested) _request_radio();
-
     btstack_run_loop_set_data_source_handler(&_hci_source, &_hci_source_poll);
     btstack_run_loop_enable_data_source_callbacks(&_hci_source, DATA_SOURCE_CALLBACK_POLL);
     btstack_run_loop_add_data_source(&_hci_source);
-    _hci_command_pending = false;
-    _link_progress_us = (uint32_t)sys_hal_now_us();
-    _hci_open = true;
+    _hci_open_common();
     return 0;
 }
 
@@ -837,15 +1032,8 @@ static int _hci_send_packet(uint8_t packet_type, uint8_t *packet, int size)
         }
     }
 
-    // Time the oldest unanswered command, BTstack resends some. Host Number Of Completed Packets
-    // (our flow control credits to the controller) never gets an answer.
-    if(packet_type == HCI_COMMAND_DATA_PACKET && !_hci_command_pending &&
-       little_endian_read_16(packet, 0) != HCI_OPCODE_HCI_HOST_NUMBER_OF_COMPLETED_PACKETS)
-    {
-        _hci_command_sent_us = (uint32_t)sys_hal_now_us();
-        _hci_command_opcode = little_endian_read_16(packet, 0);
-        _hci_command_pending = true;
-    }
+    if(packet_type == HCI_COMMAND_DATA_PACKET)
+        _hci_command_sent(packet);
 
     static uint8_t sent[] = {HCI_EVENT_TRANSPORT_PACKET_SENT, 0};
     if(_hci_handler) _hci_handler(HCI_EVENT_PACKET, sent, sizeof(sent));
@@ -869,6 +1057,8 @@ const void *esp32_hci_transport_instance(void)
 {
     return &_hci_transport;
 }
+
+#endif
 
 void esp32_hci_backend_stop(void)
 {

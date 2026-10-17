@@ -2,7 +2,7 @@
 #define DRIVERS_BLUETOOTH_ESP32_HCI_H
 
 // ESP32 running the HOJA HCI bridge firmware: a Bluetooth controller reached over the board's
-// I2C bus (see hlink.h). BTstack runs on the RP2040.
+// I2C bus (see hlink.h). The host stack (BTstack or FLOSS) runs on the RP2040.
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -42,12 +42,23 @@
 
 void esp32_hci_log(const char *fmt, ...);
 
-// Used by bluetooth_hal.c. The transport is a const hci_transport_t *.
+// The link carries about 1,150 one-frame packets a second toward the ESP32. A report with motion
+// takes about 3, so reports go no faster than this (SInput, and the dongle link on a computer).
+#define ESP32_HCI_REPORT_INTERVAL_MIN_US 3750
+
+// Used by the Bluetooth HAL (bluetooth_hal.c, bluetooth_hal_floss.c)
 bool esp32_hci_backend_init(core_params_s *params);
 void esp32_hci_backend_task(uint64_t timestamp);
 void esp32_hci_backend_stop(void);
 bool esp32_hci_backend_update_mode(void);
+#if HOJA_BT_USES_FLOSS
+#include "floss/floss_transport.h"
+floss_transport_t *esp32_hci_floss_transport(void);
+extern const floss_chipset_t esp32_hci_floss_chipset;
+#else
+// A const hci_transport_t *
 const void *esp32_hci_transport_instance(void);
+#endif
 // Address the radio starts with next (the stack can't set it on this controller)
 void esp32_hci_set_radio_mac(const uint8_t *mac);
 // True once after the controller lost state the stack relies on; the stack must restart
