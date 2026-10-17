@@ -188,10 +188,11 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
     {
         case GAMEPAD_CMD_RESET_TO_BOOTLOADER:
         {
-            // Through a dongle the bootloader is out of reach unless a cable is in
+            // Reached without USB (the dongle's tunnel, or BLE), the bootloader is out of reach unless
+            // a cable is in
             battery_status_s power = {0};
             battery_get_status(&power);
-            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_DONGLE && !power.plugged)
+            if (webusb_get_sink() && !power.plugged)
             {
                 cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
                 break;
@@ -228,7 +229,11 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {
-            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_DONGLE)
+            // The update goes over the cable, so not through the dongle, nor over BLE without one
+            battery_status_s power = {0};
+            battery_get_status(&power);
+            if (core_current_params()->transport_type == GAMEPAD_TRANSPORT_DONGLE ||
+                (webusb_get_sink() && !power.plugged))
             {
                 cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
                 break;
