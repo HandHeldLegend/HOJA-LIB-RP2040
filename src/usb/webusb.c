@@ -4,6 +4,7 @@
 #include "input_shared_types.h"
 
 #include "utilities/settings.h"
+#include "utilities/static_config.h"
 
 #include "input/analog.h"
 #include "input/imu.h"
@@ -257,6 +258,44 @@ void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool succe
     webusb_send_bulk(cmd_confirm_buffer, 4+size);
 }
 
+static uint32_t _webusb_crc32(const uint8_t *data, uint32_t size)
+{
+    uint32_t crc = 0xFFFFFFFFu;
+    for (uint32_t i = 0; i < size; i++)
+    {
+        crc ^= data[i];
+        for (int b = 0; b < 8; b++)
+            crc = (crc >> 1) ^ (0xEDB88320u & (uint32_t)-(int32_t)(crc & 1u));
+    }
+    return ~crc;
+}
+
+// The app keeps the blocks it read before and reads again only those whose CRC32 changed. Two
+// packets: [id][0 config blocks][count][CRC32 LE...] and [id][1 static blocks][count][CRC32 LE...],
+// each block's CRC over exactly the bytes a read of it sends (static blocks refreshed first).
+static void _webusb_send_fingerprints(void)
+{
+    uint8_t out[64];
+    for (uint8_t kind = 0; kind < 2; kind++)
+    {
+        memset(out, 0, sizeof(out));
+        uint8_t count = (kind == 0) ? (uint8_t)CFG_BLOCK_MAX : (uint8_t)STATIC_BLOCK_MAX;
+        out[0] = WEBUSB_ID_BLOCK_FINGERPRINTS;
+        out[1] = kind;
+        out[2] = count;
+        for (uint8_t i = 0; i < count && (3u + 4u * (i + 1u)) <= sizeof(out); i++)
+        {
+            uint8_t *bytes = NULL;
+            uint32_t len = 0;
+            bool known = (kind == 0) ? settings_config_block_bytes((cfg_block_t)i, &bytes, &len)
+                                     : static_config_block_bytes((static_block_t)i, &bytes, &len);
+            uint32_t crc = known ? _webusb_crc32(bytes, len) : 0;
+            memcpy(&out[3u + 4u * i], &crc, 4);
+        }
+        webusb_send_bulk(out, sizeof(out));
+    }
+}
+
 void webusb_command_handler(uint8_t *data, uint32_t size)
 {
     // The app's motion view wants standard IMU data. Through the dongle or BLE a game may be using
@@ -283,6 +322,10 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
 
         case WEBUSB_ID_CONFIG_COMMAND:
             settings_config_command(data[1], data[2], size > 3 ? data[3] : 0xFF);
+        break;
+
+        case WEBUSB_ID_BLOCK_FINGERPRINTS:
+            _webusb_send_fingerprints();
         break;
 
         case WEBUSB_ID_INPUT_COMMAND:

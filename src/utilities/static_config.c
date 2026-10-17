@@ -492,36 +492,9 @@ void static_config_read_all_blocks(setting_callback_t cb)
     
 }
 
-void static_config_read_block(static_block_t block, setting_callback_t cb)
+// The status bytes, as the block is read out
+static void _battery_static_read_status(void)
 {
-    switch(block)
-    {
-        default:
-        break;
-
-        case STATIC_BLOCK_DEVICE:
-            _device_static_refresh();
-            _serialize_static_block(block, (uint8_t *) &device_static, STATINFO_DEVICE_BLOCK_SIZE, cb);
-        break;
-
-        case STATIC_BLOCK_INPUT:
-            _serialize_static_block(block, (uint8_t *) &input_static, STATINFO_DEVICE_INPUT_SIZE, cb);
-        break;
-
-        case STATIC_BLOCK_ANALOG:
-            _serialize_static_block(block, (uint8_t *) &analog_static, STATINFO_ANALOG_SIZE, cb);
-        break;
-
-        case STATIC_BLOCK_HAPTIC:
-            _serialize_static_block(block, (uint8_t *) &haptic_static, STATINFO_HAPTIC_SIZE, cb);
-        break;
-
-        case STATIC_BLOCK_IMU:
-            _imu_static_refresh();
-            _serialize_static_block(block, (uint8_t *) &imu_static, STATINFO_IMU_SIZE, cb);
-        break;
-
-        case STATIC_BLOCK_BATTERY:
             battery_status_s batstat = {0};
             fuelgauge_status_s fgstat = {0};
 
@@ -548,17 +521,58 @@ void static_config_read_block(static_block_t block, setting_callback_t cb)
                     default:                   battery_static.pmic_status = 4; break;
                 }
             }
+}
 
-            _serialize_static_block(block, (uint8_t *) &battery_static, STATINFO_BATTERY_SIZE, cb);
+bool static_config_block_bytes(static_block_t block, uint8_t **data, uint32_t *size)
+{
+    switch(block)
+    {
+        default:
+        return false;
+
+        case STATIC_BLOCK_DEVICE:
+            _device_static_refresh();
+            *data = (uint8_t *) &device_static; *size = STATINFO_DEVICE_BLOCK_SIZE;
+        break;
+
+        case STATIC_BLOCK_INPUT:
+            *data = (uint8_t *) &input_static; *size = STATINFO_DEVICE_INPUT_SIZE;
+        break;
+
+        case STATIC_BLOCK_ANALOG:
+            *data = (uint8_t *) &analog_static; *size = STATINFO_ANALOG_SIZE;
+        break;
+
+        case STATIC_BLOCK_HAPTIC:
+            *data = (uint8_t *) &haptic_static; *size = STATINFO_HAPTIC_SIZE;
+        break;
+
+        case STATIC_BLOCK_IMU:
+            _imu_static_refresh();
+            *data = (uint8_t *) &imu_static; *size = STATINFO_IMU_SIZE;
+        break;
+
+        case STATIC_BLOCK_BATTERY:
+            _battery_static_read_status();
+            *data = (uint8_t *) &battery_static; *size = STATINFO_BATTERY_SIZE;
         break;
 
         case STATIC_BLOCK_BLUETOOTH:
             _bluetooth_static_refresh();
-            _serialize_static_block(block, (uint8_t *) &bluetooth_static, STATINFO_BLUETOOTH_SIZE, cb);
+            *data = (uint8_t *) &bluetooth_static; *size = STATINFO_BLUETOOTH_SIZE;
         break;
 
         case STATIC_BLOCK_RGB:
-            _serialize_static_block(block, (uint8_t *) &rgb_static, STATINFO_RGB_SIZE, cb);
+            *data = (uint8_t *) &rgb_static; *size = STATINFO_RGB_SIZE;
         break;
     }
+    return true;
+}
+
+void static_config_read_block(static_block_t block, setting_callback_t cb)
+{
+    uint8_t *data;
+    uint32_t size;
+    if (static_config_block_bytes(block, &data, &size))
+        _serialize_static_block(block, data, size, cb);
 }

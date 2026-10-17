@@ -109,6 +109,8 @@ void settings_commit_blocks();
 void settings_config_command(cfg_block_t block, uint8_t command, uint8_t arg);
 void settings_return_static_block(static_block_t block, setting_callback_t cb);
 void settings_return_config_block(cfg_block_t block, setting_callback_t cb);
+// The live bytes of a config block (what a read sends), false for an unknown block
+bool settings_config_block_bytes(cfg_block_t block, uint8_t **data, uint32_t *size);
 void settings_write_config_block(cfg_block_t block, const uint8_t *data);
 
 #endif

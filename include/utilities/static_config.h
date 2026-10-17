@@ -156,5 +156,7 @@ extern rgbInfoStatic_s              rgb_static;
 
 void static_config_init();
 void static_config_read_block(static_block_t block, setting_callback_t cb);
+// A static block's bytes, refreshed as a read refreshes them; false for an unknown block
+bool static_config_block_bytes(static_block_t block, uint8_t **data, uint32_t *size);
 
 #endif

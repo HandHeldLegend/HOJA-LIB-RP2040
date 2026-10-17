@@ -418,47 +418,56 @@ void _serialize_block(cfg_block_t block, uint8_t *data , uint32_t size, setting_
     cb(_sdata, BLOCK_CHUNK_HEADER_SIZE);
 }
 
-void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
-{    
+bool settings_config_block_bytes(cfg_block_t block, uint8_t **data, uint32_t *size)
+{
     switch(block)
     {
         default:
-        break;
+        return false;
 
         case CFG_BLOCK_GAMEPAD:
-            _serialize_block(block, live_settings.gamepad_configuration_block, GAMEPAD_CFB_SIZE, cb);
+            *data = live_settings.gamepad_configuration_block; *size = GAMEPAD_CFB_SIZE;
         break;
 
         case CFG_BLOCK_HOVER:
-            _serialize_block(block, live_settings.hover_configuration_block, HOVER_CFB_SIZE, cb);
+            *data = live_settings.hover_configuration_block; *size = HOVER_CFB_SIZE;
         break;
 
         case CFG_BLOCK_ANALOG:
-            _serialize_block(block, live_settings.analog_configuration_block, ANALOG_CFB_SIZE, cb);
+            *data = live_settings.analog_configuration_block; *size = ANALOG_CFB_SIZE;
         break;
 
         case CFG_BLOCK_RGB:
-            _serialize_block(block, live_settings.rgb_configuration_block, RGB_CFB_SIZE, cb);
+            *data = live_settings.rgb_configuration_block; *size = RGB_CFB_SIZE;
         break;
 
         case CFG_BLOCK_TRIGGER:
-            _serialize_block(block, live_settings.trigger_configuration_block, TRIGGER_CFB_SIZE, cb);
+            *data = live_settings.trigger_configuration_block; *size = TRIGGER_CFB_SIZE;
         break;
 
         case CFG_BLOCK_IMU:
-            _serialize_block(block, live_settings.imu_configuration_block, IMU_CFB_SIZE, cb);
+            *data = live_settings.imu_configuration_block; *size = IMU_CFB_SIZE;
         break;
 
         case CFG_BLOCK_HAPTIC:
-            _serialize_block(block, live_settings.haptic_configuration_block, HAPTIC_CFB_SIZE, cb);
+            *data = live_settings.haptic_configuration_block; *size = HAPTIC_CFB_SIZE;
         break;
 
         case CFG_BLOCK_USER:
-            _serialize_block(block, live_settings.user_configuration_block, USER_CFB_SIZE, cb);
+            *data = live_settings.user_configuration_block; *size = USER_CFB_SIZE;
         break;
 
         case CFG_BLOCK_INPUT:
-            _serialize_block(block, live_settings.input_configuration_block, INPUT_CFB_SIZE, cb);
+            *data = live_settings.input_configuration_block; *size = INPUT_CFB_SIZE;
         break;
     }
+    return true;
+}
+
+void settings_return_config_block(cfg_block_t block, setting_callback_t cb)
+{
+    uint8_t *data;
+    uint32_t size;
+    if (settings_config_block_bytes(block, &data, &size))
+        _serialize_block(block, data, size, cb);
 }
