@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "hoja.h"
@@ -433,6 +434,78 @@ static stdio_driver_t _stdio_driver = {
     .crlf_enabled = false,
 };
 
+// Bench: `flood N` keeps the link's queue full of one-frame packets for N seconds, then reports what
+// got across: the link's capacity toward the ESP32. They are PINGs padded to fill a frame, which the
+// bridge takes and drops, so they travel the way HCI data does (frames, acks, the bridge's queue).
+#define FLOOD_PACKET_LEN (HLINK_PAYLOAD_MAX - 3) // [channel][len lo][len hi] + data: one frame
+
+static uint64_t _flood_until_us = 0;
+static uint64_t _flood_start_us = 0;
+static hlink_stats_s _flood_link0;
+static engine_stats_s _flood_eng0;
+// The counts at the deadline, reported once the queue has room for the log lines again
+static bool _flood_report_due = false;
+static hlink_stats_s _flood_link1;
+static engine_stats_s _flood_eng1;
+static uint32_t _flood_ms;
+
+static void _flood_start(uint32_t seconds)
+{
+    uint32_t save = spin_lock_blocking(_lock);
+    _flood_link0 = _link.stats;
+    spin_unlock(_lock, save);
+    _flood_eng0 = _eng;
+    _flood_start_us = sys_hal_now_us();
+    _flood_until_us = _flood_start_us + (uint64_t)seconds * 1000000u;
+}
+
+static void _flood_report(void)
+{
+    if(!_flood_report_due || _link_tx_free() < sizeof(_txq) / 2) return;
+    _flood_report_due = false;
+
+    const hlink_stats_s l = _flood_link1;
+    const engine_stats_s e = _flood_eng1;
+    const uint32_t ms = _flood_ms;
+    uint32_t exchanges = e.exchanges - _flood_eng0.exchanges;
+    uint32_t frames_tx = l.frames_tx - _flood_link0.frames_tx;
+    uint32_t packets_tx = l.packets_tx - _flood_link0.packets_tx;
+    // Per second, from counts over ms
+    #define PER_S(n) ((uint32_t)(((uint64_t)(n) * 1000u) / ms))
+    esp32_hci_log("flood %lu ms: %lu exchanges/s, frames tx %lu/s rx %lu/s, packets tx %lu/s = %lu B/s",
+                  ms, PER_S(exchanges), PER_S(frames_tx), PER_S(l.frames_rx - _flood_link0.frames_rx),
+                  PER_S(packets_tx), PER_S((uint64_t)packets_tx * FLOOD_PACKET_LEN));
+    esp32_hci_log("flood: retx %lu crc %lu ooo %lu refused %lu | nack %lu timeout %lu",
+                  l.retransmits - _flood_link0.retransmits, l.crc_errors - _flood_link0.crc_errors,
+                  l.out_of_order - _flood_link0.out_of_order, l.refused - _flood_link0.refused,
+                  e.nacks - _flood_eng0.nacks, e.timeouts - _flood_eng0.timeouts);
+    #undef PER_S
+}
+
+static void _flood_task(uint64_t now_us)
+{
+    _flood_report();
+    if(!_flood_until_us) return;
+
+    if(now_us < _flood_until_us)
+    {
+        static const uint8_t pkt[FLOOD_PACKET_LEN] = {HLINK_CTRL_PING};
+        while(_link_tx_free() >= hlink_packet_cost(FLOOD_PACKET_LEN))
+        {
+            if(!_link_send(HLINK_CH_CTRL, pkt, sizeof(pkt))) break;
+        }
+        return;
+    }
+
+    _flood_until_us = 0;
+    uint32_t save = spin_lock_blocking(_lock);
+    _flood_link1 = _link.stats;
+    spin_unlock(_lock, save);
+    _flood_eng1 = _eng;
+    _flood_ms = (uint32_t)((now_us - _flood_start_us) / 1000u);
+    _flood_report_due = _flood_ms > 0;
+}
+
 static void _console(const char *line)
 {
     if(!strcmp(line, "bootsel"))
@@ -479,6 +552,12 @@ static void _console(const char *line)
                       st < 6 ? states[st] : "?", bd_addr_to_str(addr), _params->core_report_format,
                       _esp32_version, _battery_mv);
     }
+    else if(!strncmp(line, "flood ", 6))
+    {
+        uint32_t seconds = (uint32_t)atoi(&line[6]);
+        esp32_hci_log("flooding the link for %lu s", seconds ? seconds : 10u);
+        _flood_start(seconds ? seconds : 10u);
+    }
     else if(!strcmp(line, "stats"))
     {
         hlink_stats_s s;
@@ -493,7 +572,7 @@ static void _console(const char *line)
     }
     else
     {
-        esp32_hci_log("commands: bootsel reboot bbupdate | mode switch/sinput/wii | pair | bt | stats");
+        esp32_hci_log("commands: bootsel reboot bbupdate | mode switch/sinput/wii | pair | bt | stats | flood N");
     }
 }
 #endif
@@ -849,6 +928,9 @@ void esp32_hci_backend_task(uint64_t timestamp)
 
     _engine_poll(timestamp);
     if(!_hci_open) _process_rx();
+    #if ESP32_HCI_CONSOLE
+    _flood_task(sys_hal_now_us());
+    #endif
 
     // A hung ESP32 that isn't being sent to goes unnoticed otherwise. Its enable pin resets it
     // however it's stuck. Exchanges alone prove nothing: its I2C hardware keeps answering.
