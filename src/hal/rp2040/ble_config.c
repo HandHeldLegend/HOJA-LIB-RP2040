@@ -125,6 +125,10 @@ static uint8_t _ble_cfg_rx_tail = 0;
 
 static bool _ble_cfg_update_receiving = false; // BEGIN accepted, FINISH not yet answered
 static bool _ble_cfg_update_finish = false;    // FINISH arrived (answered from the task: it writes flash)
+// UPDATE_INFO asked for: answered from the task until it goes out. Right after connecting the app reads
+// every settings block, the notifications fill up, and a reply sent straight from the write callback
+// was dropped: the app then took the gamepad for one without Bluetooth updates.
+static bool _ble_cfg_update_info_wanted = false;
 static uint32_t _ble_cfg_update_acked = 0;
 static uint64_t _ble_cfg_update_acked_us = 0;
 
@@ -433,7 +437,7 @@ static bool _ble_cfg_update_state(boot_update_status_t status, bool wait)
     return _ble_cfg_notify(BLE_CFG_TO_APP_UPDATE_STATE, msg, sizeof(msg)) == FLOSS_OK;
 }
 
-static void _ble_cfg_update_info(void)
+static bool _ble_cfg_update_info(void)
 {
     boot_update_info_s info;
     boot_update_info(&info);
@@ -456,7 +460,7 @@ static void _ble_cfg_update_info(void)
     _ble_cfg_put_le32(&msg[24], info.radio_header_crc32);
     floss_put_le16(&msg[28], (uint16_t)BOOT_UPDATE_WINDOW);
     floss_put_le16(&msg[30], (uint16_t)(write_max - BLE_CFG_UPDATE_DATA_HEADER));
-    _ble_cfg_notify(BLE_CFG_TO_APP_UPDATE_INFO, msg, sizeof(msg));
+    return _ble_cfg_notify(BLE_CFG_TO_APP_UPDATE_INFO, msg, sizeof(msg)) == FLOSS_OK;
 }
 
 static void _ble_cfg_update_begin(const uint8_t *data, uint16_t len)
@@ -503,6 +507,9 @@ static void _ble_cfg_update_task(uint64_t now_us)
     bool moved = boot_update_task(now_us);
     if (!_ble_cfg_allowed)
         return;
+
+    if (_ble_cfg_update_info_wanted && _ble_cfg_update_info())
+        _ble_cfg_update_info_wanted = false;
 
     if (!_ble_cfg_update_receiving)
         return;
@@ -581,7 +588,7 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
         if (!_ble_cfg_allowed)
             return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
         if (data[0] == BLE_CFG_TO_PAD_UPDATE_INFO)
-            _ble_cfg_update_info();
+            _ble_cfg_update_info_wanted = true;
         else if (data[0] == BLE_CFG_TO_PAD_UPDATE_BEGIN)
             _ble_cfg_update_begin(&data[1], (uint16_t)(len - 1u));
         else if (data[0] == BLE_CFG_TO_PAD_UPDATE_DATA)
@@ -641,6 +648,7 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
         _ble_cfg_close = false;
         _ble_cfg_update_finish = false;
         _ble_cfg_update_receiving = false;
+        _ble_cfg_update_info_wanted = false;
         _ble_cfg_code_stop();
         _ble_cfg_allow(false);
         // A half-sent update stays where it got to, and the beacon opens again by itself: the app
