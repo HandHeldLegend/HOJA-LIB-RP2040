@@ -44,6 +44,8 @@ void tasks_mark_frame_isr(void);
 void tasks_mark_sent(void);
 // Reports sent to the host so far (wraps)
 uint32_t tasks_sent_count(void);
+// Incremented in place by console-bus interrupts once a poll is answered (no call from RAM code)
+extern volatile uint32_t tasks_report_count;
 
 void tasks_run(void);
 

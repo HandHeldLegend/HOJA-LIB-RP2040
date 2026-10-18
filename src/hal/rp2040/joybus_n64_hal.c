@@ -19,6 +19,7 @@
 
 #include "hoja.h"
 #include "hoja_bsp.h"
+#include "utilities/tasks.h"
 
 typedef enum
 {
@@ -263,6 +264,7 @@ void __time_critical_func(_n64_command_handler)()
                 asm("nop");
             joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
             _n64_send_poll();
+            tasks_report_count++;
             _workingCmd = 0;
             break;
         }

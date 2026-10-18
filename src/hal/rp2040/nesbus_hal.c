@@ -15,6 +15,7 @@
 #include "devices/battery.h"
 
 #include "board_config.h"
+#include "utilities/tasks.h"
 
 #if defined(HOJA_TRANSPORT_NESBUS_DRIVER) && (HOJA_TRANSPORT_NESBUS_DRIVER == NESBUS_DRIVER_HAL)
 
@@ -132,6 +133,7 @@ static void _nesbus_isr_handler(void)
     pio_interrupt_clear(k_nesbus_sm.pio, 0);
     _nesbus_set_inputbits(pio_sm_get_blocking(k_nesbus_sm.pio, k_nesbus_sm.sm_data));
     _nesbus_polled = true; // Console polled us -> connection heartbeat
+    tasks_report_count++;
   }
 }
 

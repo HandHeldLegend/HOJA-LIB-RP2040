@@ -20,6 +20,7 @@
 #include "utilities/crosscore_utils.h"
 
 #include "devices/battery.h"
+#include "utilities/tasks.h"
 
 typedef enum
 {
@@ -223,6 +224,7 @@ void __time_critical_func(_gamecube_command_handler)()
           asm("nop");
         joybus_jump_output(GC_PIO_IN_USE, PIO_SM, _gamecube_offset);
         _gamecube_send_poll();
+        tasks_report_count++;
         ret = true;
       }
     }
