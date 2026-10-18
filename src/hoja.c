@@ -38,6 +38,7 @@
 #include "devices/haptics.h"
 #include "devices/fuelgauge.h"
 #include "utilities/autodetect.h"
+#include "utilities/boot_timeline.h"
 
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
 #include "drivers/bluetooth/esp32_hci.h"
@@ -417,6 +418,10 @@ void _hoja_task_1()
   for (;;)
   {
     tasks_run();
+#if defined(HOJA_BOOT_TIMELINE) && HOJA_BOOT_TIMELINE
+    sys_hal_time_us(&c1_timestamp);
+    boot_timeline_task(c1_timestamp);
+#endif
 
     // Auto mode moving to another mode: stop this one, bring up the next in place
     core_reportformat_t format;
@@ -432,6 +437,7 @@ void _hoja_task_1()
       _core_format_init();
       _hoja_init_core_tasks();
       autodetect_switch_done();
+      BOOT_TIMELINE(TL_SWITCH, transport);
     }
 
     // The config app changing the USB mode

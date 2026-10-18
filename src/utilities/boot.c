@@ -13,6 +13,7 @@
 
 #include "hoja.h"
 #include "utilities/autodetect.h"
+#include "utilities/boot_timeline.h"
 
 #ifndef HOJA_BOOT_ANALOG_FACE_DELTA
 #define HOJA_BOOT_ANALOG_FACE_DELTA 200
@@ -327,6 +328,19 @@ static core_reportformat_t boot_resolve_reportformat(const mapper_input_s *input
 // Only reads the PMIC: a retro console boot leaves it unconfigured, like a manual one
 static autodetect_power_t boot_power_source(void)
 {
+#if defined(HOJA_BOOT_TIMELINE) && HOJA_BOOT_TIMELINE
+#if defined(HOJA_BOOT_TIMELINE_UNPLUG) && HOJA_BOOT_TIMELINE_UNPLUG
+    // A real battery boot: started on the cable by the bench, timed from the unplug (up to 2 min)
+    battery_status_s cable = {0};
+    const bool read = battery_peek_status(&cable);
+    BOOT_TIMELINE(TL_NOTE, 0x10 | (read ? 2 : 0) | (cable.plugged ? 1 : 0));
+    for (int i = 0; i < 2400 && battery_peek_status(&cable) && cable.plugged; i++)
+        sys_hal_sleep_ms(50);
+    BOOT_TIMELINE(TL_NOTE, 1);
+#endif
+    // The bench times wireless boots with the cable in
+    return AUTODETECT_POWER_BATTERY;
+#endif
     battery_status_s status = {0};
     if (!battery_peek_status(&status))
         return AUTODETECT_POWER_UNKNOWN;
@@ -682,4 +696,5 @@ void boot_init(void)
     // 8. Battery status resolves AUTO transport to USB, or wireless: the dongle first, then
     //    Bluetooth.
     boot_apply_battery_transport(&_boot_info);
+    BOOT_TIMELINE(TL_BOOT, _boot_info.transport);
 }
