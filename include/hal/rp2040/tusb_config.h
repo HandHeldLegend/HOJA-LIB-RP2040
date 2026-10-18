@@ -94,6 +94,12 @@
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+// Events wait here until the task loop runs tud_task. A start-of-frame event arrives every 1 ms
+// (tud_sof_cb), so the default 16 overflowed whenever the loop was busy for longer (a profile switch's
+// re-initialisations), and the transfer completions dropped with them left WebUSB's endpoints never
+// re-armed while HID carried on. 128: room for a busy stretch of about 128 ms.
+#define CFG_TUD_TASK_QUEUE_SZ     128
+
 //------------- CLASS -------------//
 #define CFG_TUD_HID               2
 #define CFG_TUD_CDC               2
