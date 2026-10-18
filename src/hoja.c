@@ -325,6 +325,15 @@ static task_s _task_autodetect = {
   .type_mask = (TASK_TYPE_RAPID)
 };
 
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+// Wired modes: BLE config, its radio started by Plus + Minus
+static task_s _task_ble_config = {
+  .fn = transport_bt_config_task,
+  .name = "bleconfig",
+  .type_mask = (TASK_TYPE_RAPID)
+};
+#endif
+
 static task_s _task_watchdog = {
   .fn = sys_hal_tick,
   .name = "wd",
@@ -374,6 +383,13 @@ void _hoja_init_core_tasks(void)
   tasks_register(&_task_sysmon);
   tasks_register(&_task_watchdog);
   tasks_register(&_task_core);
+
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+  // Wireless modes run BLE config within their own Bluetooth task
+  if ((boot->transport != GAMEPAD_TRANSPORT_BLUETOOTH) && (boot->transport != GAMEPAD_TRANSPORT_DONGLE) &&
+      (boot->transport != GAMEPAD_TRANSPORT_AUTO))
+    tasks_register(&_task_ble_config);
+#endif
 }
 
 // Core 1 task loop entrypoint

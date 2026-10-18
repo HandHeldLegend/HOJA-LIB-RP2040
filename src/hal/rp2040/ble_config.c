@@ -611,6 +611,12 @@ bool ble_config_connected(void)
     return _ble_cfg_conn != 0xFFFFu;
 }
 
+void ble_config_open_beacon(void)
+{
+    _ble_cfg_beacon_pending = true;
+    _ble_cfg_chord = true; // The press that asked is still down: don't count it again
+}
+
 bool ble_config_active(void)
 {
     return _ble_cfg_beacon_until || _ble_cfg_beacon_pending || (_ble_cfg_conn != 0xFFFFu);

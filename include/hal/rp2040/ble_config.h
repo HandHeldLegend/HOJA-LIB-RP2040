@@ -28,4 +28,7 @@ bool ble_config_connected(void);
 // The beacon runs or an app is connected: links leave LE air time
 bool ble_config_active(void);
 
+// Open the beacon as Plus + Minus would (the radio just came up for it, in a wired mode)
+void ble_config_open_beacon(void);
+
 #endif

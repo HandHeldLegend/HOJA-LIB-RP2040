@@ -14,6 +14,8 @@
 
 #include "floss/floss.h"
 #include "hal/rp2040/ble_config.h"
+#include "input/hover.h"
+#include "input_shared_types.h"
 
 #if (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
 #define BT_HAL_ESP32 1
@@ -346,6 +348,8 @@ static floss_hid_config_t _hid_cfg;
 static uint8_t _hid_record[700];
 
 static bool _bt_stack_up = false;   // The radio comes up once per boot
+static bool _config_only = false;   // A wired mode: the radio runs only for BLE config
+static bool _config_chord = false;  // Plus + Minus were down at the last look (wired modes)
 static bool _bt_mode_ready = false; // A mode is set up (Auto mode may probe hosts first)
 static bool _mode_wii = false;
 static bool _mode_sinput = false;
@@ -485,6 +489,12 @@ static void _bt_hal_apply_scan(void)
 {
     if (_mode_dongle)
         return;
+    // Config only: invisible to Classic, LE carries everything
+    if (_config_only)
+    {
+        floss_gap_set_scan(false, false);
+        return;
+    }
     if (_connected)
         floss_gap_set_scan(false, false);
     else
@@ -1819,6 +1829,10 @@ static void _bt_hal_on_ready(void)
 {
     _wii_radio_cycling = false;
 
+    // Config only: no hosts to call, the beacon is all there is
+    if (_config_only)
+        return;
+
     // Dongle mode: the link pages the dongle it remembers, else searches (pairing mode: any dongle)
     if (_mode_dongle)
     {
@@ -2299,6 +2313,63 @@ static void _bt_hal_task(uint64_t timestamp)
     {
         core_report_tunnel_cb(inbound.data, inbound.len);
     }
+}
+
+// Wired modes: Plus + Minus brings the radio up for BLE config alone (LE only, invisible to
+// Classic) and opens the beacon. The first start takes the radio's bring-up (~1 s on the RM2).
+static bool _bt_hal_config_only_start(void)
+{
+    core_params_s *params = core_current_params();
+    if (!params)
+        return false;
+
+#if BT_HAL_ESP32
+    // The old baseband has no HCI
+    if (!_bt_hal_esp32_bridge())
+        return false;
+#endif
+
+    _config_only = true;
+    _mode_dongle = false;
+    _bt_mode_ready = false;
+    _pairing_mode = false;
+    _bt_hal_params = params;
+    _bt_hal_hid = params->hid_device;
+
+    if (!_floss_lock)
+        _floss_lock = spin_lock_init((uint)spin_lock_claim_unused(true));
+
+#if BT_HAL_ESP32
+    if (!esp32_hci_backend_init(params))
+        return false;
+#else
+    while (cyw43_arch_init())
+    {
+        sys_hal_sleep_ms(1000);
+    }
+#endif
+    _bt_stack_up = true;
+
+    // A valid address for the controller; LE runs from its own random one
+    uint8_t mac[6];
+    transport_mode_mac(mac, CORE_REPORTFORMAT_SINPUT);
+    return _bt_hal_stack_start(mac);
+}
+
+void transport_bt_config_task(uint64_t timestamp)
+{
+    if (!_config_only)
+    {
+        mapper_input_s in = {0};
+        hover_access_safe(&in);
+        bool chord = in.presses[INPUT_CODE_START] && in.presses[INPUT_CODE_SELECT];
+        bool pressed = chord && !_config_chord;
+        _config_chord = chord;
+        if (pressed && _bt_hal_config_only_start())
+            ble_config_open_beacon();
+        return;
+    }
+    _bt_hal_task(timestamp);
 }
 
 void transport_bt_task(uint64_t timestamp)
