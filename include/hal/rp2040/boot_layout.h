@@ -9,9 +9,10 @@
 // - The radio region holds the CYW43's firmware at fixed addresses (boards with one): it never
 //   changes between our builds, so updates leave it where it is. Its header names what is there.
 // - The firmware (application) runs from just after it.
-// - An update received while the firmware runs is staged at the top of the free space, packed
-//   down from the stage header, and the bootloader copies it into place on the next boot: a link
-//   that drops part way leaves the running firmware untouched.
+// - An update received while the firmware runs is staged in the free space below the stage header,
+//   past the running firmware, and the bootloader writes it into place on the next boot: a link
+//   that drops part way leaves the running firmware untouched. An update may have several parts
+//   (new radio firmware with the firmware that needs it), written together in one boot.
 // - The top area holds settings, profiles, Mii data and the Bluetooth pairings, counted down from
 //   the end of flash.
 //
@@ -49,9 +50,10 @@
 // --- Staged update ---
 
 // The header sector, written last, once the data below it is complete: magic and its inverse mark
-// a whole header, the CRCs the data as staged and the image once in place
-#define BOOT_STAGE_MAGIC    0x45474154u // "TAGE"
-#define BOOT_STAGE_VERSION  1u
+// a whole header, the CRCs each part's data as staged and its image once in place
+#define BOOT_STAGE_MAGIC     0x45474154u // "TAGE"
+#define BOOT_STAGE_VERSION   1u
+#define BOOT_STAGE_PARTS_MAX 4u
 
 typedef enum
 {
@@ -65,23 +67,29 @@ typedef enum
     BOOT_STAGE_TO_RADIO = 1,
 } boot_stage_destination_t;
 
+// One part. Its staged data lies wholly above every destination the update writes, below the
+// header, apart from the other parts' data; each destination is written at most once.
+typedef struct
+{
+    uint8_t  destination;   // boot_stage_destination_t
+    uint8_t  encoding;      // boot_stage_encoding_t
+    uint8_t  reserved[2];
+    uint32_t staged_offset; // From the start of flash
+    uint32_t staged_size;
+    uint32_t staged_crc32;
+    uint32_t image_size;    // Bytes written from the start of the destination
+    uint32_t image_crc32;   // Reflected 0xEDB88320, as the config app's block fingerprints
+} boot_stage_part_s;
+
 typedef struct
 {
     uint32_t magic;
     uint32_t magic_inv;
-    uint8_t  version;     // BOOT_STAGE_VERSION
-    uint8_t  encoding;    // boot_stage_encoding_t
-    uint8_t  destination; // boot_stage_destination_t
-    uint8_t  reserved;
-    uint32_t staged_size; // Bytes staged, ending at the sector boundary below the header
-    uint32_t staged_crc32;
-    uint32_t image_size;  // Bytes written from the start of the destination
-    uint32_t image_crc32; // Reflected 0xEDB88320, as the config app's block fingerprints
+    uint8_t  version;       // BOOT_STAGE_VERSION
+    uint8_t  part_count;
+    uint8_t  reserved[2];
+    boot_stage_part_s parts[BOOT_STAGE_PARTS_MAX];
 } boot_stage_header_s;
-
-// Where the staged data starts: packed down from the header, sector aligned
-#define BOOT_STAGE_DATA_OFFSET(staged_size) \
-    (BOOT_LAYOUT_STAGE_HEADER_OFFSET - ((((staged_size) + FLASH_SECTOR_SIZE - 1u) / FLASH_SECTOR_SIZE) * FLASH_SECTOR_SIZE))
 
 // --- Radio region ---
 
@@ -101,10 +109,12 @@ typedef struct
 
 // --- Requests ---
 
-// The firmware asks for the USB update mode through two watchdog scratch registers, which survive
-// the watchdog reboot (HOJA's boot memory uses register 5, the SDK 4 to 7)
+// Requests across a restart, in two watchdog scratch registers (the value and its inverse), which
+// survive the watchdog reboot (HOJA's boot memory uses register 5, the SDK 4 to 7). The bootloader
+// takes only its own and leaves any other for the firmware.
 #define BOOT_REQUEST_SCRATCH_IDX 0
-#define BOOT_REQUEST_UPDATE      0x44505548u // "HUPD"
+#define BOOT_REQUEST_UPDATE      0x44505548u // "HUPD": the firmware asks for the USB update mode
+#define BOOT_REQUEST_BEACON      0x4E434248u // "HBCN": open the config beacon (the app reconnects)
 
 // The bootloader's last fault, kept across the restart it causes: the panic message's address, or
 // BOOT_FAULT_HARD and the faulting PC. The update mode reports them (BOOT_REQUEST_FAULT).

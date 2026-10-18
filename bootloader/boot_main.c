@@ -36,9 +36,13 @@ static bool _boot_update_requested(void)
     io_rw_32 *scratch = &watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX];
     bool requested = (scratch[0] == BOOT_REQUEST_UPDATE) && (scratch[1] == ~BOOT_REQUEST_UPDATE);
 
-    // Once only: the update mode's own reboot starts the firmware
-    scratch[0] = 0;
-    scratch[1] = 0;
+    // Once only: the update mode's own reboot starts the firmware. Any other request is the
+    // firmware's, and stays for it.
+    if (requested)
+    {
+        scratch[0] = 0;
+        scratch[1] = 0;
+    }
     return requested;
 }
 

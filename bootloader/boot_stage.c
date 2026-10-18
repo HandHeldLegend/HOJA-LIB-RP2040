@@ -374,46 +374,127 @@ static bool _boot_stage_inflate(const uint8_t *data, uint32_t len)
 
 // --- Apply ---
 
-static bool _boot_stage_header_whole(const boot_stage_header_s *header)
+typedef struct
 {
-    return (header->magic == BOOT_STAGE_MAGIC) && (header->magic_inv == ~BOOT_STAGE_MAGIC) &&
-           (header->version == BOOT_STAGE_VERSION);
-}
-
-// Where the image goes, if it fits there and the data it comes from lies wholly above it
-static bool _boot_stage_destination(const boot_stage_header_s *header, uint32_t *offset)
-{
+    uint32_t offset;
     uint32_t room;
+} boot_stage_region_s;
 
-    switch (header->destination)
+static bool _boot_stage_region(uint8_t destination, boot_stage_region_s *region)
+{
+    switch (destination)
     {
         case BOOT_STAGE_TO_APP:
-            *offset = BOOT_LAYOUT_APP_OFFSET;
-            room = BOOT_LAYOUT_APP_MAX;
-            break;
+            *region = (boot_stage_region_s){.offset = BOOT_LAYOUT_APP_OFFSET, .room = BOOT_LAYOUT_APP_MAX};
+            return true;
 
         case BOOT_STAGE_TO_RADIO:
-            *offset = BOOT_LAYOUT_RADIO_OFFSET;
-            room = BOOT_LAYOUT_RADIO_SIZE;
-            break;
+            *region = (boot_stage_region_s){.offset = BOOT_LAYOUT_RADIO_OFFSET, .room = BOOT_LAYOUT_RADIO_SIZE};
+            return BOOT_LAYOUT_RADIO_SIZE > 0;
 
         default:
             return false;
     }
+}
 
-    if ((header->image_size == 0) || (header->image_size > room))
+static bool _boot_stage_header_whole(const boot_stage_header_s *header)
+{
+    return (header->magic == BOOT_STAGE_MAGIC) && (header->magic_inv == ~BOOT_STAGE_MAGIC) &&
+           (header->version == BOOT_STAGE_VERSION) && (header->part_count >= 1) &&
+           (header->part_count <= BOOT_STAGE_PARTS_MAX);
+}
+
+static bool _boot_stage_part_fits(const boot_stage_part_s *part)
+{
+    boot_stage_region_s region;
+
+    if (!_boot_stage_region(part->destination, &region))
         return false;
 
-    if ((header->staged_size == 0) || (header->staged_size > BOOT_LAYOUT_APP_MAX))
+    if ((part->image_size == 0) || (part->image_size > region.room))
         return false;
 
-    if (BOOT_STAGE_DATA_OFFSET(header->staged_size) < *offset + header->image_size)
+    if ((part->staged_size == 0) || (part->staged_offset < BOOT_LAYOUT_APP_OFFSET) ||
+        (part->staged_offset > BOOT_LAYOUT_STAGE_HEADER_OFFSET) ||
+        (part->staged_size > BOOT_LAYOUT_STAGE_HEADER_OFFSET - part->staged_offset))
         return false;
 
-    if (header->encoding == BOOT_STAGE_STORED)
-        return header->staged_size == header->image_size;
+    if (part->encoding == BOOT_STAGE_STORED)
+        return part->staged_size == part->image_size;
 
-    return header->encoding == BOOT_STAGE_DEFLATE;
+    return part->encoding == BOOT_STAGE_DEFLATE;
+}
+
+// Every part fits its destination, and no write lands on staged data still to be read: each part's
+// data lies above every destination's written end and apart from the other parts' data
+static bool _boot_stage_parts_valid(const boot_stage_header_s *header)
+{
+    uint32_t written_end = 0;
+
+    for (uint8_t i = 0; i < header->part_count; i++)
+    {
+        const boot_stage_part_s *part = &header->parts[i];
+        boot_stage_region_s region;
+
+        if (!_boot_stage_part_fits(part))
+            return false;
+
+        _boot_stage_region(part->destination, &region);
+        written_end = MAX(written_end, region.offset + part->image_size);
+
+        for (uint8_t j = 0; j < i; j++)
+        {
+            const boot_stage_part_s *other = &header->parts[j];
+            if (other->destination == part->destination)
+                return false;
+            if ((part->staged_offset < other->staged_offset + other->staged_size) &&
+                (other->staged_offset < part->staged_offset + part->staged_size))
+                return false;
+        }
+    }
+
+    for (uint8_t i = 0; i < header->part_count; i++)
+    {
+        if (header->parts[i].staged_offset < written_end)
+            return false;
+    }
+    return true;
+}
+
+static bool _boot_stage_data_whole(const boot_stage_header_s *header)
+{
+    for (uint8_t i = 0; i < header->part_count; i++)
+    {
+        const boot_stage_part_s *part = &header->parts[i];
+        const uint8_t *data = (const uint8_t *)(XIP_BASE + part->staged_offset);
+        if (boot_flash_crc32(data, part->staged_size) != part->staged_crc32)
+            return false;
+        boot_rgb_task(BOOT_RGB_WRITING);
+    }
+    return true;
+}
+
+// Write one part into place. A result short of its size or unlike its CRC must not run: without
+// its first sector the firmware is invalid (the update mode takes over), and the radio's header
+// unmatched (the firmware leaves the radio off).
+static void _boot_stage_write_part(const boot_stage_part_s *part)
+{
+    boot_stage_region_s region;
+    _boot_stage_region(part->destination, &region);
+    const uint8_t *data = (const uint8_t *)(XIP_BASE + part->staged_offset);
+
+    memset(&_boot_stage_out, 0, sizeof(_boot_stage_out));
+    _boot_stage_out.offset = region.offset;
+    _boot_stage_out.limit = part->image_size;
+
+    bool ok = (part->encoding == BOOT_STAGE_DEFLATE) ? _boot_stage_inflate(data, part->staged_size)
+                                                     : _boot_stage_copy(data, part->staged_size);
+    _boot_stage_out_flush();
+
+    ok = ok && (_boot_stage_out.written == part->image_size) &&
+         (boot_flash_crc32((const uint8_t *)(XIP_BASE + region.offset), part->image_size) == part->image_crc32);
+    if (!ok)
+        boot_flash_erase(region.offset, FLASH_SECTOR_SIZE);
 }
 
 void boot_stage_apply(void)
@@ -423,27 +504,13 @@ void boot_stage_apply(void)
     if (!_boot_stage_header_whole(header))
         return;
 
-    uint32_t offset;
-    const uint8_t *data = (const uint8_t *)(XIP_BASE + BOOT_STAGE_DATA_OFFSET(header->staged_size));
     boot_rgb_task(BOOT_RGB_WRITING);
 
-    if (_boot_stage_destination(header, &offset) &&
-        (boot_flash_crc32(data, header->staged_size) == header->staged_crc32))
+    // All parts, or none: a part that can't be written leaves everything as it was
+    if (_boot_stage_parts_valid(header) && _boot_stage_data_whole(header))
     {
-        memset(&_boot_stage_out, 0, sizeof(_boot_stage_out));
-        _boot_stage_out.offset = offset;
-        _boot_stage_out.limit = header->image_size;
-
-        bool ok = (header->encoding == BOOT_STAGE_DEFLATE) ? _boot_stage_inflate(data, header->staged_size)
-                                                           : _boot_stage_copy(data, header->staged_size);
-        _boot_stage_out_flush();
-
-        // A result short of its size or unlike its CRC must not run: without its first sector the
-        // firmware is invalid (the update mode takes over), and the radio's header unmatched
-        ok = ok && (_boot_stage_out.written == header->image_size) &&
-             (boot_flash_crc32((const uint8_t *)(XIP_BASE + offset), header->image_size) == header->image_crc32);
-        if (!ok)
-            boot_flash_erase(offset, FLASH_SECTOR_SIZE);
+        for (uint8_t i = 0; i < header->part_count; i++)
+            _boot_stage_write_part(&header->parts[i]);
     }
 
     // Written, or not worth writing: either way it is done with
