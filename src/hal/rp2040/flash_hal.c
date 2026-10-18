@@ -26,6 +26,13 @@
 #define FLASH_START_OFFSET (1200 * 1024) // LEGACY
 #endif 
 
+typedef struct
+{
+    uint32_t offset;
+    const uint8_t *data;
+    uint32_t len;
+} flash_hal_sector_s;
+
 volatile bool _flash_go = false;
 uint8_t *_write_from = NULL;
 volatile uint32_t _write_size = 0;
@@ -60,16 +67,22 @@ bool flash_hal_write(uint8_t *data, uint32_t size, uint32_t page)
     return true;
 }
 
-void _flash_safe_write(void * params)
+// Interrupts off and the other core parked (flash_safe_execute)
+static void _flash_hal_sector_op(void *param)
 {
-    // Create blank page data
-    uint8_t thisPage[FLASH_SECTOR_SIZE] = {0x00};
-    // Copy settings into our page buffer
-    memcpy(thisPage, _write_from, _write_size);
-    // Erase the settings flash sector
-    flash_range_erase(_write_offset, FLASH_SECTOR_SIZE);
-    // Program the flash sector with our page
-    flash_range_program(_write_offset, thisPage, FLASH_SECTOR_SIZE);
+    const flash_hal_sector_s *s = (const flash_hal_sector_s *)param;
+    flash_range_erase(s->offset, FLASH_SECTOR_SIZE);
+    if (s->len)
+        flash_range_program(s->offset, s->data, s->len);
+}
+
+bool flash_hal_write_sector(uint32_t offset, const uint8_t *data, uint32_t len, uint32_t lockout_ms)
+{
+    if ((offset % FLASH_SECTOR_SIZE) || (len > FLASH_SECTOR_SIZE) || (len % FLASH_PAGE_SIZE))
+        return false;
+
+    flash_hal_sector_s sector = {.offset = offset, .data = data, .len = len};
+    return flash_safe_execute(_flash_hal_sector_op, &sector, lockout_ms) == PICO_OK;
 }
 
 bool flash_hal_read(uint8_t *out, uint32_t size, uint32_t page) 
@@ -98,7 +111,10 @@ void flash_hal_task(uint64_t now_us)
 {
     if(_flash_go)
     {
-        flash_safe_execute(_flash_safe_write, NULL, UINT32_MAX);
+        // The settings, padded out to the sector
+        uint8_t page[FLASH_SECTOR_SIZE] = {0x00};
+        memcpy(page, _write_from, _write_size);
+        flash_hal_write_sector(_write_offset, page, FLASH_SECTOR_SIZE, UINT32_MAX);
 
         _write_from = NULL;
         _write_size = 0;
