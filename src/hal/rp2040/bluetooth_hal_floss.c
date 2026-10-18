@@ -1976,12 +1976,25 @@ static void _bt_hal_swift_pair_timeout(floss_timer_t *t, void *arg)
 // themselves (listening on behind them slowed them, and once made the last host miss its call).
 #define BT_HAL_BEACON_LISTEN_US   120000u
 #define BT_HAL_BEACON_SCAN_WINDOW 0x0030 // 30 ms, scanning all the time
-// Another free dongle than ours: only one this close (ours is taken from anywhere)
-#define BT_HAL_BEACON_RSSI_MIN    (-70)
 
 static floss_timer_t _beacon_timer;
 static floss_addr_t _beacon_addr;
 static bool _beacon_new = false; // Heard from a dongle we don't remember: remembered at the link start
+
+// Ours is taken the moment it's heard. Otherwise the strongest other free dongle heard during the
+// listen is, at its end, as the search before it took the strongest that answered.
+static floss_addr_t _beacon_other;
+static int8_t _beacon_other_rssi;
+static bool _beacon_other_heard = false;
+
+static void _bt_hal_beacon_take(const floss_addr_t *addr, bool ours)
+{
+    BOOT_TIMELINE(TL_BEACON, ours);
+    _bt_hal_beacon_stop();
+    _beacon_addr = *addr;
+    _beacon_new = !ours;
+    autodetect_dongle_heard();
+}
 
 static void _bt_hal_beacon_stop(void)
 {
@@ -2010,15 +2023,17 @@ static void _bt_hal_beacon_report(const floss_le_adv_report_t *report, void *use
     floss_addr_t addr;
     memcpy(addr.b, &m[5], 6);
     floss_addr_t known;
-    const bool ours = floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &addr);
-    if (!ours && (report->rssi < BT_HAL_BEACON_RSSI_MIN))
+    if (floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &addr))
+    {
+        _bt_hal_beacon_take(&addr, true);
         return;
-
-    BOOT_TIMELINE(TL_BEACON, ours);
-    _bt_hal_beacon_stop();
-    _beacon_addr = addr;
-    _beacon_new = !ours;
-    autodetect_dongle_heard();
+    }
+    if (!_beacon_other_heard || (report->rssi > _beacon_other_rssi))
+    {
+        _beacon_other = addr;
+        _beacon_other_rssi = report->rssi;
+        _beacon_other_heard = true;
+    }
 }
 
 static bool _bt_hal_beacon_scan(uint16_t window, uint16_t interval)
@@ -2037,6 +2052,11 @@ static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
 {
     (void)t;
     (void)arg;
+    if (_beacon_other_heard && autodetect_dongle_listen())
+    {
+        _bt_hal_beacon_take(&_beacon_other, false);
+        return;
+    }
     _bt_hal_beacon_stop();
     _bt_hal_connect_resume();
 }
@@ -2047,6 +2067,7 @@ static bool _bt_hal_beacon_listen(void)
     static bool listened = false;
     if (listened || !autodetect_dongle_listen())
         return false;
+    _beacon_other_heard = false;
     if (!_bt_hal_beacon_scan(BT_HAL_BEACON_SCAN_WINDOW, BT_HAL_BEACON_SCAN_WINDOW))
         return false;
     listened = true;
