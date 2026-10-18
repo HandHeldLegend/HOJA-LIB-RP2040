@@ -22,6 +22,10 @@ void transport_bt_stop();
 bool transport_bt_init(core_params_s *params);
 void transport_bt_task(uint64_t timestamp);
 
+// The radio is running this boot (a wireless mode, or BLE config in a wired one): probing it would
+// drop its links. False where no Bluetooth HAL can start it in a wired mode.
+bool transport_bt_radio_up(void);
+
 #if HOJA_BT_USES_FLOSS
 // Wired modes: BLE config on Plus + Minus, the radio up for LE alone (bluetooth_hal_floss.c)
 void transport_bt_config_task(uint64_t timestamp);

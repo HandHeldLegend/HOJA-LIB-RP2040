@@ -20,8 +20,9 @@
 #include "utilities/settings.h"
 #include "hoja.h"
 
-// Plus + Minus opens the beacon for this long; the app shows the browser's device list meanwhile
-#define BLE_CFG_BEACON_US   10000000u
+// Plus + Minus opens the beacon for this long: time to open the app, pick the gamepad in the
+// browser's list and connect (a wired mode first brings the radio up)
+#define BLE_CFG_BEACON_US   30000000u
 #define BLE_CFG_ADV_FAST    0x00A0u // 100 ms
 #define BLE_CFG_ADV_SLOW    0x0190u // 250 ms, beside a link that fills the air
 // The code: six presses, three face buttons and three d-pad directions, within this long

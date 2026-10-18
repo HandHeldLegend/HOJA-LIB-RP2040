@@ -2356,6 +2356,11 @@ static bool _bt_hal_config_only_start(void)
     return _bt_hal_stack_start(mac);
 }
 
+bool transport_bt_radio_up(void)
+{
+    return _bt_stack_up;
+}
+
 void transport_bt_config_task(uint64_t timestamp)
 {
     if (!_config_only)

@@ -349,12 +349,21 @@ static void _bluetooth_static_refresh_identity(void)
 }
 
 /** Probe wireless hardware and refresh runtime bluetooth/dongle static fields. */
+// The radio is running this boot (a wireless mode, or BLE config in a wired one). The Bluetooth HAL
+// that can start it in a wired mode says so; elsewhere the transport tells.
+__attribute__((weak)) bool transport_bt_radio_up(void)
+{
+    return false;
+}
+
 static void _bluetooth_static_refresh(void)
 {
-    // Probing starts and stops the radio. While it carries the link (the config app through a
-    // dongle) that would drop it, and the radio plainly works.
+    // Probing starts and stops the radio (on the GCU 1 it power-cycles the ESP32). While it carries
+    // a link (the config app through a dongle or over BLE) that would drop it, and the radio
+    // plainly works.
     const gamepad_transport_t transport = core_current_params()->transport_type;
-    const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_DONGLE) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH);
+    const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_DONGLE) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH) ||
+                              transport_bt_radio_up();
 
     uint8_t bt_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_bt_static_part_status();
     uint8_t dongle_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_dongle_static_part_status();
