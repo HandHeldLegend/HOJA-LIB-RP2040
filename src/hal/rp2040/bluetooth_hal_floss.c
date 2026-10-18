@@ -1989,7 +1989,8 @@ static bool _beacon_new = false;   // Heard from a dongle we don't remember: cal
 static bool _beacon_taken = false; // This boot's dongle came from a beacon: the link calls it, no search
 
 // Ours is taken the moment it's heard. Otherwise the strongest other free dongle heard during the
-// listen is, at its end, as the search before it took the strongest that answered.
+// listen is, at its end, as the search before it took the strongest that answered. Pairing picks a
+// dongle afresh: the strongest heard, ours or not.
 static floss_addr_t _beacon_other;
 static int8_t _beacon_other_rssi;
 static bool _beacon_other_heard = false;
@@ -2031,7 +2032,7 @@ static void _bt_hal_beacon_report(const floss_le_adv_report_t *report, void *use
     floss_addr_t addr;
     memcpy(addr.b, &m[5], 6);
     floss_addr_t known;
-    if (floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &addr))
+    if (!_pairing_mode && floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &addr))
     {
         _bt_hal_beacon_take(&addr, true);
         return;
@@ -2064,7 +2065,10 @@ static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
     (void)arg;
     if (_beacon_other_heard && autodetect_dongle_listen())
     {
-        _bt_hal_beacon_take(&_beacon_other, false);
+        floss_addr_t known;
+        const bool ours =
+            floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &_beacon_other);
+        _bt_hal_beacon_take(&_beacon_other, ours);
         return;
     }
     _bt_hal_beacon_stop();
