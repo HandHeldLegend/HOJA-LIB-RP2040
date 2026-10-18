@@ -12,8 +12,9 @@
 #define AUTODETECT_WIRED_WAIT_MS    3000
 // A computer asks for the BOS descriptor within milliseconds of its first request
 #define AUTODETECT_BOS_WAIT_MS      500
-// The probe gives up and lets Switch mode carry on
-#define AUTODETECT_BT_PROBE_MAX_MS  15000
+// The probe gives up and lets Switch mode carry on (a radio that never came up). Each saved host
+// can take a radio restart, a 1.6 s call and 1.5 s for the answer, so a real probe ends well before.
+#define AUTODETECT_BT_PROBE_MAX_MS  30000
 // No dongle connected by then: look for the saved hosts. Covers a failed page of the dongle we
 // remember (1.28 s), one search round for any other (2.56 s, FLOSS_LINK_INQUIRY_LENGTH) and the
 // connection after it: measured 4.3 s on the GCU-2 from its radio coming up.
@@ -78,6 +79,13 @@ static volatile uint32_t _latch_edges = 0;
 static volatile bool _switch_pending = false;
 static core_reportformat_t _switch_format;
 static gamepad_transport_t _switch_transport;
+
+static volatile bool _paused = false;
+
+void autodetect_pause(bool paused)
+{
+    _paused = paused;
+}
 
 static void _switch_to(core_reportformat_t format, gamepad_transport_t transport, phase_t next)
 {
@@ -339,7 +347,7 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
         return false;
     }
 
-    // Switch mode, or nobody answered: carry on in Switch mode
+    // Switch mode answered: carry on in it
     _confirmed = true;
     _phase = PHASE_DONE;
     return true;
@@ -390,6 +398,11 @@ void autodetect_task(uint64_t now_us)
         _phase_start_us = now_us;
         if(_phase == PHASE_WIRED) _retro_port_watch(true, true);
         if(_phase == PHASE_N64) _retro_port_watch(false, true);
+    }
+    if(_paused)
+    {
+        _phase_start_us = now_us;
+        return;
     }
     const uint32_t elapsed_ms = (uint32_t)((now_us - _phase_start_us) / 1000);
 

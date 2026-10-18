@@ -396,6 +396,10 @@ static bool _send_pending = false;
 static floss_timer_t _reconnect_timer;
 static uint8_t _reconnect_tries = 0;
 
+// The config app with no game connected (see _bt_hal_config_hold_poll)
+static bool _cfg_hold = false;
+static bool _cfg_app_alone = false; // The app is (or was, until it left) connected with no game link
+
 // Wii
 static floss_timer_t _wii_reconnect_timer;
 static floss_timer_t _wii_page_stall_timer;
@@ -428,6 +432,7 @@ static bt_hal_probe_host_s _probe_hosts[3];
 static uint8_t _probe_count = 0;
 static uint8_t _probe_index = 0;
 static bool _probe_running = false;
+static bool _probe_paused = false; // Stopped for the config app; starts over if it never came
 static floss_l2cap_chan_t *_probe_chan = NULL;
 static uint16_t _probe_handle = BT_HAL_NO_HANDLE;
 static floss_timer_t _probe_timer;
@@ -437,6 +442,10 @@ static void _bt_hal_mode_setup(core_params_s *params);
 static void _bt_hal_restart(void);
 static void _bt_hal_restart_as(const uint8_t *mac);
 static void _bt_hal_probe_next(void);
+static bool _bt_hal_probe_start(void);
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+static bool _bt_hal_dongle_link_up(void);
+#endif
 static void _bt_hal_swift_pair_stop(void);
 
 /***********************************************/
@@ -497,7 +506,7 @@ static void _bt_hal_apply_scan(void)
         floss_gap_set_scan(false, false);
         return;
     }
-    if (_connected)
+    if (_connected || _cfg_hold)
         floss_gap_set_scan(false, false);
     else
         floss_gap_set_scan(_discoverable, true);
@@ -887,6 +896,8 @@ static void _bt_hal_wii_reconnect_timer_start(void)
 
 static void _bt_hal_wii_reconnect_handler(floss_timer_t *t, void *arg)
 {
+    if (_cfg_hold)
+        return;
     (void)t;
     (void)arg;
     if (_connected)
@@ -985,11 +996,14 @@ static void _bt_hal_reconnect_saved_host(void)
     break;
 
     case CORE_REPORTFORMAT_SINPUT:
-        if (_bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
+        // No PC yet: findable, as Switch mode waits for a Switch
+        if (!_bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput))
         {
-            _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &addr);
-            floss_hid_connect(&addr);
+            _bt_hal_set_discoverable(true);
+            return;
         }
+        _bt_hal_addr_from_hoja(gamepad_config->host_mac_sinput, &addr);
+        floss_hid_connect(&addr);
         break;
 
     case CORE_REPORTFORMAT_WII:
@@ -1009,7 +1023,7 @@ static void _bt_hal_reconnect_handler(floss_timer_t *t, void *arg)
 {
     (void)t;
     (void)arg;
-    if (_connected || _pairing_mode || floss_hid_state() != FLOSS_HID_STATE_IDLE)
+    if (_connected || _pairing_mode || _cfg_hold || floss_hid_state() != FLOSS_HID_STATE_IDLE)
         return;
     _bt_hal_reconnect_saved_host();
 }
@@ -1017,11 +1031,98 @@ static void _bt_hal_reconnect_handler(floss_timer_t *t, void *arg)
 // After a failed reconnect in Switch or SInput mode (Wii mode has its own)
 static void _bt_hal_reconnect_retry(void)
 {
-    if (_pairing_mode || _reconnect_tries >= BT_HAL_RECONNECT_TRIES)
+    if (_pairing_mode || _cfg_hold || _reconnect_tries >= BT_HAL_RECONNECT_TRIES)
         return;
     _reconnect_tries++;
     floss_timer_start(&_reconnect_timer,
                       (BT_HAL_RECONNECT_MIN_MS + get_rand_32() % BT_HAL_RECONNECT_SPREAD_MS) * 1000u);
+}
+
+/***********************************************/
+/********* Config app without a game ***********/
+
+// The config app while no game is connected: the radio is the app's. Each call to the saved host
+// fills the air for seconds and the browser's LE connection lands in it, so the calls stop (Auto's
+// probe too, after the call in flight: its next step would restart the radio under the app) and the
+// gamepad stays out of sight on Classic for as long as the beacon is open or the app is connected.
+// The app leaving ends the session as a host's disconnect does: power off. A beacon nobody answered
+// gives the host its turn again. A game link already up is never touched (its reports slow down
+// instead, see _bt_hal_report_period), and pairing mode stays findable.
+static bool _bt_hal_game_link(void)
+{
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+    if (_mode_dongle)
+        return _bt_hal_dongle_link_up();
+#endif
+    return _connected;
+}
+
+static void _bt_hal_config_session_poll(void)
+{
+    if (_config_only)
+        return;
+    const bool game = _bt_hal_game_link();
+
+    // Auto mode waits while the app has the radio: its next step would restart it
+    autodetect_pause(ble_config_active() && !game);
+
+    // The app alone, then gone: power off. A drop in the middle of an update isn't the app leaving
+    // (the beacon opens again and the update carries on).
+    if (ble_config_connected() && !game)
+        _cfg_app_alone = true;
+    else if (game)
+        _cfg_app_alone = false;
+    else if (_cfg_app_alone && !ble_config_connected() && !boot_update_active())
+    {
+        _cfg_app_alone = false;
+        _bt_hal_shutdown();
+    }
+    rgb_set_app_link(_cfg_app_alone && ble_config_connected());
+}
+
+static void _bt_hal_config_hold_poll(void)
+{
+    bool want = ble_config_active() && !_connected && !_config_only && !_mode_dongle && !_pairing_mode;
+
+    if (want && !_cfg_hold)
+    {
+        _cfg_hold = true;        floss_timer_stop(&_reconnect_timer);
+        floss_timer_stop(&_wii_reconnect_timer);
+        floss_timer_stop(&_wii_page_stall_timer);
+        _wii_page_pending = false;
+        // Still calling: cancel it. A host that has answered finishes connecting, and the game
+        // link it brings ends the hold.
+        if ((floss_hid_state() == FLOSS_HID_STATE_CONNECTING) && (floss_hid_handle() == 0xFFFFu))
+            floss_hid_disconnect();
+        _bt_hal_apply_scan();
+    }
+
+    if (!_cfg_hold || want)
+        return;
+
+    _cfg_hold = false;
+    _bt_hal_apply_scan();
+    // Connected meanwhile, or powering off because the app left
+    if (_connected || _shutdown_pending)
+        return;
+
+    if (_probe_paused)
+    {
+        _probe_paused = false;
+        if (_bt_hal_probe_start())
+            return;
+    }
+
+    if (_bt_hal_is_wii())
+    {
+        if (_bt_hal_is_stored_identity_valid(gamepad_config->host_mac_wii))
+            _bt_hal_wii_reconnect_timer_start();
+    }
+    else if (floss_hid_state() == FLOSS_HID_STATE_IDLE)
+    {
+        _reconnect_tries = 0;
+        _bt_hal_reconnect_saved_host();
+    }
 }
 
 /***********************************************/
@@ -1055,9 +1156,8 @@ static void _bt_hal_probe_finish(core_reportformat_t found)
     _probe_running = false;
     _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
 
-    // No console answered: a saved PC gets SInput, otherwise Switch mode waits for the Switch
-    bool saved_pc = _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
-    if (found == CORE_REPORTFORMAT_UNDEFINED && saved_pc)
+    // No console answered: SInput, which reconnects to a saved PC or waits findable for one
+    if (found == CORE_REPORTFORMAT_UNDEFINED)
         found = CORE_REPORTFORMAT_SINPUT;
 
     // Switch mode carries on: set it up now and bring the radio back with it. Otherwise core 1
@@ -1069,6 +1169,17 @@ static void _bt_hal_probe_finish(core_reportformat_t found)
     }
 }
 
+// The config app took the radio (_bt_hal_config_hold_poll): the probe stops here
+static void _bt_hal_probe_pause(void)
+{
+    if (_probe_handle != BT_HAL_NO_HANDLE)
+        floss_gap_disconnect(_probe_handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
+    _probe_handle = BT_HAL_NO_HANDLE;
+    _probe_running = false;
+    _probe_paused = true;
+    _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
+}
+
 static void _bt_hal_probe_host_done(bool awake)
 {
     floss_timer_stop(&_probe_timer);
@@ -1077,6 +1188,12 @@ static void _bt_hal_probe_host_done(bool awake)
         floss_l2cap_chan_t *chan = _probe_chan;
         _probe_chan = NULL;
         floss_l2cap_disconnect(chan);
+    }
+
+    if (_cfg_hold)
+    {
+        _bt_hal_probe_pause();
+        return;
     }
 
     if (awake)
@@ -1169,6 +1286,12 @@ static void _bt_hal_probe_on_connect_failed(const floss_gap_evt_t *evt)
 
 static void _bt_hal_probe_next(void)
 {
+    if (_cfg_hold)
+    {
+        _bt_hal_probe_pause();
+        return;
+    }
+
     if (_probe_index >= _probe_count)
     {
         _bt_hal_probe_finish(CORE_REPORTFORMAT_UNDEFINED);
@@ -2055,6 +2178,10 @@ static void _bt_hal_timers_init(void)
 static bool _bt_hal_stack_start(const uint8_t *mac)
 {
     _connected = false;
+    _cfg_hold = false;
+    _cfg_app_alone = false;
+    _probe_paused = false;
+    autodetect_pause(false); // A restart drops the app's link
     _send_pending = false;
     _wii_acl_handle = BT_HAL_NO_HANDLE;
     _wii_teardown_handle = BT_HAL_NO_HANDLE;
@@ -2148,6 +2275,7 @@ static bool _bt_hal_esp32_bridge(void)
 
 void transport_bt_stop()
 {
+    autodetect_pause(false);
 #if BT_HAL_ESP32
     if (_esp32_legacy)
         esp32_legacy_bt_stop();
@@ -2290,6 +2418,8 @@ static void _bt_hal_task(uint64_t timestamp)
 
     ble_config_task(timestamp);
     _bt_hal_ble_config_poll();
+    _bt_hal_config_session_poll();
+    _bt_hal_config_hold_poll();
 
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     if (_mode_dongle)

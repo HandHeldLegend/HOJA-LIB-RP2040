@@ -100,6 +100,18 @@ void rgb_clear_notification(void)
     _notif_color = COLOR_BLACK;
 }
 
+static volatile bool _app_link = false;
+
+void rgb_set_app_link(bool linked)
+{
+    _app_link = linked;
+}
+
+bool rgb_get_app_link(void)
+{
+    return _app_link;
+}
+
 static bool _rgb_transport_is_wireless(gamepad_transport_t transport)
 {
     return transport == GAMEPAD_TRANSPORT_BLUETOOTH

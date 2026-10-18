@@ -305,6 +305,14 @@ static void _player_connecting_draw(rgb_s *output, rgb_s color)
     bool    use_chase;
     if(!_player_leds_get(&player_group_idx, &player_leds_count, &use_chase)) return;
 
+    // Not connecting while the config app holds the radio: steady white says the app is linked
+    if(rgb_get_app_link())
+    {
+        for(int i = 0; i < player_leds_count; i++)
+            output[rgb_led_groups[player_group_idx][i]] = COLOR_WHITE;
+        return;
+    }
+
     rgb_s player_leds[RGB_MAX_LEDS_PER_GROUP] = {0};
     for(int i = 0; i < player_leds_count; i++)
         player_leds[i] = output[rgb_led_groups[player_group_idx][i]];
@@ -374,14 +382,15 @@ void anm_set_idle_enable(bool enable)
 
 // Auto mode, or following the dongle: every LED shows the player LED color until the mode is
 // confirmed, with the player LEDs playing the connecting animation. The mode's own lighting keeps
-// running underneath (static modes only draw once), then fades in.
+// running underneath (static modes only draw once), then fades in. The config app connected meanwhile
+// ends it too: Auto waits for the app, and the app shows the lighting it edits.
 static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 static bool _anm_auto_hold(void)
 {
     static bool holding = false;
 
-    if(!autodetect_pending() && !transport_dongle_choosing())
+    if((!autodetect_pending() && !transport_dongle_choosing()) || rgb_get_app_link())
     {
         if(holding)
         {

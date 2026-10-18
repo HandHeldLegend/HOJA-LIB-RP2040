@@ -84,6 +84,10 @@ bool rgb_get_notification(rgb_s *out);
 void rgb_send_notification(rgb_s color);
 void rgb_clear_notification(void);
 
+// The config app is connected with no game link: the player LEDs show it instead of connecting
+void rgb_set_app_link(bool linked);
+bool rgb_get_app_link(void);
+
 void rgb_set_idle(bool enable); 
 bool rgb_deinit(callback_t cb);
 void rgb_init(int mode, int brightness);

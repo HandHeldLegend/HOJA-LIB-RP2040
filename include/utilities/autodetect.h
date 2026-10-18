@@ -66,6 +66,10 @@ void autodetect_dongle_found(void);
 
 // Bluetooth probe (bluetooth_hal.c)
 bool autodetect_bt_probe_pending(void);
+
+// The config app holds the radio: Auto's waits stop (each step past them restarts the radio under
+// the app) and start over in full once it lets go
+void autodetect_pause(bool paused);
 // The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED. True when Switch mode carries
 // on, false when another mode takes over.
 bool autodetect_bt_probe_result(core_reportformat_t found);
