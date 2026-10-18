@@ -24,5 +24,11 @@ mapper_input_s mapper_get_input();
 // Hold every output at rest (buttons up, sticks centred) while the presses mean something else,
 // such as a BLE config code being entered
 void mapper_hold_neutral(bool hold);
+// Hold only what the game receives at rest (the config app's live view still sees every input);
+// the app's "send inputs to game" switch
+void mapper_hold_game_inputs(bool hold);
+bool mapper_game_inputs_held(void);
+// The config app said something: keeps a hold alive (it lapses after 5 s of silence)
+void mapper_app_heard(void);
 
 #endif

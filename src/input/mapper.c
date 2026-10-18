@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "hal/sys_hal.h"
 
 static void _set_raw_output_profile(core_reportformat_t format);
 
@@ -1252,6 +1253,29 @@ void mapper_hold_neutral(bool hold)
     _mapper_neutral = hold;
 }
 
+static volatile bool _mapper_hold_game = false;
+static volatile uint64_t _mapper_app_heard_us = 0;
+
+// The app asks about once a second while it holds the game's input. A tab closed without a word
+// (USB has no such event) must not leave the game without its controller.
+#define MAPPER_HOLD_SILENCE_US 5000000u
+
+void mapper_hold_game_inputs(bool hold)
+{
+    _mapper_app_heard_us = sys_hal_now_us();
+    _mapper_hold_game = hold;
+}
+
+void mapper_app_heard(void)
+{
+    _mapper_app_heard_us = sys_hal_now_us();
+}
+
+bool mapper_game_inputs_held(void)
+{
+    return _mapper_hold_game;
+}
+
 mapper_input_s mapper_get_translated_input()
 {
     analog_data_s joysticks;
@@ -1285,7 +1309,10 @@ mapper_input_s mapper_get_input()
 
     analog_access_safe(&joysticks, ANALOG_ACCESS_DEADZONE_DATA);
     hover_access_safe(&hovers);
-    if (_mapper_neutral)
+    // The game's path: also held while the app holds the game's input
+    if (_mapper_hold_game && (sys_hal_now_us() - _mapper_app_heard_us) > MAPPER_HOLD_SILENCE_US)
+        _mapper_hold_game = false;
+    if (_mapper_neutral || _mapper_hold_game)
     {
         memset(&joysticks, 0, sizeof(joysticks));
         memset(&hovers, 0, sizeof(hovers));

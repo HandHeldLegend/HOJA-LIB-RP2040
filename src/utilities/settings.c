@@ -21,6 +21,8 @@
 #include "input/imu.h"
 #include "input/mapper.h"
 #include "input/hover.h"
+#include "input/macros/macro_tourney.h"
+#include "utilities/tasks.h"
 #include "devices/haptics.h"
 
 #include "devices/rgb.h"
@@ -226,6 +228,45 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         case GAMEPAD_CMD_USB_MODE:
             cb(CFG_BLOCK_GAMEPAD, command, hoja_request_usb_mode((core_reportformat_t)arg), NULL, 0);
             break;
+
+        // The app's quick settings: RAM only, the hold is released when the app leaves
+        case GAMEPAD_CMD_HOLD_INPUTS:
+            mapper_hold_game_inputs(arg == 1);
+            cb(CFG_BLOCK_GAMEPAD, command, true, NULL, 0);
+            break;
+
+        case GAMEPAD_CMD_TOURNEY:
+            macro_tourney_set(arg == 1);
+            cb(CFG_BLOCK_GAMEPAD, command, true, NULL, 0);
+            break;
+
+        case GAMEPAD_CMD_STATUS:
+        {
+            // Reports a second over the time since the app last asked (it asks about once a second)
+            static uint32_t last_count = 0;
+            static uint64_t last_us = 0;
+            uint64_t now = sys_hal_now_us();
+            uint32_t count = tasks_sent_count();
+            uint32_t rate = 0;
+            if (last_us && now > last_us)
+                rate = (uint32_t)(((uint64_t)(count - last_count) * 1000000u) / (now - last_us));
+            last_count = count;
+            last_us = now;
+            if (rate > 0xFFFF)
+                rate = 0xFFFF;
+
+            const core_params_s *params = core_current_params();
+            uint8_t status[6] = {
+                (uint8_t)params->transport_type,
+                (uint8_t)params->core_report_format,
+                mapper_game_inputs_held() ? 1 : 0,
+                macro_tourney_check() ? 1 : 0,
+                (uint8_t)(rate & 0xFF),
+                (uint8_t)(rate >> 8),
+            };
+            cb(CFG_BLOCK_GAMEPAD, command, true, status, sizeof(status));
+        }
+        break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {

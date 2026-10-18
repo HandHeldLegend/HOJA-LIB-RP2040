@@ -6,6 +6,8 @@
 #include "input/mapper.h"
 
 bool macro_tourney_check();
+// Set from the config app (the macro toggles it with a held button)
+void macro_tourney_set(bool enabled);
 void macro_tourney(uint64_t timestamp, mapper_input_s *input);
 
 #endif

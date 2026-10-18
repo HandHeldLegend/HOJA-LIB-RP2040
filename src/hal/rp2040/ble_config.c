@@ -402,6 +402,7 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
     if (link >= 0)
         _ble_cfg_tx_cccd.v[link] |= FLOSS_GATT_CCCD_NOTIFY;
     _ble_cfg_heard_us = sys_hal_now_us();
+    mapper_app_heard();
 
     switch (data[0])
     {

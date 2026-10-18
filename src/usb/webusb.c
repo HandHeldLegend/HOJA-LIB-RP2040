@@ -49,6 +49,8 @@ static uint _webusb_sink_core = 0;
 
 void webusb_set_sink(const webusb_sink_s *sink)
 {
+    // A session ended or began elsewhere: the game gets its input back
+    mapper_hold_game_inputs(false);
     _webusb_sink = sink ? sink : &_webusb_usb_sink;
     _webusb_sink_core = get_core_num();
     _webusb_deferred_tail = _webusb_deferred_head;
@@ -306,6 +308,7 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
     }
 
     _ready_to_go = true;
+    mapper_app_heard();
     switch(data[0])
     {
         case WEBUSB_ID_READ_CONFIG_BLOCK:

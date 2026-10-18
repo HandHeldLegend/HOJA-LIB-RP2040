@@ -372,9 +372,18 @@ void tasks_register(task_s *task)
     }
 }
 
+// Reports sent to the host, for the config app's status (wraps)
+static volatile uint32_t _tasks_sent_count = 0;
+
+uint32_t tasks_sent_count(void)
+{
+    return _tasks_sent_count;
+}
+
 // Used where it's unsafe to call sys_hal_now_us
 void tasks_mark_sent_isr(void)
 {
+    _tasks_sent_count++;
     _tasks_sent_isr_signal = true;
 }
 
@@ -387,6 +396,7 @@ void tasks_mark_frame_isr(void)
 // Used where it's not ISR context and safe to call sys_hal_now_us
 void tasks_mark_sent(void)
 {
+    _tasks_sent_count++;
     _tasks_reset_sm();
 }
 

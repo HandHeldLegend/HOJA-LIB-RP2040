@@ -51,6 +51,9 @@ typedef enum
     GAMEPAD_CMD_REBOOT_DONGLE,    // Reboot into the dongle transport (power ignored); argument 0x80 | mode, else the current one
     GAMEPAD_CMD_REBOOT_BLUETOOTH, // Reboot into Bluetooth; argument 0x80 | mode, else the current one
     GAMEPAD_CMD_USB_MODE,         // On USB, another mode now, until unplugged (no reboot); argument the mode
+    GAMEPAD_CMD_HOLD_INPUTS,      // The game's input held at rest (argument 1) or passed through (0); released when the app leaves
+    GAMEPAD_CMD_TOURNEY,          // Tournament lock on (argument 1) or off (0)
+    GAMEPAD_CMD_STATUS,           // Replies [transport][mode][inputs held][tournament lock][reports a second, u16 LE]
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 

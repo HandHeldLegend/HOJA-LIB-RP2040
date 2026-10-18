@@ -16,6 +16,14 @@ bool macro_tourney_check()
     return tourney_mode_enabled;
 }
 
+void macro_tourney_set(bool enabled)
+{
+    if (enabled == tourney_mode_enabled)
+        return;
+    tourney_mode_enabled = enabled;
+    rgb_send_notification(enabled ? COLOR_GREEN : COLOR_RED);
+}
+
 void macro_tourney(uint64_t timestamp, mapper_input_s *input)
 {
     static interval_s interval = {0};
