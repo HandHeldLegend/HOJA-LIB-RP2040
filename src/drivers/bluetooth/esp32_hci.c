@@ -1226,11 +1226,10 @@ void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
     caps->external_update_supported = 1;
 }
 
+// Read once per boot: each read power-cycles the ESP32
 uint8_t transport_bt_static_part_status(void)
 {
-    _esp32_version = _esp32_read_version();
-    _esp32_version_read = true;
-    return _esp32_version ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
+    return esp32_hci_firmware_version() ? TRANSPORT_WIRELESS_PART_OK : TRANSPORT_WIRELESS_PART_ERROR;
 }
 
 uint16_t transport_bt_static_external_version(void)

@@ -11,6 +11,7 @@
 #include "devices/bluetooth.h"
 #include "transport/transport_bt.h"
 #include "transport/transport_dongle.h"
+#include "hal/usb_hal.h"
 
 #include <string.h>
 
@@ -361,13 +362,30 @@ static void _bluetooth_static_refresh(void)
     // Probing starts and stops the radio (on the GCU 1 it power-cycles the ESP32). While it carries
     // a link (the config app through a dongle or over BLE) that would drop it, and the radio
     // plainly works.
+    // The part can't change while running, so it is probed once per boot: a probe takes 0.6-2.6 s on
+    // the ESP32 boards, and the app asks for this block (and its fingerprint) on every connect.
+    static bool probed = false;
+    static uint8_t overall_status = WIRELESS_PART_STATUS_NA;
+
     const gamepad_transport_t transport = core_current_params()->transport_type;
     const bool radio_in_use = (transport == GAMEPAD_TRANSPORT_DONGLE) || (transport == GAMEPAD_TRANSPORT_BLUETOOTH) ||
                               transport_bt_radio_up();
 
-    uint8_t bt_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_bt_static_part_status();
-    uint8_t dongle_status = radio_in_use ? TRANSPORT_WIRELESS_PART_OK : transport_dongle_static_part_status();
-    uint8_t overall_status = _wireless_part_status_combine(bt_status, dongle_status);
+    if (radio_in_use)
+    {
+        overall_status = _wireless_part_status_combine(TRANSPORT_WIRELESS_PART_OK, TRANSPORT_WIRELESS_PART_OK);
+        probed = true;
+    }
+    else if (!probed)
+    {
+        // The task loop stops for the probe: USB's per-frame events would fill its queue meanwhile
+        usb_hal_frame_events_hold(true);
+        uint8_t bt_status = transport_bt_static_part_status();
+        uint8_t dongle_status = transport_dongle_static_part_status();
+        usb_hal_frame_events_hold(false);
+        overall_status = _wireless_part_status_combine(bt_status, dongle_status);
+        probed = true;
+    }
 
     bluetooth_static.wireless_part_status = overall_status;
     bluetooth_static.external_version_number = transport_bt_static_external_version();

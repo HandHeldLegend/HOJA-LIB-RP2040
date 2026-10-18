@@ -2622,16 +2622,17 @@ uint8_t transport_dongle_static_part_status(void)
 
 // The ESP32 driver provides its own (esp32_hci.c)
 #if !BT_HAL_ESP32
+// Once per boot (the Bluetooth and dongle checks both ask): each probe loads the radio firmware
 static uint32_t _bt_hal_probe_wireless(void)
 {
-    // If the init fails it returns true lol
-    if (!boot_radio_ready() || cyw43_arch_init())
+    static int8_t found = -1;
+    if (found < 0)
     {
-        return 0x00;
+        found = (boot_radio_ready() && !cyw43_arch_init()) ? 1 : 0;
+        if (found)
+            cyw43_arch_deinit();
     }
-
-    cyw43_arch_deinit();
-    return 1;
+    return (uint32_t)found;
 }
 
 void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)

@@ -265,4 +265,17 @@ void transport_usb_task(uint64_t timestamp)
     }
 }
 
+void usb_hal_frame_events_hold(bool hold)
+{
+    if (_usb_hal_mounted)
+        hhl_tusb_sof_cb_enable(!hold);
+}
+
+#else
+
+void usb_hal_frame_events_hold(bool hold)
+{
+    (void)hold;
+}
+
 #endif
