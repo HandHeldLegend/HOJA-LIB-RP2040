@@ -159,6 +159,12 @@ void hover_init(void)
         if(!hover_config->hover_calibration_set)
             hover_calibrate_start(0xFF);
     }
+    // A calibrated block written over one being calibrated (the app restoring settings after an
+    // update reset them) ends the calibration; otherwise it would overwrite what was written
+    else if (hover_config->hover_calibration_set)
+    {
+        _calibration_ch_active = 0x00;
+    }
 
     static bool boot = false;
 
