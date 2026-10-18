@@ -16,6 +16,7 @@
 #include "utilities/callback.h"
 #include "utilities/settings.h"
 #include "utilities/boot.h"
+#include "utilities/profiles.h"
 #include "utilities/hooks.h"
 #include "utilities/sysmon.h"
 
@@ -279,6 +280,13 @@ static task_s _task_macros = {
   .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
+static task_s _task_profiles = {
+  .fn = profiles_task,
+  .name = "profiles",
+  .optional_interval_us = 16000,
+  .type_mask = (TASK_TYPE_OPTIONAL)
+};
+
 static task_s _task_flash = {
   .fn = flash_hal_task,
   .name = "flash",
@@ -377,6 +385,7 @@ void _hoja_init_core_tasks(void)
 
   // Tasks for all modes
   tasks_register(&_task_flash);
+  tasks_register(&_task_profiles);
   if (autodetect_active())
     tasks_register(&_task_autodetect);
   tasks_register(&_task_idle);

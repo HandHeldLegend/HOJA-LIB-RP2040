@@ -5,6 +5,7 @@
 
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
+#include "utilities/profiles.h"
 
 #include "input/analog.h"
 #include "input/imu.h"
@@ -329,6 +330,10 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
 
         case WEBUSB_ID_BLOCK_FINGERPRINTS:
             _webusb_send_fingerprints();
+        break;
+
+        case WEBUSB_ID_PROFILE:
+            profiles_webusb(data, size);
         break;
 
         case WEBUSB_ID_INPUT_COMMAND:

@@ -23,7 +23,8 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/boot.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c 
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/profiles.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/static_config.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 

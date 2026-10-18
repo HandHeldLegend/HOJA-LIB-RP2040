@@ -15,6 +15,7 @@
 
 #include "utilities/static_config.h"
 #include "utilities/boot.h"
+#include "utilities/profiles.h"
 #include "hal/flash_hal.h"
 
 #include "input/stick_scaling.h"
@@ -61,6 +62,9 @@ static void _settings_split_default_mode(void);
 void settings_init()
 {
     flash_hal_read((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
+    // With profiles, the store's global record and the active profile replace the old page (which
+    // stays as it was, for older firmware)
+    profiles_init();
 
     gamepad_config     = (gamepadConfig_s *)    &live_settings.gamepad_configuration_block;
     hover_config       = (hoverConfig_s *)      &live_settings.hover_configuration_block;
@@ -178,8 +182,10 @@ void settings_commit_blocks()
     // Get mutex
     MUTEX_HAL_ENTER_BLOCKING(&_settings_mutex);
     
-    flash_hal_write((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
-    
+    // With profiles, the store writes the global record and the active profile from the task
+    if (!profiles_save())
+        flash_hal_write((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
+
     MUTEX_HAL_EXIT(&_settings_mutex);
 }
 
