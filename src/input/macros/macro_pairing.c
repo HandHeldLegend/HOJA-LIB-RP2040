@@ -2,6 +2,7 @@
 #include "utilities/interval.h"
 #include "utilities/boot.h"
 #include "utilities/static_config.h"
+#include "utilities/autodetect.h"
 #include "hoja_shared_types.h"
 #include "hoja.h"
 
@@ -109,7 +110,14 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
                 core_reportformat_t format = core_current_params()->core_report_format;
                 bool pair = false;
 
-                if (format == CORE_REPORTFORMAT_SWPRO || format == CORE_REPORTFORMAT_WII)
+                // Auto still looking (its first seconds are wired checks, as an N64 for one): pair
+                // now, as the boot combo would. On battery that's a PC over Bluetooth; on a cable a
+                // Switch.
+                if (autodetect_pending())
+                    format = autodetect_on_battery() ? CORE_REPORTFORMAT_SINPUT : CORE_REPORTFORMAT_SWPRO;
+
+                if (format == CORE_REPORTFORMAT_SWPRO || format == CORE_REPORTFORMAT_WII ||
+                    format == CORE_REPORTFORMAT_SINPUT)
                 {
                     pair = true;
                 }

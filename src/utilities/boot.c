@@ -639,6 +639,13 @@ void boot_init(void)
         _boot_info.pairing = true;
         if (auto_mode && (power == AUTODETECT_POWER_BATTERY) && boot_format_supported(CORE_REPORTFORMAT_SINPUT))
             _boot_info.reportformat = CORE_REPORTFORMAT_SINPUT;
+
+        // On battery, pairing a Switch or a PC is Bluetooth pairing: no dongle search first (it held
+        // the pairing back 5.5 s). A new dongle needs no pairing mode: the link takes any free one
+        // when the remembered one doesn't answer.
+        if ((power == AUTODETECT_POWER_BATTERY) && (_boot_info.transport == GAMEPAD_TRANSPORT_AUTO) &&
+            ((_boot_info.reportformat == CORE_REPORTFORMAT_SWPRO) || (_boot_info.reportformat == CORE_REPORTFORMAT_SINPUT)))
+            _boot_info.transport = GAMEPAD_TRANSPORT_BLUETOOTH;
     }
 
     // 5. LB held at boot goes straight to Bluetooth (no dongle search) when transport is still AUTO.

@@ -75,6 +75,9 @@ void autodetect_pause(bool paused);
 // the app is the session, so Auto stops looking and settles on this mode now. False when Auto is done,
 // already switching, or on external power (a cable may still bring a host).
 bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport);
+
+// Auto started without external power (on battery, or a board that can't tell)
+bool autodetect_on_battery(void);
 // The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED. True when Switch mode carries
 // on, false when another mode takes over.
 bool autodetect_bt_probe_result(core_reportformat_t found);

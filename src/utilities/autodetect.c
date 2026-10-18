@@ -367,6 +367,11 @@ void autodetect_switch_done(void)
         _confirmed = true;
 }
 
+bool autodetect_on_battery(void)
+{
+    return _power != AUTODETECT_POWER_EXTERNAL;
+}
+
 bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport)
 {
     if(_phase == PHASE_OFF || _phase == PHASE_DONE || _confirmed || _switch_pending) return false;
