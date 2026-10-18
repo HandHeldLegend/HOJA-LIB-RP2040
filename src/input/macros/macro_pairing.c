@@ -107,20 +107,13 @@ void macro_pairing(uint64_t timestamp, mapper_input_s *input)
 
             if (iterations >= PAIRING_HOLD_LOOPS)
             {
-                core_reportformat_t format = core_current_params()->core_report_format;
-                bool pair = false;
-
-                // Auto still looking (its first seconds are wired checks, as an N64 for one): pair
-                // now, as the boot combo would. On battery that's a PC over Bluetooth; on a cable a
-                // Switch.
-                if (autodetect_pending())
-                    format = autodetect_on_battery() ? CORE_REPORTFORMAT_SINPUT : CORE_REPORTFORMAT_SWPRO;
-
-                if (format == CORE_REPORTFORMAT_SWPRO || format == CORE_REPORTFORMAT_WII ||
-                    format == CORE_REPORTFORMAT_SINPUT)
-                {
-                    pair = true;
-                }
+                // Auto still looking with no mode chosen (its first seconds check the wires, as an
+                // N64 for one): pair now, as the pairing combo at power-on would
+                core_reportformat_t format = boot_pairing_format(
+                    core_current_params()->core_report_format, autodetect_mode_open(),
+                    autodetect_power() == AUTODETECT_POWER_BATTERY);
+                bool pair = (format == CORE_REPORTFORMAT_SWPRO) || (format == CORE_REPORTFORMAT_WII) ||
+                            (format == CORE_REPORTFORMAT_SINPUT);
 
                 if (pair)
                 {

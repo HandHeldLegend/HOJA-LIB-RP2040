@@ -80,12 +80,7 @@ static volatile bool _switch_pending = false;
 static core_reportformat_t _switch_format;
 static gamepad_transport_t _switch_transport;
 
-static volatile bool _paused = false;
-
-void autodetect_pause(bool paused)
-{
-    _paused = paused;
-}
+static bool _paused = false; // The config app holds the radio (autodetect_pause)
 
 static void _switch_to(core_reportformat_t format, gamepad_transport_t transport, phase_t next)
 {
@@ -347,6 +342,13 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
         return false;
     }
 
+    // No console awake: SInput, which reconnects to a saved PC or waits to be found
+    if (found == CORE_REPORTFORMAT_UNDEFINED)
+    {
+        _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
+        return false;
+    }
+
     // Switch mode answered: carry on in it
     _confirmed = true;
     _phase = PHASE_DONE;
@@ -367,17 +369,30 @@ void autodetect_switch_done(void)
         _confirmed = true;
 }
 
-bool autodetect_on_battery(void)
+autodetect_power_t autodetect_power(void)
 {
-    return _power != AUTODETECT_POWER_EXTERNAL;
+    return _power;
 }
 
-bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport)
+bool autodetect_mode_open(void)
 {
-    if(_phase == PHASE_OFF || _phase == PHASE_DONE || _confirmed || _switch_pending) return false;
-    if(_power == AUTODETECT_POWER_EXTERNAL) return false;
+    return (_phase != PHASE_OFF) && !_confirmed && (_wireless == CORE_REPORTFORMAT_UNDEFINED);
+}
+
+void autodetect_pause(bool paused)
+{
+    _paused = paused;
+}
+
+bool autodetect_settle_for_app(void)
+{
+    if (!autodetect_mode_open() || (_phase == PHASE_DONE) || _switch_pending)
+        return false;
+    if (_power == AUTODETECT_POWER_EXTERNAL)
+        return false;
+
     _retro_port_watch(false, false);
-    _switch_to(format, transport, PHASE_DONE);
+    _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
     return true;
 }
 

@@ -252,7 +252,7 @@ void transport_nesbus_task(uint64_t timestamp)
     // Only power off where ship mode can actually cut power; otherwise
     // hoja_shutdown() would reboot-loop (e.g. dev boards powered over USB).
     // Auto still deciding isn't this mode yet (the config app can hold Auto here)
-    if((elapsed >= NESBUS_SHUTDOWN_US) && battery_has_driver() && !autodetect_pending())
+    if ((elapsed >= NESBUS_SHUTDOWN_US) && battery_has_driver() && !autodetect_pending())
     {
         hoja_deinit(hoja_shutdown);
     }

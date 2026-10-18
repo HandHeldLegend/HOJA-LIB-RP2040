@@ -11,8 +11,11 @@
 // GameCube, latch pulses an SNES or NES.
 // Nothing found (battery, or a charger): Bluetooth. A HOJA dongle first, on boards that reach it
 // over Bluetooth: one that connects tells the controller the mode. Then each saved host is checked
-// (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it stays
-// in Switch mode.
+// (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it settles
+// on SInput, which reconnects to a saved PC or waits to be found.
+//
+// The config app (Start + Select) while Auto is still looking: on battery Auto settles on SInput at
+// once; on external power it waits for the app, whose link a mode change would drop.
 //
 // Modes are switched in place, never with a restart. Every LED shows the player LED color until the
 // mode is confirmed.
@@ -66,20 +69,25 @@ void autodetect_dongle_found(void);
 
 // Bluetooth probe (bluetooth_hal.c)
 bool autodetect_bt_probe_pending(void);
+// The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED (none awake: SInput). True when
+// Switch mode carries on, false when another mode takes over.
+bool autodetect_bt_probe_result(core_reportformat_t found);
+
+// --- The config app and pairing (bluetooth_hal_floss.c, macro_pairing.c) ---
+
+// What powered the gamepad at boot, as Auto saw it
+autodetect_power_t autodetect_power(void);
+
+// Auto is still looking and no mode was chosen (a chosen mode may still be looking for its dongle)
+bool autodetect_mode_open(void);
 
 // The config app holds the radio: Auto's waits stop (each step past them restarts the radio under
 // the app) and start over in full once it lets go
 void autodetect_pause(bool paused);
 
-// The config app's beacon opened while nothing is connected and the gamepad isn't on external power:
-// the app is the session, so Auto stops looking and settles on this mode now. False when Auto is done,
-// already switching, or on external power (a cable may still bring a host).
-bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport);
-
-// Auto started without external power (on battery, or a board that can't tell)
-bool autodetect_on_battery(void);
-// The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED. True when Switch mode carries
-// on, false when another mode takes over.
-bool autodetect_bt_probe_result(core_reportformat_t found);
+// The config app's beacon opened while Auto is still looking, with no mode chosen and no external
+// power: the app is the session, so Auto settles on SInput now. False otherwise (a cable may still
+// bring a host, or a chosen mode carries on).
+bool autodetect_settle_for_app(void);
 
 #endif

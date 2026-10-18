@@ -306,9 +306,9 @@ static void _player_connecting_draw(rgb_s *output, rgb_s color)
     if(!_player_leds_get(&player_group_idx, &player_leds_count, &use_chase)) return;
 
     // Not connecting while the config app holds the radio: steady white says the app is linked
-    if(rgb_get_app_link())
+    if (rgb_get_app_link())
     {
-        for(int i = 0; i < player_leds_count; i++)
+        for (int i = 0; i < player_leds_count; i++)
             output[rgb_led_groups[player_group_idx][i]] = COLOR_WHITE;
         return;
     }

@@ -578,6 +578,15 @@ void boot_clear_memory(void)
 // Public API
 // ---------------------------------------------------------------------------
 
+core_reportformat_t boot_pairing_format(core_reportformat_t format, bool auto_mode, bool on_battery)
+{
+    if (!auto_mode)
+        return format;
+    if (on_battery && boot_format_supported(CORE_REPORTFORMAT_SINPUT))
+        return CORE_REPORTFORMAT_SINPUT;
+    return CORE_REPORTFORMAT_SWPRO;
+}
+
 const boot_info_s *boot_get_info(void)
 {
     return &_boot_info;
@@ -632,19 +641,18 @@ void boot_init(void)
     if (auto_mode)
         _boot_info.reportformat = CORE_REPORTFORMAT_SWPRO;
 
-    // 4. Pairing enable combo. Auto on battery pairs a PC (SInput) over Bluetooth: a Switch pairs
-    //    over USB, so on a cable Auto stays in Switch mode.
+    // 4. Pairing enable combo (boot_pairing_format). On battery, pairing a Switch or a PC is
+    //    Bluetooth pairing, with no dongle search first: a new dongle needs no pairing mode, the link
+    //    takes any free one when the remembered one doesn't answer.
     if (boot_combo_pairing(&input))
     {
+        const bool on_battery = (power == AUTODETECT_POWER_BATTERY);
         _boot_info.pairing = true;
-        if (auto_mode && (power == AUTODETECT_POWER_BATTERY) && boot_format_supported(CORE_REPORTFORMAT_SINPUT))
-            _boot_info.reportformat = CORE_REPORTFORMAT_SINPUT;
+        _boot_info.reportformat = boot_pairing_format(_boot_info.reportformat, auto_mode, on_battery);
 
-        // On battery, pairing a Switch or a PC is Bluetooth pairing: no dongle search first (it held
-        // the pairing back 5.5 s). A new dongle needs no pairing mode: the link takes any free one
-        // when the remembered one doesn't answer.
-        if ((power == AUTODETECT_POWER_BATTERY) && (_boot_info.transport == GAMEPAD_TRANSPORT_AUTO) &&
-            ((_boot_info.reportformat == CORE_REPORTFORMAT_SWPRO) || (_boot_info.reportformat == CORE_REPORTFORMAT_SINPUT)))
+        const bool pc_or_switch = (_boot_info.reportformat == CORE_REPORTFORMAT_SWPRO) ||
+                                  (_boot_info.reportformat == CORE_REPORTFORMAT_SINPUT);
+        if (on_battery && pc_or_switch)
             _boot_info.transport = GAMEPAD_TRANSPORT_BLUETOOTH;
     }
 

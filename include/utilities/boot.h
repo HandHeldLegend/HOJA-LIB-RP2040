@@ -52,6 +52,10 @@ void boot_set_memory(boot_memory_s *in);
 // USB bootloader combo reboots into UF2 and does not return.
 void boot_init(void);
 
+// The mode pairing uses. Auto pairs a PC (SInput) on battery and a Switch on a cable (a Switch pairs
+// over USB); a chosen mode pairs as itself.
+core_reportformat_t boot_pairing_format(core_reportformat_t format, bool auto_mode, bool on_battery);
+
 // Read-only view of the boot selections made by boot_init(). Valid for the lifetime of the firmware.
 const boot_info_s *boot_get_info(void);
 
