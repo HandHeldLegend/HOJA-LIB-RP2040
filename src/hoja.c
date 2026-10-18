@@ -280,11 +280,12 @@ static task_s _task_macros = {
   .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
 };
 
+// A shutdown still stores a save waiting (each record is whole or not there)
 static task_s _task_profiles = {
   .fn = profiles_task,
   .name = "profiles",
-  .optional_interval_us = 16000,
-  .type_mask = (TASK_TYPE_OPTIONAL)
+  .optional_interval_us = PROFILES_TASK_INTERVAL_US,
+  .type_mask = (TASK_TYPE_OPTIONAL | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_flash = {
@@ -342,9 +343,8 @@ static task_s _task_ble_config = {
 };
 #endif
 
-// Fed every pass of the loop. As a required task it starved: with the config app keeping USB busy,
-// each pass ran long and the cycle restarted before reaching it, and the watchdog restarted the
-// gamepad after 5 s.
+// Fed every pass of the loop: a cycle restarts before its later required tasks when passes run long
+// (steady config app traffic), and the watchdog must not depend on the cycle finishing
 static task_s _task_watchdog = {
   .fn = sys_hal_tick,
   .name = "wd",

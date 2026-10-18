@@ -348,6 +348,36 @@ void settings_config_command(cfg_block_t block, uint8_t command, uint8_t arg)
     }
 }
 
+void settings_reinit_block(cfg_block_t block)
+{
+    switch (block)
+    {
+        case CFG_BLOCK_HOVER:
+            hover_init();
+            break;
+
+        case CFG_BLOCK_ANALOG:
+            analog_init();
+            break;
+
+        case CFG_BLOCK_RGB:
+            rgb_init(-1, -1);
+            break;
+
+        case CFG_BLOCK_HAPTIC:
+            haptics_init();
+            break;
+
+        case CFG_BLOCK_INPUT:
+            mapper_init();
+            anm_authentic_refresh();
+            break;
+
+        default:
+            break;
+    }
+}
+
 void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 {
     uint8_t write_size = data[BLOCK_CHUNK_SIZE_IDX];
@@ -375,22 +405,14 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_HOVER:
             write_to_ptr = live_settings.hover_configuration_block;
-
-            if(completed)
-                hover_init();
         break;
 
         case CFG_BLOCK_ANALOG:
             write_to_ptr = live_settings.analog_configuration_block;
-            // Reinit analog sections as needed 
-            if(completed)
-                analog_init();
         break;
 
         case CFG_BLOCK_RGB:
             write_to_ptr = live_settings.rgb_configuration_block;
-            if(completed)
-                rgb_init(-1, -1);
         break;
 
         case CFG_BLOCK_TRIGGER:
@@ -403,9 +425,6 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_HAPTIC:
             write_to_ptr = live_settings.haptic_configuration_block;
-
-            if(completed)
-                haptics_init();
         break;
 
         case CFG_BLOCK_USER:
@@ -414,13 +433,11 @@ void settings_write_config_block(cfg_block_t block, const uint8_t *data)
 
         case CFG_BLOCK_INPUT:
             write_to_ptr = live_settings.input_configuration_block;
-            if(completed)
-            {
-                mapper_init();
-                anm_authentic_refresh();
-            }
         break;
     }
+
+    if (completed)
+        settings_reinit_block(block);
 
     if(write) memcpy(&(write_to_ptr[BLOCK_CHUNK_MAX*write_idx]), &(data[BLOCK_CHUNK_BEGIN_IDX]), write_size);
 
