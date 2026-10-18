@@ -112,7 +112,8 @@ typedef struct
 #define BOOT_FAULT_HARD        0xFA017000u
 
 // The update mode on USB. The HOJA Gamepad IDs, told apart from a running gamepad by the device
-// version; its own serial gives Windows a separate device, and its MS OS 2.0 descriptors bind WinUSB.
+// version (0xB0 in its high byte); its serial is the build id (a separate device to Windows, the board
+// to the app), and its MS OS 2.0 descriptors bind WinUSB.
 #define BOOT_USB_VID 0x2E8Au
 #define BOOT_USB_PID 0x10C6u
 #define BOOT_USB_BCD 0xB001u

@@ -4,7 +4,6 @@
 
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
-#include "pico/unique_id.h"
 #include "hardware/flash.h"
 #include "hardware/watchdog.h"
 
@@ -136,7 +135,6 @@ static const uint8_t _boot_usb_bos[] = {
 };
 
 static uint8_t _boot_usb_ms_os_20[BOOT_USB_MS_OS_20_LEN];
-static char _boot_usb_serial[2u * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1u];
 static uint16_t _boot_usb_string[48];
 
 static uint8_t _boot_pb_rhport;
@@ -641,7 +639,9 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
             break;
 
         case 3:
-            text = _boot_usb_serial;
+            // The build id: the app knows the board before opening it, and the browser's permission
+            // covers every controller of the kind
+            text = BOOT_BUILD_ID;
             break;
 
         case 4:
@@ -744,7 +744,6 @@ static bool _boot_host_gone(uint32_t now_ms)
 void boot_usb_run(bool app_valid)
 {
     _boot_usb_build_ms_os_20();
-    pico_get_unique_board_id_string(_boot_usb_serial, sizeof(_boot_usb_serial));
     memcpy(_boot_first_sector, (const uint8_t *)(XIP_BASE + BOOT_LAYOUT_APP_OFFSET), FLASH_SECTOR_SIZE);
 
     tud_init(BOOT_USB_RHPORT);

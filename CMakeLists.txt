@@ -295,7 +295,7 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
     PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
     PICO_PANIC_FUNCTION=boot_panic
   )
-  target_link_libraries(${_boot} PRIVATE pico_stdlib pico_unique_id hardware_flash tinyusb_device)
+  target_link_libraries(${_boot} PRIVATE pico_stdlib hardware_flash tinyusb_device)
   pico_enable_stdio_usb(${_boot} 0)
   pico_enable_stdio_uart(${_boot} 0)
   # It prints nothing and counts in integers: none of their code in its 32 KB. TinyUSB logs through
