@@ -382,15 +382,16 @@ void anm_set_idle_enable(bool enable)
 
 // Auto mode, or following the dongle: every LED shows the player LED color until the mode is
 // confirmed, with the player LEDs playing the connecting animation. The mode's own lighting keeps
-// running underneath (static modes only draw once), then fades in. The config app connected meanwhile
-// ends it too: Auto waits for the app, and the app shows the lighting it edits.
+// running underneath (static modes only draw once), then fades in. The config app connected while Auto
+// waits for it (on external power) keeps it, with steady white player LEDs: the mode underneath is only
+// the one Auto was trying when it paused.
 static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 static bool _anm_auto_hold(void)
 {
     static bool holding = false;
 
-    if((!autodetect_pending() && !transport_dongle_choosing()) || rgb_get_app_link())
+    if(!autodetect_pending() && !transport_dongle_choosing())
     {
         if(holding)
         {

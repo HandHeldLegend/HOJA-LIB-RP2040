@@ -31,4 +31,7 @@ bool ble_config_active(void);
 // Open the beacon as Plus + Minus would (the radio just came up for it, in a wired mode)
 void ble_config_open_beacon(void);
 
+// Open the beacon again once the radio restarts (a mode change on its way)
+void ble_config_reopen_beacon(void);
+
 #endif

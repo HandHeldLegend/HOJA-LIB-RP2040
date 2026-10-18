@@ -70,6 +70,11 @@ bool autodetect_bt_probe_pending(void);
 // The config app holds the radio: Auto's waits stop (each step past them restarts the radio under
 // the app) and start over in full once it lets go
 void autodetect_pause(bool paused);
+
+// The config app's beacon opened while nothing is connected and the gamepad isn't on external power:
+// the app is the session, so Auto stops looking and settles on this mode now. False when Auto is done,
+// already switching, or on external power (a cable may still bring a host).
+bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport);
 // The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED. True when Switch mode carries
 // on, false when another mode takes over.
 bool autodetect_bt_probe_result(core_reportformat_t found);

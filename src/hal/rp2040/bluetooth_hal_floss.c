@@ -399,6 +399,7 @@ static uint8_t _reconnect_tries = 0;
 // The config app with no game connected (see _bt_hal_config_hold_poll)
 static bool _cfg_hold = false;
 static bool _cfg_app_alone = false; // The app is (or was, until it left) connected with no game link
+static bool _cfg_dongle_hold = false; // The dongle link holds off for the app (floss_link_hold)
 
 // Wii
 static floss_timer_t _wii_reconnect_timer;
@@ -1059,11 +1060,19 @@ static bool _bt_hal_game_link(void)
 
 static void _bt_hal_config_session_poll(void)
 {
-    if (_config_only)
-        return;
-    const bool game = _bt_hal_game_link();
+    // A wired mode's radio is the app's alone. Settled, the game is on the cable; while Auto still
+    // checks USB nothing is, and the app stands in for a wireless session as anywhere else.
+    const bool game = _config_only ? !autodetect_pending() : _bt_hal_game_link();
 
-    // Auto mode waits while the app has the radio: its next step would restart it
+    // Start + Select while Auto is still looking and nothing is connected: the app is the session.
+    // Auto settles on SInput (its own fallback) straight away, before the app has connected, and the
+    // beacon opens again once the radio is back in that mode.
+    if (ble_config_active() && !ble_config_connected() && !game &&
+        autodetect_settle(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH))
+        ble_config_reopen_beacon();
+
+    // Otherwise (on external power) Auto waits while the app has the radio: its next step would
+    // restart it
     autodetect_pause(ble_config_active() && !game);
 
     // The app alone, then gone: power off. A drop in the middle of an update isn't the app leaving
@@ -1082,11 +1091,27 @@ static void _bt_hal_config_session_poll(void)
 
 static void _bt_hal_config_hold_poll(void)
 {
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+    // The dongle link calls the dongle it remembers and searches for any other just the same (Auto
+    // starts there): it holds off too. Releasing it carries on calling from the start.
+    if (_mode_dongle)
+    {
+        bool hold = ble_config_active() && !_bt_hal_dongle_link_up() && !_pairing_mode;
+        if (hold != _cfg_dongle_hold)
+        {
+            _cfg_dongle_hold = hold;
+            floss_link_hold(hold);
+        }
+        return;
+    }
+#endif
+
     bool want = ble_config_active() && !_connected && !_config_only && !_mode_dongle && !_pairing_mode;
 
     if (want && !_cfg_hold)
     {
-        _cfg_hold = true;        floss_timer_stop(&_reconnect_timer);
+        _cfg_hold = true;
+        floss_timer_stop(&_reconnect_timer);
         floss_timer_stop(&_wii_reconnect_timer);
         floss_timer_stop(&_wii_page_stall_timer);
         _wii_page_pending = false;
@@ -2180,6 +2205,7 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _connected = false;
     _cfg_hold = false;
     _cfg_app_alone = false;
+    _cfg_dongle_hold = false; // A fresh link starts without it
     _probe_paused = false;
     autodetect_pause(false); // A restart drops the app's link
     _send_pending = false;
@@ -2287,6 +2313,9 @@ void transport_bt_stop()
 // is set up.
 static bool _bt_hal_stack_bringup(core_params_s *params)
 {
+    // A wired mode may have brought the radio up for the app alone (Auto's USB check does): this
+    // transport runs it fully, so the restart below brings it back that way
+    _config_only = false;
     _bt_hal_params = params;
 
     if (!_bt_hal_params || !_bt_hal_params->hid_device)
@@ -2297,7 +2326,12 @@ static bool _bt_hal_stack_bringup(core_params_s *params)
     if (autodetect_bt_probe_pending() && !_mode_dongle)
         _bt_mode_ready = false;
     else
+    {
+        // A mode is settled: a probe still under way belonged to Auto
+        _probe_running = false;
+        _probe_paused = false;
         _bt_hal_mode_setup(params);
+    }
 
     if (!_bt_stack_up)
     {

@@ -20,6 +20,7 @@
 #include "hoja.h"
 #include "hoja_bsp.h"
 #include "utilities/tasks.h"
+#include "utilities/autodetect.h"
 
 typedef enum
 {
@@ -517,7 +518,8 @@ void transport_jb64_task(uint64_t timestamp)
 
   // 8s with no poll -> power off, but only where ship mode can actually cut
   // power; otherwise hoja_shutdown() would reboot-loop (e.g. USB dev boards).
-  if((elapsed >= N64_SHUTDOWN_US) && battery_has_driver())
+  // Auto still deciding isn't this mode yet (the config app can hold Auto here)
+  if((elapsed >= N64_SHUTDOWN_US) && battery_has_driver() && !autodetect_pending())
   {
     hoja_deinit(hoja_shutdown);
   }

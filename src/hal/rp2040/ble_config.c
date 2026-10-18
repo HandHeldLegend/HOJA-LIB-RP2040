@@ -708,6 +708,13 @@ static void _ble_cfg_beacon_start(uint64_t now_us)
     _ble_cfg_beacon_until = now_us + BLE_CFG_BEACON_US;
 }
 
+static bool _ble_cfg_reopen = false;
+
+void ble_config_reopen_beacon(void)
+{
+    _ble_cfg_reopen = true;
+}
+
 void ble_config_setup(const char *name, bool slow_beacon)
 {
     // A restart drops every link without callbacks
@@ -724,6 +731,12 @@ void ble_config_setup(const char *name, bool slow_beacon)
     uint16_t base = floss_gatt_register(_ble_cfg_service, FLOSS_ARRAY_SIZE(_ble_cfg_service));
     _ble_cfg_tx_handle = base ? (uint16_t)(base + 4u) : 0;
     floss_le_add_listener(_ble_cfg_le_event, NULL);
+
+    if (_ble_cfg_reopen)
+    {
+        _ble_cfg_reopen = false;
+        ble_config_open_beacon();
+    }
 }
 
 void ble_config_task(uint64_t now_us)

@@ -16,6 +16,7 @@
 
 #include "board_config.h"
 #include "utilities/tasks.h"
+#include "utilities/autodetect.h"
 
 #if defined(HOJA_TRANSPORT_NESBUS_DRIVER) && (HOJA_TRANSPORT_NESBUS_DRIVER == NESBUS_DRIVER_HAL)
 
@@ -250,7 +251,8 @@ void transport_nesbus_task(uint64_t timestamp)
 
     // Only power off where ship mode can actually cut power; otherwise
     // hoja_shutdown() would reboot-loop (e.g. dev boards powered over USB).
-    if((elapsed >= NESBUS_SHUTDOWN_US) && battery_has_driver())
+    // Auto still deciding isn't this mode yet (the config app can hold Auto here)
+    if((elapsed >= NESBUS_SHUTDOWN_US) && battery_has_driver() && !autodetect_pending())
     {
         hoja_deinit(hoja_shutdown);
     }

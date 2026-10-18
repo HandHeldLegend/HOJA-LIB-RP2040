@@ -367,6 +367,15 @@ void autodetect_switch_done(void)
         _confirmed = true;
 }
 
+bool autodetect_settle(core_reportformat_t format, gamepad_transport_t transport)
+{
+    if(_phase == PHASE_OFF || _phase == PHASE_DONE || _confirmed || _switch_pending) return false;
+    if(_power == AUTODETECT_POWER_EXTERNAL) return false;
+    _retro_port_watch(false, false);
+    _switch_to(format, transport, PHASE_DONE);
+    return true;
+}
+
 void autodetect_on_connected(void)
 {
     if(_phase == PHASE_N64) _confirmed = true;
