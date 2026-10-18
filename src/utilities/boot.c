@@ -655,9 +655,8 @@ void boot_init(void)
     if (auto_mode)
         _boot_info.reportformat = CORE_REPORTFORMAT_SWPRO;
 
-    // 4. Pairing enable combo (boot_pairing_format). On battery, pairing a Switch or a PC is
-    //    Bluetooth pairing, with no dongle search first: a new dongle needs no pairing mode, the link
-    //    takes any free one when the remembered one doesn't answer.
+    // 4. Pairing enable combo (boot_pairing_format). On battery, pairing a Switch or a PC takes an
+    //    open dongle first (remembering it), else pairs over Bluetooth (autodetect_pairing, below).
     if (boot_combo_pairing(&input))
     {
         const bool on_battery = (power == AUTODETECT_POWER_BATTERY);
@@ -684,6 +683,13 @@ void boot_init(void)
 
     // A wired format chosen through boot memory still needs its bus
     boot_apply_wired_transport_default(_boot_info.reportformat, &_boot_info);
+
+    // Pairing a Switch or a PC on battery, from the combo or the pairing macro's restart
+    const bool pc_or_switch_now = (_boot_info.reportformat == CORE_REPORTFORMAT_SWPRO) ||
+                                  (_boot_info.reportformat == CORE_REPORTFORMAT_SINPUT);
+    if (_boot_info.pairing && pc_or_switch_now && (_boot_info.transport == GAMEPAD_TRANSPORT_BLUETOOTH) &&
+        (power == AUTODETECT_POWER_BATTERY))
+        autodetect_pairing(&_boot_info);
 
     // Auto with nothing in boot memory and nothing else picked (pairing, LB): detect,
     // starting from the power source

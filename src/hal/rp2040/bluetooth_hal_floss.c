@@ -441,6 +441,7 @@ static void _bt_hal_probe_next(void);
 static void _bt_hal_beacon_stop(void);
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static void _bt_hal_beacon_remember(void);
+static void _bt_hal_beacon_call(void);
 #endif
 static void _bt_hal_swift_pair_stop(void);
 
@@ -1751,6 +1752,8 @@ static bool _bt_hal_dongle_apply(void)
     _link_cfg.peer_name = DONGLE_LINK_NAME;
     _link_cfg.classic_pad_connects = true; // We find the dongle and run the link
     _link_cfg.classic_store_keys = false;  // It pairs every time; we remember its address only
+    // Only pairing makes a new dongle the remembered one
+    _link_cfg.classic_remember_peer = _pairing_mode;
     _link_cfg.report_interval_us = DONGLE_LINK_INTERVAL_DEFAULT_US;
     _dongle_link_iv = DONGLE_LINK_INTERVAL_DEFAULT_US;
     // The radio reports delivered packets two at a time, 3-8 ms late: room for that many, so
@@ -1760,7 +1763,10 @@ static bool _bt_hal_dongle_apply(void)
     // A dongle that is on answers a page within ~160 ms: give up on the remembered one quickly and
     // search for any other (Auto mode only looks for a dongle for a few seconds at power-up)
     _link_cfg.classic_page_timeout_ms = 1280;
-    return floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) == FLOSS_OK;
+    if (floss_link_init(&_link_cfg, &_bt_hal_dongle_callbacks) != FLOSS_OK)
+        return false;
+    _bt_hal_beacon_call();
+    return true;
 }
 
 // One app packet for this tick: a reliable message (our identity, reports that must arrive, config
@@ -1971,15 +1977,16 @@ static void _bt_hal_swift_pair_timeout(floss_timer_t *t, void *arg)
 }
 
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
-// Auto listens for a free dongle's beacon (dongle_link.h) once the radio is up, before it calls any
-// host: one heard is called instead. The listen hears a beacon twice; the calls then have the radio to
+// A wireless start listens for a free dongle's beacon (dongle_link.h) once the radio is up, before it
+// calls any host or pairs: one heard is called instead. The listen hears a beacon twice; the calls then have the radio to
 // themselves (listening on behind them slowed them, and once made the last host miss its call).
 #define BT_HAL_BEACON_LISTEN_US   120000u
 #define BT_HAL_BEACON_SCAN_WINDOW 0x0030 // 30 ms, scanning all the time
 
 static floss_timer_t _beacon_timer;
 static floss_addr_t _beacon_addr;
-static bool _beacon_new = false; // Heard from a dongle we don't remember: remembered at the link start
+static bool _beacon_new = false;   // Heard from a dongle we don't remember: called at the link start
+static bool _beacon_taken = false; // This boot's dongle came from a beacon: the link calls it, no search
 
 // Ours is taken the moment it's heard. Otherwise the strongest other free dongle heard during the
 // listen is, at its end, as the search before it took the strongest that answered.
@@ -1993,6 +2000,7 @@ static void _bt_hal_beacon_take(const floss_addr_t *addr, bool ours)
     _bt_hal_beacon_stop();
     _beacon_addr = *addr;
     _beacon_new = !ours;
+    _beacon_taken = true;
     autodetect_dongle_heard();
 }
 
@@ -2048,6 +2056,8 @@ static bool _bt_hal_beacon_scan(uint16_t window, uint16_t interval)
     return floss_le_scan_start(&p, _bt_hal_beacon_report, NULL) == FLOSS_OK;
 }
 
+static void _bt_hal_start_calls(void);
+
 static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
 {
     (void)t;
@@ -2058,7 +2068,8 @@ static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
         return;
     }
     _bt_hal_beacon_stop();
-    _bt_hal_connect_resume();
+    autodetect_dongle_listen_end();
+    _bt_hal_start_calls();
 }
 
 // Once per boot. True when the host calls wait for it.
@@ -2075,14 +2086,26 @@ static bool _bt_hal_beacon_listen(void)
     return true;
 }
 
-// The link calls the dongle whose beacon was heard first
+// The link calls the dongle whose beacon was heard first. Pairing makes a new one the remembered
+// dongle (before the link starts); otherwise it is called for this session only (after).
 static void _bt_hal_beacon_remember(void)
 {
-    if (_beacon_new)
+    if (_beacon_new && _pairing_mode)
+    {
         floss_link_remember_peer(FLOSS_LINK_CLASSIC, &_beacon_addr);
+        _beacon_new = false;
+    }
+}
+
+static void _bt_hal_beacon_call(void)
+{
+    if (_beacon_new)
+        floss_link_call_first(&_beacon_addr);
     _beacon_new = false;
 }
 #else
+static bool _beacon_taken = false;
+
 static void _bt_hal_beacon_stop(void)
 {
 }
@@ -2093,6 +2116,19 @@ static bool _bt_hal_beacon_listen(void)
 }
 #endif
 
+// After the listen for a dongle: pairing, or calling the hosts
+static void _bt_hal_start_calls(void)
+{
+    if (_pairing_mode)
+    {
+        _bt_hal_set_discoverable(true);
+        if (_mode_sinput)
+            _bt_hal_swift_pair_start();
+        return;
+    }
+    _bt_hal_connect_resume();
+}
+
 static void _bt_hal_on_ready(void)
 {
     BOOT_TIMELINE(TL_READY, _mode_dongle);
@@ -2102,10 +2138,11 @@ static void _bt_hal_on_ready(void)
     if (_config_only)
         return;
 
-    // Dongle mode: the link pages the dongle it remembers, else searches (pairing mode: any dongle)
+    // Dongle mode: the link pages the dongle it remembers, else searches (pairing mode: any dongle,
+    // unless one was heard: it calls that one)
     if (_mode_dongle)
     {
-        if (_pairing_mode)
+        if (_pairing_mode && !_beacon_taken)
             floss_link_pair();
         return;
     }
@@ -2121,21 +2158,14 @@ static void _bt_hal_on_ready(void)
             _bt_hal_wii_write_iac();
     }
 
-    if (_pairing_mode)
-    {
-        _bt_hal_set_discoverable(true);
-        if (_mode_sinput)
-            _bt_hal_swift_pair_start();
-        return;
-    }
-    else if (!_bt_mode_ready && !autodetect_bt_probe_pending())
+    if (!_pairing_mode && !_bt_mode_ready && !autodetect_bt_probe_pending())
     {
         // The probe gave up before deciding: set up this mode now
         _bt_hal_mode_setup(core_current_params());
         _bt_hal_restart();
     }
     else if (!_bt_hal_beacon_listen())
-        _bt_hal_connect_resume();
+        _bt_hal_start_calls();
 }
 
 static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
@@ -2792,11 +2822,6 @@ bool transport_dongle_take_mode(core_reportformat_t *format)
 bool transport_dongle_choosing(void)
 {
     return _dongle_running && !_dongle_cfg.mode_forced && !dongle_api_gamepad_adopted();
-}
-
-bool transport_dongle_known(void)
-{
-    return floss_link_stored_peer(FLOSS_LINK_CLASSIC, NULL);
 }
 
 uint8_t transport_dongle_static_supported(void)

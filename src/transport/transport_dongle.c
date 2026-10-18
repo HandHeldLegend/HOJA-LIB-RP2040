@@ -32,11 +32,6 @@ __attribute__((weak)) bool transport_dongle_choosing(void)
     return false;
 }
 
-__attribute__((weak)) bool transport_dongle_known(void)
-{
-    return false;
-}
-
 __attribute__((weak)) uint8_t transport_dongle_static_supported(void)
 {
     return 0;
