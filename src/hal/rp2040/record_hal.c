@@ -14,22 +14,18 @@
 #include "hal/rp2040/bt_flash_bank.h"
 #include "utilities/crc32.h"
 
-// flash_hal keeps its pages below the Bluetooth pairings only with FLOSS
-#if !(defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS)
-#error "record_hal: a bootloader board without FLOSS needs its own end for the pool"
-#endif
-
-// The pool: the bootloader's top area, short of flash_hal's two pages below the Bluetooth pairings:
-// page 0, the settings from before profiles (left as they were, so older firmware still finds them),
-// and page 1, kept for Mii data
-#define RECORD_HAL_FLASH_HAL_PAGES 2u
-#define RECORD_HAL_POOL_OFFSET     BOOT_LAYOUT_TOP_OFFSET
-#define RECORD_HAL_POOL_END        (BT_FLASH_BANK_OFFSET - RECORD_HAL_FLASH_HAL_PAGES * FLASH_SECTOR_SIZE)
-#define RECORD_HAL_POOL_SECTORS    ((RECORD_HAL_POOL_END - RECORD_HAL_POOL_OFFSET) / FLASH_SECTOR_SIZE)
-#define RECORD_HAL_MAGIC           0x43455248u // "HREC"
-#define RECORD_HAL_NONE            0xFFu       // No sector
+// The pool: the bootloader's top area, short of its last four sectors, the same on every board.
+// With FLOSS they hold the Bluetooth pairings (two) and flash_hal's two pages below them: page 0, the
+// settings from before profiles (left as they were, so older firmware still finds them), and page 1,
+// kept for Mii data. Boards without FLOSS keep their old settings page lower down and these spare.
+#define RECORD_HAL_RESERVED_SECTORS 4u
+#define RECORD_HAL_POOL_OFFSET      BOOT_LAYOUT_TOP_OFFSET
+#define RECORD_HAL_POOL_END         (PICO_FLASH_SIZE_BYTES - RECORD_HAL_RESERVED_SECTORS * FLASH_SECTOR_SIZE)
+#define RECORD_HAL_POOL_SECTORS     ((RECORD_HAL_POOL_END - RECORD_HAL_POOL_OFFSET) / FLASH_SECTOR_SIZE)
+#define RECORD_HAL_MAGIC            0x43455248u // "HREC"
+#define RECORD_HAL_NONE             0xFFu       // No sector
 // The other core's time to stop for a write; a busy core fails the write, which is tried again
-#define RECORD_HAL_LOCKOUT_MS      100u
+#define RECORD_HAL_LOCKOUT_MS       100u
 
 typedef struct
 {
@@ -42,6 +38,10 @@ typedef struct
 } record_hal_header_s;
 
 _Static_assert(sizeof(record_hal_header_s) == RECORD_HAL_HEADER_LEN, "record header size");
+#if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
+_Static_assert(RECORD_HAL_POOL_END == BT_FLASH_BANK_OFFSET - 2u * FLASH_SECTOR_SIZE,
+               "the pool ends below flash_hal's two pages under the Bluetooth pairings");
+#endif
 _Static_assert(RECORD_HAL_SECTOR_LEN == FLASH_SECTOR_SIZE, "a record is one flash sector");
 _Static_assert(RECORD_HAL_IDS < RECORD_HAL_POOL_SECTORS, "a write needs a sector no newest copy holds");
 _Static_assert(RECORD_HAL_POOL_SECTORS < RECORD_HAL_NONE, "a sector index fits a byte");

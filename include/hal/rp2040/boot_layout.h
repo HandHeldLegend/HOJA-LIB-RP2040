@@ -46,9 +46,14 @@
 // needs its own room as well, below the header and above both the old and the new firmware.
 #define BOOT_LAYOUT_APP_MAX             (BOOT_LAYOUT_STAGE_HEADER_OFFSET - BOOT_LAYOUT_APP_OFFSET)
 
-// An application image starts with its own copy of the second stage (unused: the bootloader's ran),
-// so it is laid out as any Pico image and its vector table follows it
+// An RP2040 application image starts with its own copy of the second stage (unused: the
+// bootloader's ran), so it is laid out as any Pico image and its vector table follows it. An RP2350
+// image has none: its vector table comes first.
+#if PICO_RP2040
 #define BOOT_LAYOUT_BOOT2_SIZE          0x100u
+#else
+#define BOOT_LAYOUT_BOOT2_SIZE          0u
+#endif
 #define BOOT_LAYOUT_APP_VECTORS_OFFSET  (BOOT_LAYOUT_APP_OFFSET + BOOT_LAYOUT_BOOT2_SIZE)
 
 // Every region is erased and written in whole sectors, and the stage header is one of them

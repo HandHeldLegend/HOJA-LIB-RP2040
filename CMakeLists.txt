@@ -160,9 +160,15 @@ target_link_libraries(hoja_bt_btstack INTERFACE
   ${BLUETOOTH_DRIVERS}
 )
 
-# The SDK's default RP2040 linker script, which hoja_use_floss and hoja_use_bootloader patch
+# The SDK's default linker script for the chip (RP2040, or the RP2350's Arm cores), which
+# hoja_use_floss and hoja_use_bootloader patch
 function(_hoja_sdk_linker_script OUT_VAR)
-  set(${OUT_VAR} ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld PARENT_SCOPE)
+  if(PICO_PLATFORM MATCHES "^rp2350")
+    set(_chip rp2350)
+  else()
+    set(_chip rp2040)
+  endif()
+  set(${OUT_VAR} ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/${_chip}/memmap_default.ld PARENT_SCOPE)
 endfunction()
 
 # Linker script text in TEXT_VAR, its flash region cut to LENGTH bytes from the start of flash

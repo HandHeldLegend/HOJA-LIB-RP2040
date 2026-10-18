@@ -8,9 +8,9 @@
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
 #include "hardware/watchdog.h"
+#include "hardware/structs/nvic.h"
 #include "hardware/structs/scb.h"
 #include "hardware/structs/systick.h"
-#include "hardware/regs/m0plus.h"
 
 #include "hal/rp2040/boot_layout.h"
 #include "boot_stage.h"
@@ -19,9 +19,9 @@
 #define BOOT_APP_BASE    (XIP_BASE + BOOT_LAYOUT_APP_OFFSET)
 #define BOOT_APP_VECTORS (XIP_BASE + BOOT_LAYOUT_APP_VECTORS_OFFSET)
 
-// A Pico image's binary info header follows its vector table within this many bytes; picotool
-// finds it the same way
-#define BOOT_BI_SEARCH_LEN 256u
+// A Pico image's binary info header follows its vector table (68 words on an RP2350, 48 on an
+// RP2040) within this many bytes
+#define BOOT_BI_SEARCH_LEN 512u
 // The header's end marker, in words after its start marker
 #define BOOT_BI_END_WORDS  4u
 
@@ -101,8 +101,19 @@ static void __attribute__((noreturn)) _boot_start_app(void)
 
     __asm volatile("cpsid i" ::: "memory");
     systick_hw->csr = 0;
-    *(io_rw_32 *)(PPB_BASE + M0PLUS_NVIC_ICER_OFFSET) = 0xFFFFFFFFu;
-    *(io_rw_32 *)(PPB_BASE + M0PLUS_NVIC_ICPR_OFFSET) = 0xFFFFFFFFu;
+#if PICO_RP2040
+    nvic_hw->icer = 0xFFFFFFFFu;
+    nvic_hw->icpr = 0xFFFFFFFFu;
+#else
+    for (uint32_t i = 0; i < count_of(nvic_hw->icer); i++)
+    {
+        nvic_hw->icer[i] = 0xFFFFFFFFu;
+        nvic_hw->icpr[i] = 0xFFFFFFFFu;
+    }
+    // The boot ROM set the stack limit for the bootloader; the firmware starts with none, as the
+    // SDK's own entry does
+    __asm volatile("msr msplim, %0" ::"r"(0u));
+#endif
     scb_hw->vtor = (uint32_t)vectors;
 
     __asm volatile(
