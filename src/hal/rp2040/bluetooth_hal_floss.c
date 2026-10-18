@@ -438,6 +438,10 @@ static void _bt_hal_mode_setup(core_params_s *params);
 static void _bt_hal_restart(void);
 static void _bt_hal_restart_as(const uint8_t *mac);
 static void _bt_hal_probe_next(void);
+static void _bt_hal_beacon_stop(void);
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+static void _bt_hal_beacon_remember(void);
+#endif
 static void _bt_hal_swift_pair_stop(void);
 
 /***********************************************/
@@ -1059,6 +1063,7 @@ static void _bt_hal_probe_add(core_reportformat_t format, const uint8_t *addr)
 
 static void _bt_hal_probe_finish(core_reportformat_t found)
 {
+    _bt_hal_beacon_stop();
     _probe_running = false;
     _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
 
@@ -1265,6 +1270,7 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
 {
     BOOT_TIMELINE(TL_HOST, core_current_reportformat());
     autodetect_bt_direct_result(true);
+    _bt_hal_beacon_stop();
     floss_timer_stop(&_wii_reconnect_timer);
 
     uint8_t *addr_location = NULL;
@@ -1739,6 +1745,7 @@ static bool _bt_hal_dongle_link_up(void)
 
 static bool _bt_hal_dongle_apply(void)
 {
+    _bt_hal_beacon_remember();
     floss_link_config_defaults(&_link_cfg, FLOSS_LINK_ROLE_PAD, FLOSS_LINK_CLASSIC);
     _link_cfg.name = _bt_hal_hid ? _bt_hal_hid->name : "HOJA Gamepad";
     _link_cfg.peer_name = DONGLE_LINK_NAME;
@@ -1963,6 +1970,108 @@ static void _bt_hal_swift_pair_timeout(floss_timer_t *t, void *arg)
     floss_le_adv_stop();
 }
 
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+// Auto listens for a free dongle's beacon (dongle_link.h) once the radio is up, before it calls any
+// host: one heard is called instead. The listen hears a beacon twice; the calls then have the radio to
+// themselves (listening on behind them slowed them, and once made the last host miss its call).
+#define BT_HAL_BEACON_LISTEN_US   120000u
+#define BT_HAL_BEACON_SCAN_WINDOW 0x0030 // 30 ms, scanning all the time
+// Another free dongle than ours: only one this close (ours is taken from anywhere)
+#define BT_HAL_BEACON_RSSI_MIN    (-70)
+
+static floss_timer_t _beacon_timer;
+static floss_addr_t _beacon_addr;
+static bool _beacon_new = false; // Heard from a dongle we don't remember: remembered at the link start
+
+static void _bt_hal_beacon_stop(void)
+{
+    floss_timer_stop(&_beacon_timer);
+    if (floss_le_scanning())
+        floss_le_scan_stop();
+}
+
+static void _bt_hal_beacon_report(const floss_le_adv_report_t *report, void *user)
+{
+    (void)user;
+    if (!autodetect_dongle_listen())
+    {
+        _bt_hal_beacon_stop();
+        return;
+    }
+
+    uint8_t len = 0;
+    const uint8_t *m = floss_le_ad_find(report->data, report->len, 0xFF, &len);
+    if (!m || (len < DONGLE_LINK_BEACON_DATA_LEN) ||
+        (m[0] != (DONGLE_LINK_BEACON_COMPANY & 0xFF)) || (m[1] != (DONGLE_LINK_BEACON_COMPANY >> 8)) ||
+        (m[2] != DONGLE_LINK_BEACON_MAGIC0) || (m[3] != DONGLE_LINK_BEACON_MAGIC1) ||
+        (m[4] != DONGLE_LINK_BEACON_VERSION))
+        return;
+
+    floss_addr_t addr;
+    memcpy(addr.b, &m[5], 6);
+    floss_addr_t known;
+    const bool ours = floss_link_stored_peer(FLOSS_LINK_CLASSIC, &known) && floss_addr_eq(&known, &addr);
+    if (!ours && (report->rssi < BT_HAL_BEACON_RSSI_MIN))
+        return;
+
+    BOOT_TIMELINE(TL_BEACON, ours);
+    _bt_hal_beacon_stop();
+    _beacon_addr = addr;
+    _beacon_new = !ours;
+    autodetect_dongle_heard();
+}
+
+static bool _bt_hal_beacon_scan(uint16_t window, uint16_t interval)
+{
+    if (floss_le_scanning())
+        floss_le_scan_stop();
+    floss_le_scan_params_t p;
+    floss_le_scan_params_defaults(&p);
+    p.window = window;
+    p.interval = interval;
+    p.active = false;
+    return floss_le_scan_start(&p, _bt_hal_beacon_report, NULL) == FLOSS_OK;
+}
+
+static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
+{
+    (void)t;
+    (void)arg;
+    _bt_hal_beacon_stop();
+    _bt_hal_connect_resume();
+}
+
+// Once per boot. True when the host calls wait for it.
+static bool _bt_hal_beacon_listen(void)
+{
+    static bool listened = false;
+    if (listened || !autodetect_dongle_listen())
+        return false;
+    if (!_bt_hal_beacon_scan(BT_HAL_BEACON_SCAN_WINDOW, BT_HAL_BEACON_SCAN_WINDOW))
+        return false;
+    listened = true;
+    floss_timer_start(&_beacon_timer, BT_HAL_BEACON_LISTEN_US);
+    return true;
+}
+
+// The link calls the dongle whose beacon was heard first
+static void _bt_hal_beacon_remember(void)
+{
+    if (_beacon_new)
+        floss_link_remember_peer(FLOSS_LINK_CLASSIC, &_beacon_addr);
+    _beacon_new = false;
+}
+#else
+static void _bt_hal_beacon_stop(void)
+{
+}
+
+static bool _bt_hal_beacon_listen(void)
+{
+    return false;
+}
+#endif
+
 static void _bt_hal_on_ready(void)
 {
     BOOT_TIMELINE(TL_READY, _mode_dongle);
@@ -2004,7 +2113,7 @@ static void _bt_hal_on_ready(void)
         _bt_hal_mode_setup(core_current_params());
         _bt_hal_restart();
     }
-    else
+    else if (!_bt_hal_beacon_listen())
         _bt_hal_connect_resume();
 }
 
@@ -2186,6 +2295,9 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
     floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
     floss_timer_init(&_swift_pair_timer, _bt_hal_swift_pair_timeout, NULL);
+#if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+    floss_timer_init(&_beacon_timer, _bt_hal_beacon_listened, NULL);
+#endif
 }
 
 // (Re)start the stack with this address. A restart resets the controller, which drops every link

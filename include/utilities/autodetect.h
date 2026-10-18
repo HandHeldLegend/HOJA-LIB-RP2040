@@ -9,9 +9,10 @@
 // External power: SInput over USB while watching the retro port. A host that asks for the BOS
 // descriptor is a computer (SInput), one that does not is a Switch. Joybus traffic means a
 // GameCube, latch pulses an SNES or NES.
-// Nothing found (battery, or a charger): Bluetooth. The paired HOJA dongle first, on boards that
-// reach it over Bluetooth: one that connects tells the controller the mode. Then the host that
-// connected last, called straight away in its mode (a Switch or a PC). Then each other saved host is
+// Nothing found (battery, or a charger): Bluetooth. On boards that reach the HOJA dongle over
+// Bluetooth, the controller first listens briefly for a free dongle's beacon: a dongle heard is
+// called, and tells the controller the mode. Otherwise the host that connected last is called
+// straight away in its mode (a Switch or a PC). If it doesn't answer, each other saved host is
 // checked (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it
 // settles on SInput, which reconnects to a saved PC or waits to be found.
 //
@@ -67,6 +68,11 @@ void autodetect_on_usb_bos(void);
 
 // The dongle connected while Auto mode looked for it (bluetooth_hal_floss.c)
 void autodetect_dongle_found(void);
+
+// Auto is looking for a host and would take a free dongle that announces itself (its LE beacon,
+// listened for by bluetooth_hal_floss.c): Auto then calls that dongle
+bool autodetect_dongle_listen(void);
+void autodetect_dongle_heard(void);
 
 // Calling the host that connected last, before any probe (bluetooth_hal_floss.c): whether it
 // connected. One that didn't is left out of the probe that follows.

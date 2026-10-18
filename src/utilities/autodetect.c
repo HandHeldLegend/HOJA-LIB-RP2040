@@ -230,6 +230,9 @@ static phase_t _fallback_phase = PHASE_BT;
 // The last host didn't answer its call: the probe leaves it out
 static core_reportformat_t _last_failed = CORE_REPORTFORMAT_UNDEFINED;
 
+// A dongle's beacon was heard and taken (once per boot: a dongle that then doesn't connect is left)
+static bool _dongle_heard = false;
+
 // Modes with a Bluetooth fallback that the dongle can also carry. Without a paired dongle there is
 // none to call, so the search would only hold up the hosts.
 static bool _dongle_first(core_reportformat_t format)
@@ -257,7 +260,9 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
         _fallback_phase = PHASE_BT_LAST;
     }
 
-    if(_dongle_first(*format))
+    // Auto listens for a free dongle's beacon while it calls hosts (autodetect_dongle_listen), so it
+    // only searches for one in a mode that was chosen
+    if((mode != CORE_REPORTFORMAT_UNDEFINED) && _dongle_first(*format))
     {
         *transport = GAMEPAD_TRANSPORT_DONGLE;
         *phase = PHASE_DONGLE;
@@ -398,6 +403,19 @@ void autodetect_bt_direct_result(bool connected)
     // Not awake: probe the other saved hosts
     _last_failed = _fallback_format;
     _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
+}
+
+bool autodetect_dongle_listen(void)
+{
+    return AUTODETECT_DONGLE && !_dongle_heard && !_confirmed && !_switch_pending &&
+           ((_phase == PHASE_BT_LAST) || (_phase == PHASE_BT));
+}
+
+void autodetect_dongle_heard(void)
+{
+    if(!autodetect_dongle_listen()) return;
+    _dongle_heard = true;
+    _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
 }
 
 bool autodetect_bt_skip_host(core_reportformat_t format)
