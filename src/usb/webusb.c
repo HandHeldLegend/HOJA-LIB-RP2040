@@ -6,6 +6,7 @@
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
 #include "utilities/profiles.h"
+#include "utilities/crc32.h"
 
 #include "input/analog.h"
 #include "input/imu.h"
@@ -38,23 +39,24 @@ static const webusb_sink_s _webusb_usb_sink = {
 
 static const webusb_sink_s *_webusb_sink = &_webusb_usb_sink;
 
-// Every sink belongs to one core: USB's to the core that runs the task loop (core 1, see hoja.c), the
-// dongle's and BLE's to the core that set them. A packet from the other core (the stick processing's
-// snapback capture) waits here, and that core's task loop sends it (webusb_send_rawinput). Straight
-// into TinyUSB from core 0 it raced core 1's own USB task: enough flick tests and USB froze.
+// Every sink belongs to one core: USB's to the core that runs the task loop, the dongle's and BLE's
+// to the core that set them. A packet from the other core (the stick processing's snapback capture,
+// a command finished there) waits here, and that core's task loop sends it (webusb_send_rawinput):
+// TinyUSB and the radio stacks aren't safe to call from both cores.
 #define WEBUSB_DEFERRED_LEN 4
 static uint8_t _webusb_deferred[WEBUSB_DEFERRED_LEN][64];
 static uint8_t _webusb_deferred_size[WEBUSB_DEFERRED_LEN];
 static volatile uint8_t _webusb_deferred_head = 0;
 static volatile uint8_t _webusb_deferred_tail = 0;
-static uint _webusb_sink_core = 1;
+#define WEBUSB_USB_CORE 1u // The task loop's core (hoja.c _hoja_task_1), where TinyUSB runs
+static uint _webusb_sink_core = WEBUSB_USB_CORE;
 
 void webusb_set_sink(const webusb_sink_s *sink)
 {
     // A session ended or began elsewhere: the game gets its input back
     mapper_hold_game_inputs(false);
     _webusb_sink = sink ? sink : &_webusb_usb_sink;
-    _webusb_sink_core = get_core_num();
+    _webusb_sink_core = sink ? get_core_num() : WEBUSB_USB_CORE;
     _webusb_deferred_tail = _webusb_deferred_head;
 }
 
@@ -262,18 +264,6 @@ void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool succe
     webusb_send_bulk(cmd_confirm_buffer, 4+size);
 }
 
-static uint32_t _webusb_crc32(const uint8_t *data, uint32_t size)
-{
-    uint32_t crc = 0xFFFFFFFFu;
-    for (uint32_t i = 0; i < size; i++)
-    {
-        crc ^= data[i];
-        for (int b = 0; b < 8; b++)
-            crc = (crc >> 1) ^ (0xEDB88320u & (uint32_t)-(int32_t)(crc & 1u));
-    }
-    return ~crc;
-}
-
 // The app keeps the blocks it read before and reads again only those whose CRC32 changed. Two
 // packets: [id][0 config blocks][count][CRC32 LE...] and [id][1 static blocks][count][CRC32 LE...],
 // each block's CRC over exactly the bytes a read of it sends (static blocks refreshed first).
@@ -293,7 +283,7 @@ static void _webusb_send_fingerprints(void)
             uint32_t len = 0;
             bool known = (kind == 0) ? settings_config_block_bytes((cfg_block_t)i, &bytes, &len)
                                      : static_config_block_bytes((static_block_t)i, &bytes, &len);
-            uint32_t crc = known ? _webusb_crc32(bytes, len) : 0;
+            uint32_t crc = known ? crc32_compute(bytes, len) : 0;
             memcpy(&out[3u + 4u * i], &crc, 4);
         }
         webusb_send_bulk(out, sizeof(out));
