@@ -200,6 +200,133 @@ function(hoja_use_floss TARGET)
   pico_set_linker_script(${TARGET} ${_ld_out})
 endfunction()
 
+# The HOJA bootloader in front of the firmware (include/hal/rp2040/boot_layout.h): the board's
+# board.cmake calls hoja_use_bootloader(${PROJECT_NAME} "<device name>" <flash bytes> <radio bytes>),
+# after hoja_use_floss. Radio bytes: the CYW43 firmware's fixed region (0 for boards without one).
+# The bootloader builds as <board>_boot; its binary and the radio region go into the firmware's ELF,
+# so the board's .bin and .uf2 hold all of it, written as one.
+function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
+  set(HOJA_LIB_DIR_ABS ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
+  # These match BOOT_LAYOUT_BOOT_SIZE and BOOT_LAYOUT_TOP_SIZE in boot_layout.h
+  set(HOJA_BOOT_SIZE 0x8000)
+  set(HOJA_BOOT_TOP_SIZE 0x10000)
+
+  math(EXPR _flash "${FLASH_BYTES}")
+  math(EXPR _radio "${RADIO_BYTES}")
+  # The firmware may fill everything up to the stage header (BOOT_LAYOUT_STAGE_HEADER_OFFSET)
+  math(EXPR _flash_region "${_flash} - ${HOJA_BOOT_TOP_SIZE} - 4096")
+
+  # The firmware: the bootloader's binary at the start of flash, the radio region after it, then
+  # the firmware. board.cmake runs twice, and hoja_use_floss sets its script again, so this patches
+  # whichever script the board has now.
+  get_target_property(_ld_in ${TARGET} PICO_TARGET_LINKER_SCRIPT)
+  if(NOT _ld_in)
+    set(_ld_in ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld)
+  endif()
+  set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_app_slot.ld)
+  if(NOT _ld_in STREQUAL _ld_out)
+    file(READ ${_ld_in} _ld)
+    set(_region "INCLUDE \"pico_flash_region.ld\"")
+    set(_begin "    .flash_begin : {")
+    string(FIND "${_ld}" "${_region}" _at_region)
+    string(FIND "${_ld}" "${_begin}" _at_begin)
+    if(_at_region EQUAL -1 OR _at_begin EQUAL -1)
+      message(FATAL_ERROR "hoja_use_bootloader: unexpected linker script ${_ld_in}")
+    endif()
+    string(REPLACE "${_region}" "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${_flash_region}" _ld "${_ld}")
+
+    string(CONCAT _front
+      "    .hoja_bootloader : {\n"
+      "        KEEP (*(.hoja_bootloader))\n"
+      "        . = ${HOJA_BOOT_SIZE};\n"
+      "    } > FLASH = 0xFF\n\n")
+    if(_radio GREATER 0)
+      # The CYW43 firmware at fixed addresses, behind its header (src/hal/rp2040/boot_radio.c)
+      string(APPEND _front
+        "    .hoja_radio : {\n"
+        "        KEEP (*(.hoja_radio_header))\n"
+        "        . = ALIGN(4);\n"
+        "        __hoja_radio_wifi_start = .;\n"
+        "        KEEP (*(.rodata.wb43439A0_*_combined))\n"
+        "        __hoja_radio_wifi_end = .;\n"
+        "        . = ALIGN(4);\n"
+        "        __hoja_radio_bt_start = .;\n"
+        "        KEEP (*(.rodata.cyw43_btfw_43439))\n"
+        "        __hoja_radio_bt_end = .;\n"
+        "        . = ${_radio};\n"
+        "    } > FLASH = 0xFF\n"
+        "    ASSERT(__hoja_radio_wifi_end > __hoja_radio_wifi_start && __hoja_radio_bt_end > __hoja_radio_bt_start,\n"
+        "        \"hoja_use_bootloader: the CYW43 firmware was not found for the radio region\")\n\n")
+    endif()
+    string(REPLACE "${_begin}" "${_front}${_begin}" _ld "${_ld}")
+    file(WRITE ${_ld_out} "${_ld}")
+    pico_set_linker_script(${TARGET} ${_ld_out})
+  endif()
+
+  get_target_property(_done ${TARGET} HOJA_BOOTLOADER)
+  if(_done)
+    return()
+  endif()
+  set_target_properties(${TARGET} PROPERTIES HOJA_BOOTLOADER ON)
+  target_compile_definitions(${TARGET} PRIVATE
+    HOJA_BOOTLOADER=1
+    HOJA_BOOT_FLASH_SIZE_BYTES=${_flash}
+    HOJA_BOOT_RADIO_SIZE=${_radio}
+  )
+
+  set(_boot ${TARGET}_boot)
+  add_executable(${_boot}
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_main.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_flash.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_stage.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_usb.c
+  )
+  target_include_directories(${_boot} PRIVATE
+    ${HOJA_LIB_DIR_ABS}/bootloader
+    ${HOJA_LIB_DIR_ABS}/include
+  )
+  target_compile_definitions(${_boot} PRIVATE
+    BOOT_DEVICE_NAME="${DEVICE_NAME}"
+    BOOT_BUILD_ID="${TARGET}"
+    PICO_FLASH_SIZE_BYTES=${_flash}
+    HOJA_BOOT_FLASH_SIZE_BYTES=${_flash}
+    HOJA_BOOT_RADIO_SIZE=${_radio}
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
+    PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
+    PICO_PANIC_FUNCTION=boot_panic
+  )
+  target_link_libraries(${_boot} PRIVATE pico_stdlib pico_unique_id hardware_flash tinyusb_device)
+  pico_enable_stdio_usb(${_boot} 0)
+  pico_enable_stdio_uart(${_boot} 0)
+  # It prints nothing and counts in integers: none of their code in its 32 KB. TinyUSB logs through
+  # printf in Debug builds (CFG_TUSB_DEBUG=1 for every user), which would panic here: none of that
+  # either (flags follow the SDK's definitions, so these win).
+  target_compile_options(${_boot} PRIVATE -UCFG_TUSB_DEBUG -DCFG_TUSB_DEBUG=0)
+  pico_set_printf_implementation(${_boot} none)
+  pico_set_float_implementation(${_boot} none)
+  pico_set_double_implementation(${_boot} none)
+  pico_set_program_name(${_boot} "${TARGET}")
+
+  # The bootloader has its own sectors and no more
+  file(READ ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld _boot_ld)
+  string(REPLACE "INCLUDE \"pico_flash_region.ld\"" "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${HOJA_BOOT_SIZE}"
+    _boot_ld "${_boot_ld}")
+  file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld "${_boot_ld}")
+  pico_set_linker_script(${_boot} ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld)
+
+  set_target_properties(${_boot} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  pico_add_bin_output(${_boot})
+  pico_add_dis_output(${_boot})
+
+  # Into the firmware's ELF, assembled again whenever the bootloader changes
+  set(_boot_bin ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.bin)
+  set(_boot_s ${CMAKE_CURRENT_BINARY_DIR}/${_boot}_image.S)
+  file(WRITE ${_boot_s} ".section .hoja_bootloader, \"a\"\n.incbin \"${_boot_bin}\"\n")
+  set_source_files_properties(${_boot_s} PROPERTIES OBJECT_DEPENDS ${_boot_bin})
+  target_sources(${TARGET} PRIVATE ${_boot_s})
+  add_dependencies(${TARGET} ${_boot})
+endfunction()
+
 # BTstack unless the board sets the HOJA_BT_FLOSS target property (hoja_use_floss)
 if(HOJA_USE_BT_HAL)
   message("HOJA BT DRIVERS IN USE")

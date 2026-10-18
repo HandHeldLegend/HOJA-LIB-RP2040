@@ -14,6 +14,10 @@
 
 #include "hoja_bsp.h"
 
+#if defined(HOJA_BOOTLOADER)
+#include "hal/rp2040/boot_layout.h"
+#endif
+
 #include "board_config.h"
 
 #if defined(HOJA_BLUETOOTH_DRIVER) && (HOJA_BLUETOOTH_DRIVER == BLUETOOTH_DRIVER_HAL)
@@ -30,7 +34,17 @@ void sys_hal_reboot()
 
 void sys_hal_bootloader()
 {
+#if defined(HOJA_BOOTLOADER)
+    // The HOJA bootloader's update mode: it reads the request once the watchdog has restarted the chip
+    watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX] = BOOT_REQUEST_UPDATE;
+    watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX + 1] = ~BOOT_REQUEST_UPDATE;
+    watchdog_reboot(0, 0, 0);
+    for (;;)
+    {
+    }
+#else
     reset_usb_boot(0, 0);
+#endif
 }
 
 void sys_hal_sleep_ms(uint32_t ms)

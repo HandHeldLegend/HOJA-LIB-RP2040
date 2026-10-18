@@ -24,6 +24,7 @@
 #define BT_HAL_ESP32 0
 #include "pico/cyw43_arch.h"
 #include "floss_cyw43.h"
+#include "hal/rp2040/boot_radio.h"
 #endif
 
 #include <string.h>
@@ -2176,7 +2177,10 @@ static bool _bt_hal_stack_bringup(core_params_s *params)
         if (!esp32_hci_backend_init(params))
             return false;
 #else
-        // Radio firmware, the shared bus and its background worker
+        // Radio firmware, the shared bus and its background worker; never with radio firmware other
+        // than the one this build was linked against
+        if (!boot_radio_ready())
+            return false;
         while (cyw43_arch_init())
         {
             sys_hal_sleep_ms(1000);
@@ -2343,6 +2347,8 @@ static bool _bt_hal_config_only_start(void)
     if (!esp32_hci_backend_init(params))
         return false;
 #else
+    if (!boot_radio_ready())
+        return false;
     while (cyw43_arch_init())
     {
         sys_hal_sleep_ms(1000);
@@ -2488,7 +2494,7 @@ uint8_t transport_dongle_static_part_status(void)
 static uint32_t _bt_hal_probe_wireless(void)
 {
     // If the init fails it returns true lol
-    if (cyw43_arch_init())
+    if (!boot_radio_ready() || cyw43_arch_init())
     {
         return 0x00;
     }
