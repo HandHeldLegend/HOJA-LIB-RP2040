@@ -36,12 +36,8 @@ void sys_hal_bootloader()
 {
 #if defined(HOJA_BOOTLOADER)
     // The HOJA bootloader's update mode: it reads the request once the watchdog has restarted the chip
-    watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX] = BOOT_REQUEST_UPDATE;
-    watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX + 1] = ~BOOT_REQUEST_UPDATE;
-    watchdog_reboot(0, 0, 0);
-    for (;;)
-    {
-    }
+    boot_request_set(BOOT_REQUEST_UPDATE);
+    sys_hal_reboot();
 #else
     reset_usb_boot(0, 0);
 #endif

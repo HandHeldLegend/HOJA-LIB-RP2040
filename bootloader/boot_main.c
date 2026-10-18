@@ -4,11 +4,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
-#include "hardware/flash.h"
 #include "hardware/watchdog.h"
 #include "hardware/structs/scb.h"
 #include "hardware/structs/systick.h"
@@ -23,36 +21,21 @@
 
 // A Pico image's binary info header follows its vector table within this many bytes; picotool
 // finds it the same way
-#define BOOT_BI_SEARCH_LEN   256u
-#define BOOT_BI_MARKER_START 0x7188EBF2u
-#define BOOT_BI_MARKER_END   0xE71AA390u
+#define BOOT_BI_SEARCH_LEN 256u
+// The header's end marker, in words after its start marker
+#define BOOT_BI_END_WORDS  4u
 
 bi_decl(bi_program_description("HOJA bootloader"));
 
 // --- Checks ---
 
-static bool _boot_update_requested(void)
-{
-    io_rw_32 *scratch = &watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX];
-    bool requested = (scratch[0] == BOOT_REQUEST_UPDATE) && (scratch[1] == ~BOOT_REQUEST_UPDATE);
-
-    // Once only: the update mode's own reboot starts the firmware. Any other request is the
-    // firmware's, and stays for it.
-    if (requested)
-    {
-        scratch[0] = 0;
-        scratch[1] = 0;
-    }
-    return requested;
-}
-
 static bool _boot_app_has_binary_info(void)
 {
     const uint32_t *word = (const uint32_t *)BOOT_APP_VECTORS;
 
-    for (uint32_t i = 0; i + 4u < BOOT_BI_SEARCH_LEN / 4u; i++)
+    for (uint32_t i = 0; i + BOOT_BI_END_WORDS < BOOT_BI_SEARCH_LEN / sizeof(uint32_t); i++)
     {
-        if ((word[i] == BOOT_BI_MARKER_START) && (word[i + 4u] == BOOT_BI_MARKER_END))
+        if ((word[i] == BINARY_INFO_MARKER_START) && (word[i + BOOT_BI_END_WORDS] == BINARY_INFO_MARKER_END))
             return true;
     }
     return false;
@@ -78,7 +61,8 @@ static bool _boot_app_valid(void)
 
 // --- Faults ---
 
-// A fault restarts the chip (the watchdog would, a little later) and leaves its record behind
+// A fault restarts the chip at once and leaves its record behind (the bootloader runs its watchdog
+// only in the update mode)
 static void __attribute__((noreturn)) _boot_fault(uint32_t what, uint32_t where)
 {
     watchdog_hw->scratch[BOOT_FAULT_SCRATCH_IDX] = what;
@@ -133,7 +117,9 @@ static void __attribute__((noreturn)) _boot_start_app(void)
 
 int main(void)
 {
-    if (!_boot_update_requested())
+    // Taken once: the update mode's own restart then starts the firmware. Any other request is the
+    // firmware's, and stays for it.
+    if (!boot_request_take(BOOT_REQUEST_UPDATE))
     {
         boot_stage_apply();
         if (_boot_app_valid())

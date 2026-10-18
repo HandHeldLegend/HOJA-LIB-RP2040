@@ -160,6 +160,22 @@ target_link_libraries(hoja_bt_btstack INTERFACE
   ${BLUETOOTH_DRIVERS}
 )
 
+# The SDK's default RP2040 linker script, which hoja_use_floss and hoja_use_bootloader patch
+function(_hoja_sdk_linker_script OUT_VAR)
+  set(${OUT_VAR} ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld PARENT_SCOPE)
+endfunction()
+
+# Linker script text in TEXT_VAR, its flash region cut to LENGTH bytes from the start of flash
+function(_hoja_ld_set_flash_length TEXT_VAR LENGTH)
+  set(_region "INCLUDE \"pico_flash_region.ld\"")
+  string(FIND "${${TEXT_VAR}}" "${_region}" _at)
+  if(_at EQUAL -1)
+    message(FATAL_ERROR "hoja_use_bootloader: no flash region to replace in the linker script")
+  endif()
+  string(REPLACE "${_region}" "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${LENGTH}" _text "${${TEXT_VAR}}")
+  set(${TEXT_VAR} "${_text}" PARENT_SCOPE)
+endfunction()
+
 # A board's board.cmake calls this to use FLOSS. The code on every report's path (the radio's bus
 # driver, FLOSS's poll, HCI, L2CAP data and HID send) runs from RAM: from flash, the rest of the
 # task loop evicts it from the flash cache between reports and every exchange with the radio runs
@@ -185,7 +201,7 @@ function(hoja_use_floss TARGET)
     *hlink.c.obj
   )
 
-  set(_ld_in ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld)
+  _hoja_sdk_linker_script(_ld_in)
   set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_floss_ram.ld)
   file(READ ${_ld_in} _ld)
   set(_flash_text "*(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)")
@@ -209,34 +225,40 @@ endfunction()
 # so the board's .bin and .uf2 hold all of it, written as one.
 function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   set(HOJA_LIB_DIR_ABS ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
-  # These match BOOT_LAYOUT_BOOT_SIZE and BOOT_LAYOUT_TOP_SIZE in boot_layout.h
+  # The layout's fixed sizes, passed to both programs: boot_layout.h derives the rest from them
   set(HOJA_BOOT_SIZE 0x8000)
   set(HOJA_BOOT_TOP_SIZE 0x10000)
+  set(HOJA_BOOT_STAGE_HEADER_SIZE 0x1000) # One flash sector
 
   cmake_parse_arguments(PARSE_ARGV 4 _boot_opt "" "RGB_PIN;RGB_LEDS" "")
   math(EXPR _flash "${FLASH_BYTES}")
   math(EXPR _radio "${RADIO_BYTES}")
   # The firmware may fill everything up to the stage header (BOOT_LAYOUT_STAGE_HEADER_OFFSET)
-  math(EXPR _flash_region "${_flash} - ${HOJA_BOOT_TOP_SIZE} - 4096")
+  math(EXPR _flash_region "${_flash} - ${HOJA_BOOT_TOP_SIZE} - ${HOJA_BOOT_STAGE_HEADER_SIZE}")
+  set(_layout_defs
+    HOJA_BOOT_FLASH_SIZE_BYTES=${_flash}
+    HOJA_BOOT_RADIO_SIZE=${_radio}
+    HOJA_BOOT_SIZE=${HOJA_BOOT_SIZE}u
+    HOJA_BOOT_TOP_SIZE=${HOJA_BOOT_TOP_SIZE}u
+    HOJA_BOOT_STAGE_HEADER_SIZE=${HOJA_BOOT_STAGE_HEADER_SIZE}u
+  )
 
   # The firmware: the bootloader's binary at the start of flash, the radio region after it, then
   # the firmware. board.cmake runs twice, and hoja_use_floss sets its script again, so this patches
   # whichever script the board has now.
   get_target_property(_ld_in ${TARGET} PICO_TARGET_LINKER_SCRIPT)
   if(NOT _ld_in)
-    set(_ld_in ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld)
+    _hoja_sdk_linker_script(_ld_in)
   endif()
   set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_app_slot.ld)
   if(NOT _ld_in STREQUAL _ld_out)
     file(READ ${_ld_in} _ld)
-    set(_region "INCLUDE \"pico_flash_region.ld\"")
     set(_begin "    .flash_begin : {")
-    string(FIND "${_ld}" "${_region}" _at_region)
     string(FIND "${_ld}" "${_begin}" _at_begin)
-    if(_at_region EQUAL -1 OR _at_begin EQUAL -1)
+    if(_at_begin EQUAL -1)
       message(FATAL_ERROR "hoja_use_bootloader: unexpected linker script ${_ld_in}")
     endif()
-    string(REPLACE "${_region}" "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${_flash_region}" _ld "${_ld}")
+    _hoja_ld_set_flash_length(_ld ${_flash_region})
 
     string(CONCAT _front
       "    .hoja_bootloader : {\n"
@@ -258,7 +280,8 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
         "        __hoja_radio_bt_end = .;\n"
         "        . = ${_radio};\n"
         "    } > FLASH = 0xFF\n"
-        "    ASSERT(__hoja_radio_wifi_end > __hoja_radio_wifi_start && __hoja_radio_bt_end > __hoja_radio_bt_start,\n"
+        "    ASSERT(__hoja_radio_wifi_end > __hoja_radio_wifi_start &&\n"
+        "        __hoja_radio_bt_end > __hoja_radio_bt_start,\n"
         "        \"hoja_use_bootloader: the CYW43 firmware was not found for the radio region\")\n\n")
     endif()
     string(REPLACE "${_begin}" "${_front}${_begin}" _ld "${_ld}")
@@ -273,14 +296,14 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   set_target_properties(${TARGET} PROPERTIES HOJA_BOOTLOADER ON)
   target_compile_definitions(${TARGET} PRIVATE
     HOJA_BOOTLOADER=1
-    HOJA_BOOT_FLASH_SIZE_BYTES=${_flash}
-    HOJA_BOOT_RADIO_SIZE=${_radio}
+    ${_layout_defs}
   )
 
   set(_boot ${TARGET}_boot)
   add_executable(${_boot}
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_main.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_flash.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_inflate.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_rgb.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_stage.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_usb.c
@@ -293,8 +316,8 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
     BOOT_DEVICE_NAME="${DEVICE_NAME}"
     BOOT_BUILD_ID="${TARGET}"
     PICO_FLASH_SIZE_BYTES=${_flash}
-    HOJA_BOOT_FLASH_SIZE_BYTES=${_flash}
-    HOJA_BOOT_RADIO_SIZE=${_radio}
+    ${_layout_defs}
+    # As the boards set it: the SDK's longer crystal start-up wait, for slow-starting oscillators
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
     PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
     PICO_PANIC_FUNCTION=boot_panic
@@ -321,9 +344,9 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   pico_set_program_name(${_boot} "${TARGET}")
 
   # The bootloader has its own sectors and no more
-  file(READ ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2040/memmap_default.ld _boot_ld)
-  string(REPLACE "INCLUDE \"pico_flash_region.ld\"" "FLASH(rx) : ORIGIN = 0x10000000, LENGTH = ${HOJA_BOOT_SIZE}"
-    _boot_ld "${_boot_ld}")
+  _hoja_sdk_linker_script(_boot_ld_in)
+  file(READ ${_boot_ld_in} _boot_ld)
+  _hoja_ld_set_flash_length(_boot_ld ${HOJA_BOOT_SIZE})
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld "${_boot_ld}")
   pico_set_linker_script(${_boot} ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld)
 

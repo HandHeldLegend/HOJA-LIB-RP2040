@@ -10,6 +10,8 @@
 
 #include "ws2812.pio.h"
 
+// Without a count from the board (RGB_LEDS), 32: words past the last LED shift out of the end of
+// the chain unseen, so a count above the board's is harmless
 #ifndef BOOT_RGB_LEDS
 #define BOOT_RGB_LEDS 32
 #endif
@@ -19,6 +21,8 @@
 #define BOOT_RGB_BIT_HZ       12800000u // The ws2812 program's clock: 16 cycles a bit at 800 kHz
 #define BOOT_RGB_PERIOD_MS    2400u     // One slow breath
 #define BOOT_RGB_FRAME_MS     20u
+// The line held low for longer than the LEDs' reset time: they latch the last frame
+#define BOOT_RGB_LATCH_US     500u
 // A quarter of full brightness at the top of a breath: easy on the battery, plain in daylight. Never
 // quite dark at the bottom, so a breath doesn't read as the LEDs going out.
 #define BOOT_RGB_PEAK         64u
@@ -50,7 +54,8 @@ static void _boot_rgb_init(void)
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    // The divider in 1/256ths, in integers (the bootloader has no float support)
+    // Set up here rather than by ws2812.pio's ws2812_program_init, which works the divider out in
+    // float: the bootloader links no float code. The divider in 1/256ths, in integers.
     uint32_t div256 = (uint32_t)(((uint64_t)clock_get_hz(clk_sys) * 256u) / BOOT_RGB_BIT_HZ);
     sm_config_set_clkdiv_int_frac(&c, (uint16_t)(div256 >> 8), (uint8_t)(div256 & 0xFFu));
 
@@ -106,7 +111,7 @@ void boot_rgb_off(void)
     // Out of the FIFO and onto the wire before the chip restarts
     while (!pio_sm_is_tx_fifo_empty(BOOT_RGB_PIO, BOOT_RGB_SM))
         tight_loop_contents();
-    busy_wait_us(500);
+    busy_wait_us(BOOT_RGB_LATCH_US);
 }
 
 #else

@@ -4,90 +4,63 @@
 
 #if defined(HOJA_BOOTLOADER)
 
-#include "pico/flash.h"
 #include "hardware/flash.h"
-#include "hardware/watchdog.h"
 
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
+#include "hal/flash_hal.h"
 #include "hal/rp2040/boot_layout.h"
 #include "hal/sys_hal.h"
+#include "utilities/crc32.h"
 
 // The reply leaves before the restart
-#define BOOT_UPDATE_RESTART_US 300000u
-#define BOOT_UPDATE_NO_GAUGE   0xFFu
+#define BOOT_UPDATE_RESTART_US          300000u
+// The battery an update needs, unless the controller is plugged in: the first boot after an update
+// writes it into place, and a battery that runs out part way leaves the controller unable to start
+// until it is charged (the next boot then writes the update again)
+#define BOOT_UPDATE_BATTERY_MIN_PERCENT 30u
+// A write waits this long for the other core to stop; a write that didn't happen is tried again
+#define BOOT_UPDATE_FLASH_WAIT_MS       100u
+
+_Static_assert(BOOT_UPDATE_PARTS_MAX <= BOOT_STAGE_PARTS_MAX, "more parts than the stage header holds");
 
 // The end of this firmware in flash (the linker's)
 extern char __flash_binary_end;
 
 typedef enum
 {
-    BOOT_UPDATE_IDLE,
-    BOOT_UPDATE_RECEIVING,
-    BOOT_UPDATE_STAGED,
+    BOOT_UPDATE_STATE_IDLE,
+    BOOT_UPDATE_STATE_RECEIVING,
+    BOOT_UPDATE_STATE_STAGED,    // The header is written: the restart is due
 } boot_update_state_t;
 
-static boot_update_state_t _boot_update_state = BOOT_UPDATE_IDLE;
+static boot_update_state_t _boot_update_state = BOOT_UPDATE_STATE_IDLE;
 static boot_stage_header_s _boot_update_header;
 static uint32_t _boot_update_base;     // Where the stream starts in flash
 static uint32_t _boot_update_total;    // The stream's bytes, whole sectors
 static volatile uint32_t _boot_update_received;
 static volatile uint32_t _boot_update_written;
 static bool _boot_update_header_erased;
-static uint64_t _boot_update_restart_at;
+static uint64_t _boot_update_restart_at_us;
 
-// Two sectors: one filling while the other waits for the task (the window is two sectors)
-static uint8_t __attribute__((aligned(4))) _boot_update_buf[2][FLASH_SECTOR_SIZE];
+// The stream's next sectors, one filling while the one before it waits for the task
+static uint8_t __attribute__((aligned(4))) _boot_update_buf[BOOT_UPDATE_BUFFER_COUNT][FLASH_SECTOR_SIZE];
 
-static uint32_t _boot_update_align(uint32_t len)
+static uint8_t *_boot_update_sector_buf(uint32_t stream_offset)
 {
-    return ((len + FLASH_SECTOR_SIZE - 1u) / FLASH_SECTOR_SIZE) * FLASH_SECTOR_SIZE;
-}
-
-static uint32_t _boot_update_crc32(const uint8_t *data, uint32_t len)
-{
-    // A nibble table, as the bootloader's
-    static const uint32_t table[16] = {
-        0x00000000u, 0x1DB71064u, 0x3B6E20C8u, 0x26D930ACu, 0x76DC4190u, 0x6B6B51F4u, 0x4DB26158u, 0x5005713Cu,
-        0xEDB88320u, 0xF00F9344u, 0xD6D6A3E8u, 0xCB61B38Cu, 0x9B64C2B0u, 0x86D3D2D4u, 0xA00AE278u, 0xBDBDF21Cu,
-    };
-    uint32_t crc = 0xFFFFFFFFu;
-
-    for (uint32_t i = 0; i < len; i++)
-    {
-        crc ^= data[i];
-        crc = (crc >> 4) ^ table[crc & 0x0Fu];
-        crc = (crc >> 4) ^ table[crc & 0x0Fu];
-    }
-    return ~crc;
+    return _boot_update_buf[(stream_offset / FLASH_SECTOR_SIZE) % BOOT_UPDATE_BUFFER_COUNT];
 }
 
 static uint32_t _boot_update_running_end(void)
 {
-    return _boot_update_align((uint32_t)&__flash_binary_end - XIP_BASE);
+    return boot_layout_sector_align((uint32_t)&__flash_binary_end - XIP_BASE);
 }
 
-// --- Flash, from the task (the other core waits out each write) ---
-
-typedef struct
-{
-    uint32_t offset;
-    const uint8_t *data;
-    uint32_t len;  // 0: erase only
-} boot_update_write_s;
-
-static void _boot_update_flash(void *param)
-{
-    const boot_update_write_s *w = (const boot_update_write_s *)param;
-    flash_range_erase(w->offset, FLASH_SECTOR_SIZE);
-    if (w->len)
-        flash_range_program(w->offset, w->data, w->len);
-}
-
+// One sector, from the task (the other core waits out the write). False when the other core didn't
+// stop in time: nothing was written.
 static bool _boot_update_write(uint32_t offset, const uint8_t *data, uint32_t len)
 {
-    boot_update_write_s w = {.offset = offset, .data = data, .len = len};
-    return flash_safe_execute(_boot_update_flash, &w, UINT32_MAX) == PICO_OK;
+    return flash_hal_write_sector(offset, data, len, BOOT_UPDATE_FLASH_WAIT_MS);
 }
 
 // --- Public ---
@@ -102,8 +75,8 @@ void boot_update_info(boot_update_info_s *info)
     info->stage_header_offset = BOOT_LAYOUT_STAGE_HEADER_OFFSET;
     info->running_end = _boot_update_running_end();
     if (BOOT_LAYOUT_RADIO_SIZE)
-        info->radio_header_crc32 = _boot_update_crc32((const uint8_t *)(XIP_BASE + BOOT_LAYOUT_RADIO_OFFSET),
-                                                      sizeof(boot_radio_header_s));
+        info->radio_header_crc32 = crc32_compute((const uint8_t *)(XIP_BASE + BOOT_LAYOUT_RADIO_OFFSET),
+                                                 sizeof(boot_radio_header_s));
 
     battery_status_s battery = {0};
     fuelgauge_status_s gauge = {0};
@@ -116,6 +89,10 @@ void boot_update_info(boot_update_info_s *info)
 
 boot_update_status_t boot_update_begin(const boot_update_part_s *parts, uint8_t count)
 {
+    // A new stream would write under the staged header, moments before the restart
+    if (_boot_update_state == BOOT_UPDATE_STATE_STAGED)
+        return BOOT_UPDATE_RESTARTING;
+
     boot_update_info_s info;
     boot_update_info(&info);
 
@@ -125,32 +102,19 @@ boot_update_status_t boot_update_begin(const boot_update_part_s *parts, uint8_t 
     if ((count == 0) || (count > BOOT_UPDATE_PARTS_MAX))
         return BOOT_UPDATE_BAD_REQUEST;
 
-    // The stream: each part's data in whole sectors, back to back, ending at the header
+    // The stream: each part's data in whole sectors, back to back, ending at the header. A part
+    // larger than the whole stage area is refused before its size is rounded up (it could wrap).
     uint32_t total = 0;
-    uint32_t written_end = 0;
     for (uint8_t i = 0; i < count; i++)
     {
-        const boot_update_part_s *p = &parts[i];
-        uint32_t room = (p->destination == BOOT_STAGE_TO_RADIO) ? BOOT_LAYOUT_RADIO_SIZE : BOOT_LAYOUT_APP_MAX;
-        uint32_t dest = (p->destination == BOOT_STAGE_TO_RADIO) ? BOOT_LAYOUT_RADIO_OFFSET : BOOT_LAYOUT_APP_OFFSET;
-        bool stored = (p->encoding == BOOT_STAGE_STORED);
+        if (parts[i].staged_size > BOOT_LAYOUT_APP_MAX)
+            return BOOT_UPDATE_NO_ROOM;
 
-        if ((p->destination > BOOT_STAGE_TO_RADIO) || (p->encoding > BOOT_STAGE_DEFLATE) ||
-            (p->image_size == 0) || (p->image_size > room) || (p->staged_size == 0) ||
-            (stored && (p->staged_size != p->image_size)))
-            return BOOT_UPDATE_BAD_REQUEST;
-
-        total += _boot_update_align(p->staged_size);
-        if (dest + p->image_size > written_end)
-            written_end = dest + p->image_size;
+        total += boot_layout_sector_align(parts[i].staged_size);
+        if (total > BOOT_LAYOUT_APP_MAX)
+            return BOOT_UPDATE_NO_ROOM;
     }
-
-    // Above this firmware (it runs on while the data arrives) and above everything the update writes
-    if (total > BOOT_LAYOUT_STAGE_HEADER_OFFSET)
-        return BOOT_UPDATE_NO_ROOM;
     uint32_t base = BOOT_LAYOUT_STAGE_HEADER_OFFSET - total;
-    if ((base < info.running_end) || (base < written_end))
-        return BOOT_UPDATE_NO_ROOM;
 
     boot_stage_header_s header = {
         .magic = BOOT_STAGE_MAGIC,
@@ -170,12 +134,30 @@ boot_update_status_t boot_update_begin(const boot_update_part_s *parts, uint8_t 
         s->staged_crc32 = parts[i].staged_crc32;
         s->image_size = parts[i].image_size;
         s->image_crc32 = parts[i].image_crc32;
-        at += _boot_update_align(parts[i].staged_size);
+        at += boot_layout_sector_align(parts[i].staged_size);
     }
+
+    // As the bootloader will check it, which also keeps the stream above everything it writes
+    switch (boot_stage_header_check(&header))
+    {
+        case BOOT_STAGE_VALID:
+            break;
+
+        case BOOT_STAGE_NO_ROOM:
+            return BOOT_UPDATE_NO_ROOM;
+
+        default:
+            return BOOT_UPDATE_BAD_REQUEST;
+    }
+
+    // And above this firmware, which runs on while the data arrives
+    if (base < info.running_end)
+        return BOOT_UPDATE_NO_ROOM;
 
     // The same update again (its link dropped, and the sender came back): it carries on from what is
     // written, where the answer says
-    if ((_boot_update_state == BOOT_UPDATE_RECEIVING) && !memcmp(&header, &_boot_update_header, sizeof(header)))
+    if ((_boot_update_state == BOOT_UPDATE_STATE_RECEIVING) &&
+        !memcmp(&header, &_boot_update_header, sizeof(header)))
     {
         _boot_update_received = _boot_update_written;
         return BOOT_UPDATE_OK;
@@ -188,13 +170,13 @@ boot_update_status_t boot_update_begin(const boot_update_part_s *parts, uint8_t 
     _boot_update_written = 0;
     // An older staged update must not apply to half of this one: the task erases its header first
     _boot_update_header_erased = false;
-    _boot_update_state = BOOT_UPDATE_RECEIVING;
+    _boot_update_state = BOOT_UPDATE_STATE_RECEIVING;
     return BOOT_UPDATE_OK;
 }
 
 boot_update_status_t boot_update_data(uint32_t offset, const uint8_t *data, uint32_t len)
 {
-    if (_boot_update_state != BOOT_UPDATE_RECEIVING)
+    if (_boot_update_state != BOOT_UPDATE_STATE_RECEIVING)
         return BOOT_UPDATE_FAILED;
 
     // A resend from an earlier point (the sender missed an acknowledgement): what is here already is
@@ -218,7 +200,7 @@ boot_update_status_t boot_update_data(uint32_t offset, const uint8_t *data, uint
         uint32_t n = FLASH_SECTOR_SIZE - in_sector;
         if (n > len - i)
             n = len - i;
-        memcpy(&_boot_update_buf[(at / FLASH_SECTOR_SIZE) & 1u][in_sector], &data[i], n);
+        memcpy(&_boot_update_sector_buf(at)[in_sector], &data[i], n);
         i += n;
     }
     _boot_update_received = received + len;
@@ -227,15 +209,14 @@ boot_update_status_t boot_update_data(uint32_t offset, const uint8_t *data, uint
 
 bool boot_update_task(uint64_t now_us)
 {
-    if (_boot_update_restart_at && (now_us >= _boot_update_restart_at))
+    if ((_boot_update_state == BOOT_UPDATE_STATE_STAGED) && (now_us >= _boot_update_restart_at_us))
     {
         // The next boot opens the beacon (the bootloader leaves this request for the firmware)
-        watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX] = BOOT_REQUEST_BEACON;
-        watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX + 1] = ~BOOT_REQUEST_BEACON;
+        boot_request_set(BOOT_REQUEST_BEACON);
         sys_hal_reboot();
     }
 
-    if (_boot_update_state != BOOT_UPDATE_RECEIVING)
+    if (_boot_update_state != BOOT_UPDATE_STATE_RECEIVING)
         return false;
 
     if (!_boot_update_header_erased)
@@ -244,13 +225,12 @@ bool boot_update_task(uint64_t now_us)
         return false;
     }
 
-    // One sector a pass: each write holds the radio up for a few tens of ms
+    // One sector a pass: each write stops the other core and holds up the radio
     uint32_t written = _boot_update_written;
     if (_boot_update_received - written < FLASH_SECTOR_SIZE)
         return false;
 
-    const uint8_t *sector = _boot_update_buf[(written / FLASH_SECTOR_SIZE) & 1u];
-    if (!_boot_update_write(_boot_update_base + written, sector, FLASH_SECTOR_SIZE))
+    if (!_boot_update_write(_boot_update_base + written, _boot_update_sector_buf(written), FLASH_SECTOR_SIZE))
         return false;
     _boot_update_written = written + FLASH_SECTOR_SIZE;
     return true;
@@ -258,38 +238,37 @@ bool boot_update_task(uint64_t now_us)
 
 boot_update_status_t boot_update_finish(void)
 {
-    if ((_boot_update_state != BOOT_UPDATE_RECEIVING) || (_boot_update_written != _boot_update_total))
+    if (_boot_update_state == BOOT_UPDATE_STATE_STAGED)
+        return BOOT_UPDATE_RESTARTING;
+
+    if (_boot_update_state != BOOT_UPDATE_STATE_RECEIVING)
         return BOOT_UPDATE_FAILED;
+
+    // Data still to come, or not yet written: the sender resends from what is written
+    if (_boot_update_written != _boot_update_total)
+        return BOOT_UPDATE_OUT_OF_ORDER;
 
     for (uint8_t i = 0; i < _boot_update_header.part_count; i++)
     {
         const boot_stage_part_s *s = &_boot_update_header.parts[i];
-        if (_boot_update_crc32((const uint8_t *)(XIP_BASE + s->staged_offset), s->staged_size) != s->staged_crc32)
+        if (crc32_compute((const uint8_t *)(XIP_BASE + s->staged_offset), s->staged_size) != s->staged_crc32)
         {
-            _boot_update_state = BOOT_UPDATE_IDLE;
+            _boot_update_state = BOOT_UPDATE_STATE_IDLE;
             return BOOT_UPDATE_FAILED;
         }
     }
 
-    // The header last: from here the next boot writes the update
+    // The header last: from here the next boot writes the update. Not written, the update stays
+    // received: begun again, it carries on at its end, ready to finish.
     static uint8_t __attribute__((aligned(4))) page[FLASH_PAGE_SIZE];
     memset(page, 0xFF, sizeof(page));
     memcpy(page, &_boot_update_header, sizeof(_boot_update_header));
     if (!_boot_update_write(BOOT_LAYOUT_STAGE_HEADER_OFFSET, page, sizeof(page)))
-    {
-        _boot_update_state = BOOT_UPDATE_IDLE;
         return BOOT_UPDATE_FAILED;
-    }
 
-    _boot_update_state = BOOT_UPDATE_STAGED;
-    _boot_update_restart_at = sys_hal_now_us() + BOOT_UPDATE_RESTART_US;
+    _boot_update_state = BOOT_UPDATE_STATE_STAGED;
+    _boot_update_restart_at_us = sys_hal_now_us() + BOOT_UPDATE_RESTART_US;
     return BOOT_UPDATE_RESTARTING;
-}
-
-void boot_update_abort(void)
-{
-    if (_boot_update_state == BOOT_UPDATE_RECEIVING)
-        _boot_update_state = BOOT_UPDATE_IDLE;
 }
 
 uint32_t boot_update_written(void)
@@ -299,19 +278,12 @@ uint32_t boot_update_written(void)
 
 bool boot_update_active(void)
 {
-    return _boot_update_state != BOOT_UPDATE_IDLE;
+    return _boot_update_state != BOOT_UPDATE_STATE_IDLE;
 }
 
 bool boot_update_take_beacon(void)
 {
-    io_rw_32 *scratch = &watchdog_hw->scratch[BOOT_REQUEST_SCRATCH_IDX];
-    bool requested = (scratch[0] == BOOT_REQUEST_BEACON) && (scratch[1] == ~BOOT_REQUEST_BEACON);
-    if (requested)
-    {
-        scratch[0] = 0;
-        scratch[1] = 0;
-    }
-    return requested;
+    return boot_request_take(BOOT_REQUEST_BEACON);
 }
 
 #else
@@ -339,10 +311,6 @@ boot_update_status_t boot_update_data(uint32_t offset, const uint8_t *data, uint
 boot_update_status_t boot_update_finish(void)
 {
     return BOOT_UPDATE_UNSUPPORTED;
-}
-
-void boot_update_abort(void)
-{
 }
 
 bool boot_update_task(uint64_t now_us)

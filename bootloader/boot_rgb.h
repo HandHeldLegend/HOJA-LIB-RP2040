@@ -5,8 +5,6 @@
 // plainly alive through an update. Boards without RGB (no BOOT_RGB_PIN) get empty calls. A normal
 // boot never lights them; the firmware resets the PIO and takes them over.
 
-#include <stdint.h>
-
 typedef enum
 {
     BOOT_RGB_UPDATE_MODE, // Waiting in the USB update mode
