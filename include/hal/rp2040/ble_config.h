@@ -2,7 +2,7 @@
 #define HAL_RP2040_BLE_CONFIG_H
 
 // The config app over Bluetooth LE while a wireless mode runs (FLOSS boards). Plus and Minus
-// pressed together advertise a config service for 10 s. A browser proves it may connect with a
+// pressed together advertise a config service for 30 s. A browser proves it may connect with a
 // token from an earlier session, or by a one-time code of six presses entered on the gamepad.
 
 #include <stdint.h>
@@ -31,7 +31,12 @@ bool ble_config_active(void);
 // Open the beacon as Plus + Minus would (the radio just came up for it, in a wired mode)
 void ble_config_open_beacon(void);
 
-// Open the beacon again once the radio restarts (a mode change on its way)
+// Open the beacon again once the radio restarts (a mode change on its way). Back from an update the
+// app sent, the beacon opens by itself.
 void ble_config_reopen_beacon(void);
+
+// A game link shares the radio (true): the app's link asks for a gentler pace so the game keeps its
+// air time. Without one the app gets the fast link.
+void ble_config_set_game_link(bool game);
 
 #endif
