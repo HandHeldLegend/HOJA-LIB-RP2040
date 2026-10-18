@@ -2584,7 +2584,8 @@ static void _bt_hal_task(uint64_t timestamp)
 
 // Wired modes: Plus + Minus brings the radio up for BLE config alone (LE only, invisible to
 // Classic) and opens the beacon. The first start takes the radio's bring-up (~1 s on the RM2).
-static bool _bt_hal_config_only_start(void)
+// mac_mode: the mode whose address the radio starts with
+static bool _bt_hal_config_only_start(core_reportformat_t mac_mode)
 {
     core_params_s *params = core_current_params();
     if (!params)
@@ -2621,7 +2622,7 @@ static bool _bt_hal_config_only_start(void)
 
     // A valid address for the controller; LE runs from its own random one
     uint8_t mac[6];
-    transport_mode_mac(mac, CORE_REPORTFORMAT_SINPUT);
+    transport_mode_mac(mac, mac_mode);
     return _bt_hal_stack_start(mac);
 }
 
@@ -2632,8 +2633,13 @@ bool transport_bt_radio_up(void)
 
 void transport_bt_radio_warm(void)
 {
+    // Under the address Auto calls with next: the last host's mode, else Switch, where the probe
+    // starts. The ESP32 only takes a new address by restarting (1.6 s).
+    core_reportformat_t next = transport_bt_last_host();
+    if ((next != CORE_REPORTFORMAT_SWPRO) && (next != CORE_REPORTFORMAT_SINPUT))
+        next = CORE_REPORTFORMAT_SWPRO;
     if (!_bt_stack_up)
-        _bt_hal_config_only_start();
+        _bt_hal_config_only_start(next);
 }
 
 void transport_bt_radio_off(void)
@@ -2668,7 +2674,7 @@ void transport_bt_config_task(uint64_t timestamp)
         bool pressed = chord && !_config_chord;
         _config_chord = chord;
         // The press, or the restart after an update the app sent (it reconnects)
-        if ((pressed || boot_update_take_beacon()) && _bt_hal_config_only_start())
+        if ((pressed || boot_update_take_beacon()) && _bt_hal_config_only_start(CORE_REPORTFORMAT_SINPUT))
             ble_config_open_beacon();
         return;
     }
