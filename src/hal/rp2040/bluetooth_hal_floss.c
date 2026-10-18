@@ -45,6 +45,7 @@
 #include "cores/cores.h"
 #include "utilities/crosscore_utils.h"
 #include "utilities/autodetect.h"
+#include "utilities/boot_timeline.h"
 
 #include "nwii_lib_hid.h"
 
@@ -1034,12 +1035,13 @@ static void _bt_hal_reconnect_retry(void)
 
 // Before reconnecting, call each saved host and open a service discovery channel (no pairing, no
 // HID). An awake host answers, even if only to refuse. A Wii in standby takes the call but never
-// answers. The first awake console picks the mode, Switch, then Wii. The PC isn't called: with
-// neither console awake, SInput reconnects to it directly, which saves a whole call.
+// answers. The first awake host picks the mode: Switch, then Wii, then the PC (the host that
+// connected last goes first, unless Auto already called it).
 
 static void _bt_hal_probe_add(core_reportformat_t format, const uint8_t *addr)
 {
-    if (!_bt_hal_is_stored_identity_valid(addr))
+    // Auto called the last host already
+    if (!_bt_hal_is_stored_identity_valid(addr) || autodetect_bt_skip_host(format))
         return;
 
     // A host saved for two modes answers for both: the first mode keeps it
@@ -1082,6 +1084,7 @@ static void _bt_hal_probe_pause(void)
 
 static void _bt_hal_probe_host_done(bool awake)
 {
+    BOOT_TIMELINE(TL_PROBE_DONE, awake);
     floss_timer_stop(&_probe_timer);
     if (_probe_chan)
     {
@@ -1206,6 +1209,7 @@ static void _bt_hal_probe_next(void)
     }
 
     _bt_hal_write_page_timeout(BT_HAL_PROBE_PAGE_TIMEOUT);
+    BOOT_TIMELINE(TL_PAGE, _probe_hosts[_probe_index].format);
 
     floss_addr_t addr;
     _bt_hal_addr_from_hoja(_probe_hosts[_probe_index].addr, &addr);
@@ -1259,6 +1263,8 @@ static bool _bt_hal_probe_start(void)
 
 static void _bt_hal_on_connected(const floss_addr_t *host)
 {
+    BOOT_TIMELINE(TL_HOST, core_current_reportformat());
+    autodetect_bt_direct_result(true);
     floss_timer_stop(&_wii_reconnect_timer);
 
     uint8_t *addr_location = NULL;
@@ -1357,6 +1363,14 @@ static void _bt_hal_on_connect_failed(uint8_t reason, uint16_t channel_status)
 {
     (void)reason;
     _connected = false;
+
+    // Auto's call to its last host: no retries, the probe takes over
+    if (autodetect_bt_direct_pending())
+    {
+        autodetect_bt_direct_result(false);
+        return;
+    }
+
     _bt_hal_set_discoverable(true);
 
     // Reconnecting after a lost link, the Wii took a new link but never answered: it has gone to
@@ -1681,6 +1695,7 @@ static const floss_l2cap_ops_t _bt_hal_dongle_rel_ops = {
 static void _bt_hal_dongle_connected(const floss_addr_t *peer)
 {
     // Auto mode: a dongle answered, so this is the mode
+    BOOT_TIMELINE(TL_DONGLE, 0);
     autodetect_dongle_found();
 
     const floss_conn_t *conn = floss_hci_conn_by_addr(peer);
@@ -1950,6 +1965,7 @@ static void _bt_hal_swift_pair_timeout(floss_timer_t *t, void *arg)
 
 static void _bt_hal_on_ready(void)
 {
+    BOOT_TIMELINE(TL_READY, _mode_dongle);
     _wii_radio_cycling = false;
 
     // Config only: no hosts to call, the beacon is all there is
@@ -1966,7 +1982,11 @@ static void _bt_hal_on_ready(void)
 
     if (_bt_mode_ready)
     {
-        _bt_hal_write_page_timeout(_mode_wii ? BT_HAL_WII_PAGE_TIMEOUT : BT_HAL_DEFAULT_PAGE_TIMEOUT);
+        // Auto calling its last host gives it the probe's time, then probes the others
+        uint16_t page_timeout = _mode_wii                        ? BT_HAL_WII_PAGE_TIMEOUT
+                                : autodetect_bt_direct_pending() ? BT_HAL_PROBE_PAGE_TIMEOUT
+                                                                 : BT_HAL_DEFAULT_PAGE_TIMEOUT;
+        _bt_hal_write_page_timeout(page_timeout);
         if (_mode_wii)
             _bt_hal_wii_write_iac();
     }
@@ -2172,6 +2192,7 @@ static void _bt_hal_timers_init(void)
 // at once: no callbacks run for them, so the session state is cleared here.
 static bool _bt_hal_stack_start(const uint8_t *mac)
 {
+    BOOT_TIMELINE(TL_STACK, 0);
     _connected = false;
     _cfg_hold = false;
     _cfg_app_alone = false;
@@ -2497,6 +2518,34 @@ bool transport_bt_radio_up(void)
     return _bt_stack_up;
 }
 
+void transport_bt_radio_warm(void)
+{
+    if (!_bt_stack_up)
+        _bt_hal_config_only_start();
+}
+
+void transport_bt_radio_off(void)
+{
+    // Only a radio started for LE alone: a wireless mode owns its own
+    if (!_bt_stack_up || !_config_only)
+        return;
+#if BT_HAL_ESP32
+    esp32_hci_backend_stop();
+#else
+    cyw43_arch_deinit();
+#endif
+    _bt_stack_up = false;
+    _config_only = false;
+}
+
+core_reportformat_t transport_bt_last_host(void)
+{
+    uint8_t last = 0;
+    if (floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1)
+        return CORE_REPORTFORMAT_UNDEFINED;
+    return (core_reportformat_t)last;
+}
+
 void transport_bt_config_task(uint64_t timestamp)
 {
     if (!_config_only)
@@ -2604,6 +2653,11 @@ bool transport_dongle_take_mode(core_reportformat_t *format)
 bool transport_dongle_choosing(void)
 {
     return _dongle_running && !_dongle_cfg.mode_forced && !dongle_api_gamepad_adopted();
+}
+
+bool transport_dongle_known(void)
+{
+    return floss_link_stored_peer(FLOSS_LINK_CLASSIC, NULL);
 }
 
 uint8_t transport_dongle_static_supported(void)

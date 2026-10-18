@@ -26,6 +26,15 @@ void transport_bt_task(uint64_t timestamp);
 // drop its links. False where no Bluetooth HAL can start it in a wired mode.
 bool transport_bt_radio_up(void);
 
+// Auto: start the radio while a wired check runs (the N64 wait on battery), so a wireless mode
+// after it finds the radio up; off again when the check finds a wired console. Each runs the
+// blocking start or stop once.
+void transport_bt_radio_warm(void);
+void transport_bt_radio_off(void);
+
+// The mode of the host that connected last over Bluetooth, CORE_REPORTFORMAT_UNDEFINED for none
+core_reportformat_t transport_bt_last_host(void);
+
 #if HOJA_BT_USES_FLOSS
 // Wired modes: BLE config on Plus + Minus, the radio up for LE alone (bluetooth_hal_floss.c)
 void transport_bt_config_task(uint64_t timestamp);

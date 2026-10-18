@@ -3,11 +3,14 @@
 #include "hoja.h"
 #include "cores/cores.h"
 #include "hal/sys_hal.h"
+#include "transport/transport_bt.h"
+#include "transport/transport_dongle.h"
+#include "utilities/boot_timeline.h"
 
 #include "hardware/gpio.h"
 
-// No joybus polls by then means no N64
-#define AUTODETECT_N64_WAIT_MS      2000
+// No joybus polls by then means no N64: a running game polls every frame
+#define AUTODETECT_N64_WAIT_MS      1000
 // No USB host, GameCube or SNES by then means a charger
 #define AUTODETECT_WIRED_WAIT_MS    3000
 // A computer asks for the BOS descriptor within milliseconds of its first request
@@ -61,6 +64,7 @@ typedef enum
     PHASE_N64,   // Answering as an N64 controller, waiting for polls
     PHASE_WIRED, // SInput over USB, watching USB and the retro port
     PHASE_DONGLE, // Looking for a dongle over Bluetooth; it then tells us the mode
+    PHASE_BT_LAST, // Calling the host that connected last, in its mode
     PHASE_BT,    // Switch over Bluetooth, checking the saved hosts first
     PHASE_DONE,  // Mode picked, no more switching
 } phase_t;
@@ -87,6 +91,7 @@ static void _switch_to(core_reportformat_t format, gamepad_transport_t transport
     _switch_format = format;
     _switch_transport = transport;
     _phase = next;
+    BOOT_TIMELINE(TL_PHASE, next);
     _phase_started = false;
     _switch_pending = true;
 }
@@ -222,10 +227,15 @@ static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
 static core_reportformat_t _fallback_format = CORE_REPORTFORMAT_SWPRO;
 static phase_t _fallback_phase = PHASE_BT;
 
-// Modes with a Bluetooth fallback that the dongle can also carry
+// The last host didn't answer its call: the probe leaves it out
+static core_reportformat_t _last_failed = CORE_REPORTFORMAT_UNDEFINED;
+
+// Modes with a Bluetooth fallback that the dongle can also carry. Without a paired dongle there is
+// none to call, so the search would only hold up the hosts.
 static bool _dongle_first(core_reportformat_t format)
 {
-    return AUTODETECT_DONGLE && ((format == CORE_REPORTFORMAT_SWPRO) || (format == CORE_REPORTFORMAT_SINPUT));
+    return AUTODETECT_DONGLE && ((format == CORE_REPORTFORMAT_SWPRO) || (format == CORE_REPORTFORMAT_SINPUT)) &&
+           transport_dongle_known();
 }
 
 // Wireless in this mode: the dongle first, then Bluetooth. Auto (undefined) is Switch mode, and
@@ -237,6 +247,16 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
     _fallback_format = *format;
     _fallback_phase = (mode == CORE_REPORTFORMAT_UNDEFINED) ? PHASE_BT : PHASE_DONE;
 
+    // Auto calls the host that connected last straight away, in its mode: a probe first would call it
+    // twice, with a radio restart between. The Wii keeps to the probe (it pages back on its own terms).
+    const core_reportformat_t last = transport_bt_last_host();
+    if((mode == CORE_REPORTFORMAT_UNDEFINED) &&
+       ((last == CORE_REPORTFORMAT_SWPRO) || (last == CORE_REPORTFORMAT_SINPUT)))
+    {
+        _fallback_format = last;
+        _fallback_phase = PHASE_BT_LAST;
+    }
+
     if(_dongle_first(*format))
     {
         *transport = GAMEPAD_TRANSPORT_DONGLE;
@@ -244,6 +264,7 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
     }
     else
     {
+        *format = _fallback_format;
         *transport = GAMEPAD_TRANSPORT_BLUETOOTH;
         *phase = _fallback_phase;
     }
@@ -254,6 +275,7 @@ static void _wireless_start(boot_info_s *info)
     phase_t phase;
     _wireless_plan(_wireless, &info->reportformat, &info->transport, &phase);
     _phase = phase;
+    BOOT_TIMELINE(TL_PHASE, _phase);
     if(phase == PHASE_DONE)
         _confirmed = true;
 }
@@ -294,6 +316,7 @@ void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_aut
         info->reportformat = CORE_REPORTFORMAT_N64;
         info->transport = GAMEPAD_TRANSPORT_JOYBUS64;
         _phase = PHASE_N64;
+        BOOT_TIMELINE(TL_PHASE, _phase);
     }
     else if((power == AUTODETECT_POWER_BATTERY) && AUTODETECT_BLUETOOTH)
     {
@@ -305,6 +328,7 @@ void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_aut
         info->reportformat = CORE_REPORTFORMAT_SINPUT;
         info->transport = GAMEPAD_TRANSPORT_USB;
         _phase = PHASE_WIRED;
+        BOOT_TIMELINE(TL_PHASE, _phase);
     }
 }
 
@@ -353,6 +377,32 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
     _confirmed = true;
     _phase = PHASE_DONE;
     return true;
+}
+
+bool autodetect_bt_direct_pending(void)
+{
+    return _phase == PHASE_BT_LAST && !_confirmed;
+}
+
+void autodetect_bt_direct_result(bool connected)
+{
+    if(!autodetect_bt_direct_pending()) return;
+
+    if(connected)
+    {
+        _confirmed = true;
+        _phase = PHASE_DONE;
+        return;
+    }
+
+    // Not awake: probe the other saved hosts
+    _last_failed = _fallback_format;
+    _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
+}
+
+bool autodetect_bt_skip_host(core_reportformat_t format)
+{
+    return (_last_failed != CORE_REPORTFORMAT_UNDEFINED) && (format == _last_failed);
 }
 
 void autodetect_dongle_found(void)
@@ -415,8 +465,12 @@ void autodetect_task(uint64_t now_us)
 {
     static uint64_t usb_host_us = 0;
 
-    // An N64 confirms itself by polling
-    if(_confirmed && _phase == PHASE_N64) _retro_port_watch(false, false);
+    // An N64 confirms itself by polling. It needs no radio.
+    if(_confirmed && _phase == PHASE_N64)
+    {
+        _retro_port_watch(false, false);
+        transport_bt_radio_off();
+    }
 
     if(_confirmed || _switch_pending) return;
     if(_phase == PHASE_OFF || _phase == PHASE_DONE) return;
@@ -426,7 +480,17 @@ void autodetect_task(uint64_t now_us)
         _phase_started = true;
         _phase_start_us = now_us;
         if(_phase == PHASE_WIRED) _retro_port_watch(true, true);
-        if(_phase == PHASE_N64) _retro_port_watch(false, true);
+        if(_phase == PHASE_N64)
+        {
+            _retro_port_watch(false, true);
+            // On battery the radio starts while we wait for polls, rather than after. Polls are
+            // answered meanwhile; the next pass sees any that came, before the wait is judged.
+            if((_power == AUTODETECT_POWER_BATTERY) && AUTODETECT_BLUETOOTH)
+            {
+                transport_bt_radio_warm();
+                return;
+            }
+        }
     }
     if(_paused)
     {
@@ -442,6 +506,7 @@ void autodetect_task(uint64_t now_us)
         if(AUTODETECT_SNES && (_nesbus_console_present(now_us) || _latch_edges >= AUTODETECT_LATCH_EDGES))
         {
             _retro_port_watch(false, false);
+            transport_bt_radio_off();
             _switch_to(CORE_REPORTFORMAT_SNES, GAMEPAD_TRANSPORT_NESBUS, PHASE_DONE);
             break;
         }
@@ -493,8 +558,9 @@ void autodetect_task(uint64_t now_us)
             _switch_to(_fallback_format, GAMEPAD_TRANSPORT_BLUETOOTH, _fallback_phase);
         break;
 
+        case PHASE_BT_LAST:
         case PHASE_BT:
-        // Should the radio never come up, carry on in Switch mode
+        // Should the radio never come up, carry on in this mode
         if(elapsed_ms >= AUTODETECT_BT_PROBE_MAX_MS)
         {
             _confirmed = true;

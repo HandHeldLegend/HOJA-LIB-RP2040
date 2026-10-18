@@ -4,15 +4,16 @@
 // Auto mode: with nothing held at boot and the default mode set to Auto, the controller works out
 // what it is plugged into.
 //
-// No external power (battery, or an N64, which supplies none): N64 first, answering as quickly as
-// a manual N64 boot.
+// No external power (battery, or an N64, which supplies none): N64 first for a second, answering as
+// quickly as a manual N64 boot. On battery the radio starts meanwhile.
 // External power: SInput over USB while watching the retro port. A host that asks for the BOS
 // descriptor is a computer (SInput), one that does not is a Switch. Joybus traffic means a
 // GameCube, latch pulses an SNES or NES.
-// Nothing found (battery, or a charger): Bluetooth. A HOJA dongle first, on boards that reach it
-// over Bluetooth: one that connects tells the controller the mode. Then each saved host is checked
-// (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it settles
-// on SInput, which reconnects to a saved PC or waits to be found.
+// Nothing found (battery, or a charger): Bluetooth. The paired HOJA dongle first, on boards that
+// reach it over Bluetooth: one that connects tells the controller the mode. Then the host that
+// connected last, called straight away in its mode (a Switch or a PC). Then each other saved host is
+// checked (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it
+// settles on SInput, which reconnects to a saved PC or waits to be found.
 //
 // The config app (Start + Select) while Auto is still looking: on battery Auto settles on SInput at
 // once; on external power it waits for the app, whose link a mode change would drop.
@@ -66,6 +67,12 @@ void autodetect_on_usb_bos(void);
 
 // The dongle connected while Auto mode looked for it (bluetooth_hal_floss.c)
 void autodetect_dongle_found(void);
+
+// Calling the host that connected last, before any probe (bluetooth_hal_floss.c): whether it
+// connected. One that didn't is left out of the probe that follows.
+bool autodetect_bt_direct_pending(void);
+void autodetect_bt_direct_result(bool connected);
+bool autodetect_bt_skip_host(core_reportformat_t format);
 
 // Bluetooth probe (bluetooth_hal.c)
 bool autodetect_bt_probe_pending(void);

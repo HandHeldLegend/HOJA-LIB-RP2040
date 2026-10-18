@@ -18,6 +18,19 @@ __attribute__((weak)) void transport_bt_task(uint64_t timestamp)
     (void) timestamp;
 }
 
+__attribute__((weak)) void transport_bt_radio_warm(void)
+{
+}
+
+__attribute__((weak)) void transport_bt_radio_off(void)
+{
+}
+
+__attribute__((weak)) core_reportformat_t transport_bt_last_host(void)
+{
+    return CORE_REPORTFORMAT_UNDEFINED;
+}
+
 __attribute__((weak)) void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
 {
     if (caps == NULL)
