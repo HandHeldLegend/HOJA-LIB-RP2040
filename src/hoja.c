@@ -334,10 +334,13 @@ static task_s _task_ble_config = {
 };
 #endif
 
+// Fed every pass of the loop. As a required task it starved: with the config app keeping USB busy,
+// each pass ran long and the cycle restarted before reaching it, and the watchdog restarted the
+// gamepad after 5 s.
 static task_s _task_watchdog = {
   .fn = sys_hal_tick,
   .name = "wd",
-  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
+  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_SHUTDOWN)
 };
 
 void _hoja_init_core_tasks(void)
