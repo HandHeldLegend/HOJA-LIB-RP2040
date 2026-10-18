@@ -38,15 +38,16 @@ static const webusb_sink_s _webusb_usb_sink = {
 
 static const webusb_sink_s *_webusb_sink = &_webusb_usb_sink;
 
-// The dongle's and BLE's sinks run the radio stack, which belongs to the core that set them. A
-// packet from the other core (the stick processing's snapback capture) waits here, and that core's
-// task loop sends it (webusb_send_rawinput).
+// Every sink belongs to one core: USB's to the core that runs the task loop (core 1, see hoja.c), the
+// dongle's and BLE's to the core that set them. A packet from the other core (the stick processing's
+// snapback capture) waits here, and that core's task loop sends it (webusb_send_rawinput). Straight
+// into TinyUSB from core 0 it raced core 1's own USB task: enough flick tests and USB froze.
 #define WEBUSB_DEFERRED_LEN 4
 static uint8_t _webusb_deferred[WEBUSB_DEFERRED_LEN][64];
 static uint8_t _webusb_deferred_size[WEBUSB_DEFERRED_LEN];
 static volatile uint8_t _webusb_deferred_head = 0;
 static volatile uint8_t _webusb_deferred_tail = 0;
-static uint _webusb_sink_core = 0;
+static uint _webusb_sink_core = 1;
 
 void webusb_set_sink(const webusb_sink_s *sink)
 {
@@ -122,7 +123,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
         return;
     }
 
-    if ((_webusb_sink != &_webusb_usb_sink) && (get_core_num() != _webusb_sink_core))
+    if (get_core_num() != _webusb_sink_core)
     {
         _webusb_defer(data, size);
         return;
