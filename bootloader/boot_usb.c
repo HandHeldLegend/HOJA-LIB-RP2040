@@ -13,6 +13,7 @@
 
 #include "hal/rp2040/boot_layout.h"
 #include "boot_flash.h"
+#include "boot_rgb.h"
 
 // Set by the build for each board
 #ifndef BOOT_DEVICE_NAME
@@ -40,6 +41,8 @@
 // A fault in the update mode restarts the chip rather than hang it (on battery nothing else would);
 // the longest wait between loop passes is one sector's erase
 #define BOOT_USB_WATCHDOG_MS 2000u
+// The LEDs show writing for this long after the last write, then waiting again
+#define BOOT_USB_WRITING_SHOWN_MS 1000u
 // The acknowledgement leaves before the chip restarts
 #define BOOT_USB_REBOOT_MIN_MS 10u
 #define BOOT_USB_REBOOT_MAX_MS 2000u
@@ -151,6 +154,7 @@ static uint8_t _boot_first_sector[FLASH_SECTOR_SIZE];
 static bool _boot_first_sector_written;
 
 static bool _boot_dirty;       // Flash changed: the firmware may be partial, so stay
+static uint32_t _boot_written_at_ms;
 static bool _boot_mounted;
 static bool _boot_suspended;
 static uint32_t _boot_suspended_at_ms;
@@ -238,6 +242,7 @@ static boot_pb_status_t _boot_erase(uint32_t addr, uint32_t len)
 
         boot_flash_erase(at, FLASH_SECTOR_SIZE);
         _boot_dirty = true;
+        _boot_written_at_ms = to_ms_since_boot(get_absolute_time());
     }
     return BOOT_PB_OK;
 }
@@ -264,6 +269,7 @@ static boot_pb_status_t _boot_write(uint32_t offset, const uint8_t *data, uint32
             boot_flash_program(at, &data[done], BOOT_FLASH_PAGE_LEN);
         }
         _boot_dirty = true;
+        _boot_written_at_ms = to_ms_since_boot(get_absolute_time());
     }
     return BOOT_PB_OK;
 }
@@ -755,6 +761,8 @@ void boot_usb_run(bool app_valid)
         tud_task();
 
         uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+        bool writing = _boot_dirty && (now_ms - _boot_written_at_ms < BOOT_USB_WRITING_SHOWN_MS);
+        boot_rgb_task(writing ? BOOT_RGB_WRITING : BOOT_RGB_UPDATE_MODE);
 
         if (_boot_restart_pending && ((int32_t)(now_ms - _boot_restart_at_ms) >= 0))
             _boot_restart(_boot_restart_rom);

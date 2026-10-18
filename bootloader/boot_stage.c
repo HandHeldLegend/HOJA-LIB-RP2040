@@ -9,6 +9,7 @@
 
 #include "hal/rp2040/boot_layout.h"
 #include "boot_flash.h"
+#include "boot_rgb.h"
 
 // --- Output: a sector at a time into the destination ---
 
@@ -32,6 +33,7 @@ static void _boot_stage_out_flush(void)
     boot_flash_write_sector(_boot_stage_out.offset, _boot_stage_sector);
     _boot_stage_out.offset += FLASH_SECTOR_SIZE;
     _boot_stage_out.fill = 0;
+    boot_rgb_task(BOOT_RGB_WRITING);
 }
 
 static bool _boot_stage_out_put(uint8_t value)
@@ -423,6 +425,7 @@ void boot_stage_apply(void)
 
     uint32_t offset;
     const uint8_t *data = (const uint8_t *)(XIP_BASE + BOOT_STAGE_DATA_OFFSET(header->staged_size));
+    boot_rgb_task(BOOT_RGB_WRITING);
 
     if (_boot_stage_destination(header, &offset) &&
         (boot_flash_crc32(data, header->staged_size) == header->staged_crc32))

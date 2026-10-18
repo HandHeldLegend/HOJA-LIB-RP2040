@@ -201,8 +201,9 @@ function(hoja_use_floss TARGET)
 endfunction()
 
 # The HOJA bootloader in front of the firmware (include/hal/rp2040/boot_layout.h): the board's
-# board.cmake calls hoja_use_bootloader(${PROJECT_NAME} "<device name>" <flash bytes> <radio bytes>),
-# after hoja_use_floss. Radio bytes: the CYW43 firmware's fixed region (0 for boards without one).
+# board.cmake calls hoja_use_bootloader(${PROJECT_NAME} "<device name>" <flash bytes> <radio bytes>
+# [RGB_PIN <gpio> RGB_LEDS <count>]), after hoja_use_floss. Radio bytes: the CYW43 firmware's fixed
+# region (0 for boards without one). RGB: ws2812 LEDs (GRB) the bootloader breathes while it works.
 # The bootloader builds as <board>_boot; its binary and the radio region go into the firmware's ELF,
 # so the board's .bin and .uf2 hold all of it, written as one.
 function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
@@ -211,6 +212,7 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   set(HOJA_BOOT_SIZE 0x8000)
   set(HOJA_BOOT_TOP_SIZE 0x10000)
 
+  cmake_parse_arguments(PARSE_ARGV 4 _boot_opt "" "RGB_PIN;RGB_LEDS" "")
   math(EXPR _flash "${FLASH_BYTES}")
   math(EXPR _radio "${RADIO_BYTES}")
   # The firmware may fill everything up to the stage header (BOOT_LAYOUT_STAGE_HEADER_OFFSET)
@@ -278,6 +280,7 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   add_executable(${_boot}
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_main.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_flash.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_rgb.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_stage.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_usb.c
   )
@@ -295,7 +298,16 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
     PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
     PICO_PANIC_FUNCTION=boot_panic
   )
-  target_link_libraries(${_boot} PRIVATE pico_stdlib hardware_flash tinyusb_device)
+  target_link_libraries(${_boot} PRIVATE pico_stdlib hardware_flash hardware_pio tinyusb_device)
+  if(DEFINED _boot_opt_RGB_PIN)
+    target_compile_definitions(${_boot} PRIVATE BOOT_RGB_PIN=${_boot_opt_RGB_PIN})
+    if(DEFINED _boot_opt_RGB_LEDS)
+      target_compile_definitions(${_boot} PRIVATE BOOT_RGB_LEDS=${_boot_opt_RGB_LEDS})
+    endif()
+    # Its own copy: the library's is generated for the firmware's targets
+    pico_generate_pio_header(${_boot} ${HOJA_LIB_DIR_ABS}/pio/ws2812.pio
+      OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/${_boot}_pio)
+  endif()
   pico_enable_stdio_usb(${_boot} 0)
   pico_enable_stdio_uart(${_boot} 0)
   # It prints nothing and counts in integers: none of their code in its 32 KB. TinyUSB logs through
