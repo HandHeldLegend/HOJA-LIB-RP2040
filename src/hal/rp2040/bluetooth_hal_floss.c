@@ -25,12 +25,12 @@
 #include "pico/cyw43_arch.h"
 #include "floss_cyw43.h"
 #include "hal/rp2040/boot_radio.h"
-#include "hal/rp2040/boot_update.h"
 #endif
 
 #include <string.h>
 #include <stdio.h>
 
+#include "hal/rp2040/boot_update.h"
 #include "transport/transport_bt.h"
 #include "utilities/settings.h"
 #include "utilities/static_config.h"
