@@ -183,6 +183,10 @@ static bool _ble_cfg_sink_send(const uint8_t *data, uint16_t size)
 // the queue with input nobody wants any more, and the app's replies would wait behind it.
 static bool _ble_cfg_sink_send_input(const uint8_t *data, uint16_t size)
 {
+    // Not while an update arrives: nobody watches input then, and the air time is the update's (a
+    // computer's adapter has dropped the link under both at once)
+    if (_ble_cfg_update_receiving)
+        return true;
     if (_ble_cfg_conn != 0xFFFFu && floss_hci_acl_can_send_fresh(_ble_cfg_conn, 1))
         _ble_cfg_notify(BLE_CFG_TO_APP_INPUT, data, size);
     return true;
@@ -639,7 +643,10 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
         _ble_cfg_update_receiving = false;
         _ble_cfg_code_stop();
         _ble_cfg_allow(false);
-        // A half-sent update stays where it got to: the app's next link begins it again and carries on
+        // A half-sent update stays where it got to, and the beacon opens again by itself: the app
+        // reconnects, begins it again and carries on, without anyone pressing anything
+        if (boot_update_active())
+            _ble_cfg_beacon_pending = true;
         break;
 
     default:
