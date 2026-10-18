@@ -179,7 +179,10 @@ static void __attribute__((noreturn)) _boot_restart(bool rom)
     tud_disconnect();
 
     if (rom)
+    {
+        boot_rgb_off();
         reset_usb_boot(0, 0);
+    }
 
     watchdog_reboot(0, 0, 0);
     for (;;)

@@ -16,4 +16,8 @@ typedef enum
 // Call often: it draws a new frame only when one is due
 void boot_rgb_task(boot_rgb_state_t state);
 
+// Dark, before handing over to the boot ROM's bootloader: it doesn't drive the LEDs, and a frame left
+// lit would look like a hang
+void boot_rgb_off(void);
+
 #endif

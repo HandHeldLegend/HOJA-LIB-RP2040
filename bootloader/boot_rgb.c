@@ -95,11 +95,29 @@ void boot_rgb_task(boot_rgb_state_t state)
         pio_sm_put_blocking(BOOT_RGB_PIO, BOOT_RGB_SM, word);
 }
 
+void boot_rgb_off(void)
+{
+    if (!_boot_rgb_ready)
+        return;
+
+    for (uint32_t i = 0; i < BOOT_RGB_LEDS; i++)
+        pio_sm_put_blocking(BOOT_RGB_PIO, BOOT_RGB_SM, 0);
+
+    // Out of the FIFO and onto the wire before the chip restarts
+    while (!pio_sm_is_tx_fifo_empty(BOOT_RGB_PIO, BOOT_RGB_SM))
+        tight_loop_contents();
+    busy_wait_us(500);
+}
+
 #else
 
 void boot_rgb_task(boot_rgb_state_t state)
 {
     (void)state;
+}
+
+void boot_rgb_off(void)
+{
 }
 
 #endif
