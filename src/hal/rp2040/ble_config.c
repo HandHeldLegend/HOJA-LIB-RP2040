@@ -12,6 +12,7 @@
 #include "floss/floss.h"
 
 #include "hal/sys_hal.h"
+#include "hal/rp2040/boot_update.h"
 #include "input/hover.h"
 #include "input/mapper.h"
 #include "input_shared_types.h"
@@ -34,6 +35,13 @@
 #define BLE_CFG_STORE_KEY   0x8001u
 #define BLE_CFG_RX_LEN      8u
 #define BLE_CFG_FRAME_MAX   (1u + 64u)
+// The app's frames: update data comes in as large as one write over an ATT MTU of 247
+#define BLE_CFG_WRITE_MAX   244u
+#define BLE_CFG_UPDATE_DATA_HEADER 5u  // [type][offset u32]
+#define BLE_CFG_UPDATE_PART_LEN    18u // [destination][encoding][staged size, CRC, image size, CRC: u32]
+// While an update arrives, its acknowledgement is repeated this often: a lost one (the notify gave up
+// beside the incoming data) costs this long, not the update
+#define BLE_CFG_UPDATE_REACK_US    500000u
 // A big config block fills the notification buffers; keep the radio going until they drain
 #define BLE_CFG_SEND_WAIT_US 200000u
 // An app that hasn't written for this long (it pings every 2 s) is gone
@@ -46,6 +54,11 @@ typedef enum
     BLE_CFG_TO_PAD_DATA = 0x03,       // [WebUSB packet]
     BLE_CFG_TO_PAD_BYE = 0x04,        // The app is done: the gamepad closes the link
     BLE_CFG_TO_PAD_PING = 0x05,       // The app is still there (every 2 s while connected)
+    BLE_CFG_TO_PAD_UPDATE_INFO = 0x06,   // Asks for UPDATE_INFO
+    BLE_CFG_TO_PAD_UPDATE_BEGIN = 0x07,  // [part count][parts, BLE_CFG_UPDATE_PART_LEN each]
+    BLE_CFG_TO_PAD_UPDATE_DATA = 0x08,   // [stream offset u32][data]: in order, within the window
+    BLE_CFG_TO_PAD_UPDATE_FINISH = 0x09, // All written: check it, stage it, restart
+    BLE_CFG_TO_PAD_UPDATE_ABORT = 0x0A,
     BLE_CFG_TO_APP_AUTH = 0x81,       // [0 allowed, 1 refused]
     BLE_CFG_TO_APP_CODE = 0x82,       // [six letters: A B X Y as printed, U D L R for the d-pad]
     BLE_CFG_TO_APP_CODE_STATE = 0x83, // [presses entered][0 entering, 1 wrong (a new code follows), 2 timed out]
@@ -53,6 +66,10 @@ typedef enum
     BLE_CFG_TO_APP_DATA = 0x85,       // [WebUSB packet]
     BLE_CFG_TO_APP_INPUT = 0x86,      // [live input report]
     BLE_CFG_TO_APP_LINK = 0x87,       // [interval, latency, ATT MTU, LL tx octets: u16 LE][tx PHY][rx PHY]
+    // [version][flags: 1 supported, 2 battery ok][battery %, 0xFF unknown][0][app offset, radio offset,
+    //  radio size, stage header offset, firmware end, radio header CRC32: u32 LE][window, data max: u16 LE]
+    BLE_CFG_TO_APP_UPDATE_INFO = 0x88,
+    BLE_CFG_TO_APP_UPDATE_STATE = 0x89, // [boot_update_status_t][bytes written u32 LE]
 } ble_cfg_frame_t;
 
 typedef enum
@@ -106,6 +123,11 @@ static ble_cfg_rx_s _ble_cfg_rx[BLE_CFG_RX_LEN];
 static uint8_t _ble_cfg_rx_head = 0;
 static uint8_t _ble_cfg_rx_tail = 0;
 
+static bool _ble_cfg_update_receiving = false; // BEGIN accepted, FINISH not yet answered
+static bool _ble_cfg_update_finish = false;    // FINISH arrived (answered from the task: it writes flash)
+static uint32_t _ble_cfg_update_acked = 0;
+static uint64_t _ble_cfg_update_acked_us = 0;
+
 static floss_gatt_cccd_t _ble_cfg_tx_cccd;
 static uint16_t _ble_cfg_tx_handle = 0;
 
@@ -116,7 +138,7 @@ static const floss_gatt_attr_t _ble_cfg_service[] = {
     FLOSS_GATT_PRIMARY_SERVICE128(_ble_cfg_uuid),
     FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_WRITE | FLOSS_GATT_PROP_WRITE_NO_RSP),
     {.uuid128 = _ble_cfg_rx_uuid, .perms = FLOSS_GATT_P_WRITE, .write = _ble_cfg_rx_write,
-     .max_len = BLE_CFG_FRAME_MAX},
+     .max_len = BLE_CFG_WRITE_MAX},
     FLOSS_GATT_CHARACTERISTIC(FLOSS_GATT_PROP_NOTIFY),
     {.uuid128 = _ble_cfg_tx_uuid, .perms = 0, .max_len = BLE_CFG_FRAME_MAX},
     FLOSS_GATT_CCCD(_ble_cfg_tx_cccd),
@@ -384,6 +406,122 @@ static void _ble_cfg_code_task(uint64_t now_us, const mapper_input_s *in)
 }
 
 /***********************************************/
+/********* Updates over the air ****************/
+
+static void _ble_cfg_put_le32(uint8_t *at, uint32_t v)
+{
+    floss_put_le16(&at[0], (uint16_t)(v & 0xFFFFu));
+    floss_put_le16(&at[2], (uint16_t)(v >> 16));
+}
+
+static uint32_t _ble_cfg_get_le32(const uint8_t *at)
+{
+    return (uint32_t)at[0] | ((uint32_t)at[1] << 8) | ((uint32_t)at[2] << 16) | ((uint32_t)at[3] << 24);
+}
+
+static bool _ble_cfg_update_state(boot_update_status_t status, bool wait)
+{
+    uint8_t msg[5];
+    msg[0] = (uint8_t)status;
+    _ble_cfg_put_le32(&msg[1], boot_update_written());
+    if (wait)
+        return _ble_cfg_notify_wait(BLE_CFG_TO_APP_UPDATE_STATE, msg, sizeof(msg));
+    return _ble_cfg_notify(BLE_CFG_TO_APP_UPDATE_STATE, msg, sizeof(msg)) == FLOSS_OK;
+}
+
+static void _ble_cfg_update_info(void)
+{
+    boot_update_info_s info;
+    boot_update_info(&info);
+
+    // Data frames as large as this link takes in one write
+    const floss_le_link_t *l = floss_le_link(_ble_cfg_conn);
+    uint16_t write_max = (l && l->att_mtu > 3u) ? (uint16_t)(l->att_mtu - 3u) : 20u;
+    if (write_max > BLE_CFG_WRITE_MAX)
+        write_max = BLE_CFG_WRITE_MAX;
+
+    uint8_t msg[32] = {0};
+    msg[0] = 1; // This frame's version
+    msg[1] = (uint8_t)((info.supported ? 1u : 0u) | (info.battery_ok ? 2u : 0u));
+    msg[2] = info.battery_percent;
+    _ble_cfg_put_le32(&msg[4], info.app_offset);
+    _ble_cfg_put_le32(&msg[8], info.radio_offset);
+    _ble_cfg_put_le32(&msg[12], info.radio_size);
+    _ble_cfg_put_le32(&msg[16], info.stage_header_offset);
+    _ble_cfg_put_le32(&msg[20], info.running_end);
+    _ble_cfg_put_le32(&msg[24], info.radio_header_crc32);
+    floss_put_le16(&msg[28], (uint16_t)BOOT_UPDATE_WINDOW);
+    floss_put_le16(&msg[30], (uint16_t)(write_max - BLE_CFG_UPDATE_DATA_HEADER));
+    _ble_cfg_notify(BLE_CFG_TO_APP_UPDATE_INFO, msg, sizeof(msg));
+}
+
+static void _ble_cfg_update_begin(const uint8_t *data, uint16_t len)
+{
+    boot_update_part_s parts[BOOT_UPDATE_PARTS_MAX];
+    uint8_t count = len ? data[0] : 0;
+    boot_update_status_t status = BOOT_UPDATE_BAD_REQUEST;
+
+    if (count && (count <= BOOT_UPDATE_PARTS_MAX) && (len == 1u + count * BLE_CFG_UPDATE_PART_LEN))
+    {
+        for (uint8_t i = 0; i < count; i++)
+        {
+            const uint8_t *at = &data[1u + i * BLE_CFG_UPDATE_PART_LEN];
+            parts[i] = (boot_update_part_s){
+                .destination = at[0],
+                .encoding = at[1],
+                .staged_size = _ble_cfg_get_le32(&at[2]),
+                .staged_crc32 = _ble_cfg_get_le32(&at[6]),
+                .image_size = _ble_cfg_get_le32(&at[10]),
+                .image_crc32 = _ble_cfg_get_le32(&at[14]),
+            };
+        }
+        status = boot_update_begin(parts, count);
+    }
+    _ble_cfg_update_acked = 0;
+    _ble_cfg_update_finish = false;
+    _ble_cfg_update_receiving = (status == BOOT_UPDATE_OK);
+    _ble_cfg_update_state(status, false);
+}
+
+// Data goes out without answers; only a refused write is told (the app resends from what is written)
+static void _ble_cfg_update_data(const uint8_t *data, uint16_t len)
+{
+    if (len < 4u)
+        return;
+    boot_update_status_t status = boot_update_data(_ble_cfg_get_le32(data), &data[4], (uint32_t)(len - 4u));
+    if (status != BOOT_UPDATE_OK)
+        _ble_cfg_update_state(status, false);
+}
+
+// From the task: written sectors are acknowledged, and FINISH is answered once flash allows
+static void _ble_cfg_update_task(uint64_t now_us)
+{
+    bool moved = boot_update_task(now_us);
+    if (!_ble_cfg_allowed)
+        return;
+
+    if (!_ble_cfg_update_receiving)
+        return;
+
+    // Each written sector, and the latest again now and then: counted only once it went out
+    uint32_t written = boot_update_written();
+    bool due = (now_us - _ble_cfg_update_acked_us) > BLE_CFG_UPDATE_REACK_US;
+    if ((moved || due) && ((written != _ble_cfg_update_acked) || due) &&
+        _ble_cfg_update_state(BOOT_UPDATE_OK, true))
+    {
+        _ble_cfg_update_acked = written;
+        _ble_cfg_update_acked_us = now_us;
+    }
+
+    if (_ble_cfg_update_finish)
+    {
+        _ble_cfg_update_finish = false;
+        _ble_cfg_update_receiving = false;
+        _ble_cfg_update_state(boot_update_finish(), true);
+    }
+}
+
+/***********************************************/
 /********* GATT and LE *************************/
 
 static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const floss_gatt_attr_t *attr,
@@ -431,6 +569,28 @@ static uint8_t _ble_cfg_rx_write(uint16_t conn, uint16_t attr_handle, const flos
     case BLE_CFG_TO_PAD_PING:
         return 0;
 
+    case BLE_CFG_TO_PAD_UPDATE_INFO:
+    case BLE_CFG_TO_PAD_UPDATE_BEGIN:
+    case BLE_CFG_TO_PAD_UPDATE_DATA:
+    case BLE_CFG_TO_PAD_UPDATE_FINISH:
+    case BLE_CFG_TO_PAD_UPDATE_ABORT:
+        if (!_ble_cfg_allowed)
+            return FLOSS_ATT_ERR_WRITE_NOT_PERMITTED;
+        if (data[0] == BLE_CFG_TO_PAD_UPDATE_INFO)
+            _ble_cfg_update_info();
+        else if (data[0] == BLE_CFG_TO_PAD_UPDATE_BEGIN)
+            _ble_cfg_update_begin(&data[1], (uint16_t)(len - 1u));
+        else if (data[0] == BLE_CFG_TO_PAD_UPDATE_DATA)
+            _ble_cfg_update_data(&data[1], (uint16_t)(len - 1u));
+        else if (data[0] == BLE_CFG_TO_PAD_UPDATE_FINISH)
+            _ble_cfg_update_finish = true;
+        else
+        {
+            _ble_cfg_update_receiving = false;
+            boot_update_abort();
+        }
+        return 0;
+
     case BLE_CFG_TO_PAD_DATA:
     {
         if (!_ble_cfg_allowed)
@@ -475,8 +635,11 @@ static void _ble_cfg_le_event(const floss_le_evt_t *evt, void *user)
         _ble_cfg_conn = 0xFFFFu;
         _ble_cfg_code_wanted = false;
         _ble_cfg_close = false;
+        _ble_cfg_update_finish = false;
+        _ble_cfg_update_receiving = false;
         _ble_cfg_code_stop();
         _ble_cfg_allow(false);
+        // A half-sent update stays where it got to: the app's next link begins it again and carries on
         break;
 
     default:
@@ -595,6 +758,7 @@ void ble_config_task(uint64_t now_us)
             _ble_cfg_code_start();
     }
     _ble_cfg_code_task(now_us, &in);
+    _ble_cfg_update_task(now_us);
 
     if (!_ble_cfg_allowed)
         return;

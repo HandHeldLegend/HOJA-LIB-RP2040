@@ -25,6 +25,7 @@
 #include "pico/cyw43_arch.h"
 #include "floss_cyw43.h"
 #include "hal/rp2040/boot_radio.h"
+#include "hal/rp2040/boot_update.h"
 #endif
 
 #include <string.h>
@@ -2089,6 +2090,9 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     // caches the GATT layout per address, and the address stays. The dongle link fills the air, so
     // its beacon is gentler.
     ble_config_setup(_bt_hal_hid ? _bt_hal_hid->name : NULL, _mode_dongle);
+    // Back from an update the app sent: its beacon opens by itself, so the app reconnects
+    if (boot_update_take_beacon())
+        ble_config_open_beacon();
 
     floss_gap_security_t sec;
     floss_gap_security_defaults(&sec);
@@ -2376,7 +2380,8 @@ void transport_bt_config_task(uint64_t timestamp)
         bool chord = in.presses[INPUT_CODE_START] && in.presses[INPUT_CODE_SELECT];
         bool pressed = chord && !_config_chord;
         _config_chord = chord;
-        if (pressed && _bt_hal_config_only_start())
+        // The press, or the restart after an update the app sent (it reconnects)
+        if ((pressed || boot_update_take_beacon()) && _bt_hal_config_only_start())
             ble_config_open_beacon();
         return;
     }
