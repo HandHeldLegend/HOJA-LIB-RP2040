@@ -12,6 +12,8 @@
 #include <string.h>
 
 #include "devices/bluetooth.h"
+#include "transport/transport_bt.h"
+#include "transport/transport_dongle.h"
 
 #include "utilities/static_config.h"
 #include "utilities/boot.h"
@@ -290,8 +292,12 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         break;
 
         case GAMEPAD_CMD_FORGET_HOST:
-            cb(CFG_BLOCK_GAMEPAD, command, transport_bt_forget_host((core_reportformat_t)arg), NULL, 0);
-            break;
+        {
+            const bool ok = (arg == FORGET_HOST_DONGLE) ? transport_dongle_forget()
+                                                        : transport_bt_forget_host((core_reportformat_t)arg);
+            cb(CFG_BLOCK_GAMEPAD, command, ok, NULL, 0);
+        }
+        break;
 
         case GAMEPAD_CMD_ENABLE_BLUETOOTH_UPLOAD:
         {

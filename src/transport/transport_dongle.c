@@ -32,6 +32,17 @@ __attribute__((weak)) bool transport_dongle_choosing(void)
     return false;
 }
 
+__attribute__((weak)) void transport_dongle_saved(uint8_t mac[6])
+{
+    for (int i = 0; i < 6; i++)
+        mac[i] = 0;
+}
+
+__attribute__((weak)) bool transport_dongle_forget(void)
+{
+    return false;
+}
+
 __attribute__((weak)) uint8_t transport_dongle_static_supported(void)
 {
     return 0;

@@ -2661,6 +2661,22 @@ bool transport_dongle_choosing(void)
     return _dongle_running && !_dongle_cfg.mode_forced && !dongle_api_gamepad_adopted();
 }
 
+void transport_dongle_saved(uint8_t mac[6])
+{
+    floss_addr_t addr;
+    if (floss_link_stored_peer(FLOSS_LINK_CLASSIC, &addr))
+        _bt_hal_addr_to_hoja(&addr, mac);
+    else
+        memset(mac, 0, 6);
+}
+
+// The next dongle comes from a pairing again; until then any free one is used for the session
+bool transport_dongle_forget(void)
+{
+    floss_link_forget_stored(FLOSS_LINK_CLASSIC);
+    return true;
+}
+
 uint8_t transport_dongle_static_supported(void)
 {
     return 1;

@@ -54,7 +54,7 @@ typedef enum
     GAMEPAD_CMD_HOLD_INPUTS,      // The game's input held at rest (argument 1) or passed through (0); released when the app leaves
     GAMEPAD_CMD_TOURNEY,          // Tournament lock on (argument 1) or off (0)
     GAMEPAD_CMD_STATUS,           // Replies [transport][mode][inputs held][tournament lock][reports a second, u16 LE]
-    GAMEPAD_CMD_FORGET_HOST,      // Forget a Bluetooth host; argument the mode it paired in (Switch, SInput or Wii)
+    GAMEPAD_CMD_FORGET_HOST,      // Forget a Bluetooth host; argument the mode it paired in (Switch, SInput or Wii), or FORGET_HOST_DONGLE
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 
@@ -328,6 +328,9 @@ typedef struct
 #define AUTO_HOST_STEAM    0x03
 #define AUTO_HOST_COUNT    4
 #define AUTO_HOST_OFF      0x80 // Flag on an entry: Auto skips it
+
+// GAMEPAD_CMD_FORGET_HOST argument for the dongle the controller remembers
+#define FORGET_HOST_DONGLE 0xFF
 
 // Byte sizes of our various blocks
 #define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) // 64

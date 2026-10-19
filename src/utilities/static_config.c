@@ -395,6 +395,7 @@ static void _bluetooth_static_refresh(void)
                                      (bluetooth_static.external_version_number >= ESP32_HCI_BRIDGE_VERSION_MIN);
 #endif
     bluetooth_static.host_forget_supported = transport_bt_forget_supported() ? 1 : 0;
+    transport_dongle_saved(bluetooth_static.dongle_mac);
 
     _bluetooth_static_refresh_identity();
 }

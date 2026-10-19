@@ -115,9 +115,10 @@ typedef struct
     uint8_t     dongle_supported;        // 1 when the dongle link is available
     uint8_t     wii_supported;         // 1 when Wii console mode is available (BTstack Bluetooth)
     uint8_t     host_forget_supported; // 1 when GAMEPAD_CMD_FORGET_HOST works
+    uint8_t     dongle_mac[6];         // The dongle this controller remembers (pairing mode saved it), zeros for none
 } bluetoothInfoStatic_s;
 
-_Static_assert(sizeof(bluetoothInfoStatic_s) == 57, "bluetoothInfoStatic_s layout must match config app");
+_Static_assert(sizeof(bluetoothInfoStatic_s) == 63, "bluetoothInfoStatic_s layout must match config app");
 
 typedef struct 
 {

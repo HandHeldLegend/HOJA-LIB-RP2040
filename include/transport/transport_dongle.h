@@ -17,6 +17,10 @@ bool transport_dongle_take_mode(core_reportformat_t *format);
 // Following the dongle and not adopted yet: the mode isn't settled (lights hold, as in Auto)
 bool transport_dongle_choosing(void);
 
+// The dongle this controller remembers (pairing mode saved it), zeros for none; and forgetting it
+void transport_dongle_saved(uint8_t mac[6]);
+bool transport_dongle_forget(void);
+
 uint8_t transport_dongle_static_supported(void);
 uint8_t transport_dongle_static_part_status(void);
 
