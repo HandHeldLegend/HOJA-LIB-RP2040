@@ -250,7 +250,10 @@ typedef struct
     uint8_t  host_mac_wii[6];       // Mac address of the Wii we are paired to
     uint8_t  gamepad_default_wireless; // Default on battery: SWPRO, SINPUT, WII, or Auto
     uint8_t  gamepad_defaults_split;   // GAMEPAD_DEFAULTS_SPLIT once the default is split in two
-    uint8_t  reserved[17];
+    uint8_t  auto_order_version;       // AUTO_ORDER_VERSION once the two below are set
+    uint8_t  auto_wireless_order[4];   // Auto on battery, first to last: AUTO_HOST_* ids, AUTO_HOST_OFF when skipped
+    uint8_t  auto_usb_computer;        // Auto on USB with a computer: core_reportformat_t (SINPUT, XINPUT, SLIPPI, or SWPRO for always Switch)
+    uint8_t  reserved[11];
 } gamepadConfig_s;
 
 _Static_assert(sizeof(gamepadConfig_s) == 64, "gamepadConfig_s must remain 64 bytes");
@@ -316,6 +319,15 @@ typedef struct
 
 
 #pragma pack(pop)
+
+// Auto's boot order (gamepadConfig_s auto_*): the wireless order lists each of these once
+#define AUTO_ORDER_VERSION 0x01
+#define AUTO_HOST_DONGLE   0x00
+#define AUTO_HOST_SWITCH   0x01
+#define AUTO_HOST_WII      0x02
+#define AUTO_HOST_STEAM    0x03
+#define AUTO_HOST_COUNT    4
+#define AUTO_HOST_OFF      0x80 // Flag on an entry: Auto skips it
 
 // Byte sizes of our various blocks
 #define GAMEPAD_CFB_SIZE    sizeof(gamepadConfig_s) // 64

@@ -427,6 +427,7 @@ static void _bt_hal_mode_setup(core_params_s *params);
 static void _bt_hal_restart(void);
 static void _bt_hal_restart_as(const uint8_t *mac);
 static void _bt_hal_beacon_stop(void);
+static void _bt_hal_start_calls(void);
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static void _bt_hal_beacon_remember(void);
 static void _bt_hal_beacon_call(void);
@@ -1791,7 +1792,9 @@ static void _bt_hal_beacon_take(const floss_addr_t *addr, bool ours)
     _beacon_addr = *addr;
     _beacon_new = !ours;
     _beacon_taken = true;
-    autodetect_dongle_heard();
+    // A host above the dongle in Auto's boot order is called first; the dongle waits its turn
+    if (!autodetect_dongle_heard())
+        _bt_hal_start_calls();
 }
 
 static void _bt_hal_beacon_stop(void)
@@ -1845,8 +1848,6 @@ static bool _bt_hal_beacon_scan(uint16_t window, uint16_t interval)
     p.active = false;
     return floss_le_scan_start(&p, _bt_hal_beacon_report, NULL) == FLOSS_OK;
 }
-
-static void _bt_hal_start_calls(void);
 
 static void _bt_hal_beacon_listened(floss_timer_t *t, void *arg)
 {

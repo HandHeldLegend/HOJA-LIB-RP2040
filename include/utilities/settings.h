@@ -104,6 +104,8 @@ extern switchpairConfig_s  *switchpair_config;
 
 void settings_init();
 void settings_commit_blocks();
+// Auto's boot order at its defaults: dongle, Switch, Wii, Steam; Steam on a computer over USB
+void settings_auto_order_defaults(void);
 
 // arg: the command's optional argument (0xFF when none)
 void settings_config_command(cfg_block_t block, uint8_t command, uint8_t arg);

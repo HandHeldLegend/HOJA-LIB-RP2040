@@ -75,7 +75,9 @@ void autodetect_dongle_found(void);
 // true; heard: that dongle is called, and a pairing start makes it the remembered one.
 bool autodetect_dongle_listen(void);
 void autodetect_dongle_listen_end(void);
-void autodetect_dongle_heard(void);
+// True when the dongle is taken now; false when Auto's boot order calls a host above it first (the
+// dongle is then taken at its place, if those don't answer)
+bool autodetect_dongle_heard(void);
 
 // Pairing a Switch or a PC on battery: an open dongle first, then Bluetooth pairing in this mode
 void autodetect_pairing(boot_info_s *info);

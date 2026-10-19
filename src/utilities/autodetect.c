@@ -6,6 +6,8 @@
 #include "transport/transport_bt.h"
 #include "transport/transport_dongle.h"
 #include "utilities/boot_timeline.h"
+#include "utilities/settings.h"
+#include "hhl_tusb_config.h" // Which USB modes this build has (XInput, Slippi)
 
 #include "hardware/gpio.h"
 
@@ -86,6 +88,38 @@ static core_reportformat_t _switch_format;
 static gamepad_transport_t _switch_transport;
 
 static bool _paused = false; // The config app holds the radio (autodetect_pause)
+
+// Auto on USB with a computer: the boot order's choice (Steam, XInput, Slippi), or Switch for always
+// Switch. A mode this board can't do over USB counts as Steam.
+static core_reportformat_t _usb_computer_mode(void)
+{
+    const uint8_t mode = gamepad_config->auto_usb_computer;
+    if(gamepad_config->auto_order_version != AUTO_ORDER_VERSION)
+        return CORE_REPORTFORMAT_SINPUT;
+    switch(mode)
+    {
+        case CORE_REPORTFORMAT_SWPRO:
+        case CORE_REPORTFORMAT_SINPUT:
+            return (core_reportformat_t)mode;
+#if (HHL_TUSB_DRIVER_XINPUT_ENABLE)
+        case CORE_REPORTFORMAT_XINPUT:
+            return CORE_REPORTFORMAT_XINPUT;
+#endif
+#if (HHL_TUSB_DRIVER_SLIPPI_ENABLE)
+        case CORE_REPORTFORMAT_SLIPPI:
+            return CORE_REPORTFORMAT_SLIPPI;
+#endif
+        default:
+            return CORE_REPORTFORMAT_SINPUT;
+    }
+}
+
+// The USB mode Auto starts in while it watches: Switch when it's always Switch, else Steam (which a
+// computer answers, and a Switch is moved off)
+static core_reportformat_t _usb_start_mode(void)
+{
+    return (_usb_computer_mode() == CORE_REPORTFORMAT_SWPRO) ? CORE_REPORTFORMAT_SWPRO : CORE_REPORTFORMAT_SINPUT;
+}
 
 static void _switch_to(core_reportformat_t format, gamepad_transport_t transport, phase_t next)
 {
@@ -228,24 +262,101 @@ static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
 static core_reportformat_t _fallback_format = CORE_REPORTFORMAT_SWPRO;
 static phase_t _fallback_phase = PHASE_BT;
 
-// Auto calls the saved hosts in this order, each in its own mode, skipping any never paired
-static const core_reportformat_t _host_order[] = {
-    CORE_REPORTFORMAT_SWPRO,
-    CORE_REPORTFORMAT_WII,
-    CORE_REPORTFORMAT_SINPUT,
-};
-static uint8_t _host_next = 0;
+// Auto's wireless order (the boot order in the gamepad settings): the dongle and the saved hosts, first
+// to last, those switched off left out. Auto works through it: each host is called in its own mode
+// (any never paired skipped), and the dongle is taken at its place if one was heard.
+static uint8_t _order[AUTO_HOST_COUNT];
+static uint8_t _order_len = 0;
+static uint8_t _order_next = 0;   // The next entry to try
+static uint8_t _order_at = 0xFF;  // The entry being tried (0xFF before the first)
+static bool _walking = false;     // Auto on battery works through the order
+static bool _dongle_heard = false; // A free dongle answered the listen, to take at its place
 
-static bool _next_host(core_reportformat_t *format)
+static void _order_load(void)
 {
-    while(_host_next < (sizeof(_host_order) / sizeof(_host_order[0])))
+    static const uint8_t defaults[AUTO_HOST_COUNT] = {AUTO_HOST_DONGLE, AUTO_HOST_SWITCH, AUTO_HOST_WII, AUTO_HOST_STEAM};
+    const uint8_t *order = gamepad_config->auto_wireless_order;
+
+    // Each entry once, else the defaults
+    uint8_t seen = 0;
+    for(uint8_t i = 0; i < AUTO_HOST_COUNT; i++)
+        seen |= (uint8_t)(1u << ((order[i] & ~AUTO_HOST_OFF) & 0x07));
+    if((gamepad_config->auto_order_version != AUTO_ORDER_VERSION) || (seen != ((1u << AUTO_HOST_COUNT) - 1)))
+        order = defaults;
+
+    _order_len = 0;
+    for(uint8_t i = 0; i < AUTO_HOST_COUNT; i++)
     {
-        const core_reportformat_t f = _host_order[_host_next++];
-        if(transport_bt_host_paired(f))
-        {
-            *format = f;
+        if(!(order[i] & AUTO_HOST_OFF))
+            _order[_order_len++] = order[i];
+    }
+    _order_next = 0;
+    _order_at = 0xFF;
+    _dongle_heard = false;
+}
+
+static bool _order_has(uint8_t entry)
+{
+    for(uint8_t i = 0; i < _order_len; i++)
+    {
+        if(_order[i] == entry)
             return true;
+    }
+    return false;
+}
+
+static core_reportformat_t _host_format(uint8_t entry)
+{
+    switch(entry)
+    {
+        case AUTO_HOST_SWITCH: return CORE_REPORTFORMAT_SWPRO;
+        case AUTO_HOST_WII:    return CORE_REPORTFORMAT_WII;
+        case AUTO_HOST_STEAM:  return CORE_REPORTFORMAT_SINPUT;
+        default:               return CORE_REPORTFORMAT_UNDEFINED;
+    }
+}
+
+typedef enum
+{
+    NEXT_NONE,
+    NEXT_HOST,   // Call this saved host
+    NEXT_DONGLE, // Take the dongle that was heard
+} next_t;
+
+// The next entry worth trying: a saved host, or the dongle once one was heard. hosts_only: before the
+// listen (the dongle's turn can't be known yet, it is taken when heard if it ranks first).
+static next_t _order_step(core_reportformat_t *format, bool hosts_only)
+{
+    while(_order_next < _order_len)
+    {
+        const uint8_t i = _order_next++;
+        if(_order[i] == AUTO_HOST_DONGLE)
+        {
+            if(!hosts_only && _dongle_heard)
+            {
+                _order_at = i;
+                return NEXT_DONGLE;
+            }
+            continue;
         }
+        const core_reportformat_t f = _host_format(_order[i]);
+        if((f != CORE_REPORTFORMAT_UNDEFINED) && transport_bt_host_paired(f))
+        {
+            _order_at = i;
+            *format = f;
+            return NEXT_HOST;
+        }
+    }
+    return NEXT_NONE;
+}
+
+// The dongle ranks above the entry being tried (or nothing is being tried yet)
+static bool _dongle_ranks_first(void)
+{
+    for(uint8_t i = 0; i < _order_len; i++)
+    {
+        if(_order[i] == AUTO_HOST_DONGLE)
+            return (_order_at == 0xFF) || (i < _order_at);
     }
     return false;
 }
@@ -268,14 +379,20 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
     _fallback_format = *format;
     _fallback_phase = (mode == CORE_REPORTFORMAT_UNDEFINED) ? PHASE_BT : PHASE_DONE;
 
+    _walking = false;
+    _listen_open = _dongle_carries(*format);
+
 #if HOJA_BT_USES_FLOSS
-    // Auto calls the saved hosts straight away, in order (a Switch, then a Wii, then a PC), each in
-    // its own mode: the first that answers is connected. With none paired, SInput waits to be found.
+    // Auto works through its boot order: each saved host called straight away in its own mode, the
+    // first that answers connected; the dongle at its place when the listen heard one. With nothing
+    // left, SInput waits to be found.
     if(mode == CORE_REPORTFORMAT_UNDEFINED)
     {
-        _host_next = 0;
+        _order_load();
+        _walking = true;
+        _listen_open = AUTODETECT_DONGLE && _order_has(AUTO_HOST_DONGLE);
         core_reportformat_t host;
-        if(_next_host(&host))
+        if(_order_step(&host, true) == NEXT_HOST)
         {
             _fallback_format = host;
             _fallback_phase = PHASE_BT_HOST;
@@ -288,7 +405,6 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
     }
 #endif
 
-    _listen_open = _dongle_carries(*format);
     *format = _fallback_format;
     *transport = GAMEPAD_TRANSPORT_BLUETOOTH;
     *phase = _fallback_phase;
@@ -360,7 +476,7 @@ void autodetect_boot(boot_info_s *info, autodetect_power_t power, bool wired_aut
     }
     else
     {
-        info->reportformat = CORE_REPORTFORMAT_SINPUT;
+        info->reportformat = _usb_start_mode();
         info->transport = GAMEPAD_TRANSPORT_USB;
         _phase = PHASE_WIRED;
         BOOT_TIMELINE(TL_PHASE, _phase);
@@ -414,6 +530,29 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
     return true;
 }
 
+// On to the next entry of the boot order: a saved host, the dongle that was heard, else SInput, which
+// keeps calling a saved PC or waits to be found
+static void _order_walk(void)
+{
+    core_reportformat_t host;
+    switch(_order_step(&host, false))
+    {
+        case NEXT_HOST:
+            _switch_to(host, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT_HOST);
+            break;
+
+        case NEXT_DONGLE:
+            _dongle_heard = false;
+            _confirmed = false;
+            _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
+            break;
+
+        default:
+            _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
+            break;
+    }
+}
+
 bool autodetect_bt_calling(void)
 {
     return _phase == PHASE_BT_HOST && !_confirmed && !_switch_pending;
@@ -430,12 +569,7 @@ void autodetect_bt_call_result(bool connected)
         return;
     }
 
-    // Not awake: the next saved host, else SInput, which keeps calling a saved PC or waits to be found
-    core_reportformat_t host;
-    if(_next_host(&host))
-        _switch_to(host, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT_HOST);
-    else
-        _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
+    _order_walk();
 }
 
 bool autodetect_dongle_listen(void)
@@ -448,14 +582,24 @@ void autodetect_dongle_listen_end(void)
     _listen_open = false;
 }
 
-void autodetect_dongle_heard(void)
+bool autodetect_dongle_heard(void)
 {
-    if(!autodetect_dongle_listen()) return;
+    if(!autodetect_dongle_listen()) return false;
     _listen_open = false;
+
+    // Auto's boot order with a host above the dongle: that host is called first, the dongle kept for
+    // its place
+    if(_walking && !_dongle_ranks_first())
+    {
+        _dongle_heard = true;
+        return false;
+    }
+
     // Until it connects; a dongle that doesn't goes back to this start's Bluetooth plan
     _confirmed = false;
     const core_reportformat_t format = (_wireless == CORE_REPORTFORMAT_UNDEFINED) ? CORE_REPORTFORMAT_SWPRO : _wireless;
     _switch_to(format, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
+    return true;
 }
 
 void autodetect_dongle_found(void)
@@ -570,19 +714,33 @@ void autodetect_task(uint64_t now_us)
         if((_power == AUTODETECT_POWER_BATTERY) && AUTODETECT_BLUETOOTH)
             _switch_to_wireless();
         else
-            _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_USB, PHASE_WIRED);
+            _switch_to(_usb_start_mode(), GAMEPAD_TRANSPORT_USB, PHASE_WIRED);
         break;
 
         case PHASE_WIRED:
         if(_usb_host && !usb_host_us) usb_host_us = now_us;
 
-        // Computers ask for the BOS descriptor while connecting, a Switch never does (and may
-        // never finish setting up a controller it does not know)
-        if(_usb_bos)
+        // Always Switch: any USB host is answered as a Switch
+        if(usb_host_us && (_usb_start_mode() == CORE_REPORTFORMAT_SWPRO))
         {
             _retro_port_watch(false, false);
             _confirmed = true;
             _phase = PHASE_DONE;
+        }
+        // Computers ask for the BOS descriptor while connecting, a Switch never does (and may
+        // never finish setting up a controller it does not know). A computer gets the boot order's
+        // mode for it.
+        else if(_usb_bos)
+        {
+            _retro_port_watch(false, false);
+            const core_reportformat_t computer = _usb_computer_mode();
+            if(computer == CORE_REPORTFORMAT_SINPUT)
+            {
+                _confirmed = true;
+                _phase = PHASE_DONE;
+            }
+            else
+                _switch_to(computer, GAMEPAD_TRANSPORT_USB, PHASE_DONE);
         }
         else if(usb_host_us && (now_us - usb_host_us) >= (AUTODETECT_BOS_WAIT_MS * 1000ull))
         {
@@ -608,7 +766,13 @@ void autodetect_task(uint64_t now_us)
 
         case PHASE_DONGLE:
         if(elapsed_ms >= AUTODETECT_DONGLE_WAIT_MS)
-            _switch_to(_fallback_format, GAMEPAD_TRANSPORT_BLUETOOTH, _fallback_phase);
+        {
+            // Auto carries on down its boot order; a chosen mode goes to Bluetooth in that mode
+            if(_walking)
+                _order_walk();
+            else
+                _switch_to(_fallback_format, GAMEPAD_TRANSPORT_BLUETOOTH, _fallback_phase);
+        }
         break;
 
         case PHASE_BT_HOST:

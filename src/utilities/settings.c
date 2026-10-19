@@ -129,6 +129,13 @@ void settings_init()
         settings_commit_blocks();
     }
 
+    // Once: Auto's boot order, as Auto worked before it could be changed (older firmware ignores it)
+    if(gamepad_config->auto_order_version != AUTO_ORDER_VERSION)
+    {
+        settings_auto_order_defaults();
+        settings_commit_blocks();
+    }
+
     // Init User config
     if(user_config->user_config_version != CFG_BLOCK_USER_VERSION)
     {
@@ -187,6 +194,14 @@ void settings_commit_blocks()
         flash_hal_write((uint8_t *) &live_settings, sizeof(settings_live_s), 0);
 
     MUTEX_HAL_EXIT(&_settings_mutex);
+}
+
+void settings_auto_order_defaults(void)
+{
+    const uint8_t order[AUTO_HOST_COUNT] = {AUTO_HOST_DONGLE, AUTO_HOST_SWITCH, AUTO_HOST_WII, AUTO_HOST_STEAM};
+    memcpy(gamepad_config->auto_wireless_order, order, sizeof(order));
+    gamepad_config->auto_usb_computer = CORE_REPORTFORMAT_SINPUT;
+    gamepad_config->auto_order_version = AUTO_ORDER_VERSION;
 }
 
 void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm_t cb)
