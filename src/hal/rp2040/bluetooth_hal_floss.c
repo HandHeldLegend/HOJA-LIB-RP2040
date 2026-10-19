@@ -2490,6 +2490,47 @@ void transport_bt_radio_off(void)
     _config_only = false;
 }
 
+bool transport_bt_forget_supported(void)
+{
+    return true;
+}
+
+bool transport_bt_forget_host(core_reportformat_t format)
+{
+    uint8_t *mac = NULL;
+    switch (format)
+    {
+    case CORE_REPORTFORMAT_SWPRO:
+        mac = gamepad_config->host_mac_switch;
+        break;
+
+    case CORE_REPORTFORMAT_WII:
+        mac = gamepad_config->host_mac_wii;
+        break;
+
+    case CORE_REPORTFORMAT_SINPUT:
+        mac = gamepad_config->host_mac_sinput;
+        break;
+
+    default:
+        return false;
+    }
+
+    // Its keys from every address we paired it under, whether or not the radio runs now
+    if (_bt_hal_is_stored_identity_valid(mac))
+    {
+        floss_addr_t addr;
+        _bt_hal_addr_from_hoja(mac, &addr);
+        floss_gap_bond_forget(&addr);
+    }
+    memset(mac, 0, 6);
+    // The Switch pairs over USB and hands us its key
+    if (format == CORE_REPORTFORMAT_SWPRO)
+        memset(switchpair_config->link_key, 0, sizeof(switchpair_config->link_key));
+    settings_commit_blocks();
+    return true;
+}
+
 bool transport_bt_host_paired(core_reportformat_t format)
 {
     switch (format)

@@ -114,9 +114,10 @@ typedef struct
     uint8_t     fcc_id[24];
     uint8_t     dongle_supported;        // 1 when the dongle link is available
     uint8_t     wii_supported;         // 1 when Wii console mode is available (BTstack Bluetooth)
+    uint8_t     host_forget_supported; // 1 when GAMEPAD_CMD_FORGET_HOST works
 } bluetoothInfoStatic_s;
 
-_Static_assert(sizeof(bluetoothInfoStatic_s) == 56, "bluetoothInfoStatic_s layout must match config app");
+_Static_assert(sizeof(bluetoothInfoStatic_s) == 57, "bluetoothInfoStatic_s layout must match config app");
 
 typedef struct 
 {

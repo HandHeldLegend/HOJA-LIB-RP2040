@@ -32,6 +32,17 @@ __attribute__((weak)) bool transport_bt_host_paired(core_reportformat_t format)
     return false;
 }
 
+__attribute__((weak)) bool transport_bt_forget_supported(void)
+{
+    return false;
+}
+
+__attribute__((weak)) bool transport_bt_forget_host(core_reportformat_t format)
+{
+    (void)format;
+    return false;
+}
+
 __attribute__((weak)) void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
 {
     if (caps == NULL)

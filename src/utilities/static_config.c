@@ -394,6 +394,7 @@ static void _bluetooth_static_refresh(void)
     bluetooth_static.wii_supported = !bluetooth_static.external_version_number ||
                                      (bluetooth_static.external_version_number >= ESP32_HCI_BRIDGE_VERSION_MIN);
 #endif
+    bluetooth_static.host_forget_supported = transport_bt_forget_supported() ? 1 : 0;
 
     _bluetooth_static_refresh_identity();
 }

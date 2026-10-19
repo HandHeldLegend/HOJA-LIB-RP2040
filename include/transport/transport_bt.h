@@ -35,6 +35,11 @@ void transport_bt_radio_off(void);
 // A host is saved for this mode (Switch, Wii or SInput): Auto calls it
 bool transport_bt_host_paired(core_reportformat_t format);
 
+// Forget the host saved for this mode (Switch, Wii or SInput): its address, its keys, saved at once.
+// False when this Bluetooth backend can't.
+bool transport_bt_forget_supported(void);
+bool transport_bt_forget_host(core_reportformat_t format);
+
 #if HOJA_BT_USES_FLOSS
 // Wired modes: BLE config on Plus + Minus, the radio up for LE alone (bluetooth_hal_floss.c)
 void transport_bt_config_task(uint64_t timestamp);
