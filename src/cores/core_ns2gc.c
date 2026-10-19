@@ -22,6 +22,14 @@
 
 static bool _ns2gc_connected = false;
 
+// The USB transport starts only for a mode with a device record (the driver takes the
+// descriptors from core_ns2gc_usb_config)
+static core_hid_device_t _ns2gc_hid_device = {
+    .vid = 0x057E,
+    .pid = 0x2073,
+    .name = "GameCube Controller",
+};
+
 static void _ns2gc_set_connected(bool connected)
 {
     if (connected == _ns2gc_connected)
@@ -40,8 +48,9 @@ static void _ns2gc_set_connected(bool connected)
 // NS2-LIB-HID hooks
 //--------------------------------------------------------------------+
 
-// The GameCube layout from the GameCube profile; the buttons it has no place for (ZL, C, Home,
-// Capture) straight from the hardware
+// The GameCube layout from the GameCube profile; the rest from the hardware, on their Pro
+// Controller 2 bits (the report shares its layout): ZL, Minus, the stick clicks, Home, Capture,
+// and C (chat) on the power button
 void ns2_api_hook_get_input(ns2_input_s *out)
 {
     mapper_input_s input = mapper_get_input();
@@ -66,9 +75,12 @@ void ns2_api_hook_get_input(ns2_input_s *out)
     out->up = dpad[3];
 
     out->zl = raw.presses[INPUT_CODE_LB];
-    out->c = raw.presses[INPUT_CODE_SELECT];
+    out->minus = raw.presses[INPUT_CODE_SELECT];
+    out->l_js = raw.presses[INPUT_CODE_LS];
+    out->r_js = raw.presses[INPUT_CODE_RS];
     out->home = raw.presses[INPUT_CODE_HOME];
     out->capture = raw.presses[INPUT_CODE_SHARE];
+    out->c = raw.presses[INPUT_CODE_MISC3];
 
     // Our own calibration, reported over the whole 12-bit range (the controller's calibration
     // blocks describe the same)
@@ -201,6 +213,7 @@ bool core_ns2gc_init(core_params_s *params)
     params->core_report_generator = _ns2gc_report;
     params->core_report_tunnel = _ns2gc_tunnel;
     params->core_transport_stop = _ns2gc_transport_stop;
+    params->hid_device = &_ns2gc_hid_device;
 
     return transport_init(params);
 }
