@@ -1,6 +1,5 @@
 #include "usb/webusb.h"
 #include "utilities/interval.h"
-#include "utilities/tasks.h"
 #include "input_shared_types.h"
 
 #include "utilities/settings.h"
@@ -23,17 +22,11 @@
 #include "pico.h"
 #include "hardware/sync.h"
 
-static bool _webusb_usb_send_input(const uint8_t *data, uint16_t size)
-{
-    if (!hhl_tusb_webusb_report_send(data, size))
-        return false;
-    tasks_mark_sent();
-    return true;
-}
-
+// The app's live input isn't a report to the game: the game's own reports keep the task cycle and the
+// report rate
 static const webusb_sink_s _webusb_usb_sink = {
     .send       = hhl_tusb_webusb_report_send,
-    .send_input = _webusb_usb_send_input,
+    .send_input = hhl_tusb_webusb_report_send,
     .ready      = hhl_tusb_webusb_report_ready_blocking,
 };
 

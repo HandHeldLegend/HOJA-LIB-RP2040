@@ -230,14 +230,11 @@ void transport_usb_task(uint64_t timestamp)
         return;
     }
 
-    // The config app on this cable takes over the reports. Over BLE (or another sink) the host keeps
-    // its input; BLE config sends the app its own live input.
+    // The config app on this cable gets its live input beside the game's reports, which carry on:
+    // "Send inputs to game" decides what they hold (the input, or a controller at rest). Over BLE (or
+    // another sink) BLE config sends the app its own live input.
     if (webusb_outputting_check() && !webusb_get_sink())
-    {
         webusb_send_rawinput(timestamp);
-        hhl_tusb_task();
-        return;
-    }
 
     if (!_usb_ready)
     {
