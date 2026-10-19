@@ -16,6 +16,10 @@
 
 #include "usb/webusb.h"
 
+#if defined(HOJA_NS2_GC_TEST)
+#include "cores/core_ns2gc.h"
+#endif
+
 #include "hoja.h"
 
 #include "hhl_tusb.h"
@@ -188,6 +192,12 @@ bool transport_usb_init(core_params_s *params)
 #endif
 
     case CORE_REPORTFORMAT_SLIPPI:
+#if defined(HOJA_NS2_GC_TEST)
+        // Test build: the Switch 2's GameCube controller, a report every 4 ms
+        _usb_frames = 4;
+        core_ns2gc_usb_config(&tcfg);
+        break;
+#endif
 #if (HHL_TUSB_DRIVER_SLIPPI_ENABLE)
         _usb_frames = 1;
         tcfg.driver = HHL_TUSB_DRIVER_SLIPPI;
