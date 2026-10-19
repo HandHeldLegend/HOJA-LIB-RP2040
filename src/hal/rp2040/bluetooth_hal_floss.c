@@ -2,7 +2,7 @@
 
 // FLOSS Bluetooth for the RM2 (CYW43), or an ESP32 running the HCI bridge (esp32_hci.c). Same
 // behaviour as the BTstack backend (bluetooth_hal.c): Switch, SInput and Wii modes, Auto mode's
-// host probe, the Wii's reload and standby handling.
+// host calls, the Wii's reload and standby handling.
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
 #include "hal/bluetooth_hal.h"
 #include "hal/flash_hal.h"
@@ -321,17 +321,18 @@ void btstack_cyw43_deinit(async_context_t *context)
 #define BT_HAL_RECONNECT_MIN_MS    1000
 #define BT_HAL_RECONNECT_SPREAD_MS 2000
 
-// Auto mode: hosts listen for calls every 1.28 s, so 1.6 s catches each one awake
-#define BT_HAL_PROBE_PAGE_TIMEOUT   0x0A00 // x 0.625 ms, 1.6 s per host
-// The mode of the host that connected last, which Auto calls first (an app key of the pairing store)
-#define BT_HAL_STORE_KEY_LAST_FORMAT 0x8000
+// Auto mode calls each saved host: hosts listen for calls every 1.28 s, so 1.6 s catches each one awake
+#define BT_HAL_CALL_PAGE_TIMEOUT   0x0A00 // x 0.625 ms, 1.6 s per host
+// Once a host takes the call, its HID channels follow. A Wii in standby takes the call and never
+// answers, so the Wii gets less time.
+#define BT_HAL_CALL_ANSWER_MS      3000
+#define BT_HAL_CALL_ANSWER_WII_MS  1500
 
 // Swift Pair: while SInput pairs, an LE beacon makes a nearby Windows PC offer "Connect". Microsoft
 // wants it gone 30 s before pairing ends; the pad sleeps after 5 minutes idle.
 #define BT_HAL_SWIFT_PAIR_MS       (3u * 60u * 1000u)
 // 100 ms: the shortest a beacon may use before Bluetooth 5.0 (the ESP32's controller)
 #define BT_HAL_SWIFT_PAIR_INTERVAL 0x00A0
-#define BT_HAL_PROBE_ANSWER_MS      1500
 #define BT_HAL_DEFAULT_PAGE_TIMEOUT 0x6000 // As the BTstack backend
 
 #define BT_HAL_GAP_IAC_GENERAL 0x9E8B33u
@@ -349,7 +350,7 @@ static uint8_t _hid_record[700];
 static bool _bt_stack_up = false;   // The radio comes up once per boot
 static bool _config_only = false;   // A wired mode: the radio runs only for BLE config
 static bool _config_chord = false;  // Plus + Minus were down at the last look (wired modes)
-static bool _bt_mode_ready = false; // A mode is set up (Auto mode may probe hosts first)
+static bool _bt_mode_ready = false; // A mode is set up (not while the radio runs for the config app alone)
 static bool _mode_wii = false;
 static bool _mode_sinput = false;
 static uint32_t _report_interval_us = BT_HAL_TARGET_POLLING_RATE_MS * 1000;
@@ -417,27 +418,14 @@ static bool _wii_fresh_acl = false;  // This reconnect attempt brought up a new 
 static bool _wii_page_pending = false;
 static bool _wii_page_answered = false; // ...and the Wii's radio has taken it
 
-// Auto mode probe
-typedef struct
-{
-    core_reportformat_t format;
-    const uint8_t *addr;
-    uint8_t local_mac[6]; // Our address in that mode: hosts only answer the remote they paired
-} bt_hal_probe_host_s;
-
-static bt_hal_probe_host_s _probe_hosts[3];
-static uint8_t _probe_count = 0;
-static uint8_t _probe_index = 0;
-static bool _probe_running = false;
-static floss_l2cap_chan_t *_probe_chan = NULL;
-static uint16_t _probe_handle = BT_HAL_NO_HANDLE;
-static floss_timer_t _probe_timer;
+// Auto mode's call to this mode's host: its link, once the host takes the call
+static floss_timer_t _call_timer;
+static uint16_t _call_handle = BT_HAL_NO_HANDLE;
 static floss_timer_t _swift_pair_timer;
 
 static void _bt_hal_mode_setup(core_params_s *params);
 static void _bt_hal_restart(void);
 static void _bt_hal_restart_as(const uint8_t *mac);
-static void _bt_hal_probe_next(void);
 static void _bt_hal_beacon_stop(void);
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
 static void _bt_hal_beacon_remember(void);
@@ -1036,232 +1024,36 @@ static void _bt_hal_reconnect_retry(void)
 }
 
 /***********************************************/
-/********* Auto mode host probe ****************/
+/********* Auto mode host calls ****************/
 
-// Before reconnecting, call each saved host and open a service discovery channel (no pairing, no
-// HID). An awake host answers, even if only to refuse. A Wii in standby takes the call but never
-// answers. The first awake host picks the mode: Switch, then Wii, then the PC (the host that
-// connected last goes first, unless Auto already called it).
-
-static void _bt_hal_probe_add(core_reportformat_t format, const uint8_t *addr)
+// Auto calls each saved host in its own mode (autodetect.c keeps the order); the reconnect calls this
+// mode's host. Whether it answered goes back to Auto, which moves on to the next host if not.
+static void _bt_hal_call_done(bool connected)
 {
-    // Auto called the last host already
-    if (!_bt_hal_is_stored_identity_valid(addr) || autodetect_bt_skip_host(format))
-        return;
-
-    // A host saved for two modes answers for both: the first mode keeps it
-    for (uint8_t i = 0; i < _probe_count; i++)
-    {
-        if (!memcmp(addr, _probe_hosts[i].addr, 6))
-            return;
-    }
-
-    _probe_hosts[_probe_count].format = format;
-    _probe_hosts[_probe_count].addr = addr;
-    transport_mode_mac(_probe_hosts[_probe_count].local_mac, format);
-    _probe_count++;
+    floss_timer_stop(&_call_timer);
+    _call_handle = BT_HAL_NO_HANDLE;
+    BOOT_TIMELINE(TL_PROBE_DONE, connected);
+    autodetect_bt_call_result(connected);
 }
 
-static void _bt_hal_probe_finish(core_reportformat_t found)
-{
-    _bt_hal_beacon_stop();
-    _probe_running = false;
-    _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
-
-    // Switch mode carries on: set it up now and bring the radio back with it. Otherwise core 1
-    // brings up the mode that answered.
-    if (autodetect_bt_probe_result(found))
-    {
-        _bt_hal_mode_setup(core_current_params());
-        _bt_hal_restart();
-    }
-}
-
-// The config app took the radio (_bt_hal_config_hold): the probe stops here, and starts over when the
-// hold ends (_bt_hal_connect_resume)
-static void _bt_hal_probe_pause(void)
-{
-    if (_probe_handle != BT_HAL_NO_HANDLE)
-        floss_gap_disconnect(_probe_handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
-    _probe_handle = BT_HAL_NO_HANDLE;
-    _probe_running = false;
-    _bt_hal_write_page_timeout(BT_HAL_DEFAULT_PAGE_TIMEOUT);
-}
-
-static void _bt_hal_probe_host_done(bool awake)
-{
-    BOOT_TIMELINE(TL_PROBE_DONE, awake);
-    floss_timer_stop(&_probe_timer);
-    if (_probe_chan)
-    {
-        floss_l2cap_chan_t *chan = _probe_chan;
-        _probe_chan = NULL;
-        floss_l2cap_disconnect(chan);
-    }
-
-    if (_cfg_hold)
-    {
-        _bt_hal_probe_pause();
-        return;
-    }
-
-    if (awake)
-    {
-        _bt_hal_probe_finish(_probe_hosts[_probe_index].format);
-        return;
-    }
-
-    if (_probe_handle != BT_HAL_NO_HANDLE)
-        floss_gap_disconnect(_probe_handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
-    _probe_handle = BT_HAL_NO_HANDLE;
-
-    _probe_index++;
-    _bt_hal_probe_next();
-}
-
-// Connected but no answer: asleep
-static void _bt_hal_probe_timeout(floss_timer_t *t, void *arg)
+// The host took the call but its HID channels never came: a Wii in standby, or a host busy elsewhere
+static void _bt_hal_call_timeout(floss_timer_t *t, void *arg)
 {
     (void)t;
     (void)arg;
-    if (_probe_running)
-        _bt_hal_probe_host_done(false);
+    if (!autodetect_bt_calling())
+        return;
+    if (_call_handle != BT_HAL_NO_HANDLE)
+        floss_gap_disconnect(_call_handle, FLOSS_HCI_ERR_REMOTE_USER_TERMINATED);
+    _bt_hal_call_done(false);
 }
 
-static void _bt_hal_probe_on_open(floss_l2cap_chan_t *chan, uint16_t status)
+static void _bt_hal_call_link_up(const floss_gap_evt_t *evt)
 {
-    if (!_probe_running || chan != _probe_chan)
+    if (!autodetect_bt_calling())
         return;
-    if (status != 0)
-        _probe_chan = NULL;
-
-    // Opened, or refused by the host itself: awake. A failed call or no answer: not
-    const bool answered = (status == 0) ||
-                          (status >= FLOSS_L2CAP_CONN_PSM_UNSUPP && status <= FLOSS_L2CAP_CONN_NO_RESOURCES);
-    _bt_hal_probe_host_done(answered);
-}
-
-static void _bt_hal_probe_on_close(floss_l2cap_chan_t *chan)
-{
-    if (chan == _probe_chan)
-        _probe_chan = NULL;
-}
-
-static void _bt_hal_probe_on_data(floss_l2cap_chan_t *chan, const uint8_t *data, uint16_t len)
-{
-    (void)chan;
-    (void)data;
-    (void)len;
-}
-
-static const floss_l2cap_ops_t _probe_ops = {
-    .on_open = _bt_hal_probe_on_open,
-    .on_close = _bt_hal_probe_on_close,
-    .on_data = _bt_hal_probe_on_data,
-};
-
-// The call went through: open the channel and wait for the answer
-static void _bt_hal_probe_on_connected(const floss_gap_evt_t *evt)
-{
-    if (!_probe_running || _probe_index >= _probe_count)
-        return;
-
-    floss_addr_t addr;
-    _bt_hal_addr_from_hoja(_probe_hosts[_probe_index].addr, &addr);
-    if (!floss_addr_eq(&evt->addr, &addr))
-        return;
-
-    _probe_handle = evt->handle;
-    floss_timer_start(&_probe_timer, BT_HAL_PROBE_ANSWER_MS * 1000u);
-    floss_err_t err = floss_l2cap_connect(evt->handle, FLOSS_PSM_SDP, &_probe_ops, NULL, FLOSS_SEC_NONE,
-                                          &_probe_chan);
-    if (err != FLOSS_OK)
-    {
-        _probe_chan = NULL;
-        _bt_hal_probe_host_done(false);
-    }
-}
-
-static void _bt_hal_probe_on_connect_failed(const floss_gap_evt_t *evt)
-{
-    if (!_probe_running || _probe_index >= _probe_count || _probe_handle != BT_HAL_NO_HANDLE)
-        return;
-
-    floss_addr_t addr;
-    _bt_hal_addr_from_hoja(_probe_hosts[_probe_index].addr, &addr);
-    if (floss_addr_eq(&evt->addr, &addr))
-        _bt_hal_probe_host_done(false);
-}
-
-static void _bt_hal_probe_next(void)
-{
-    if (_cfg_hold)
-    {
-        _bt_hal_probe_pause();
-        return;
-    }
-
-    if (_probe_index >= _probe_count)
-    {
-        _bt_hal_probe_finish(CORE_REPORTFORMAT_UNDEFINED);
-        return;
-    }
-
-    // Call each host from the address it paired with. The probe carries on once the radio is back.
-    if (memcmp(_radio_mac, _probe_hosts[_probe_index].local_mac, 6))
-    {
-        _bt_hal_restart_as(_probe_hosts[_probe_index].local_mac);
-        return;
-    }
-
-    _bt_hal_write_page_timeout(BT_HAL_PROBE_PAGE_TIMEOUT);
-    BOOT_TIMELINE(TL_PAGE, _probe_hosts[_probe_index].format);
-
-    floss_addr_t addr;
-    _bt_hal_addr_from_hoja(_probe_hosts[_probe_index].addr, &addr);
-    _probe_handle = BT_HAL_NO_HANDLE;
-    if (floss_gap_connect(&addr) != FLOSS_OK)
-        _bt_hal_probe_host_done(false);
-}
-
-// True while the probe runs, the reconnect follows from its result
-static bool _bt_hal_probe_start(void)
-{
-    // Back from changing address for the next host
-    if (_probe_running)
-    {
-        _bt_hal_probe_next();
-        return true;
-    }
-    if (!autodetect_bt_probe_pending())
-        return false;
-
-    _probe_count = 0;
-    _probe_index = 0;
-
-    // The host that connected last first, then Switch, Wii and the PC
-    uint8_t last = 0;
-    if (floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1)
-        last = CORE_REPORTFORMAT_UNDEFINED;
-    if (last == CORE_REPORTFORMAT_SWPRO)
-        _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
-    else if (last == CORE_REPORTFORMAT_WII)
-        _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
-    else if (last == CORE_REPORTFORMAT_SINPUT)
-        _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
-    _bt_hal_probe_add(CORE_REPORTFORMAT_SWPRO, gamepad_config->host_mac_switch);
-    _bt_hal_probe_add(CORE_REPORTFORMAT_WII, gamepad_config->host_mac_wii);
-    _bt_hal_probe_add(CORE_REPORTFORMAT_SINPUT, gamepad_config->host_mac_sinput);
-
-    if (!_probe_count)
-    {
-        _bt_hal_probe_finish(CORE_REPORTFORMAT_UNDEFINED);
-        return true;
-    }
-
-    _probe_running = true;
-    _bt_hal_probe_next();
-    return true;
+    _call_handle = evt->handle;
+    floss_timer_start(&_call_timer, (_mode_wii ? BT_HAL_CALL_ANSWER_WII_MS : BT_HAL_CALL_ANSWER_MS) * 1000u);
 }
 
 /***********************************************/
@@ -1270,7 +1062,8 @@ static bool _bt_hal_probe_start(void)
 static void _bt_hal_on_connected(const floss_addr_t *host)
 {
     BOOT_TIMELINE(TL_HOST, core_current_reportformat());
-    autodetect_bt_direct_result(true);
+    if (autodetect_bt_calling())
+        _bt_hal_call_done(true);
     _bt_hal_beacon_stop();
     floss_timer_stop(&_wii_reconnect_timer);
 
@@ -1299,12 +1092,6 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
         memcpy(addr_location, mac, 6);
         settings_commit_blocks();
     }
-
-    // Auto calls this host first next time. Written only when it changes.
-    uint8_t last = 0;
-    uint8_t format = (uint8_t)core_current_reportformat();
-    if ((floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1) || (last != format))
-        floss_hal_store_write(BT_HAL_STORE_KEY_LAST_FORMAT, &format, 1);
 
     // Paired or reconnected: from now on a dropped link pages this host again
     if (_bt_hal_is_wii())
@@ -1371,10 +1158,10 @@ static void _bt_hal_on_connect_failed(uint8_t reason, uint16_t channel_status)
     (void)reason;
     _connected = false;
 
-    // Auto's call to its last host: no retries, the probe takes over
-    if (autodetect_bt_direct_pending())
+    // Auto's call to this mode's host: no retries, Auto calls the next one
+    if (autodetect_bt_calling())
     {
-        autodetect_bt_direct_result(false);
+        _bt_hal_call_done(false);
         return;
     }
 
@@ -1840,8 +1627,8 @@ static void _bt_hal_dongle_task(uint64_t timestamp)
 // --- Config app without a game ---
 
 // While the config app's beacon is open, or the app is connected, and no game is, the radio is the
-// app's: the calls to hosts stop (the saved host, Auto's probe after the call in flight, the dongle
-// search) and Classic stays out of sight. The app leaving ends the session as a host's disconnect
+// app's: the calls to hosts stop (the saved host, Auto's next call after the one in flight, the
+// dongle search) and Classic stays out of sight. The app leaving ends the session as a host's disconnect
 // does: power off. A beacon nobody answered gives the hosts their turn again. A game link already up
 // is never touched (the app's link takes a gentler pace beside it), and pairing mode stays findable.
 
@@ -1854,12 +1641,14 @@ static bool _bt_hal_game_link(void)
     return _connected;
 }
 
-// Call the hosts as the radio coming up does: Auto's probe while it decides, else the saved host
+// Call this mode's saved host, as the radio coming up does
 static void _bt_hal_connect_resume(void)
 {
-    if (_bt_hal_probe_start() || (floss_hid_state() != FLOSS_HID_STATE_IDLE))
+    if (floss_hid_state() != FLOSS_HID_STATE_IDLE)
         return;
     _reconnect_tries = 0;
+    if (autodetect_bt_calling())
+        BOOT_TIMELINE(TL_PAGE, core_current_reportformat());
     _bt_hal_reconnect_saved_host();
 }
 
@@ -2153,22 +1942,16 @@ static void _bt_hal_on_ready(void)
 
     if (_bt_mode_ready)
     {
-        // Auto calling its last host gives it the probe's time, then probes the others
-        uint16_t page_timeout = _mode_wii                        ? BT_HAL_WII_PAGE_TIMEOUT
-                                : autodetect_bt_direct_pending() ? BT_HAL_PROBE_PAGE_TIMEOUT
-                                                                 : BT_HAL_DEFAULT_PAGE_TIMEOUT;
+        // Auto gives each host it calls 1.6 s, then calls the next
+        uint16_t page_timeout = autodetect_bt_calling() ? BT_HAL_CALL_PAGE_TIMEOUT
+                                : _mode_wii             ? BT_HAL_WII_PAGE_TIMEOUT
+                                                        : BT_HAL_DEFAULT_PAGE_TIMEOUT;
         _bt_hal_write_page_timeout(page_timeout);
         if (_mode_wii)
             _bt_hal_wii_write_iac();
     }
 
-    if (!_pairing_mode && !_bt_mode_ready && !autodetect_bt_probe_pending())
-    {
-        // The probe gave up before deciding: set up this mode now
-        _bt_hal_mode_setup(core_current_params());
-        _bt_hal_restart();
-    }
-    else if (!_bt_hal_beacon_listen())
+    if (!_bt_hal_beacon_listen())
         _bt_hal_start_calls();
 }
 
@@ -2194,7 +1977,7 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
         if (_mode_dongle)
             autodetect_dongle_found();
 #endif
-        _bt_hal_probe_on_connected(evt);
+        _bt_hal_call_link_up(evt);
         _wii_page_pending = false;
         floss_timer_stop(&_wii_page_stall_timer);
         _wii_acl_handle = evt->handle;
@@ -2204,7 +1987,6 @@ static void _bt_hal_gap_event(const floss_gap_evt_t *evt, void *user)
         break;
 
     case FLOSS_GAP_EVT_CONNECT_FAILED:
-        _bt_hal_probe_on_connect_failed(evt);
         _wii_page_pending = false;
         floss_timer_stop(&_wii_page_stall_timer);
         break;
@@ -2348,7 +2130,7 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_page_stall_timer, _bt_hal_wii_page_stall_handler, NULL);
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
-    floss_timer_init(&_probe_timer, _bt_hal_probe_timeout, NULL);
+    floss_timer_init(&_call_timer, _bt_hal_call_timeout, NULL);
     floss_timer_init(&_swift_pair_timer, _bt_hal_swift_pair_timeout, NULL);
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     floss_timer_init(&_beacon_timer, _bt_hal_beacon_listened, NULL);
@@ -2368,8 +2150,7 @@ static bool _bt_hal_stack_start(const uint8_t *mac)
     _wii_teardown_handle = BT_HAL_NO_HANDLE;
     _wii_page_pending = false;
     _wii_stale_link = false;
-    _probe_chan = NULL;
-    _probe_handle = BT_HAL_NO_HANDLE;
+    _call_handle = BT_HAL_NO_HANDLE;
 
 #if BT_HAL_ESP32
     // The bridge starts its controller with the address, so a new one restarts the ESP32
@@ -2474,14 +2255,7 @@ static bool _bt_hal_stack_bringup(core_params_s *params)
 
     _bt_hal_hid = _bt_hal_params->hid_device;
 
-    if (autodetect_bt_probe_pending() && !_mode_dongle)
-        _bt_mode_ready = false;
-    else
-    {
-        // A mode is settled: a probe still under way belonged to Auto
-        _probe_running = false;
-        _bt_hal_mode_setup(params);
-    }
+    _bt_hal_mode_setup(params);
 
     if (!_bt_stack_up)
     {
@@ -2688,11 +2462,16 @@ bool transport_bt_radio_up(void)
 
 void transport_bt_radio_warm(void)
 {
-    // Under the address Auto calls with next: the last host's mode, else Switch, where the probe
-    // starts. The ESP32 only takes a new address by restarting (1.6 s).
-    core_reportformat_t next = transport_bt_last_host();
-    if ((next != CORE_REPORTFORMAT_SWPRO) && (next != CORE_REPORTFORMAT_SINPUT))
-        next = CORE_REPORTFORMAT_SWPRO;
+    // Under the address Auto calls with first: the first saved host's mode (Switch, Wii, then
+    // SInput). The ESP32 only takes a new address by restarting (1.6 s).
+    core_reportformat_t next = CORE_REPORTFORMAT_SWPRO;
+    if (!transport_bt_host_paired(CORE_REPORTFORMAT_SWPRO))
+    {
+        if (transport_bt_host_paired(CORE_REPORTFORMAT_WII))
+            next = CORE_REPORTFORMAT_WII;
+        else if (transport_bt_host_paired(CORE_REPORTFORMAT_SINPUT))
+            next = CORE_REPORTFORMAT_SINPUT;
+    }
     if (!_bt_stack_up)
         _bt_hal_config_only_start(next);
 }
@@ -2711,12 +2490,24 @@ void transport_bt_radio_off(void)
     _config_only = false;
 }
 
-core_reportformat_t transport_bt_last_host(void)
+bool transport_bt_host_paired(core_reportformat_t format)
 {
-    uint8_t last = 0;
-    if (floss_hal_store_read(BT_HAL_STORE_KEY_LAST_FORMAT, &last, 1) != 1)
-        return CORE_REPORTFORMAT_UNDEFINED;
-    return (core_reportformat_t)last;
+    switch (format)
+    {
+    case CORE_REPORTFORMAT_SWPRO:
+        // The Switch pairs over USB: its address and the key it gave us
+        return _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_switch) &&
+               _bt_hal_is_stored_identity_valid(switchpair_config->link_key);
+
+    case CORE_REPORTFORMAT_WII:
+        return _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_wii);
+
+    case CORE_REPORTFORMAT_SINPUT:
+        return _bt_hal_is_stored_identity_valid(gamepad_config->host_mac_sinput);
+
+    default:
+        return false;
+    }
 }
 
 void transport_bt_config_task(uint64_t timestamp)

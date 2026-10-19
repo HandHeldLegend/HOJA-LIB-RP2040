@@ -15,8 +15,9 @@
 #define AUTODETECT_WIRED_WAIT_MS    3000
 // A computer asks for the BOS descriptor within milliseconds of its first request
 #define AUTODETECT_BOS_WAIT_MS      500
-// The probe gives up and lets Switch mode carry on (a radio that never came up). Each saved host
-// can take a radio restart, a 1.6 s call and 1.5 s for the answer, so a real probe ends well before.
+// The host calls (or the probe) give up and let the mode carry on (a radio that never came up). Each
+// saved host takes a radio restart, a 1.6 s call and up to 3 s for the answer, so real calls end
+// well before.
 #define AUTODETECT_BT_PROBE_MAX_MS  30000
 // No dongle connected by then: look for the saved hosts. Covers a failed page of the dongle we
 // remember (1.28 s), one search round for any other (2.56 s, FLOSS_LINK_INQUIRY_LENGTH) and the
@@ -64,8 +65,8 @@ typedef enum
     PHASE_N64,   // Answering as an N64 controller, waiting for polls
     PHASE_WIRED, // SInput over USB, watching USB and the retro port
     PHASE_DONGLE, // Looking for a dongle over Bluetooth; it then tells us the mode
-    PHASE_BT_LAST, // Calling the host that connected last, in its mode
-    PHASE_BT,    // Switch over Bluetooth, checking the saved hosts first
+    PHASE_BT_HOST, // Calling a saved host in its mode, the next one if it doesn't answer (FLOSS)
+    PHASE_BT,    // Switch over Bluetooth, probing the saved hosts first (BTstack)
     PHASE_DONE,  // Mode picked, no more switching
 } phase_t;
 
@@ -227,8 +228,27 @@ static core_reportformat_t _wireless = CORE_REPORTFORMAT_UNDEFINED;
 static core_reportformat_t _fallback_format = CORE_REPORTFORMAT_SWPRO;
 static phase_t _fallback_phase = PHASE_BT;
 
-// The last host didn't answer its call: the probe leaves it out
-static core_reportformat_t _last_failed = CORE_REPORTFORMAT_UNDEFINED;
+// Auto calls the saved hosts in this order, each in its own mode, skipping any never paired
+static const core_reportformat_t _host_order[] = {
+    CORE_REPORTFORMAT_SWPRO,
+    CORE_REPORTFORMAT_WII,
+    CORE_REPORTFORMAT_SINPUT,
+};
+static uint8_t _host_next = 0;
+
+static bool _next_host(core_reportformat_t *format)
+{
+    while(_host_next < (sizeof(_host_order) / sizeof(_host_order[0])))
+    {
+        const core_reportformat_t f = _host_order[_host_next++];
+        if(transport_bt_host_paired(f))
+        {
+            *format = f;
+            return true;
+        }
+    }
+    return false;
+}
 
 
 // Wireless in a mode the dongle can also carry: listen for a free dongle first (autodetect_dongle_listen)
@@ -248,15 +268,25 @@ static void _wireless_plan(core_reportformat_t mode, core_reportformat_t *format
     _fallback_format = *format;
     _fallback_phase = (mode == CORE_REPORTFORMAT_UNDEFINED) ? PHASE_BT : PHASE_DONE;
 
-    // Auto calls the host that connected last straight away, in its mode: a probe first would call it
-    // twice, with a radio restart between. The Wii keeps to the probe (it pages back on its own terms).
-    const core_reportformat_t last = transport_bt_last_host();
-    if((mode == CORE_REPORTFORMAT_UNDEFINED) &&
-       ((last == CORE_REPORTFORMAT_SWPRO) || (last == CORE_REPORTFORMAT_SINPUT)))
+#if HOJA_BT_USES_FLOSS
+    // Auto calls the saved hosts straight away, in order (a Switch, then a Wii, then a PC), each in
+    // its own mode: the first that answers is connected. With none paired, SInput waits to be found.
+    if(mode == CORE_REPORTFORMAT_UNDEFINED)
     {
-        _fallback_format = last;
-        _fallback_phase = PHASE_BT_LAST;
+        _host_next = 0;
+        core_reportformat_t host;
+        if(_next_host(&host))
+        {
+            _fallback_format = host;
+            _fallback_phase = PHASE_BT_HOST;
+        }
+        else
+        {
+            _fallback_format = CORE_REPORTFORMAT_SINPUT;
+            _fallback_phase = PHASE_DONE;
+        }
     }
+#endif
 
     _listen_open = _dongle_carries(*format);
     *format = _fallback_format;
@@ -384,14 +414,14 @@ bool autodetect_bt_probe_result(core_reportformat_t found)
     return true;
 }
 
-bool autodetect_bt_direct_pending(void)
+bool autodetect_bt_calling(void)
 {
-    return _phase == PHASE_BT_LAST && !_confirmed;
+    return _phase == PHASE_BT_HOST && !_confirmed && !_switch_pending;
 }
 
-void autodetect_bt_direct_result(bool connected)
+void autodetect_bt_call_result(bool connected)
 {
-    if(!autodetect_bt_direct_pending()) return;
+    if(!autodetect_bt_calling()) return;
 
     if(connected)
     {
@@ -400,9 +430,12 @@ void autodetect_bt_direct_result(bool connected)
         return;
     }
 
-    // Not awake: probe the other saved hosts
-    _last_failed = _fallback_format;
-    _switch_to(CORE_REPORTFORMAT_SWPRO, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT);
+    // Not awake: the next saved host, else SInput, which keeps calling a saved PC or waits to be found
+    core_reportformat_t host;
+    if(_next_host(&host))
+        _switch_to(host, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_BT_HOST);
+    else
+        _switch_to(CORE_REPORTFORMAT_SINPUT, GAMEPAD_TRANSPORT_BLUETOOTH, PHASE_DONE);
 }
 
 bool autodetect_dongle_listen(void)
@@ -423,11 +456,6 @@ void autodetect_dongle_heard(void)
     _confirmed = false;
     const core_reportformat_t format = (_wireless == CORE_REPORTFORMAT_UNDEFINED) ? CORE_REPORTFORMAT_SWPRO : _wireless;
     _switch_to(format, GAMEPAD_TRANSPORT_DONGLE, PHASE_DONGLE);
-}
-
-bool autodetect_bt_skip_host(core_reportformat_t format)
-{
-    return (_last_failed != CORE_REPORTFORMAT_UNDEFINED) && (format == _last_failed);
 }
 
 void autodetect_dongle_found(void)
@@ -583,7 +611,7 @@ void autodetect_task(uint64_t now_us)
             _switch_to(_fallback_format, GAMEPAD_TRANSPORT_BLUETOOTH, _fallback_phase);
         break;
 
-        case PHASE_BT_LAST:
+        case PHASE_BT_HOST:
         case PHASE_BT:
         // Should the radio never come up, carry on in this mode
         if(elapsed_ms >= AUTODETECT_BT_PROBE_MAX_MS)

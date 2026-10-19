@@ -12,10 +12,10 @@
 // Nothing found (battery, or a charger): Bluetooth. On boards that reach the HOJA dongle over
 // Bluetooth, the controller first listens briefly for a free dongle's beacon: its remembered dongle,
 // else the strongest free one (for this session only; only pairing remembers a new dongle), is
-// called and tells the controller the mode. Otherwise the host that connected last is called
-// straight away in its mode (a Switch or a PC). If it doesn't answer, each other saved host is
-// checked (Switch, then Wii, then SInput), and the first one awake picks the mode. With none awake it
-// settles on SInput, which reconnects to a saved PC or waits to be found.
+// called and tells the controller the mode. Otherwise the saved hosts are called straight away, in
+// order (a Switch, then a Wii, then a PC), each in its own mode, skipping any never paired: the
+// first that answers is connected. With none answering it settles on SInput, which keeps calling a
+// saved PC or waits to be found. (BTstack boards probe the hosts first instead.)
 //
 // The config app (Start + Select) while Auto is still looking: on battery Auto settles on SInput at
 // once; on external power it waits for the app, whose link a mode change would drop.
@@ -80,13 +80,12 @@ void autodetect_dongle_heard(void);
 // Pairing a Switch or a PC on battery: an open dongle first, then Bluetooth pairing in this mode
 void autodetect_pairing(boot_info_s *info);
 
-// Calling the host that connected last, before any probe (bluetooth_hal_floss.c): whether it
-// connected. One that didn't is left out of the probe that follows.
-bool autodetect_bt_direct_pending(void);
-void autodetect_bt_direct_result(bool connected);
-bool autodetect_bt_skip_host(core_reportformat_t format);
+// Calling a saved host in its mode (bluetooth_hal_floss.c): whether it connected. One that didn't
+// hands over to the next saved host.
+bool autodetect_bt_calling(void);
+void autodetect_bt_call_result(bool connected);
 
-// Bluetooth probe (bluetooth_hal.c)
+// Bluetooth probe (bluetooth_hal.c, BTstack boards until they move to FLOSS)
 bool autodetect_bt_probe_pending(void);
 // The mode of the host that answered, or CORE_REPORTFORMAT_UNDEFINED (none awake: SInput). True when
 // Switch mode carries on, false when another mode takes over.

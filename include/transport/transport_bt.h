@@ -32,8 +32,8 @@ bool transport_bt_radio_up(void);
 void transport_bt_radio_warm(void);
 void transport_bt_radio_off(void);
 
-// The mode of the host that connected last over Bluetooth, CORE_REPORTFORMAT_UNDEFINED for none
-core_reportformat_t transport_bt_last_host(void);
+// A host is saved for this mode (Switch, Wii or SInput): Auto calls it
+bool transport_bt_host_paired(core_reportformat_t format);
 
 #if HOJA_BT_USES_FLOSS
 // Wired modes: BLE config on Plus + Minus, the radio up for LE alone (bluetooth_hal_floss.c)

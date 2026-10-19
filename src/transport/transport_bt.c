@@ -26,9 +26,10 @@ __attribute__((weak)) void transport_bt_radio_off(void)
 {
 }
 
-__attribute__((weak)) core_reportformat_t transport_bt_last_host(void)
+__attribute__((weak)) bool transport_bt_host_paired(core_reportformat_t format)
 {
-    return CORE_REPORTFORMAT_UNDEFINED;
+    (void)format;
+    return false;
 }
 
 __attribute__((weak)) void transport_bt_static_get_caps(transport_bt_static_caps_s *caps)
