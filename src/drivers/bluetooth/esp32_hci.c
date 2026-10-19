@@ -35,6 +35,8 @@
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "hardware/sync.h"
+#include "hardware/gpio.h"
+#include "pico/time.h"
 
 #define ESP32_HCI_I2C_ADDRESS 0x76
 
@@ -118,6 +120,110 @@ static void _esp32_enable(bool enabled)
         gpio_hal_init(BLUETOOTH_DRIVER_ENABLE_PIN, false, false);
         gpio_hal_write(BLUETOOTH_DRIVER_ENABLE_PIN, false);
     }
+}
+
+// Update mode: the CH340 resets the ESP32 into its ROM downloader with DTR (IO0) and RTS (EN),
+// through the usual two-transistor circuit. Windows changes the two lines one at a time, so a
+// download reset always passes a moment where EN is released with IO0 still high. Only the RC
+// delay on EN saves it, and slower USB stacks miss that. When EN rises we pull it low again and
+// let go once IO0 has settled. Only ever drive it low: high would fight the CH340's transistor.
+#define EN_HOLD_US          20000
+// After letting go, wait for EN to read high (our own release) before watching it again. Low
+// this long means the CH340 is holding it, so watch for that release instead.
+#define EN_SETTLE_POLL_US   1000
+#define EN_SETTLE_MAX_US    50000
+
+static volatile bool _en_watching = false;
+static volatile bool _en_holding = false;
+static volatile alarm_id_t _en_alarm = 0;
+static uint32_t _en_settle_us = 0;
+
+// GPIO interrupts are enabled per core. This and the interrupt both run on the alarm's core.
+static void _en_watch_arm(void)
+{
+    // The edge latches while disabled, clear our own release first
+    gpio_acknowledge_irq(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IRQ_EDGE_RISE);
+    gpio_set_irq_enabled(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IRQ_EDGE_RISE, true);
+    irq_set_enabled(IO_IRQ_BANK0, true);
+}
+
+static int64_t _en_alarm_cb(alarm_id_t id, void *user_data)
+{
+    (void)id;
+    (void)user_data;
+    if(!_en_watching)
+    {
+        _en_alarm = 0;
+        return 0;
+    }
+
+    if(_en_holding)
+    {
+        // Let go, the pull-up raises it
+        gpio_set_dir(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IN);
+        _en_holding = false;
+        _en_settle_us = 0;
+        return EN_SETTLE_POLL_US;
+    }
+
+    _en_settle_us += EN_SETTLE_POLL_US;
+    if(gpio_get(BLUETOOTH_DRIVER_ENABLE_PIN) || _en_settle_us >= EN_SETTLE_MAX_US)
+    {
+        _en_watch_arm();
+        _en_alarm = 0;
+        return 0;
+    }
+    return EN_SETTLE_POLL_US;
+}
+
+static void _en_irq(void)
+{
+    if(!(gpio_get_irq_event_mask(BLUETOOTH_DRIVER_ENABLE_PIN) & GPIO_IRQ_EDGE_RISE)) return;
+    gpio_acknowledge_irq(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IRQ_EDGE_RISE);
+    if(!_en_watching || _en_holding) return;
+
+    // The output latch is low, so this only ever pulls EN down
+    gpio_set_dir(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_OUT);
+    gpio_set_irq_enabled(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IRQ_EDGE_RISE, false);
+    _en_holding = true;
+
+    alarm_id_t alarm = add_alarm_in_us(EN_HOLD_US, _en_alarm_cb, NULL, true);
+    if(alarm > 0)
+    {
+        _en_alarm = alarm;
+        return;
+    }
+
+    // No alarm to let go later: let go now and stop watching
+    gpio_set_dir(BLUETOOTH_DRIVER_ENABLE_PIN, GPIO_IN);
+    _en_holding = false;
+    _en_watching = false;
+}
+
+// Call with EN just released
+static void _en_watch_start(void)
+{
+    gpio_put(BLUETOOTH_DRIVER_ENABLE_PIN, false);
+    gpio_add_raw_irq_handler(BLUETOOTH_DRIVER_ENABLE_PIN, _en_irq);
+
+    _en_holding = false;
+    _en_settle_us = 0;
+    _en_watching = true;
+
+    // Our own release is a rising edge too, so start by waiting for it to finish
+    alarm_id_t alarm = add_alarm_in_us(EN_SETTLE_POLL_US, _en_alarm_cb, NULL, true);
+    if(alarm > 0) _en_alarm = alarm;
+    else _en_watching = false;
+}
+
+// The handler stays: it only clears the edge from here on
+static void _en_watch_stop(void)
+{
+    _en_watching = false;
+    alarm_id_t alarm = _en_alarm;
+    if(alarm > 0) cancel_alarm(alarm);
+    _en_alarm = 0;
+    _en_holding = false;
 }
 
 // USB to the ESP32's CH340 (true) or the RP2040 (false)
@@ -1063,6 +1169,7 @@ const void *esp32_hci_transport_instance(void)
 void esp32_hci_backend_stop(void)
 {
     _stopped = true;
+    _en_watch_stop();
     _esp32_enable(false);
 }
 
@@ -1099,6 +1206,10 @@ bool esp32_hci_backend_init(core_params_s *params)
         _esp32_usb_select(true);
 
     _esp32_enable(true);
+
+    // Holds the ESP32 in reset a little longer after each reset from the updater
+    if(_altflash)
+        _en_watch_start();
 
     uint8_t hello[] = {HLINK_CTRL_HELLO, HLINK_PROTOCOL_VERSION};
     _link_send(HLINK_CH_CTRL, hello, sizeof(hello));
