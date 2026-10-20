@@ -339,8 +339,255 @@ void ns2_bt_probe_le_event(const floss_le_evt_t *evt)
     }
 }
 
+#if defined(HOJA_NS2_CYW_SCAN) && HOJA_NS2_CYW_SCAN
+
+#define NS2P_HCI_LE_FEATURES 0x2003u
+#define NS2P_HCI_WRITE_RAM   0xFC4Cu
+#define NS2P_HCI_READ_RAM    0xFC4Du
+#define NS2P_SCAN_CHUNK      240u
+#define NS2P_SCAN_SKIP       0x10000u // Past an unreadable stretch
+#define NS2P_SCAN_HITS       16
+
+typedef struct
+{
+    uint32_t start;
+    uint32_t size;
+} ns2p_range_s;
+
+// The Broadcom radios' usual map: ROM from 0, RAM from 0x200000
+static const ns2p_range_s _ns2p_ranges[] = {
+    {0x00000000u, 0x00100000u},
+    {0x00200000u, 0x00080000u},
+};
+
+typedef enum
+{
+    NS2P_SCAN_OFF,
+    NS2P_SCAN_FEATURES,
+    NS2P_SCAN_LENGTHS,
+    NS2P_SCAN_READ,
+    NS2P_SCAN_WRITE,
+    NS2P_SCAN_VERIFY,
+    NS2P_SCAN_DONE,
+} ns2p_scan_state_t;
+
+static ns2p_scan_state_t _scan_state = NS2P_SCAN_OFF;
+static bool _scan_waiting = false;
+static uint8_t _scan_range = 0;
+static uint32_t _scan_addr = 0;
+static bool _scan_range_logged = false;
+static uint8_t _scan_features[8];
+static uint8_t _scan_buf[7 + NS2P_SCAN_CHUNK];
+static uint8_t _scan_tail = 0; // Bytes carried over from the last chunk
+static uint32_t _scan_hits[NS2P_SCAN_HITS];
+static uint8_t _scan_hit_count = 0;
+static uint8_t _scan_write = 0;
+static uint8_t _scan_errors = 0;
+static uint8_t _scan_chunk = 0;
+
+// Read lengths to try first, at the start of RAM: the largest the radio takes is the scan's step
+static const uint8_t _scan_lengths[] = {1, 4, 8, 16, 32, 64, 128, 200, 240};
+static uint8_t _scan_length_i = 0;
+
+static void _ns2p_put32(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t)v;
+    p[1] = (uint8_t)(v >> 8);
+    p[2] = (uint8_t)(v >> 16);
+    p[3] = (uint8_t)(v >> 24);
+}
+
+static void _ns2p_scan_next_range(void)
+{
+    _scan_range++;
+    _scan_tail = 0;
+    _scan_range_logged = false;
+    if (_scan_range < sizeof(_ns2p_ranges) / sizeof(_ns2p_ranges[0]))
+        _scan_addr = _ns2p_ranges[_scan_range].start;
+    else
+    {
+        // Every hit, then patch the ones in RAM
+        for (uint8_t i = 0; i < _scan_hit_count; i++)
+        {
+            uint8_t note[5] = {10};
+            _ns2p_put32(&note[1], _scan_hits[i]);
+            ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        }
+        _scan_write = 0;
+        _scan_state = NS2P_SCAN_WRITE;
+    }
+}
+
+static void _ns2p_scan_cb(void *ctx, uint16_t opcode, uint8_t status, const uint8_t *ret, uint16_t ret_len)
+{
+    (void)ctx;
+    _scan_waiting = false;
+
+    if (opcode == NS2P_HCI_LE_FEATURES)
+    {
+        uint8_t note[10] = {_scan_state == NS2P_SCAN_FEATURES ? 7 : 11, status};
+        if (status == 0 && ret_len >= 8)
+        {
+            memcpy(&note[2], ret, 8);
+            if (_scan_state == NS2P_SCAN_FEATURES)
+                memcpy(_scan_features, ret, 8);
+        }
+        ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        if (_scan_state == NS2P_SCAN_FEATURES)
+        {
+            _scan_range = 0;
+            _scan_addr = _ns2p_ranges[0].start;
+            _scan_length_i = 0;
+            _scan_state = (status == 0) ? NS2P_SCAN_LENGTHS : NS2P_SCAN_DONE;
+        }
+        else
+            _scan_state = NS2P_SCAN_DONE;
+        return;
+    }
+
+    if (opcode == NS2P_HCI_WRITE_RAM)
+    {
+        uint8_t note[6] = {12, status};
+        _ns2p_put32(&note[2], _scan_hits[_scan_write]);
+        ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        _scan_write++;
+        return;
+    }
+
+    if (_scan_state == NS2P_SCAN_LENGTHS)
+    {
+        uint8_t len = _scan_lengths[_scan_length_i];
+        uint8_t note[4 + 8] = {14, len, status, (uint8_t)ret_len};
+        if (ret)
+            memcpy(&note[4], ret, ret_len < 8 ? ret_len : 8);
+        ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        if (status == 0 && ret_len)
+            _scan_chunk = len;
+        if (++_scan_length_i >= sizeof(_scan_lengths))
+            _scan_state = _scan_chunk ? NS2P_SCAN_READ : NS2P_SCAN_DONE;
+        return;
+    }
+
+    // Read_RAM
+    const ns2p_range_s *r = &_ns2p_ranges[_scan_range];
+    if (status != 0 || ret_len == 0)
+    {
+        if (_scan_errors < 12)
+        {
+            _scan_errors++;
+            uint8_t note[6] = {8, status};
+            _ns2p_put32(&note[2], _scan_addr);
+            ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        }
+        _scan_addr = (_scan_addr + NS2P_SCAN_SKIP) & ~(NS2P_SCAN_SKIP - 1u);
+        _scan_tail = 0;
+    }
+    else
+    {
+        if (!_scan_range_logged)
+        {
+            // The first bytes each range gives, to see the command works
+            _scan_range_logged = true;
+            uint8_t note[5 + 16] = {9};
+            _ns2p_put32(&note[1], _scan_addr);
+            memcpy(&note[5], ret, ret_len < 16 ? ret_len : 16);
+            ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        }
+        uint16_t n = ret_len < _scan_chunk ? ret_len : _scan_chunk;
+        memcpy(&_scan_buf[_scan_tail], ret, n);
+        uint16_t total = (uint16_t)(_scan_tail + n);
+        for (uint16_t i = 0; i + 8 <= total; i++)
+        {
+            if (memcmp(&_scan_buf[i], _scan_features, 8) == 0 && _scan_hit_count < NS2P_SCAN_HITS)
+                _scan_hits[_scan_hit_count++] = _scan_addr - _scan_tail + i;
+        }
+        uint8_t keep = total < 7 ? (uint8_t)total : 7;
+        memmove(_scan_buf, &_scan_buf[total - keep], keep);
+        _scan_tail = keep;
+        _scan_addr += n;
+    }
+
+    if (_scan_addr >= r->start + r->size)
+        _ns2p_scan_next_range();
+}
+
+void ns2_bt_probe_cyw_scan_start(void)
+{
+    _scan_state = NS2P_SCAN_FEATURES;
+    _scan_waiting = false;
+    uint8_t note[1] = {13};
+    ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+}
+
+static void _ns2p_scan_task(void)
+{
+    if (_scan_state == NS2P_SCAN_OFF || _scan_waiting)
+        return;
+
+    switch (_scan_state)
+    {
+    case NS2P_SCAN_FEATURES:
+    case NS2P_SCAN_VERIFY:
+        if (floss_hci_cmd(NS2P_HCI_LE_FEATURES, NULL, 0, _ns2p_scan_cb, NULL) == FLOSS_OK)
+            _scan_waiting = true;
+        break;
+
+    case NS2P_SCAN_LENGTHS:
+    {
+        uint8_t p[5];
+        _ns2p_put32(p, 0x00200000u);
+        p[4] = _scan_lengths[_scan_length_i];
+        if (floss_hci_cmd(NS2P_HCI_READ_RAM, p, sizeof(p), _ns2p_scan_cb, NULL) == FLOSS_OK)
+            _scan_waiting = true;
+        break;
+    }
+
+    case NS2P_SCAN_READ:
+    {
+        uint32_t end = _ns2p_ranges[_scan_range].start + _ns2p_ranges[_scan_range].size;
+        uint32_t left = end - _scan_addr;
+        uint8_t p[5];
+        _ns2p_put32(p, _scan_addr);
+        p[4] = (uint8_t)(left < _scan_chunk ? left : _scan_chunk);
+        if (floss_hci_cmd(NS2P_HCI_READ_RAM, p, sizeof(p), _ns2p_scan_cb, NULL) == FLOSS_OK)
+            _scan_waiting = true;
+        break;
+    }
+
+    case NS2P_SCAN_WRITE:
+    {
+        // The 2M PHY is bit 8: the mask's second byte, bit 0. Only in RAM
+        while (_scan_write < _scan_hit_count && _scan_hits[_scan_write] < 0x00200000u)
+            _scan_write++;
+        if (_scan_write >= _scan_hit_count)
+        {
+            _scan_state = NS2P_SCAN_VERIFY;
+            break;
+        }
+        uint8_t p[5];
+        _ns2p_put32(p, _scan_hits[_scan_write] + 1u);
+        p[4] = (uint8_t)(_scan_features[1] | 0x01u);
+        if (floss_hci_cmd(NS2P_HCI_WRITE_RAM, p, sizeof(p), _ns2p_scan_cb, NULL) == FLOSS_OK)
+            _scan_waiting = true;
+        break;
+    }
+
+    case NS2P_SCAN_DONE:
+        _scan_state = NS2P_SCAN_OFF;
+        ns2_bt_probe_flush();
+        break;
+
+    default:
+        break;
+    }
+}
+#endif
+
 void ns2_bt_probe_ble_task(void)
 {
+#if defined(HOJA_NS2_CYW_SCAN) && HOJA_NS2_CYW_SCAN
+    _ns2p_scan_task();
+#endif
     if (_ns2p_conn == 0xFFFFu)
         return;
 

@@ -54,6 +54,12 @@ uint8_t ns2_bt_probe_reconnect_setup(const uint8_t dev_mac[6], uint8_t adv[31]);
 void ns2_bt_probe_le_event(const floss_le_evt_t *evt);
 // Each Bluetooth task pass: command replies and input reports out
 void ns2_bt_probe_ble_task(void);
+
+#if defined(HOJA_NS2_CYW_SCAN) && HOJA_NS2_CYW_SCAN
+// Bench: look for the radio's LE feature mask in its memory (Broadcom Read_RAM), set the 2M PHY
+// bit wherever it sits in RAM, read the mask back, record it all, then update mode
+void ns2_bt_probe_cyw_scan_start(void);
+#endif
 #endif
 
 #endif

@@ -1990,7 +1990,11 @@ static void _bt_hal_start_calls(void)
     // Bench: only the LE advert, so the console can't take the Classic (Switch 1) path instead
     if (_pairing_mode && !_mode_sinput && !_mode_wii)
     {
+#if defined(HOJA_NS2_CYW_SCAN) && HOJA_NS2_CYW_SCAN
+        ns2_bt_probe_cyw_scan_start();
+#else
         _bt_hal_ns2_ble_probe_start();
+#endif
         return;
     }
 #endif
