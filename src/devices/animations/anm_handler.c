@@ -387,6 +387,20 @@ void anm_set_idle_enable(bool enable)
 // the one Auto was trying when it paused.
 static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
 
+// While connecting, something has to show the controller is on: a player or notification color too
+// dark to see (black, or a board without either group) shows a neutral white instead, and the
+// brightness is at least about the wireless default. The user's colors and brightness return once
+// connected.
+#define ANM_CONNECTING_DARK            0x30u
+#define ANM_CONNECTING_MIN_BRIGHTNESS  300u
+
+static rgb_s _anm_connecting_color(rgb_s color)
+{
+    if (color.r < ANM_CONNECTING_DARK && color.g < ANM_CONNECTING_DARK && color.b < ANM_CONNECTING_DARK)
+        return COLOR_WHITE;
+    return color;
+}
+
 static bool _anm_auto_hold(void)
 {
     static bool holding = false;
@@ -408,7 +422,7 @@ static bool _anm_auto_hold(void)
 
     const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
     const int8_t group = (rcfg->player_group_index >= 0) ? rcfg->player_group_index : rcfg->notification_group_index;
-    rgb_s color = (group >= 0) ? rgb_colors_safe[group] : (rgb_s){0};
+    rgb_s color = _anm_connecting_color((group >= 0) ? rgb_colors_safe[group] : COLOR_WHITE);
 
     // Fades in from dark, the same way the modes fade
     static uint32_t fade_in_progress = 0;
@@ -461,7 +475,10 @@ void anm_handler_tick()
 
     // Process brightness/gamma
     _anm_brightness_tick();
-    anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, _adjusted_ani_leds, _anim_brightness);
+    uint16_t brightness = _anim_brightness;
+    if (hold && brightness < ANM_CONNECTING_MIN_BRIGHTNESS)
+        brightness = ANM_CONNECTING_MIN_BRIGHTNESS;
+    anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, _adjusted_ani_leds, brightness);
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
     #endif
