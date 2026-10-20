@@ -9,6 +9,7 @@
 #include "input/mapper.h"
 #include "input/hover.h"
 #include "input/dpad.h"
+#include "hal/sys_hal.h"
 
 #include "ns2_lib.h"
 #include "ns2_lib_usb.h"
@@ -116,14 +117,77 @@ void ns2_api_hook_set_led(uint8_t led_mask, bool flashing)
     });
 }
 
-// The GameCube controller's motor is on or off (command 0x0A/0x02: 1 on, anything else off)
-void ns2_api_hook_play_vibration_sample(uint8_t sample_id)
+//--------------------------------------------------------------------+
+// Rumble: the GameCube controller has one motor, on or off. Games drive it with output report
+// 0x03; the console's own sounds are samples it asks for by ID (command 0x0A/0x02).
+//--------------------------------------------------------------------+
+
+static bool _ns2gc_game_rumble = false;
+static uint8_t _ns2gc_motor = 0;
+
+// A sample as motor steps: on, off, on, ... in ms, ending at 0. The retail controller's: 1 a
+// low buzz of about a second, 2 the "search for controllers" alarm, 3 the soft click-click of a
+// connection, 4..7 short beeps.
+static const uint16_t _ns2gc_sample_steps[8][6] = {
+    {0},
+    {1000, 0},
+    {300, 100, 120, 80, 120, 0},
+    {60, 80, 60, 0},
+    {120, 80, 120, 0},
+    {90, 80, 90, 0},
+    {80, 0},
+    {60, 0},
+};
+static const uint16_t *_ns2gc_sample = NULL;
+static uint8_t _ns2gc_sample_step = 0;
+static uint64_t _ns2gc_sample_until_us = 0;
+
+static void _ns2gc_motor_set(uint8_t strength)
 {
-    uint8_t strength = (sample_id == 1) ? 255 : 0;
+    if (strength == _ns2gc_motor)
+        return;
+    _ns2gc_motor = strength;
     transport_evt_cb((tp_evt_s){
         .evt = TP_EVT_ERMRUMBLE,
         .evt_ermrumble = {.left = strength, .right = strength, .leftbrake = 0, .rightbrake = 0},
     });
+}
+
+// Steps a playing sample and sets the motor: a game's rumble, else the sample's step
+static void _ns2gc_rumble_task(void)
+{
+    uint64_t now = sys_hal_now_us();
+    while (_ns2gc_sample && now >= _ns2gc_sample_until_us)
+    {
+        _ns2gc_sample_step++;
+        uint16_t ms = _ns2gc_sample[_ns2gc_sample_step];
+        if (_ns2gc_sample_step >= 6 || !ms)
+        {
+            _ns2gc_sample = NULL;
+            break;
+        }
+        _ns2gc_sample_until_us = now + (uint64_t)ms * 1000u;
+    }
+
+    // Even steps are on, odd steps off
+    bool sample_on = _ns2gc_sample && !(_ns2gc_sample_step & 1);
+    _ns2gc_motor_set((_ns2gc_game_rumble || sample_on) ? 255 : 0);
+}
+
+// Command 0x0A/0x02: play a sample (0 stops the one playing)
+void ns2_api_hook_play_vibration_sample(uint8_t sample_id)
+{
+    if (sample_id == 0 || sample_id >= 8)
+    {
+        _ns2gc_sample = NULL;
+    }
+    else
+    {
+        _ns2gc_sample = _ns2gc_sample_steps[sample_id];
+        _ns2gc_sample_step = 0;
+        _ns2gc_sample_until_us = sys_hal_now_us() + (uint64_t)_ns2gc_sample[0] * 1000u;
+    }
+    _ns2gc_rumble_task();
 }
 
 //--------------------------------------------------------------------+
@@ -169,6 +233,8 @@ void core_ns2gc_usb_config(hhl_tusb_config_s *tcfg)
 
 static bool _ns2gc_report(core_report_s *out)
 {
+    _ns2gc_rumble_task();
+
     uint16_t len = 0;
     if (!ns2_usb_generate_inputreport(out->data, &len))
         return false;
@@ -177,15 +243,21 @@ static bool _ns2gc_report(core_report_s *out)
     return true;
 }
 
+// Output report 0x03 from a game: byte 1 counts in its low nibble, and any of bytes 2..4 set
+// runs the motor (all clear stops it), as the console sends them to the retail controller
 static void _ns2gc_tunnel(const uint8_t *data, uint16_t len)
 {
-    // HID output reports (0x03 at start-up): nothing known to act on yet
-    (void)data;
-    (void)len;
+    if (len < 5 || data[0] != 0x03)
+        return;
+    _ns2gc_game_rumble = data[2] || data[3] || data[4];
+    _ns2gc_rumble_task();
 }
 
 static void _ns2gc_transport_stop(void)
 {
+    _ns2gc_game_rumble = false;
+    _ns2gc_sample = NULL;
+    _ns2gc_motor_set(0);
     _ns2gc_set_connected(false);
 }
 
