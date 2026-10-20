@@ -1801,6 +1801,8 @@ static void _bt_hal_ns2_ble_probe_start(void)
     p.interval_min = 0x30;
     p.interval_max = 0x30;
     p.own_addr_type = FLOSS_LE_ADDR_PUBLIC;
+    // Channel 37 only, so a sniffer listening there can't miss the console's connect request
+    p.channel_map = 0x01;
     uint8_t note[4] = {1};
     note[1] = (uint8_t)floss_le_adv_set_params(&p);
     note[2] = (uint8_t)floss_le_adv_set_data(ad.data, ad.len);
