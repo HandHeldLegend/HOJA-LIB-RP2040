@@ -1,5 +1,3 @@
-#include "floss/floss_le_central.h"
-#include "utilities/ns2_bt_probe.h"
 #include "board_config.h"
 
 // FLOSS Bluetooth for the RM2 (CYW43), or an ESP32 running the HCI bridge (esp32_hci.c). Same
@@ -7,6 +5,7 @@
 // host calls, the Wii's reload and standby handling.
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && HOJA_BT_USES_FLOSS
 #include "hal/bluetooth_hal.h"
+#include "utilities/ns2_bt_probe.h"
 #include "hal/flash_hal.h"
 #include "hal/rp2040/bt_flash_bank.h"
 #include "pico/stdlib.h"
