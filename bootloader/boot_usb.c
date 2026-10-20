@@ -14,6 +14,7 @@
 #include "hal/rp2040/boot_layout.h"
 #include "boot_flash.h"
 #include "boot_rgb.h"
+#include "boot_uf2.h"
 
 #if !defined(BOOT_DEVICE_NAME) || !defined(BOOT_BUILD_ID)
 #error "boot_usb.c: hoja_use_bootloader sets BOOT_DEVICE_NAME and BOOT_BUILD_ID for each board"
@@ -23,10 +24,10 @@
 
 // The HOJA Gamepad IDs, told apart from a running gamepad by the device version (0xB0 in its high
 // byte); its serial is the build id (a separate device to Windows, the board to the app), and its
-// MS OS 2.0 descriptors bind WinUSB.
+// MS OS 2.0 descriptors bind WinUSB to the update interface. 0xB002 added the UF2 drive beside it.
 #define BOOT_USB_VID 0x2E8Au
 #define BOOT_USB_PID 0x10C6u
-#define BOOT_USB_BCD 0xB001u
+#define BOOT_USB_BCD 0xB002u
 
 // Interface requests beside PICOBOOT's
 #define BOOT_USB_REQ_FAULT  0x48u // The last fault: its two scratch registers (BOOT_FAULT_SCRATCH_IDX)
@@ -49,8 +50,11 @@ _Static_assert(sizeof(boot_usb_layout_report_s) == 28u, "the layout report is a 
 
 #define BOOT_USB_RHPORT         0
 #define BOOT_USB_ITF            0
+#define BOOT_USB_ITF_DRIVE      1
 #define BOOT_USB_EP_OUT         0x01u
 #define BOOT_USB_EP_IN          0x81u
+#define BOOT_USB_EP_DRIVE_OUT   0x02u
+#define BOOT_USB_EP_DRIVE_IN    0x82u
 #define BOOT_USB_PACKET_LEN     64u
 #define BOOT_USB_VENDOR_MS      0x01u // The MS OS 2.0 vendor request, named in the BOS descriptor
 #define BOOT_USB_MS_OS_20_INDEX 7u
@@ -152,17 +156,23 @@ static const tusb_desc_device_t _boot_usb_device = {
     .bNumConfigurations = 1,
 };
 
-#define BOOT_USB_CONFIG_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#define BOOT_USB_CONFIG_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_MSC_DESC_LEN)
 
 static const uint8_t _boot_usb_config[] = {
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, BOOT_USB_CONFIG_LEN, 0x00, BOOT_USB_POWER_MA),
+    TUD_CONFIG_DESCRIPTOR(1, 2, 0, BOOT_USB_CONFIG_LEN, 0x00, BOOT_USB_POWER_MA),
     // The vendor interface as the boot ROM's PICOBOOT one; its name is the build id
     TUD_VENDOR_DESCRIPTOR(BOOT_USB_ITF, BOOT_USB_STR_INTERFACE, BOOT_USB_EP_OUT, BOOT_USB_EP_IN,
                           BOOT_USB_PACKET_LEN),
+    // The UF2 drive (boot_uf2.c), for hosts without WebUSB
+    TUD_MSC_DESCRIPTOR(BOOT_USB_ITF_DRIVE, 0, BOOT_USB_EP_DRIVE_OUT, BOOT_USB_EP_DRIVE_IN,
+                       BOOT_USB_PACKET_LEN),
 };
 
-// The MS OS 2.0 set for a single-interface device: WinUSB, and the interface GUID
+// The MS OS 2.0 set: WinUSB and the interface GUID, for the update interface alone. In a composite
+// device they go in a function subset: at the device level WinUSB would take the whole device, and
+// Windows would never load the drive.
 #define BOOT_USB_MS_HEADER_LEN       0x0Au
+#define BOOT_USB_MS_SUBSET_LEN       0x08u // A configuration or function subset header
 #define BOOT_USB_MS_WINDOWS_VERSION  0x06030000u // Windows 8.1 and later
 #define BOOT_USB_MS_COMPAT_ID        "WINUSB"
 #define BOOT_USB_MS_COMPAT_IDS_LEN   16u // The compatible and sub-compatible IDs, 8 bytes each
@@ -174,7 +184,9 @@ static const uint8_t _boot_usb_config[] = {
 #define BOOT_USB_MS_PROP_DATA_LEN    ((sizeof(BOOT_USB_INTERFACE_GUID) + 1u) * 2u) // A multi-string: two NULs
 #define BOOT_USB_MS_PROP_LEN         (BOOT_USB_MS_PROP_FIELDS_LEN + BOOT_USB_MS_PROP_NAME_LEN + \
                                       BOOT_USB_MS_PROP_DATA_LEN)
-#define BOOT_USB_MS_OS_20_LEN        (BOOT_USB_MS_HEADER_LEN + BOOT_USB_MS_COMPAT_LEN + BOOT_USB_MS_PROP_LEN)
+#define BOOT_USB_MS_FUNCTION_LEN     (BOOT_USB_MS_SUBSET_LEN + BOOT_USB_MS_COMPAT_LEN + BOOT_USB_MS_PROP_LEN)
+#define BOOT_USB_MS_CONFIG_LEN       (BOOT_USB_MS_SUBSET_LEN + BOOT_USB_MS_FUNCTION_LEN)
+#define BOOT_USB_MS_OS_20_LEN        (BOOT_USB_MS_HEADER_LEN + BOOT_USB_MS_CONFIG_LEN)
 
 #define BOOT_USB_BOS_LEN (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
@@ -270,6 +282,24 @@ static bool _boot_usb_range_valid(uint32_t addr, uint32_t len, uint32_t *offset)
     return true;
 }
 
+// A sector at a time, the watchdog fed after each: a whole image's range would outlast it
+void boot_usb_erase_sector(uint32_t offset)
+{
+    if (_boot_usb_in_bootloader(offset))
+        return;
+
+    if (_boot_usb_in_first_sector(offset))
+    {
+        memset(_boot_usb_first_sector, 0xFF, sizeof(_boot_usb_first_sector));
+        _boot_usb_first_sector_written = false;
+    }
+
+    boot_flash_erase(offset, FLASH_SECTOR_SIZE);
+    watchdog_update();
+    _boot_usb_dirty = true;
+    _boot_usb_written_at_ms = to_ms_since_boot(get_absolute_time());
+}
+
 static boot_pb_status_t _boot_usb_erase(uint32_t addr, uint32_t len)
 {
     uint32_t offset;
@@ -281,22 +311,7 @@ static boot_pb_status_t _boot_usb_erase(uint32_t addr, uint32_t len)
         return BOOT_PB_BAD_ALIGNMENT;
 
     for (uint32_t at = offset; at < offset + len; at += FLASH_SECTOR_SIZE)
-    {
-        if (_boot_usb_in_bootloader(at))
-            continue;
-
-        if (_boot_usb_in_first_sector(at))
-        {
-            memset(_boot_usb_first_sector, 0xFF, sizeof(_boot_usb_first_sector));
-            _boot_usb_first_sector_written = false;
-        }
-
-        // A sector at a time, the watchdog fed after each: a whole image's range would outlast it
-        boot_flash_erase(at, FLASH_SECTOR_SIZE);
-        watchdog_update();
-        _boot_usb_dirty = true;
-        _boot_usb_written_at_ms = to_ms_since_boot(get_absolute_time());
-    }
+        boot_usb_erase_sector(at);
     return BOOT_PB_OK;
 }
 
@@ -325,6 +340,16 @@ static void _boot_usb_write(uint32_t offset, const uint8_t *data, uint32_t len)
         _boot_usb_dirty = true;
         _boot_usb_written_at_ms = to_ms_since_boot(get_absolute_time());
     }
+}
+
+void boot_usb_program_page(uint32_t offset, const uint8_t *data)
+{
+    _boot_usb_write(offset, data, FLASH_PAGE_SIZE);
+}
+
+void boot_usb_restart_after(uint32_t delay_ms)
+{
+    _boot_usb_schedule_restart(delay_ms, false);
 }
 
 static void _boot_usb_read(uint32_t offset, uint8_t *out, uint32_t len)
@@ -592,6 +617,7 @@ static const usbd_class_driver_t _boot_pb_driver = {
     .sof             = NULL,
 };
 
+// TinyUSB's own drivers come after it: the drive's interface goes to its MSC driver
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
     *driver_count = 1;
@@ -755,6 +781,19 @@ static void _boot_usb_build_ms_os_20(void)
     at = _boot_usb_put_u32(at, BOOT_USB_MS_WINDOWS_VERSION);
     at = _boot_usb_put_u16(at, BOOT_USB_MS_OS_20_LEN);
 
+    // The only configuration (index 0), and in it the update interface's function
+    at = _boot_usb_put_u16(at, BOOT_USB_MS_SUBSET_LEN);
+    at = _boot_usb_put_u16(at, MS_OS_20_SUBSET_HEADER_CONFIGURATION);
+    *at++ = 0;
+    *at++ = 0;
+    at = _boot_usb_put_u16(at, BOOT_USB_MS_CONFIG_LEN);
+
+    at = _boot_usb_put_u16(at, BOOT_USB_MS_SUBSET_LEN);
+    at = _boot_usb_put_u16(at, MS_OS_20_SUBSET_HEADER_FUNCTION);
+    *at++ = BOOT_USB_ITF;
+    *at++ = 0;
+    at = _boot_usb_put_u16(at, BOOT_USB_MS_FUNCTION_LEN);
+
     // Compatible ID: WinUSB, NUL padded, and no sub-compatible ID
     at = _boot_usb_put_u16(at, BOOT_USB_MS_COMPAT_LEN);
     at = _boot_usb_put_u16(at, MS_OS_20_FEATURE_COMPATBLE_ID);
@@ -820,7 +859,10 @@ void boot_usb_run(bool app_valid)
 
         uint32_t now_ms = to_ms_since_boot(get_absolute_time());
         bool writing = _boot_usb_dirty && (now_ms - _boot_usb_written_at_ms < BOOT_USB_WRITING_SHOWN_MS);
-        boot_rgb_task(writing ? BOOT_RGB_WRITING : BOOT_RGB_UPDATE_MODE);
+        if (boot_uf2_refused(now_ms))
+            boot_rgb_task(BOOT_RGB_REFUSED);
+        else
+            boot_rgb_task(writing ? BOOT_RGB_WRITING : BOOT_RGB_UPDATE_MODE);
 
         if (_boot_usb_restart_pending && ((int32_t)(now_ms - _boot_usb_restart_at_ms) >= 0))
             _boot_usb_restart(_boot_usb_restart_rom);
