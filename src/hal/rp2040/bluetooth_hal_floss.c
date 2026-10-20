@@ -1753,6 +1753,44 @@ static void _bt_hal_swift_pair_start(void)
     floss_timer_start(&_swift_pair_timer, BT_HAL_SWIFT_PAIR_MS * 1000u);
 }
 
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+// Bench: a connectable LE advert as a Pro Controller 2 (Nintendo 0x0553, product 0x2069, in the form
+// a Joy-Con 2 advertises), to see what a Switch 2 does with a radio that has no 2M PHY. FLOSS asks
+// for nothing on the link itself, so everything on it comes from the console.
+static void _bt_hal_ns2_ble_probe_start(void)
+{
+    static const uint8_t ms[26] = {
+        0x53, 0x05,             // Nintendo
+        0x01, 0x00, 0x03,
+        0x7E, 0x05, 0x69, 0x20, // 057E:2069
+        0x00, 0x01,
+        0x00,                   // Not waking a console
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x0F,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    floss_le_ad_t ad;
+    floss_le_ad_init(&ad);
+    floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC | FLOSS_AD_FLAG_NO_BREDR);
+    floss_le_ad_add(&ad, FLOSS_AD_MANUFACTURER, ms, sizeof(ms));
+
+    floss_le_link_policy_t policy;
+    floss_le_link_policy_defaults(&policy);
+    policy.prefer_2m_phy = false;
+    policy.update_delay_us = 0;
+    floss_le_set_link_policy(&policy);
+
+    floss_le_adv_params_t p;
+    floss_le_adv_params_defaults(&p);
+    p.interval_min = 0x30;
+    p.interval_max = 0x30;
+    p.own_addr_type = FLOSS_LE_ADDR_PUBLIC;
+    floss_le_adv_set_params(&p);
+    floss_le_adv_set_data(ad.data, ad.len);
+    floss_le_adv_start();
+}
+#endif
+
 static void _bt_hal_swift_pair_stop(void)
 {
     floss_timer_stop(&_swift_pair_timer);
@@ -1913,6 +1951,14 @@ static bool _bt_hal_beacon_listen(void)
 // After the listen for a dongle: pairing, or calling the hosts
 static void _bt_hal_start_calls(void)
 {
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    // Bench: only the LE advert, so the console can't take the Classic (Switch 1) path instead
+    if (_pairing_mode && !_mode_sinput && !_mode_wii)
+    {
+        _bt_hal_ns2_ble_probe_start();
+        return;
+    }
+#endif
     if (_pairing_mode)
     {
         _bt_hal_set_discoverable(true);
