@@ -1,8 +1,11 @@
 #include "cores/core_slippi.h"
 
+#include <string.h>
+
 #include <hoja_usb.h>
 #include "cores/cores.h"
 #include "cores/core_ns2gc.h"
+#include "hal/sys_hal.h"
 #include "transport/transport.h"
 #include "input/mapper.h"
 #include "input/dpad.h"
@@ -13,6 +16,11 @@
 #define CORE_SLIPPI_CLAMP(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
 static bool _slippi_connected = false;
+
+// A Switch takes a controller's stick rest position from the first report it appears in, so port 1
+// stays empty until the sticks have settled after starting
+#define CORE_SLIPPI_SETTLE_US 150000u
+static uint64_t _slippi_start_us = 0;
 
 static void _core_slippi_set_connected(bool connected)
 {
@@ -94,7 +102,6 @@ void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
 bool _core_slippi_get_generated_report(core_report_s *out)
 {
     const uint8_t report_id = 0x21;
-    static bool _slippi_first = false;
 
     out->reportformat = CORE_REPORTFORMAT_SLIPPI;
     out->size = 37;
@@ -114,10 +121,11 @@ bool _core_slippi_get_generated_report(core_report_s *out)
     out->data[19] = 0x04;
     out->data[28] = 0x04;
 
-    // Do not populate any data on first report
-    if(!_slippi_first)
+    // Port 1 empty while the sticks settle
+    if((sys_hal_now_us() - _slippi_start_us) < CORE_SLIPPI_SETTLE_US)
     {
-        _slippi_first = true;
+        out->data[1] = 0x04;
+        memset(&out->data[2], 0, 8);
         return true;
     }
 
@@ -186,6 +194,8 @@ static void _core_slippi_populate_hid_device(void)
 // Public Functions
 bool core_slippi_init(core_params_s *params)
 {
+    _slippi_start_us = sys_hal_now_us();
+
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:

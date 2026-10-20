@@ -226,6 +226,12 @@ bool hoja_usb_mode_by_app(void)
 }
 
 static volatile bool _usb_restart_request = false;
+static uint64_t _usb_restart_resume_us = 0;
+static core_reportformat_t _usb_restart_format = CORE_REPORTFORMAT_UNDEFINED;
+
+// Off the bus this long, a host sees a clean unplug: a Switch 1 handed a quick restart kept the
+// old device for seconds before looking again
+#define HOJA_USB_RESTART_GAP_US 300000u
 
 void hoja_request_usb_restart(void)
 {
@@ -463,15 +469,27 @@ void _hoja_task_1()
       }
     }
 
-    // The mode's USB restarting in place, as another device for the host it found
+    // The mode's USB restarting in place, as another device for the host it found: off the bus
+    // first, then back after a gap
     if (_usb_restart_request)
     {
       _usb_restart_request = false;
-      format = core_current_reportformat();
+      _usb_restart_format = core_current_reportformat();
       core_deinit();
-      boot_set_mode(format, GAMEPAD_TRANSPORT_USB);
-      _core_format_init();
-      _hoja_init_core_tasks();
+      sys_hal_time_us(&c1_timestamp);
+      _usb_restart_resume_us = c1_timestamp + HOJA_USB_RESTART_GAP_US;
+    }
+    if (_usb_restart_format != CORE_REPORTFORMAT_UNDEFINED)
+    {
+      sys_hal_time_us(&c1_timestamp);
+      if (c1_timestamp >= _usb_restart_resume_us)
+      {
+        format = _usb_restart_format;
+        _usb_restart_format = CORE_REPORTFORMAT_UNDEFINED;
+        boot_set_mode(format, GAMEPAD_TRANSPORT_USB);
+        _core_format_init();
+        _hoja_init_core_tasks();
+      }
     }
 
     // Following the dongle's mode: change mode, keep the link up
