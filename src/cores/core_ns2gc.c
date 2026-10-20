@@ -79,6 +79,9 @@ void core_ns2gc_usb_task(uint64_t now_us)
 {
     if (!_ns2gc_leaving)
         return;
+    // The caller's time can predate the decision (made inside this same pass): read the clock now
+    (void)now_us;
+    now_us = sys_hal_now_us();
     bool settled = _ns2gc_configured && (now_us - _ns2gc_configured_us) >= NS2GC_SWITCH1_SETTLED_US;
     if (settled || (now_us - _ns2gc_decided_us) >= NS2GC_SWITCH1_LEAVE_US)
     {
