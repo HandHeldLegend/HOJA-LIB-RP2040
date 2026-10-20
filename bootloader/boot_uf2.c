@@ -29,14 +29,14 @@
 #define BOOT_UF2_ROOT_START    (BOOT_UF2_FAT_START + BOOT_UF2_FAT_COUNT * BOOT_UF2_FAT_SECTORS)
 #define BOOT_UF2_DATA_START    (BOOT_UF2_ROOT_START + BOOT_UF2_ROOT_SECTORS)
 #define BOOT_UF2_CLUSTERS      (BOOT_UF2_SECTORS - BOOT_UF2_DATA_START)
-#define BOOT_UF2_LABEL         "HOJA UPDATE"
+#define BOOT_UF2_LABEL_LEN     11u
+#define BOOT_UF2_LABEL_AT      43u // In the boot sector
 #define BOOT_UF2_SERIAL        0x41484F4Au
 
 // FAT16 by its cluster count (anything else is FAT12 or FAT32 to the host), and a FAT that maps
 // every cluster
 _Static_assert((BOOT_UF2_CLUSTERS >= 4085u) && (BOOT_UF2_CLUSTERS < 65525u), "not a FAT16 volume");
 _Static_assert((BOOT_UF2_CLUSTERS + 2u) * 2u <= BOOT_UF2_FAT_SECTORS * BOOT_UF2_SECTOR_LEN, "FAT too short");
-_Static_assert(sizeof(BOOT_UF2_LABEL) - 1u == 11u, "a FAT label is 11 characters");
 
 typedef struct __attribute__((packed))
 {
@@ -103,9 +103,46 @@ static const uint8_t _boot_uf2_boot_sector[] = {
     0,
     0x29,                                 // The serial, label and type follow
     U32_TO_U8S_LE(BOOT_UF2_SERIAL),
-    'H', 'O', 'J', 'A', ' ', 'U', 'P', 'D', 'A', 'T', 'E',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', // The label (_boot_uf2_label)
     'F', 'A', 'T', '1', '6', ' ', ' ', ' ',
 };
+
+_Static_assert(sizeof(_boot_uf2_boot_sector) == BOOT_UF2_LABEL_AT + BOOT_UF2_LABEL_LEN + 8u,
+               "the label's place in the boot sector");
+
+// The volume's name is the controller's, as far as a FAT label allows: 11 characters, none of
+// "*+,./:;<=>?[\]|. A '.' becomes '-' and a '+' a 'P' (ProGCC 3-1, ProGCC 3P); a longer name loses
+// its spaces, then its end.
+static char _boot_uf2_label[BOOT_UF2_LABEL_LEN];
+
+static void _boot_uf2_build_label(void)
+{
+    static const char name[] = BOOT_DEVICE_NAME;
+    char clean[sizeof(name)];
+    uint32_t len = 0;
+
+    for (const char *at = name; *at; at++)
+    {
+        char c = *at;
+        if (c == '.')
+            c = '-';
+        else if (c == '+')
+            c = 'P';
+        else if (strchr("\"*,/:;<=>?[\\]|", c))
+            continue;
+        clean[len++] = c;
+    }
+
+    bool squeeze = len > BOOT_UF2_LABEL_LEN;
+    uint32_t out = 0;
+    memset(_boot_uf2_label, ' ', sizeof(_boot_uf2_label));
+    for (uint32_t i = 0; (i < len) && (out < BOOT_UF2_LABEL_LEN); i++)
+    {
+        if (squeeze && (clean[i] == ' '))
+            continue;
+        _boot_uf2_label[out++] = clean[i];
+    }
+}
 
 // --- UF2 blocks ---
 
@@ -304,7 +341,7 @@ static void _boot_uf2_read_root(uint32_t root_sector, uint8_t *out)
         return;
 
     boot_uf2_dirent_s *entry = (boot_uf2_dirent_s *)out;
-    memcpy(entry->name, BOOT_UF2_LABEL, sizeof(entry->name));
+    memcpy(entry->name, _boot_uf2_label, sizeof(entry->name));
     entry->attr = BOOT_UF2_ATTR_LABEL;
 
     for (uint32_t i = 0; i < BOOT_UF2_FILE_COUNT; i++)
@@ -319,11 +356,15 @@ static void _boot_uf2_read_root(uint32_t root_sector, uint8_t *out)
 
 static void _boot_uf2_read_sector(uint32_t lba, uint8_t *out)
 {
+    if (_boot_uf2_label[0] == '\0')
+        _boot_uf2_build_label();
+
     memset(out, 0, BOOT_UF2_SECTOR_LEN);
 
     if (lba == 0)
     {
         memcpy(out, _boot_uf2_boot_sector, sizeof(_boot_uf2_boot_sector));
+        memcpy(&out[BOOT_UF2_LABEL_AT], _boot_uf2_label, sizeof(_boot_uf2_label));
         out[510] = 0x55;
         out[511] = 0xAA;
     }
