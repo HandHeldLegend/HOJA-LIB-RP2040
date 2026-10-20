@@ -89,17 +89,34 @@ void anm_utility_set_time_ms(uint32_t time_ms)
     _stored_fixed_point_time = RGB_FLOAT_TO_FIXED(1.0f / (float)ticks);
 }
 
-// Brightness is 0 to 1275 range
+// Below this output level a channel is rounded, not dithered: +1 on a few is a 15-30% step, and at
+// the LEDs' frame rate (60-90 Hz) the dither patterns repeat at 10-45 Hz, a visible flicker on dim
+// LEDs. From here up a step is 3% or less and the dither only smooths fades.
+#define DITHER_MIN_LEVEL 32u
+// Brightness 0 still lights the player and notification LEDs, at this fraction of 256
+#define STATUS_ONLY_SCALE 8u
+
+// One channel at brightness (0 to DITHER_BRIGHT_MAX): the exact level, dithered between its two
+// nearest steps when bright enough to hide it, else rounded and held
+static inline uint8_t _anm_utility_channel(uint8_t in, uint32_t brightness, uint8_t phase)
+{
+    if (!in)
+        return 0;
+    uint32_t v = (uint32_t)in * brightness;
+    uint32_t base = v / DITHER_BRIGHT_MAX;
+    if (base < DITHER_MIN_LEVEL)
+        return (uint8_t)CAPUINT8((v + DITHER_BRIGHT_MAX / 2u) / DITHER_BRIGHT_MAX);
+    uint32_t idx = ((v % DITHER_BRIGHT_MAX) * DITHER_TABLE_SIZE) / DITHER_BRIGHT_MAX;
+    return (uint8_t)CAPUINT8(base + ((_dithering_table[idx] >> phase) & 0x1u));
+}
+
+// Brightness is 0 to DITHER_BRIGHT_MAX (1530)
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 {
     static uint8_t repeating = 0;
     brightness = (brightness>DITHER_BRIGHT_MAX) ? DITHER_BRIGHT_MAX : brightness;
     if(brightness)
         brightness = (brightness<50) ? 50 : brightness;
-    uint16_t    dither_idx = brightness % DITHER_TABLE_SIZE;
-    uint8_t     dither_amt = (_dithering_table[dither_idx] >> repeating) & 0x1;
-
-    uint8_t brightness_u8 = brightness/6;
 
     // If we have 0 brightness, always illuminate our player
     // status LEDs
@@ -112,6 +129,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         }
 
         const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
+        const uint32_t status_bright = (DITHER_BRIGHT_MAX * STATUS_ONLY_SCALE) / 256u;
 
         if(rcfg->player_group_index >= 0)
         {
@@ -119,15 +137,9 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             {
                 int8_t w = rgb_led_groups[rcfg->player_group_index][i];
                 if(w < 0) continue;
-
-                out[w].r = (in[w].r * 8 + 127) >> 8;
-                out[w].r += dither_amt;
-
-                out[w].g = (in[w].g * 8 + 127) >> 8;
-                out[w].g += dither_amt;
-
-                out[w].b = (in[w].b * 8 + 127) >> 8;
-                out[w].b += dither_amt;
+                out[w].r = _anm_utility_channel(in[w].r, status_bright, repeating);
+                out[w].g = _anm_utility_channel(in[w].g, status_bright, repeating);
+                out[w].b = _anm_utility_channel(in[w].b, status_bright, repeating);
             }
         }
 
@@ -137,15 +149,9 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             {
                 int8_t w = rgb_led_groups[rcfg->notification_group_index][i];
                 if(w < 0) continue;
-
-                out[w].r = (in[w].r * 8 + 127) >> 8;
-                out[w].r += dither_amt;
-
-                out[w].g = (in[w].g * 8 + 127) >> 8;
-                out[w].g += dither_amt;
-
-                out[w].b = (in[w].b * 8 + 127) >> 8;
-                out[w].b += dither_amt;
+                out[w].r = _anm_utility_channel(in[w].r, status_bright, repeating);
+                out[w].g = _anm_utility_channel(in[w].g, status_bright, repeating);
+                out[w].b = _anm_utility_channel(in[w].b, status_bright, repeating);
             }
         }
 
@@ -155,33 +161,11 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 
     for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
     {
-        // Only apply if above 0
-        if(in[i].r)
-        {
-            // First apply gamma
-            //out[i].r = gamma8[in[i].r];
-            // Apply brightness u8
-            out[i].r = (in[i].r * brightness_u8 + 127) >> 8;
-            // Apply dither
-            out[i].r += dither_amt;
-        }
-        else out[i].r = 0;
-        
-        if(in[i].g)
-        {
-            //out[i].g = gamma8[in[i].g];
-            out[i].g = (in[i].g * brightness_u8 + 127) >> 8;
-            out[i].g += dither_amt;
-        }
-        else out[i].g = 0;
-
-        if(in[i].b)
-        {
-            //out[i].b = gamma8[in[i].b];
-            out[i].b = (in[i].b * brightness_u8 + 127) >> 8;
-            out[i].b += dither_amt;
-        }
-        else out[i].b = 0;
+        // Each LED's dither runs at its own offset, so a dimmed pad doesn't pulse in step
+        uint8_t phase = (uint8_t)((repeating + (uint32_t)i * 5u) % DITHER_MAX_LOOP);
+        out[i].r = _anm_utility_channel(in[i].r, brightness, phase);
+        out[i].g = _anm_utility_channel(in[i].g, brightness, phase);
+        out[i].b = _anm_utility_channel(in[i].b, brightness, phase);
     }
 
     repeating = (repeating+1)%DITHER_MAX_LOOP;
