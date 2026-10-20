@@ -172,6 +172,15 @@ typedef enum
     GAMECUBE_CODE_RX_LEFT,
     GAMECUBE_CODE_RY_UP,
     GAMECUBE_CODE_RY_DOWN,
+    // The Switch 2's GameCube controller (NSO) only: GameCube consoles and Slippi have no such
+    // buttons. Values are part of the config app wire format: append only.
+    GAMECUBE_CODE_ZL,
+    GAMECUBE_CODE_MINUS,
+    GAMECUBE_CODE_HOME,
+    GAMECUBE_CODE_CAPTURE,
+    GAMECUBE_CODE_C,
+    GAMECUBE_CODE_LS,
+    GAMECUBE_CODE_RS,
     GAMECUBE_CODE_MAX,
 } mapper_gamecube_code_t;
 

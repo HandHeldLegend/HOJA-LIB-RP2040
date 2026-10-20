@@ -41,6 +41,10 @@ typedef enum
 // instead of bumping CFG_BLOCK_INPUT_VERSION (which would reset every other profile).
 #define CFG_INPUT_WII_PROFILE_VERSION 0x03
 
+// The GameCube profile's Switch 2 controller buttons (GAMECUBE_CODE_ZL..RS) came later, so existing
+// profiles get them on the buttons they would default to, once, by this byte
+#define CFG_INPUT_GAMECUBE_NS2_VERSION 0x01
+
 #define CFG_BLOCK_SWITCHPAIR_VERSION 0x10
 
 typedef enum 
@@ -303,9 +307,10 @@ typedef struct
     inputConfigSlot_s input_profile_wii_classic[36]; // SIZE=5
     inputConfigSlot_s input_profile_wii_sideways[36]; // SIZE=5
     uint8_t wii_profile_version; // CFG_INPUT_WII_PROFILE_VERSION once the Wii profiles hold defaults
+    uint8_t gamecube_ns2_version; // CFG_INPUT_GAMECUBE_NS2_VERSION once the GameCube profile has its Switch 2 buttons
     // Set aside for a future motion-input table (gestures detected from the IMU, bound like
     // buttons): every 36-slot profile above is full of physical inputs
-    uint8_t reserved[426];
+    uint8_t reserved[425];
 } inputConfig_s;
 
 _Static_assert(sizeof(inputConfig_s) == 2048, "inputConfig_s must remain 2048 bytes");

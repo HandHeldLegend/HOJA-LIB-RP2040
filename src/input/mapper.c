@@ -118,7 +118,14 @@ mapper_output_type_t _gamecube_output_types[GAMECUBE_CODE_MAX] = {
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_JOYSTICK,
     MAPPER_OUTPUT_JOYSTICK,
-    MAPPER_OUTPUT_JOYSTICK
+    MAPPER_OUTPUT_JOYSTICK,
+    MAPPER_OUTPUT_DIGITAL, // ZL (Switch 2 GameCube controller)
+    MAPPER_OUTPUT_DIGITAL, // Minus
+    MAPPER_OUTPUT_DIGITAL, // Home
+    MAPPER_OUTPUT_DIGITAL, // Capture
+    MAPPER_OUTPUT_DIGITAL, // C
+    MAPPER_OUTPUT_DIGITAL, // Left stick click
+    MAPPER_OUTPUT_DIGITAL, // Right stick click
 };
 
 mapper_output_type_t _xinput_output_types[XINPUT_CODE_MAX] = {
@@ -809,6 +816,32 @@ static void _mapper_apply_default_maps(int8_t *dest, uint16_t *static_dest, int8
     }
 }
 
+// The Switch 2 GameCube controller's buttons, on the inputs that carry them on that controller's
+// layout. A board's own GameCube defaults come first: an input it already uses keeps its use.
+static const struct
+{
+    mapper_input_code_t input;
+    mapper_gamecube_code_t output;
+} _gamecube_ns2_defaults[] = {
+    {INPUT_CODE_LB, GAMECUBE_CODE_ZL},
+    {INPUT_CODE_SELECT, GAMECUBE_CODE_MINUS},
+    {INPUT_CODE_HOME, GAMECUBE_CODE_HOME},
+    {INPUT_CODE_SHARE, GAMECUBE_CODE_CAPTURE},
+    {INPUT_CODE_MISC3, GAMECUBE_CODE_C},
+    {INPUT_CODE_LS, GAMECUBE_CODE_LS},
+    {INPUT_CODE_RS, GAMECUBE_CODE_RS},
+};
+
+static void _mapper_gamecube_ns2_defaults(int8_t *codes)
+{
+    for (uint32_t i = 0; i < sizeof(_gamecube_ns2_defaults) / sizeof(_gamecube_ns2_defaults[0]); i++)
+    {
+        mapper_input_code_t in = _gamecube_ns2_defaults[i].input;
+        if (codes[in] == GAMECUBE_CODE_UNUSED)
+            codes[in] = (int8_t)_gamecube_ns2_defaults[i].output;
+    }
+}
+
 static void _mapper_refresh_default_codes(void)
 {
     const hoja_config_s *cfg = hoja_config_get();
@@ -819,6 +852,7 @@ static void _mapper_refresh_default_codes(void)
     _mapper_apply_default_maps(default_codes_snes,     default_static_snes,     SNES_CODE_UNUSED,     &cfg->defaults_snes);
     _mapper_apply_default_maps(default_codes_n64,      default_static_n64,      N64_CODE_UNUSED,      &cfg->defaults_n64);
     _mapper_apply_default_maps(default_codes_gamecube, default_static_gamecube, GAMECUBE_CODE_UNUSED, &cfg->defaults_gamecube);
+    _mapper_gamecube_ns2_defaults(default_codes_gamecube);
     _mapper_apply_default_maps(default_codes_xinput,   default_static_xinput,   XINPUT_CODE_UNUSED,   &cfg->defaults_xinput);
     _mapper_apply_default_maps(default_codes_sinput,   default_static_sinput,   SINPUT_CODE_UNUSED,   &cfg->defaults_sinput);
 
@@ -1117,6 +1151,23 @@ void mapper_init()
     if(input_config->wii_profile_version != CFG_INPUT_WII_PROFILE_VERSION)
     {
         _mapper_set_all_wii_defaults();
+    }
+
+    // The same for the GameCube profile's Switch 2 buttons: each goes on its input where that
+    // input does nothing in the profile, the rest of the profile as it was
+    if(input_config->gamecube_ns2_version != CFG_INPUT_GAMECUBE_NS2_VERSION)
+    {
+        input_config->gamecube_ns2_version = CFG_INPUT_GAMECUBE_NS2_VERSION;
+        for (uint32_t i = 0; i < sizeof(_gamecube_ns2_defaults) / sizeof(_gamecube_ns2_defaults[0]); i++)
+        {
+            inputConfigSlot_s *slot = &input_config->input_profile_gamecube[_gamecube_ns2_defaults[i].input];
+            if (slot->output_code == GAMECUBE_CODE_UNUSED)
+            {
+                slot->output_code = (int8_t)_gamecube_ns2_defaults[i].output;
+                slot->output_mode = 0;
+                slot->static_output = 0;
+            }
+        }
     }
 
     if(_webusb_remap_preview)

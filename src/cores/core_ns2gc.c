@@ -190,14 +190,11 @@ static void _ns2gc_set_connected(bool connected)
 // NS2-LIB-HID hooks
 //--------------------------------------------------------------------+
 
-// The GameCube layout from the GameCube profile; the rest from the hardware, on their Pro
-// Controller 2 bits (the report shares its layout): ZL, Minus, the stick clicks, Home, Capture,
-// and C (chat) on the power button
+// Everything from the GameCube profile, the Switch 2 controller's own buttons too (ZL, Minus, the
+// stick clicks, Home, Capture, C), on their Pro Controller 2 bits (the report shares its layout)
 void ns2_api_hook_get_input(ns2_input_s *out)
 {
     mapper_input_s input = mapper_get_input();
-    mapper_input_s raw = {0};
-    hover_access_safe(&raw);
 
     out->a = input.presses[GAMECUBE_CODE_A];
     out->b = input.presses[GAMECUBE_CODE_B];
@@ -216,13 +213,13 @@ void ns2_api_hook_get_input(ns2_input_s *out)
     out->left = dpad[2];
     out->up = dpad[3];
 
-    out->zl = raw.presses[INPUT_CODE_LB];
-    out->minus = raw.presses[INPUT_CODE_SELECT];
-    out->l_js = raw.presses[INPUT_CODE_LS];
-    out->r_js = raw.presses[INPUT_CODE_RS];
-    out->home = raw.presses[INPUT_CODE_HOME];
-    out->capture = raw.presses[INPUT_CODE_SHARE];
-    out->c = raw.presses[INPUT_CODE_MISC3];
+    out->zl = input.presses[GAMECUBE_CODE_ZL];
+    out->minus = input.presses[GAMECUBE_CODE_MINUS];
+    out->l_js = input.presses[GAMECUBE_CODE_LS];
+    out->r_js = input.presses[GAMECUBE_CODE_RS];
+    out->home = input.presses[GAMECUBE_CODE_HOME];
+    out->capture = input.presses[GAMECUBE_CODE_CAPTURE];
+    out->c = input.presses[GAMECUBE_CODE_C];
 
     // Our own calibration, reported over the whole 12-bit range (the controller's calibration
     // blocks describe the same)
