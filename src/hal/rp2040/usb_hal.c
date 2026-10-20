@@ -16,9 +16,8 @@
 
 #include "usb/webusb.h"
 
-#if defined(HOJA_NS2_GC_TEST)
 #include "cores/core_ns2gc.h"
-#endif
+#include "hardware/structs/usb.h"
 
 #include "hoja.h"
 
@@ -69,6 +68,15 @@ static void _usb_hal_hid_output_report(const uint8_t *buffer, uint16_t len)
 void hhl_tusb_event_device_requested(void)
 {
     autodetect_on_usb_host();
+
+    // How much the host asked for (the setup packet stays in the USB RAM while it is answered)
+    const volatile uint8_t *setup = usb_dpram->setup_packet;
+    core_ns2gc_usb_device_requested((uint16_t)(setup[6] | (setup[7] << 8)));
+}
+
+void hhl_tusb_event_string_requested(uint8_t index)
+{
+    core_ns2gc_usb_string_requested(index);
 }
 
 void hhl_tusb_event_bos_requested(void)
@@ -79,6 +87,7 @@ void hhl_tusb_event_bos_requested(void)
 static void _usb_hal_on_mount(void)
 {
     _usb_hal_mounted = true;
+    core_ns2gc_usb_configured();
 }
 
 static void _usb_hal_on_sof(uint32_t frame_count)
@@ -192,14 +201,17 @@ bool transport_usb_init(core_params_s *params)
 #endif
 
     case CORE_REPORTFORMAT_SLIPPI:
-#if defined(HOJA_NS2_GC_TEST)
-        // Test build: the Switch 2's GameCube controller, a report every 4 ms
-        _usb_frames = 4;
-        core_ns2gc_usb_config(&tcfg);
-        break;
-#endif
+        // The Switch 2's GameCube controller, a report every 4 ms
+        if (core_ns2gc_running())
+        {
+            _usb_frames = 4;
+            core_ns2gc_usb_config(&tcfg);
+            break;
+        }
 #if (HHL_TUSB_DRIVER_SLIPPI_ENABLE)
-        _usb_frames = 1;
+        // On a console, Nintendo's adapter: polled every 8 ms
+        tcfg.slippi_console = core_ns2gc_console_rate();
+        _usb_frames = tcfg.slippi_console ? 8 : 1;
         tcfg.driver = HHL_TUSB_DRIVER_SLIPPI;
         // The config app's interface beside the adapter when the app switched us here: the host is a
         // computer then. Otherwise the plain adapter, as a console knows it.

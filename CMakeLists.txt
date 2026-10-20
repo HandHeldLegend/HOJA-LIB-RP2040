@@ -8,15 +8,11 @@ add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HHL-TINYUSB-DRIVERS")
 
 # NS2-LIB-HID (Switch 2 controllers): external/NS2-LIB-HID, or a checkout HOJA_NS2_LIB_DIR names
 set(HOJA_NS2_LIB_DIR "${CMAKE_CURRENT_LIST_DIR}/external/NS2-LIB-HID" CACHE PATH "NS2-LIB-HID checkout")
-option(HOJA_NS2_GC_TEST "Test build: Slippi on a cable is the Switch 2's GameCube controller" OFF)
-set(HOJA_NS2_USB_PAIRING "1" CACHE STRING "Test build: how pairing is answered (ns2_usb_pairing_t; 1 declines: no slot)")
+set(HOJA_NS2_USB_PAIRING "1" CACHE STRING "How the Switch 2's pairing is answered (ns2_usb_pairing_t; 1 declines: no slot)")
 if(EXISTS "${HOJA_NS2_LIB_DIR}/CMakeLists.txt")
   add_subdirectory("${HOJA_NS2_LIB_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ns2_lib_hid")
   target_link_libraries(hoja_lib INTERFACE ns2_lib_hid)
-  target_compile_definitions(hoja_lib INTERFACE HOJA_NS2=1)
-  if(HOJA_NS2_GC_TEST)
-    target_compile_definitions(hoja_lib INTERFACE HOJA_NS2_GC_TEST=1 HOJA_NS2_USB_PAIRING=${HOJA_NS2_USB_PAIRING})
-  endif()
+  target_compile_definitions(hoja_lib INTERFACE HOJA_NS2=1 HOJA_NS2_USB_PAIRING=${HOJA_NS2_USB_PAIRING})
 endif()
 
 file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")

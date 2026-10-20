@@ -2,6 +2,7 @@
 
 #include <hoja_usb.h>
 #include "cores/cores.h"
+#include "cores/core_ns2gc.h"
 #include "transport/transport.h"
 #include "input/mapper.h"
 #include "input/dpad.h"
@@ -188,7 +189,8 @@ bool core_slippi_init(core_params_s *params)
     switch(params->transport_type)
     {
         case GAMEPAD_TRANSPORT_USB:
-        params->core_pollrate_us = 1000;
+        // A console (found while starting as the Switch 2's GameCube controller) gets Nintendo's rate
+        params->core_pollrate_us = core_ns2gc_console_rate() ? 8000 : 1000;
         break;
 
         case GAMEPAD_TRANSPORT_DONGLE:

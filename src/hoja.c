@@ -225,6 +225,13 @@ bool hoja_usb_mode_by_app(void)
   return _usb_mode_by_app;
 }
 
+static volatile bool _usb_restart_request = false;
+
+void hoja_request_usb_restart(void)
+{
+  _usb_restart_request = true;
+}
+
 // Replace with proper boot function later TODO
 bool _core_format_init(void)
 {
@@ -454,6 +461,17 @@ void _hoja_task_1()
         _core_format_init();
         _hoja_init_core_tasks();
       }
+    }
+
+    // The mode's USB restarting in place, as another device for the host it found
+    if (_usb_restart_request)
+    {
+      _usb_restart_request = false;
+      format = core_current_reportformat();
+      core_deinit();
+      boot_set_mode(format, GAMEPAD_TRANSPORT_USB);
+      _core_format_init();
+      _hoja_init_core_tasks();
     }
 
     // Following the dongle's mode: change mode, keep the link up

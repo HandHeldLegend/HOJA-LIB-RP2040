@@ -195,11 +195,9 @@ bool core_init(void)
         return core_gamecube_init(&_core_params);
 
         case CORE_REPORTFORMAT_SLIPPI:
-#if defined(HOJA_NS2_GC_TEST)
-        // Test build: Slippi on a cable is the Switch 2's GameCube controller
-        if (_core_params.transport_type == GAMEPAD_TRANSPORT_USB)
+        // Held at power-up on a cable: the Switch 2's GameCube controller, until the host says otherwise
+        if (core_ns2gc_wanted(&_core_params))
             return core_ns2gc_init(&_core_params);
-#endif
         return core_slippi_init(&_core_params);
 
         case CORE_REPORTFORMAT_WII:

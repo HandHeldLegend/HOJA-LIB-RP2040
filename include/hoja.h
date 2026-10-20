@@ -303,6 +303,10 @@ bool hoja_request_usb_mode(core_reportformat_t format);
 
 // The current USB mode came from the config app (so the host is a computer)
 bool hoja_usb_mode_by_app(void);
+
+// On USB, start the current mode's USB again (from the core-1 loop): a mode that found what
+// host it is on comes back as the device that host should see
+void hoja_request_usb_restart(void);
 void hoja_shutdown();
 void hoja_deinit(callback_t cb);
 void hoja_init(const hoja_config_s *config);

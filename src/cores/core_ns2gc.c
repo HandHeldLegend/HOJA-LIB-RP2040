@@ -10,6 +10,8 @@
 #include "input/hover.h"
 #include "input/dpad.h"
 #include "hal/sys_hal.h"
+#include "utilities/boot.h"
+#include "hoja.h"
 
 #include "ns2_lib.h"
 #include "ns2_lib_usb.h"
@@ -24,6 +26,93 @@
 #define NS2GC_CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : ((v) > (hi) ? (hi) : (v)))
 
 static bool _ns2gc_connected = false;
+static bool _ns2gc_running = false;
+
+//--------------------------------------------------------------------+
+// What the host is
+//--------------------------------------------------------------------+
+
+typedef enum
+{
+    NS2GC_HOST_UNKNOWN = 0,
+    NS2GC_HOST_SWITCH2,
+    NS2GC_HOST_SWITCH1,
+    NS2GC_HOST_COMPUTER,
+} ns2gc_host_t;
+
+// A Switch 2 makes its vendor request about 2 ms after configuring; long after this, it isn't one
+#define NS2GC_SWITCH2_WAIT_US 250000u
+
+// Until power-off: the next start (Slippi again) is the device this host should see
+static ns2gc_host_t _ns2gc_host = NS2GC_HOST_UNKNOWN;
+static bool _ns2gc_detecting = false;
+static bool _ns2gc_device_seen = false;
+static bool _ns2gc_configured = false;
+static uint64_t _ns2gc_configured_us = 0;
+
+static void _ns2gc_decide(ns2gc_host_t host)
+{
+    if (!_ns2gc_detecting)
+        return;
+    _ns2gc_detecting = false;
+    _ns2gc_host = host;
+
+    // Anything but a Switch 2 gets the GameCube adapter, started again as that
+    if (host != NS2GC_HOST_SWITCH2)
+        hoja_request_usb_restart();
+}
+
+void core_ns2gc_usb_device_requested(uint16_t length)
+{
+    if (!_ns2gc_detecting || _ns2gc_device_seen)
+        return;
+    _ns2gc_device_seen = true;
+    // Windows, Linux and macOS ask for 64 bytes first; a Switch asks for 8
+    if (length > 8)
+        _ns2gc_decide(NS2GC_HOST_COMPUTER);
+}
+
+void core_ns2gc_usb_string_requested(uint8_t index)
+{
+    (void)index;
+    // A Switch 1 reads the language list before configuring; a Switch 2 reads nothing
+    if (_ns2gc_detecting && !_ns2gc_configured)
+        _ns2gc_decide(NS2GC_HOST_SWITCH1);
+}
+
+void core_ns2gc_usb_configured(void)
+{
+    if (!_ns2gc_detecting)
+        return;
+    _ns2gc_configured = true;
+    _ns2gc_configured_us = sys_hal_now_us();
+}
+
+// Configured, and no vendor request from a Switch 2 came
+static void _ns2gc_detect_task(void)
+{
+    if (_ns2gc_detecting && _ns2gc_configured &&
+        (sys_hal_now_us() - _ns2gc_configured_us) >= NS2GC_SWITCH2_WAIT_US)
+        _ns2gc_decide(NS2GC_HOST_SWITCH1);
+}
+
+bool core_ns2gc_wanted(const core_params_s *params)
+{
+    const boot_info_s *info = boot_get_info();
+    return params->transport_type == GAMEPAD_TRANSPORT_USB && info && info->mode_chosen &&
+           !hoja_usb_mode_by_app() &&
+           (_ns2gc_host == NS2GC_HOST_UNKNOWN || _ns2gc_host == NS2GC_HOST_SWITCH2);
+}
+
+bool core_ns2gc_running(void)
+{
+    return _ns2gc_running;
+}
+
+bool core_ns2gc_console_rate(void)
+{
+    return _ns2gc_host == NS2GC_HOST_SWITCH1;
+}
 
 // The USB transport starts only for a mode with a device record (the driver takes the
 // descriptors from core_ns2gc_usb_config)
@@ -198,6 +287,9 @@ void ns2_api_hook_play_vibration_sample(uint8_t sample_id)
 
 static int16_t _ns2gc_vendor_request(uint8_t request, uint16_t value, uint8_t *out, uint16_t out_size)
 {
+    // The Switch 2's first request after configuring
+    if (request == 0x03 && _ns2gc_configured)
+        _ns2gc_decide(NS2GC_HOST_SWITCH2);
     return ns2_usb_vendor_request(request, value, out, out_size);
 }
 
@@ -235,6 +327,7 @@ void core_ns2gc_usb_config(hhl_tusb_config_s *tcfg)
 
 static bool _ns2gc_report(core_report_s *out)
 {
+    _ns2gc_detect_task();
     _ns2gc_rumble_task();
 
     uint16_t len = 0;
@@ -259,6 +352,8 @@ static void _ns2gc_tunnel(const uint8_t *data, uint16_t len)
 
 static void _ns2gc_transport_stop(void)
 {
+    _ns2gc_running = false;
+    _ns2gc_detecting = false;
     _ns2gc_game_rumble = false;
     _ns2gc_sample = NULL;
     _ns2gc_motor_set(0);
@@ -291,6 +386,12 @@ bool core_ns2gc_init(core_params_s *params)
     params->core_transport_stop = _ns2gc_transport_stop;
     params->hid_device = &_ns2gc_hid_device;
 
+    // A host already found (a Switch 2) needs no finding out again
+    _ns2gc_detecting = (_ns2gc_host == NS2GC_HOST_UNKNOWN);
+    _ns2gc_device_seen = false;
+    _ns2gc_configured = false;
+    _ns2gc_running = true;
+
     return transport_init(params);
 }
 
@@ -302,9 +403,39 @@ bool core_ns2gc_init(core_params_s *params)
     return false;
 }
 
+bool core_ns2gc_wanted(const core_params_s *params)
+{
+    (void)params;
+    return false;
+}
+
+bool core_ns2gc_running(void)
+{
+    return false;
+}
+
+bool core_ns2gc_console_rate(void)
+{
+    return false;
+}
+
 void core_ns2gc_usb_config(hhl_tusb_config_s *tcfg)
 {
     (void)tcfg;
+}
+
+void core_ns2gc_usb_device_requested(uint16_t length)
+{
+    (void)length;
+}
+
+void core_ns2gc_usb_string_requested(uint8_t index)
+{
+    (void)index;
+}
+
+void core_ns2gc_usb_configured(void)
+{
 }
 
 #endif
