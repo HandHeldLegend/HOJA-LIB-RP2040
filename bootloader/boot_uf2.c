@@ -54,10 +54,13 @@ _Static_assert(sizeof(boot_uf2_dirent_s) == BOOT_UF2_DIRENT_LEN, "a FAT director
 
 #define BOOT_UF2_ATTR_READ_ONLY 0x01u
 #define BOOT_UF2_ATTR_LABEL     0x08u
+#define BOOT_UF2_ATTR_LFN       0x0Fu
+#define BOOT_UF2_LFN_CHARS      13u // UTF-16 characters a long name entry holds
 
 typedef struct
 {
     char        name[12];
+    const char *long_name; // Shown instead of the 8.3 name where long names are read, or NULL
     const char *text;
     uint32_t    len;
 } boot_uf2_file_s;
@@ -72,16 +75,16 @@ static const char _boot_uf2_index[] =
     "<html><head><meta http-equiv=\"refresh\" content=\"0; url=https://handheldlegend.github.io/hoja3/\">"
     "</head><body><a href=\"https://handheldlegend.github.io/hoja3/\">HOJA config app</a></body></html>\n";
 
-// One cluster each, from cluster 2 in order
+// One cluster each, from cluster 2 in order. The config app's link says what it is.
 static const boot_uf2_file_s _boot_uf2_files[] = {
-    {"INFO_UF2TXT", _boot_uf2_info, sizeof(_boot_uf2_info) - 1u},
-    {"INDEX   HTM", _boot_uf2_index, sizeof(_boot_uf2_index) - 1u},
+    {"INFO_UF2TXT", NULL, _boot_uf2_info, sizeof(_boot_uf2_info) - 1u},
+    {"CONFIG  HTM", "HOJA Config Page.htm", _boot_uf2_index, sizeof(_boot_uf2_index) - 1u},
 };
 
 #define BOOT_UF2_FILE_COUNT (sizeof(_boot_uf2_files) / sizeof(_boot_uf2_files[0]))
 
 _Static_assert(sizeof(_boot_uf2_info) <= BOOT_UF2_SECTOR_LEN, "INFO_UF2.TXT outgrew its cluster");
-_Static_assert(sizeof(_boot_uf2_index) <= BOOT_UF2_SECTOR_LEN, "INDEX.HTM outgrew its cluster");
+_Static_assert(sizeof(_boot_uf2_index) <= BOOT_UF2_SECTOR_LEN, "CONFIG.HTM outgrew its cluster");
 
 // The boot sector up to its signature: jump, OEM name, then the BIOS parameter block
 static const uint8_t _boot_uf2_boot_sector[] = {
@@ -335,6 +338,37 @@ static void _boot_uf2_read_fat(uint32_t fat_sector, uint8_t *out)
         fat[2u + i] = 0xFFFFu;
 }
 
+// The long name's entries, last part first, ahead of the 8.3 entry they belong to. Each holds 13
+// characters of the name (as UTF-16) and the 8.3 name's checksum.
+static uint8_t *_boot_uf2_write_lfn(uint8_t *at, const char *long_name, const char *short_name)
+{
+    uint8_t sum = 0;
+    for (uint32_t i = 0; i < 11u; i++)
+        sum = (uint8_t)(((sum & 1u) << 7) + (sum >> 1) + (uint8_t)short_name[i]);
+
+    static const uint8_t slots[BOOT_UF2_LFN_CHARS] = {1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30};
+    uint32_t len = (uint32_t)strlen(long_name);
+    uint32_t parts = (len + BOOT_UF2_LFN_CHARS - 1u) / BOOT_UF2_LFN_CHARS;
+
+    for (uint32_t part = parts; part > 0; part--)
+    {
+        memset(at, 0, BOOT_UF2_DIRENT_LEN);
+        at[0] = (uint8_t)(part | ((part == parts) ? 0x40u : 0u));
+        at[11] = BOOT_UF2_ATTR_LFN;
+        at[13] = sum;
+        for (uint32_t c = 0; c < BOOT_UF2_LFN_CHARS; c++)
+        {
+            uint32_t idx = (part - 1u) * BOOT_UF2_LFN_CHARS + c;
+            // The name, a 0 after it, then 0xFFFF
+            uint16_t ch = (idx < len) ? (uint8_t)long_name[idx] : ((idx == len) ? 0x0000u : 0xFFFFu);
+            at[slots[c]] = (uint8_t)ch;
+            at[slots[c] + 1u] = (uint8_t)(ch >> 8);
+        }
+        at += BOOT_UF2_DIRENT_LEN;
+    }
+    return at;
+}
+
 static void _boot_uf2_read_root(uint32_t root_sector, uint8_t *out)
 {
     if (root_sector != 0)
@@ -347,6 +381,9 @@ static void _boot_uf2_read_root(uint32_t root_sector, uint8_t *out)
     for (uint32_t i = 0; i < BOOT_UF2_FILE_COUNT; i++)
     {
         entry++;
+        if (_boot_uf2_files[i].long_name)
+            entry = (boot_uf2_dirent_s *)_boot_uf2_write_lfn((uint8_t *)entry, _boot_uf2_files[i].long_name,
+                                                              _boot_uf2_files[i].name);
         memcpy(entry->name, _boot_uf2_files[i].name, sizeof(entry->name));
         entry->attr = BOOT_UF2_ATTR_READ_ONLY;
         entry->cluster = (uint16_t)(2u + i);
