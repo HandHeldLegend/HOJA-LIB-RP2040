@@ -77,8 +77,8 @@ void ns2_bt_probe_task(uint64_t now_us)
 {
     const uint32_t ms = (uint32_t)(now_us / 1000);
 #if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
-    // LE: a minute of whatever happens
-    if (ms < 60000u && _log.count < NS2P_MAX)
+    // LE: three minutes of whatever happens (the console may wait out a 40 s procedure timeout)
+    if (ms < 180000u && _log.count < NS2P_MAX)
         return;
 #else
     bool talked = _first_ms && (ms - _first_ms) >= NS2P_AFTER_MS;
