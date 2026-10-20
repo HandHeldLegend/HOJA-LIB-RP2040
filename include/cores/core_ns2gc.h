@@ -38,6 +38,16 @@ void core_ns2gc_usb_configured(void);
 // Each USB task pass: leaves a Switch 1 once it has finished setting up
 void core_ns2gc_usb_task(uint64_t now_us);
 
+// On the dongle link, GameCube mode held at power-up: Slippi's reports also carry this
+// controller's input (DONGLE_WAKE_FLAG_NS2GC), so a dongle on a Switch 2 can be it. The dongle
+// finds out what the host is; the pad stays Slippi either way.
+bool core_ns2gc_dongle_wanted(const core_params_s *params);
+// That input, DONGLE_NS2GC_BLOCK_LEN bytes; also steps the rumble the dongle passes on
+void core_ns2gc_dongle_block(uint8_t *out);
+// From the dongle: the console's rumble report 0x03, or [0x0A, sample id] for a vibration sample
+void core_ns2gc_dongle_output(const uint8_t *data, uint16_t len);
+void core_ns2gc_dongle_stop(void);
+
 #if defined(HOJA_NS2)
 #include "ns2_lib_types.h"
 // This controller as the console knows it (type, address, serial, colours), the same on every

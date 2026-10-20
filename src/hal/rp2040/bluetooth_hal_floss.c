@@ -45,6 +45,7 @@
 
 #include "hoja.h"
 #include "cores/cores.h"
+#include "cores/core_ns2gc.h"
 #include "utilities/crosscore_utils.h"
 #include "utilities/autodetect.h"
 #include "utilities/boot_timeline.h"
@@ -1284,6 +1285,7 @@ static void _bt_hal_dongle_fill_cfg(core_params_s *params)
     _dongle_cfg.mode = _bt_hal_dongle_mode_from_format(params->core_report_format);
     const boot_info_s *boot = boot_get_info();
     _dongle_cfg.mode_forced = boot && boot->mode_chosen;
+    _dongle_cfg.ns2gc = core_ns2gc_dongle_wanted(params);
     _dongle_cfg.fw_version = FIRMWARE_VERSION_TIMESTAMP;
     _dongle_cfg.evt.rumble = true;
     _dongle_cfg.evt.player_number = true;

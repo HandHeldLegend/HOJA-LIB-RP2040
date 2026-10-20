@@ -15,6 +15,7 @@
 
 #include "ns2_lib.h"
 #include "ns2_lib_usb.h"
+#include "dongle.h"
 #include "utilities/ns2_bt_probe.h"
 
 // How the console's pairing commands are answered (ns2_usb_pairing_t). Declined: the console
@@ -399,6 +400,47 @@ static void _ns2gc_tunnel(const uint8_t *data, uint16_t len)
     _ns2gc_rumble_task();
 }
 
+//--------------------------------------------------------------------+
+// Through the dongle
+//--------------------------------------------------------------------+
+
+_Static_assert(DONGLE_NS2GC_BLOCK_LEN == NS2_GC_INPUT_BLOCK_LEN, "the link carries NS2-LIB-HID's block");
+
+bool core_ns2gc_dongle_wanted(const core_params_s *params)
+{
+    const boot_info_s *info = boot_get_info();
+    return params->transport_type == GAMEPAD_TRANSPORT_DONGLE &&
+           params->core_report_format == CORE_REPORTFORMAT_SLIPPI && info && info->mode_chosen;
+}
+
+void core_ns2gc_dongle_block(uint8_t *out)
+{
+    _ns2gc_rumble_task();
+
+    ns2_input_s in = {0};
+    in.ls_x = 2048;
+    in.ls_y = 2048;
+    in.rs_x = 2048;
+    in.rs_y = 2048;
+    ns2_api_hook_get_input(&in);
+    ns2_api_gc_input_pack(&in, out);
+}
+
+void core_ns2gc_dongle_output(const uint8_t *data, uint16_t len)
+{
+    if (len >= 2 && data[0] == 0x0A)
+        ns2_api_hook_play_vibration_sample(data[1]);
+    else
+        _ns2gc_tunnel(data, len);
+}
+
+void core_ns2gc_dongle_stop(void)
+{
+    _ns2gc_game_rumble = false;
+    _ns2gc_sample = NULL;
+    _ns2gc_motor_set(0);
+}
+
 static void _ns2gc_transport_stop(void)
 {
     _ns2gc_running = false;
@@ -475,6 +517,27 @@ bool core_ns2gc_wanted(const core_params_s *params)
 {
     (void)params;
     return false;
+}
+
+bool core_ns2gc_dongle_wanted(const core_params_s *params)
+{
+    (void)params;
+    return false;
+}
+
+void core_ns2gc_dongle_block(uint8_t *out)
+{
+    (void)out;
+}
+
+void core_ns2gc_dongle_output(const uint8_t *data, uint16_t len)
+{
+    (void)data;
+    (void)len;
+}
+
+void core_ns2gc_dongle_stop(void)
+{
 }
 
 bool core_ns2gc_running(void)

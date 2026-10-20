@@ -12,6 +12,7 @@
 
 // USB device/config/HID descriptors are owned by the HHL-TINYUSB-DRIVERS library
 #include "hhl_tusb_slippi.h"
+#include "dongle.h"
 
 #define CORE_SLIPPI_CLAMP(value) ((value) < 0 ? 0 : ((value) > 255 ? 255 : (value)))
 
@@ -21,6 +22,9 @@ static bool _slippi_connected = false;
 // stays empty until the sticks have settled after starting
 #define CORE_SLIPPI_SETTLE_US 150000u
 static uint64_t _slippi_start_us = 0;
+
+// On the dongle link: the Switch 2 GameCube controller's input rides along (core_ns2gc_dongle_wanted)
+static bool _slippi_ns2gc = false;
 
 static void _core_slippi_set_connected(bool connected)
 {
@@ -50,6 +54,8 @@ static void _core_slippi_heartbeat(void)
 static void _core_slippi_transport_stop(void)
 {
     _core_slippi_set_connected(false);
+    if(_slippi_ns2gc)
+        core_ns2gc_dongle_stop();
 }
 
 // Descriptor pointers are populated from the driver library at init time.
@@ -93,6 +99,13 @@ void _core_slippi_report_tunnel_cb(const uint8_t *data, uint16_t len)
         case 0x013:
         break;
 
+        // The dongle as the Switch 2's GameCube controller: the console's rumble, or a sample
+        case 0x03:
+        case 0x0A:
+        if(_slippi_ns2gc)
+            core_ns2gc_dongle_output(data, len);
+        break;
+
         default:
         break;
     }
@@ -120,6 +133,12 @@ bool _core_slippi_get_generated_report(core_report_s *out)
     out->data[10] = 0x04;
     out->data[19] = 0x04;
     out->data[28] = 0x04;
+
+    if(_slippi_ns2gc)
+    {
+        core_ns2gc_dongle_block(&out->data[DONGLE_NS2GC_BLOCK_OFFSET]);
+        out->size = DONGLE_NS2GC_BLOCK_OFFSET + DONGLE_NS2GC_BLOCK_LEN;
+    }
 
     // Port 1 empty while the sticks settle
     if((sys_hal_now_us() - _slippi_start_us) < CORE_SLIPPI_SETTLE_US)
@@ -195,6 +214,7 @@ static void _core_slippi_populate_hid_device(void)
 bool core_slippi_init(core_params_s *params)
 {
     _slippi_start_us = sys_hal_now_us();
+    _slippi_ns2gc = false;
 
     switch(params->transport_type)
     {
@@ -205,6 +225,8 @@ bool core_slippi_init(core_params_s *params)
 
         case GAMEPAD_TRANSPORT_DONGLE:
         params->core_pollrate_us = 2000;
+        params->core_report_format = CORE_REPORTFORMAT_SLIPPI;
+        _slippi_ns2gc = core_ns2gc_dongle_wanted(params);
         break;
 
         // Unsupported transport methods
