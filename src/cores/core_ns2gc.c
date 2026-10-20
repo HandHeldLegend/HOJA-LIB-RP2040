@@ -243,13 +243,15 @@ static bool _ns2gc_report(core_report_s *out)
     return true;
 }
 
-// Output report 0x03 from a game: byte 1 counts in its low nibble, and any of bytes 2..4 set
-// runs the motor (all clear stops it), as the console sends them to the retail controller
+// Output report 0x03 from a game: byte 1 counts in its low nibble, then the GameCube's rumble
+// state as 2-bit fields, rumble (low bit) and brake (high bit), as the real GameCube has it. Any
+// rumble bit runs the motor; brake or nothing stops it. Seen: 51 02 00 00 brake (games send it to
+// stop), 61 00 01 00 rumble, 5B 00 00 00 stop.
 static void _ns2gc_tunnel(const uint8_t *data, uint16_t len)
 {
     if (len < 5 || data[0] != 0x03)
         return;
-    _ns2gc_game_rumble = data[2] || data[3] || data[4];
+    _ns2gc_game_rumble = ((data[2] | data[3] | data[4]) & 0x55) != 0;
     _ns2gc_rumble_task();
 }
 
