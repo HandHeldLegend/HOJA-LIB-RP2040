@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include "pico/time.h"
+#include "hardware/regs/addressmap.h"
 #include "hal/flash_hal.h"
 #include "hal/sys_hal.h"
 #include "hal/rp2040/boot_layout.h"
@@ -30,10 +31,28 @@ typedef struct
     ns2p_entry_s entries[NS2P_MAX];
 } ns2p_log_s;
 
-_Static_assert(sizeof(ns2p_log_s) <= 4096, "the probe log fits one sector");
+// A USB pairing kept for the LE test, in the sector's last bytes (a flush keeps it)
+#define NS2P_PAIRING_MAGIC 0x4B50324Eu // "N2PK"
+#define NS2P_PAIRING_AT    (4096 - 32)
+
+typedef struct
+{
+    uint32_t magic;
+    uint8_t host_mac[6];
+    uint8_t ltk[16];
+} ns2p_pairing_s;
+
+_Static_assert(sizeof(ns2p_log_s) <= NS2P_PAIRING_AT, "the probe log fits before the pairing");
+_Static_assert(NS2P_PAIRING_AT + sizeof(ns2p_pairing_s) <= 4096, "the pairing fits the sector");
 
 static ns2p_log_s _log = {.magic = NS2P_MAGIC};
 static uint32_t _first_ms = 0;
+static uint8_t _sector[4096];
+
+static const uint8_t *_ns2p_flash(void)
+{
+    return (const uint8_t *)(XIP_BASE + BOOT_LAYOUT_STAGE_HEADER_OFFSET);
+}
 
 // The Pro Controller 2's reports as its USB form has them (the NSO GameCube controller's, captured,
 // with its ids): 0x05 (63 bytes in), 0x09 (buttons, sticks, then 52 bytes in), 0x02 (63 bytes out)
@@ -77,8 +96,9 @@ void ns2_bt_probe_task(uint64_t now_us)
 {
     const uint32_t ms = (uint32_t)(now_us / 1000);
 #if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
-    // LE: three minutes of whatever happens (the console may wait out a 40 s procedure timeout)
-    if (ms < 180000u && _log.count < NS2P_MAX)
+    // LE: three minutes of whatever happens (the console may wait out a 40 s procedure timeout).
+    // Nothing recorded (USB, say): nothing to keep
+    if (!_first_ms || (ms < 180000u && _log.count < NS2P_MAX))
         return;
 #else
     bool talked = _first_ms && (ms - _first_ms) >= NS2P_AFTER_MS;
@@ -95,11 +115,260 @@ void ns2_bt_probe_flush(void)
         return;
     done = true;
 
-    static uint8_t sector[4096];
-    memset(sector, 0xFF, sizeof(sector));
-    memcpy(sector, &_log, sizeof(_log));
-    flash_hal_write_sector(BOOT_LAYOUT_STAGE_HEADER_OFFSET, sector, sizeof(sector), 100);
+    memset(_sector, 0xFF, sizeof(_sector));
+    memcpy(_sector, &_log, sizeof(_log));
+    memcpy(&_sector[NS2P_PAIRING_AT], &_ns2p_flash()[NS2P_PAIRING_AT], sizeof(ns2p_pairing_s));
+    flash_hal_write_sector(BOOT_LAYOUT_STAGE_HEADER_OFFSET, _sector, sizeof(_sector), 100);
     sys_hal_bootloader();
 }
+
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE && defined(HOJA_NS2)
+
+#include "floss/floss.h"
+#include "cores/core_ns2gc.h"
+#include "ns2_lib.h"
+
+void ns2_bt_probe_pairing_save(const uint8_t host_mac[6], const uint8_t ltk[16])
+{
+    ns2p_pairing_s p = {.magic = NS2P_PAIRING_MAGIC};
+    memcpy(p.host_mac, host_mac, 6);
+    memcpy(p.ltk, ltk, 16);
+
+    memcpy(_sector, _ns2p_flash(), sizeof(_sector));
+    memcpy(&_sector[NS2P_PAIRING_AT], &p, sizeof(p));
+    flash_hal_write_sector(BOOT_LAYOUT_STAGE_HEADER_OFFSET, _sector, sizeof(_sector), 100);
+}
+
+bool ns2_bt_probe_pairing_load(uint8_t host_mac[6], uint8_t ltk[16])
+{
+    ns2p_pairing_s p;
+    memcpy(&p, &_ns2p_flash()[NS2P_PAIRING_AT], sizeof(p));
+    if (p.magic != NS2P_PAIRING_MAGIC)
+        return false;
+    memcpy(host_mac, p.host_mac, 6);
+    memcpy(ltk, p.ltk, 16);
+    return true;
+}
+
+/***********************************************/
+/********* The paired controller on LE *********/
+
+#define NS2P_ATTR_MAX   64
+#define NS2P_CCCD_MAX   8
+#define NS2P_INPUT_US   8000
+
+static floss_gatt_attr_t _ns2p_attrs[NS2P_ATTR_MAX];
+static floss_gatt_cccd_t _ns2p_cccd[NS2P_CCCD_MAX];
+static uint8_t _ns2p_ltk[16]; // MSB first
+static uint16_t _ns2p_conn = 0xFFFFu;
+static uint32_t _ns2p_input_at = 0;
+
+// A reply the stack had no room for yet
+static uint8_t _ns2p_reply[NS2_NOTIFY_MAX_SIZE];
+static uint16_t _ns2p_reply_handle = 0;
+static uint16_t _ns2p_reply_len = 0;
+
+static int _ns2p_read(uint16_t conn, uint16_t attr_handle, const floss_gatt_attr_t *attr, uint16_t offset,
+                      uint8_t *out, uint16_t cap)
+{
+    (void)conn;
+    (void)attr;
+    uint8_t r[4] = {(uint8_t)attr_handle, (uint8_t)(attr_handle >> 8), (uint8_t)offset, (uint8_t)(offset >> 8)};
+    ns2_bt_probe_record(NS2P_ATT_READ, r, sizeof(r));
+    return ns2_api_ble_read(attr_handle, offset, out, cap);
+}
+
+static uint8_t _ns2p_write(uint16_t conn, uint16_t attr_handle, const floss_gatt_attr_t *attr, uint16_t offset,
+                           const uint8_t *data, uint16_t len, uint8_t flags)
+{
+    (void)conn;
+    (void)attr;
+    (void)offset;
+    (void)flags;
+    uint8_t w[NS2P_DATA];
+    w[0] = (uint8_t)attr_handle;
+    w[1] = (uint8_t)(attr_handle >> 8);
+    uint16_t n = len < sizeof(w) - 2 ? len : sizeof(w) - 2;
+    memcpy(&w[2], data, n);
+    ns2_bt_probe_record(NS2P_ATT_WRITE, w, (uint16_t)(len + 2));
+    ns2_api_ble_write(attr_handle, data, len);
+    return 0;
+}
+
+// The console never runs SMP: it encrypts with the key from the pairing commands (EDIV and Rand 0)
+static bool _ns2p_ltk_provide(uint16_t handle, uint16_t ediv, const uint8_t rand[8], uint8_t ltk[16], void *user)
+{
+    (void)handle;
+    (void)rand;
+    (void)user;
+    uint8_t note[3] = {4, (uint8_t)ediv, (uint8_t)(ediv >> 8)};
+    ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+    for (int i = 0; i < 16; i++)
+        ltk[i] = _ns2p_ltk[15 - i];
+    return true;
+}
+
+// NS2-LIB-HID's table as FLOSS attributes. Both number from handle 1 with one attribute per handle,
+// so the handles come out as the retail controller's (checked against the table's own)
+static uint16_t _ns2p_build_gatt(void)
+{
+    uint16_t count = 0;
+    const ns2_gatt_attribute_s *t = ns2_gatt_get_table(&count);
+    uint16_t n = 0;
+    uint8_t cccds = 0;
+
+    for (uint16_t i = 0; i < count; i++)
+    {
+        const ns2_gatt_attribute_s *e = &t[i];
+        if (e->handle != n + 1 || n + 2 > NS2P_ATTR_MAX)
+            return 0;
+        floss_gatt_attr_t *a = &_ns2p_attrs[n];
+        memset(a, 0, sizeof(*a));
+
+        switch (e->kind)
+        {
+        case NS2_ATT_PRIMARY_SERVICE:
+            a->type = FLOSS_GATT_UUID_PRIMARY_SERVICE;
+            a->perms = FLOSS_GATT_P_READ;
+            if (e->uuid128)
+            {
+                a->value = (void *)e->uuid128;
+                a->max_len = 16;
+            }
+            else
+                a->aux = e->uuid16;
+            n++;
+            break;
+
+        case NS2_ATT_CHARACTERISTIC:
+        {
+            a->type = FLOSS_GATT_UUID_CHARACTERISTIC;
+            a->perms = FLOSS_GATT_P_READ;
+            a->aux = e->properties;
+            floss_gatt_attr_t *v = &_ns2p_attrs[n + 1];
+            memset(v, 0, sizeof(*v));
+            v->type = e->uuid16;
+            v->uuid128 = e->uuid128;
+            if (e->value)
+            {
+                v->perms = FLOSS_GATT_P_READ;
+                v->value = (void *)e->value;
+                v->max_len = e->value_len;
+            }
+            else
+            {
+                v->perms = FLOSS_GATT_P_RW;
+                v->read = _ns2p_read;
+                v->write = _ns2p_write;
+            }
+            n += 2;
+            break;
+        }
+
+        case NS2_ATT_CCC:
+            if (cccds >= NS2P_CCCD_MAX)
+                return 0;
+            a->type = FLOSS_GATT_UUID_CCCD;
+            a->perms = FLOSS_GATT_P_RW;
+            a->value = &_ns2p_cccd[cccds++];
+            a->max_len = 2;
+            a->write = _ns2p_write;
+            n++;
+            break;
+
+        case NS2_ATT_DESCRIPTOR:
+        default:
+            a->uuid128 = e->uuid128;
+            a->type = e->uuid16;
+            a->perms = FLOSS_GATT_P_RW;
+            a->read = _ns2p_read;
+            a->write = _ns2p_write;
+            n++;
+            break;
+        }
+    }
+    return n;
+}
+
+uint8_t ns2_bt_probe_reconnect_setup(const uint8_t dev_mac[6], uint8_t adv[31])
+{
+    uint8_t host_mac[6];
+    if (!ns2_bt_probe_pairing_load(host_mac, _ns2p_ltk))
+        return 0;
+
+    // The identity the USB pairing gave the console, now over BLE
+    ns2_device_config_s cfg = {0};
+    core_ns2gc_identity(&cfg, dev_mac);
+    cfg.transport = NS2_TRANSPORT_BLE;
+    memcpy(cfg.host_mac, host_mac, 6);
+    uint8_t note[8] = {5, (uint8_t)ns2_api_init(&cfg)};
+    ns2_api_set_ltk(_ns2p_ltk);
+
+    floss_gatt_clear();
+    memset(_ns2p_cccd, 0, sizeof(_ns2p_cccd));
+    uint16_t n = _ns2p_build_gatt();
+    note[2] = (uint8_t)n;
+    note[3] = n ? (uint8_t)floss_gatt_register(_ns2p_attrs, n) : 0;
+    note[4] = (uint8_t)floss_gatt_last_handle();
+    floss_smp_set_ltk_provider(_ns2p_ltk_provide, NULL);
+
+    // Waking flag set, as a paired controller asks its console to take it back
+    uint8_t len = ns2_api_get_advertisement(adv, true);
+    note[5] = len;
+    note[6] = host_mac[4];
+    note[7] = host_mac[5];
+    ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+    return len;
+}
+
+void ns2_bt_probe_le_event(const floss_le_evt_t *evt)
+{
+    if (evt->type == FLOSS_LE_EVT_CONNECTED)
+    {
+        uint8_t mac[6];
+        for (int i = 0; i < 6; i++)
+            mac[i] = evt->addr.b[5 - i];
+        _ns2p_conn = evt->handle;
+        _ns2p_reply_len = 0;
+        ns2_api_ble_connected(mac);
+    }
+    else if (evt->type == FLOSS_LE_EVT_DISCONNECTED && evt->handle == _ns2p_conn)
+    {
+        _ns2p_conn = 0xFFFFu;
+        ns2_api_ble_disconnected();
+    }
+}
+
+void ns2_bt_probe_ble_task(void)
+{
+    if (_ns2p_conn == 0xFFFFu)
+        return;
+
+    // Command replies first, in order: one held back until the stack has room
+    for (;;)
+    {
+        if (!_ns2p_reply_len && !ns2_api_ble_get_notification(&_ns2p_reply_handle, _ns2p_reply, &_ns2p_reply_len))
+            break;
+        floss_err_t err = floss_gatt_notify(_ns2p_conn, _ns2p_reply_handle, _ns2p_reply, _ns2p_reply_len);
+        if (err == FLOSS_ERR_BUSY || err == FLOSS_ERR_NOMEM)
+            return;
+        if (err != FLOSS_OK)
+        {
+            uint8_t note[4] = {6, (uint8_t)err, (uint8_t)_ns2p_reply_handle, (uint8_t)_ns2p_reply[0]};
+            ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+        }
+        _ns2p_reply_len = 0;
+    }
+
+    uint32_t now = time_us_32();
+    if ((int32_t)(now - _ns2p_input_at) < 0)
+        return;
+    _ns2p_input_at = now + NS2P_INPUT_US;
+    uint8_t report[NS2_INPUT_REPORT_SIZE];
+    if (ns2_api_generate_inputreport(report))
+        floss_gatt_notify(_ns2p_conn, NS2_HANDLE_PRO2_INPUT_VALUE, report, sizeof(report));
+}
+
+#endif
 
 #endif

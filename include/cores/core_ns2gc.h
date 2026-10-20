@@ -38,4 +38,11 @@ void core_ns2gc_usb_configured(void);
 // Each USB task pass: leaves a Switch 1 once it has finished setting up
 void core_ns2gc_usb_task(uint64_t now_us);
 
+#if defined(HOJA_NS2)
+#include "ns2_lib_types.h"
+// This controller as the console knows it (type, address, serial, colours), the same on every
+// transport: a pairing made on one holds on the others
+void core_ns2gc_identity(ns2_device_config_s *cfg, const uint8_t mac[6]);
+#endif
+
 #endif

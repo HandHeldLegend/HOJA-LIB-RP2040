@@ -15,6 +15,7 @@
 
 #include "ns2_lib.h"
 #include "ns2_lib_usb.h"
+#include "utilities/ns2_bt_probe.h"
 
 // How the console's pairing commands are answered (ns2_usb_pairing_t). Declined: the console
 // skips the key exchange and stores nothing, so a wired controller takes no pairing slot (measured
@@ -75,8 +76,28 @@ static void _ns2gc_decide(ns2gc_host_t host)
     }
 }
 
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+// Bench: pair like a retail controller and keep the key, for the LE reconnect test. Kept from the
+// task: the hook runs inside the command's reply
+static ns2_pairing_s _ns2gc_pairing;
+static volatile bool _ns2gc_pairing_pending = false;
+
+void ns2_api_hook_set_pairing(const ns2_pairing_s *pairing)
+{
+    _ns2gc_pairing = *pairing;
+    _ns2gc_pairing_pending = true;
+}
+#endif
+
 void core_ns2gc_usb_task(uint64_t now_us)
 {
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    if (_ns2gc_pairing_pending)
+    {
+        _ns2gc_pairing_pending = false;
+        ns2_bt_probe_pairing_save(_ns2gc_pairing.host_mac, _ns2gc_pairing.ltk);
+    }
+#endif
     if (!_ns2gc_leaving)
         return;
     // The caller's time can predate the decision (made inside this same pass): read the clock now
@@ -389,24 +410,42 @@ static void _ns2gc_transport_stop(void)
     _ns2gc_set_connected(false);
 }
 
+void core_ns2gc_identity(ns2_device_config_s *cfg, const uint8_t mac[6])
+{
+    cfg->type = NS2_DEVTYPE_GC;
+    memcpy(cfg->device_mac, mac, 6);
+    // A serial in the retail form (four letters, ten digits), the digits from this controller's address
+    uint32_t id = ((uint32_t)mac[2] << 24) | ((uint32_t)mac[3] << 16) | ((uint32_t)mac[4] << 8) | mac[5];
+    snprintf((char *)cfg->device_serial, sizeof(cfg->device_serial), "HJW5%010lu", (unsigned long)id);
+    memset(&cfg->colors, 0xFF, sizeof(cfg->colors));
+}
+
 bool core_ns2gc_init(core_params_s *params)
 {
     if (params->transport_type != GAMEPAD_TRANSPORT_USB)
         return false;
 
     ns2_device_config_s cfg = {0};
-    cfg.type = NS2_DEVTYPE_GC;
+    core_ns2gc_identity(&cfg, params->transport_dev_mac);
     cfg.transport = NS2_TRANSPORT_USB;
-    memcpy(cfg.device_mac, params->transport_dev_mac, 6);
-    // A serial in the retail form (four letters, ten digits), the digits from this controller's address
-    uint32_t id = ((uint32_t)params->transport_dev_mac[2] << 24) | ((uint32_t)params->transport_dev_mac[3] << 16) |
-                  ((uint32_t)params->transport_dev_mac[4] << 8) | params->transport_dev_mac[5];
-    snprintf((char *)cfg.device_serial, sizeof(cfg.device_serial), "HJW5%010lu", (unsigned long)id);
-    memset(&cfg.colors, 0xFF, sizeof(cfg.colors));
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    cfg.usb_pairing = NS2_USB_PAIRING_NORMAL;
+    uint8_t host_mac[6];
+    uint8_t ltk[16];
+    bool paired = ns2_bt_probe_pairing_load(host_mac, ltk);
+    if (paired)
+        memcpy(cfg.host_mac, host_mac, 6);
+#else
     cfg.usb_pairing = HOJA_NS2_USB_PAIRING;
+#endif
 
     if (ns2_api_init(&cfg) != NS2_CONFIG_OK)
         return false;
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    // The key the console confirms when it sees this controller again
+    if (paired)
+        ns2_api_set_ltk(ltk);
+#endif
 
     // The retail controller reports every 4 ms
     params->core_pollrate_us = 4000;

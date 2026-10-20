@@ -1768,18 +1768,11 @@ static void _bt_hal_swift_pair_start(void)
 static void _bt_hal_ns2_ble_probe_event(const floss_le_evt_t *evt, void *user)
 {
     (void)user;
-    uint8_t e[10] = {(uint8_t)evt->type, evt->status, (uint8_t)evt->handle, (uint8_t)(evt->handle >> 8),
+    uint8_t e[11] = {(uint8_t)evt->type, evt->status, (uint8_t)evt->handle, (uint8_t)(evt->handle >> 8),
                      evt->tx_phy, evt->rx_phy, (uint8_t)evt->interval, (uint8_t)(evt->interval >> 8),
-                     (uint8_t)evt->mtu, (uint8_t)(evt->mtu >> 8)};
+                     (uint8_t)evt->mtu, (uint8_t)(evt->mtu >> 8), evt->level};
     ns2_bt_probe_record(NS2P_LE_EVT, e, sizeof(e));
-
-    // A Switch 2 starts GATT once a PHY update completes, and asks for none of a radio without
-    // 2M: run one ourselves, staying on 1M, so the console sees it complete
-    if (evt->type == FLOSS_LE_EVT_CONNECTED)
-    {
-        uint8_t note[2] = {3, (uint8_t)floss_le_set_phy(evt->handle, 0x01, 0x01)};
-        ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
-    }
+    ns2_bt_probe_le_event(evt);
 }
 
 static void _bt_hal_ns2_ble_probe_start(void)
@@ -1799,6 +1792,10 @@ static void _bt_hal_ns2_ble_probe_start(void)
     floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC | FLOSS_AD_FLAG_NO_BREDR);
     floss_le_ad_add(&ad, FLOSS_AD_MANUFACTURER, ms, sizeof(ms));
 
+    // Paired over USB: reconnect to that console as the paired controller instead
+    uint8_t reconnect[31];
+    uint8_t reconnect_len = ns2_bt_probe_reconnect_setup(_bt_hal_params->transport_dev_mac, reconnect);
+
     floss_le_link_policy_t policy;
     floss_le_link_policy_defaults(&policy);
     policy.prefer_2m_phy = false;
@@ -1812,10 +1809,12 @@ static void _bt_hal_ns2_ble_probe_start(void)
     p.own_addr_type = FLOSS_LE_ADDR_PUBLIC;
     // Channel 37 only, so a sniffer listening there can't miss the console's connect request
     p.channel_map = 0x01;
-    uint8_t note[4] = {1};
+    uint8_t note[5] = {1};
     note[1] = (uint8_t)floss_le_adv_set_params(&p);
-    note[2] = (uint8_t)floss_le_adv_set_data(ad.data, ad.len);
+    note[2] = reconnect_len ? (uint8_t)floss_le_adv_set_data(reconnect, reconnect_len)
+                            : (uint8_t)floss_le_adv_set_data(ad.data, ad.len);
     note[3] = (uint8_t)floss_le_adv_start();
+    note[4] = reconnect_len;
     ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
 
     static bool listening = false;
@@ -2424,6 +2423,10 @@ static void _bt_hal_task(uint64_t timestamp)
 #endif
 
     floss_poll();
+
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    ns2_bt_probe_ble_task();
+#endif
 
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
     // The next report's send is a deadline for the task loop (see tasks_set_deadline)
