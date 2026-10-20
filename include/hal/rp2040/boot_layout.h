@@ -251,6 +251,25 @@ typedef struct
 // The config app compares a new image's radio header with this one's CRC (boot_update_info)
 _Static_assert(sizeof(boot_radio_header_s) == 72u, "boot_radio_header_s is an on-flash format");
 
+// --- Identity ---
+
+// The bootloader region's last page in a firmware image: which board the image is for. The UF2
+// drive reads it from a dropped file (it comes before any of the firmware's blocks) and refuses
+// another board's image. The build writes it (hoja_use_bootloader), past the bootloader's own code,
+// which is linked to end before it.
+#define BOOT_IDENTITY_MAGIC        0x44494F48u // "HOID"
+#define BOOT_IDENTITY_OFFSET       (BOOT_LAYOUT_BOOT_SIZE - FLASH_PAGE_SIZE)
+#define BOOT_IDENTITY_BUILD_ID_LEN 56u
+
+typedef struct
+{
+    uint32_t magic;
+    uint32_t magic_inv;
+    char     build_id[BOOT_IDENTITY_BUILD_ID_LEN]; // The board's build id, NUL terminated
+} boot_identity_s;
+
+_Static_assert(sizeof(boot_identity_s) == 64u, "boot_identity_s is an on-flash format");
+
 // --- Requests ---
 
 // Requests across a restart, in two watchdog scratch registers (the value and its inverse), which

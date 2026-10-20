@@ -38,6 +38,7 @@ typedef struct
 static const boot_rgb_color_s _boot_rgb_colors[] = {
     [BOOT_RGB_UPDATE_MODE] = {.r = 0,   .g = 0,   .b = 255},
     [BOOT_RGB_WRITING]     = {.r = 255, .g = 110, .b = 0},
+    [BOOT_RGB_REFUSED]     = {.r = 255, .g = 0,   .b = 0},
 };
 
 static bool _boot_rgb_ready;

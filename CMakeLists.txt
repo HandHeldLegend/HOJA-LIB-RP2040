@@ -337,6 +337,7 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_inflate.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_rgb.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_stage.c
+    ${HOJA_LIB_DIR_ABS}/bootloader/boot_uf2.c
     ${HOJA_LIB_DIR_ABS}/bootloader/boot_usb.c
   )
   target_include_directories(${_boot} PRIVATE
@@ -374,10 +375,12 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   pico_set_double_implementation(${_boot} none)
   pico_set_program_name(${_boot} "${TARGET}")
 
-  # The bootloader has its own sectors and no more
+  # The bootloader has its own sectors and no more, less their last page: the image's identity
+  # (boot_identity_s in boot_layout.h)
+  math(EXPR _boot_code_size "${HOJA_BOOT_SIZE} - 0x100" OUTPUT_FORMAT HEXADECIMAL)
   _hoja_sdk_linker_script(_boot_ld_in)
   file(READ ${_boot_ld_in} _boot_ld)
-  _hoja_ld_set_flash_length(_boot_ld ${HOJA_BOOT_SIZE})
+  _hoja_ld_set_flash_length(_boot_ld ${_boot_code_size})
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld "${_boot_ld}")
   pico_set_linker_script(${_boot} ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.ld)
 
@@ -385,10 +388,17 @@ function(hoja_use_bootloader TARGET DEVICE_NAME FLASH_BYTES RADIO_BYTES)
   pico_add_bin_output(${_boot})
   pico_add_dis_output(${_boot})
 
-  # Into the firmware's ELF, assembled again whenever the bootloader changes
+  # Into the firmware's ELF, assembled again whenever the bootloader changes, with the identity in
+  # the region's last page: magic, its inverse, the build id
   set(_boot_bin ${CMAKE_CURRENT_BINARY_DIR}/${_boot}.bin)
   set(_boot_s ${CMAKE_CURRENT_BINARY_DIR}/${_boot}_image.S)
-  file(WRITE ${_boot_s} ".section .hoja_bootloader, \"a\"\n.incbin \"${_boot_bin}\"\n")
+  file(WRITE ${_boot_s}
+    ".section .hoja_bootloader, \"a\"\n"
+    ".incbin \"${_boot_bin}\"\n"
+    ".org ${_boot_code_size}, 0xFF\n"
+    ".word 0x44494F48\n"
+    ".word 0xBBB6B0B7\n"
+    ".asciz \"${TARGET}\"\n")
   set_source_files_properties(${_boot_s} PROPERTIES OBJECT_DEPENDS ${_boot_bin})
   target_sources(${TARGET} PRIVATE ${_boot_s})
   add_dependencies(${TARGET} ${_boot})

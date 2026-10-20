@@ -9,6 +9,7 @@ typedef enum
 {
     BOOT_RGB_UPDATE_MODE, // Waiting in the USB update mode
     BOOT_RGB_WRITING,     // Writing firmware: a staged update, or over USB
+    BOOT_RGB_REFUSED,     // A file on the UF2 drive is for another controller
 } boot_rgb_state_t;
 
 // Call often: it draws a new frame only when one is due
