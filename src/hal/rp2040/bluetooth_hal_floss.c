@@ -1,3 +1,4 @@
+#include "floss/floss_le_central.h"
 #include "utilities/ns2_bt_probe.h"
 #include "board_config.h"
 
@@ -1771,6 +1772,14 @@ static void _bt_hal_ns2_ble_probe_event(const floss_le_evt_t *evt, void *user)
                      evt->tx_phy, evt->rx_phy, (uint8_t)evt->interval, (uint8_t)(evt->interval >> 8),
                      (uint8_t)evt->mtu, (uint8_t)(evt->mtu >> 8)};
     ns2_bt_probe_record(NS2P_LE_EVT, e, sizeof(e));
+
+    // A Switch 2 starts GATT once a PHY update completes, and asks for none of a radio without
+    // 2M: run one ourselves, staying on 1M, so the console sees it complete
+    if (evt->type == FLOSS_LE_EVT_CONNECTED)
+    {
+        uint8_t note[2] = {3, (uint8_t)floss_le_set_phy(evt->handle, 0x01, 0x01)};
+        ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+    }
 }
 
 static void _bt_hal_ns2_ble_probe_start(void)
