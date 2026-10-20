@@ -607,6 +607,7 @@ static uint32_t _diag_nested_txn = 0;   // Transactions of sends inside the curr
 #define BT_DIAG_BUS_BEGIN() uint32_t _bus_t0 = time_us_32()
 #define BT_DIAG_BUS_END()   do { _diag_bus_us += time_us_32() - _bus_t0; _diag_bus_count++; } while (0)
 
+#if !BT_HAL_ESP32
 int __real_cyw43_read_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, uint8_t *buf);
 int __wrap_cyw43_read_bytes(void *self, uint32_t fn, uint32_t addr, size_t len, uint8_t *buf)
 {
@@ -678,7 +679,12 @@ int __wrap_cyw43_write_reg_u8(void *self, uint32_t fn, uint32_t reg, uint32_t va
     BT_DIAG_BUS_END();
     return r;
 }
+#endif
 static uint8_t _diag_max_slots = 0;
+
+// The clock lock's state, shown in the diagnostic report (defined with the lock)
+static bool _clock_locked;
+static uint32_t _clock_last_rtt_us;
 
 // Max Slots Change: handle(2) max slots(1)
 static void _bt_hal_diag_snoop(uint8_t type, bool is_rx, const uint8_t *pkt, uint16_t len, uint32_t t_us)
@@ -706,13 +712,19 @@ static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
 #else
     d[1] = (uint8_t)(_report_interval_us / 100u);
 #endif
-    d[2] = c ? c->mode : 0xFF;
+    // Link mode, and bit 7 while the clock lock holds
+    d[2] = (uint8_t)((c ? c->mode : 0x7F) | (_clock_locked ? 0x80u : 0u));
     floss_put_le16(&d[3], c ? c->sniff_interval : 0);
     d[5] = c ? (uint8_t)c->inflight : 0xFF;
     d[6] = (uint8_t)floss_hci_acl_credits();
     floss_put_le16(&d[7], late > 0xFFFFu ? 0xFFFFu : (uint16_t)late);
     floss_put_le16(&d[9], _diag_deferred);
+#if defined(BT_DIAG_CLOCK_STEPS)
+    // The last clock read's round trip (us), in place of the task gap
+    floss_put_le16(&d[11], _clock_last_rtt_us > 0xFFFFu ? 0xFFFFu : (uint16_t)_clock_last_rtt_us);
+#else
     floss_put_le16(&d[11], _diag_task_gap_max_us > 0xFFFFu ? 0xFFFFu : (uint16_t)_diag_task_gap_max_us);
+#endif
     floss_put_le32(&d[13], now);
     _diag_task_gap_max_us = 0;
 
@@ -847,6 +859,7 @@ static floss_timer_t _clock_timer;
 static bool _clock_enabled = true;
 static uint32_t _clock_phase_us = BT_HAL_CLOCK_PHASE_US;
 static bool _clock_locked = false;
+static uint32_t _clock_last_rtt_us = 0;  // The last clock read's round trip (diagnostics)
 static uint32_t _clock_cycle_at_us = 0; // A local time one of the host's transmit slots started
 static uint8_t _clock_samples = 0;
 static uint32_t _clock_issue_us = 0;
@@ -865,6 +878,7 @@ static void _bt_hal_clock_done(uint16_t handle, uint8_t status, uint32_t clock, 
         return;
 
     uint32_t rtt = now - _clock_issue_us;
+    _clock_last_rtt_us = status ? 0xFFFFu : rtt;
     if (status == 0 && rtt < _clock_best_rtt_us)
     {
         // Read somewhere in the round trip: take its middle, and the middle of the clock's 312.5 us
