@@ -14,9 +14,11 @@
 #include "ns2_lib.h"
 #include "ns2_lib_usb.h"
 
-// How this build answers the console's pairing commands (ns2_usb_pairing_t)
+// How the console's pairing commands are answered (ns2_usb_pairing_t). Declined: the console
+// skips the key exchange and stores nothing, so a wired controller takes no pairing slot (measured
+// on a Switch 2: it asks once more after the player light, then carries on)
 #ifndef HOJA_NS2_USB_PAIRING
-#define HOJA_NS2_USB_PAIRING NS2_USB_PAIRING_NORMAL
+#define HOJA_NS2_USB_PAIRING NS2_USB_PAIRING_DECLINE
 #endif
 
 #define NS2GC_CLAMP(v, lo, hi) ((v) < (lo) ? (lo) : ((v) > (hi) ? (hi) : (v)))
