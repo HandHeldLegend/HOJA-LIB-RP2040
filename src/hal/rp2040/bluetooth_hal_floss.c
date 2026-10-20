@@ -1728,6 +1728,11 @@ static void _bt_hal_config_app_poll(void)
 // Microsoft's beacon for a device that pairs over BR/EDR: vendor 0x0006, beacon 0x03, sub scenario
 // 0x01, a reserved RSSI byte, our BR/EDR address and class of device. The name goes in the same
 // advert (Windows doesn't send scan requests).
+//
+// The beacon comes from our random static address and has no Flags. Linux (BlueZ) merges an LE
+// device at our public address with the BR/EDR one and, from 5.74, ignores non-connectable
+// sightings when choosing how to pair: it then pairs over LE, which fails. Windows reads the
+// BR/EDR address from the payload, so it doesn't need the two to match.
 static void _bt_hal_swift_pair_start(void)
 {
     uint8_t ms[14] = {0x06, 0x00, 0x03, 0x01, 0x80};
@@ -1738,7 +1743,6 @@ static void _bt_hal_swift_pair_start(void)
 
     floss_le_ad_t ad;
     floss_le_ad_init(&ad);
-    floss_le_ad_flags(&ad, FLOSS_AD_FLAG_GENERAL_DISC);
     floss_le_ad_add(&ad, FLOSS_AD_MANUFACTURER, ms, sizeof(ms));
     floss_le_ad_name(&ad, _bt_hal_hid->name);
 
@@ -1746,6 +1750,7 @@ static void _bt_hal_swift_pair_start(void)
     floss_le_adv_params_defaults(&p);
     p.interval_min = BT_HAL_SWIFT_PAIR_INTERVAL;
     p.interval_max = BT_HAL_SWIFT_PAIR_INTERVAL;
+    p.own_addr_type = FLOSS_LE_ADDR_RANDOM;
     p.non_connectable = true;
     floss_le_adv_set_params(&p);
     floss_le_adv_set_data(ad.data, ad.len);
