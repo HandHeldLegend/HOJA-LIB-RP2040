@@ -16,3 +16,6 @@
 [submodule "external/floss"]
 	path = external/floss
 	url = https://github.com/mitchellcairns/floss
+[submodule "external/NS2-LIB-HID"]
+	path = external/NS2-LIB-HID
+	url = https://github.com/HandHeldLegend/NS2-LIB-HID.git
