@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "cores/core_switch.h"
+#include "utilities/ns2_bt_probe.h"
 
 #include "ns_lib.h"
 
@@ -306,6 +307,20 @@ void ns_api_hook_set_haptic_packet_raw(ns_haptics_packet_raw_s *packet)
     haptics_set_ns_hd(packet);
 }
 
+#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
+// Bench: everything the console sends is recorded, then handled as before
+static void _core_switch_probe_tunnel(const uint8_t *data, uint16_t len)
+{
+    ns2_bt_probe_record(NS2P_OUT, data, len);
+    ns_api_output_tunnel(data, len);
+}
+
+static void _core_switch_probe_connected(void)
+{
+    ns2_bt_probe_record(NS2P_CONNECTED, NULL, 0);
+}
+#endif
+
 bool core_switch_init(core_params_s *params)
 {
     _core_switch_params = params;
@@ -386,6 +401,15 @@ bool core_switch_init(core_params_s *params)
     params->core_report_format = CORE_REPORTFORMAT_SWPRO;
     params->core_report_generator = _core_switch_get_generated_report;
     params->core_report_tunnel = ns_api_output_tunnel;
+
+#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
+    if (params->transport_type == GAMEPAD_TRANSPORT_BLUETOOTH)
+    {
+        ns2_bt_probe_identity(&_core_switch_hid_device);
+        params->core_report_tunnel = _core_switch_probe_tunnel;
+        params->core_connected = _core_switch_probe_connected;
+    }
+#endif
 
     return transport_init(params);
 }

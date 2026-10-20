@@ -8,6 +8,11 @@ add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/HHL-TINYUSB-DRIVERS")
 
 # NS2-LIB-HID (Switch 2 controllers): external/NS2-LIB-HID, or a checkout HOJA_NS2_LIB_DIR names
 set(HOJA_NS2_LIB_DIR "${CMAKE_CURRENT_LIST_DIR}/external/NS2-LIB-HID" CACHE PATH "NS2-LIB-HID checkout")
+# Bench only: Switch mode over Bluetooth claims to be a Pro Controller 2 and records the console
+option(HOJA_NS2_BT_PROBE "Bench: Switch mode on Bluetooth as a Pro Controller 2, recording the console" OFF)
+if(HOJA_NS2_BT_PROBE)
+  target_compile_definitions(hoja_lib INTERFACE HOJA_NS2_BT_PROBE=1)
+endif()
 set(HOJA_NS2_USB_PAIRING "1" CACHE STRING "How the Switch 2's pairing is answered (ns2_usb_pairing_t; 1 declines: no slot)")
 if(EXISTS "${HOJA_NS2_LIB_DIR}/CMakeLists.txt")
   add_subdirectory("${HOJA_NS2_LIB_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/ns2_lib_hid")
@@ -49,6 +54,7 @@ target_sources(hoja_lib INTERFACE
   ${CMAKE_CURRENT_LIST_DIR}/src/input/motion_gesture.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/autodetect.c
   ${CMAKE_CURRENT_LIST_DIR}/src/utilities/boot_timeline.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ns2_bt_probe.c
   ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
   ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 

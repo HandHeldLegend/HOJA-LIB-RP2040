@@ -39,6 +39,7 @@
 #include "devices/fuelgauge.h"
 #include "utilities/autodetect.h"
 #include "utilities/boot_timeline.h"
+#include "utilities/ns2_bt_probe.h"
 
 #if defined(HOJA_TRANSPORT_BT_DRIVER) && (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_ESP32HCI)
 #include "drivers/bluetooth/esp32_hci.h"
@@ -434,6 +435,10 @@ void _hoja_task_1()
 #if defined(HOJA_BOOT_TIMELINE) && HOJA_BOOT_TIMELINE
     sys_hal_time_us(&c1_timestamp);
     boot_timeline_task(c1_timestamp);
+#endif
+#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
+    sys_hal_time_us(&c1_timestamp);
+    ns2_bt_probe_task(c1_timestamp);
 #endif
 
     // Auto mode moving to another mode: stop this one, bring up the next in place
