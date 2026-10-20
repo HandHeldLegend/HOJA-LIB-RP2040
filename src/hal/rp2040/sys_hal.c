@@ -43,6 +43,11 @@ void sys_hal_bootloader()
 #endif
 }
 
+void sys_hal_rom_bootloader(void)
+{
+    reset_usb_boot(0, 0);
+}
+
 void sys_hal_sleep_ms(uint32_t ms)
 {
     sleep_ms(ms);

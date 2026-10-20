@@ -55,6 +55,7 @@ typedef enum
     GAMEPAD_CMD_TOURNEY,          // Tournament lock on (argument 1) or off (0)
     GAMEPAD_CMD_STATUS,           // Replies [transport][mode][inputs held][tournament lock][reports a second, u16 LE]
     GAMEPAD_CMD_FORGET_HOST,      // Forget a Bluetooth host; argument the mode it paired in (Switch, SInput or Wii), or FORGET_HOST_DONGLE
+    GAMEPAD_CMD_RESET_TO_ROM_BOOTLOADER, // The chip's own USB bootloader (RPI-RP2 or RP2350 drive), past the HOJA bootloader; cable only
     GAMEPAD_CMD_SAVE_ALL = 0xFF, 
 } gamepad_cmd_t;
 

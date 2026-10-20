@@ -5,6 +5,8 @@
 #include <stdbool.h>
 
 void sys_hal_bootloader();
+// The chip's own USB bootloader in its ROM, on every board (past the HOJA bootloader where there is one)
+void sys_hal_rom_bootloader(void);
 void sys_hal_reboot();
 
 bool sys_hal_init();

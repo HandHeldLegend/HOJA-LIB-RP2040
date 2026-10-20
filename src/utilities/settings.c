@@ -226,6 +226,21 @@ void _gamepad_config_command(uint8_t command, uint8_t arg, webreport_cmd_confirm
         }
         break;
 
+        // The chip's own bootloader, for what the HOJA one can't do (a board's first bootloader, a
+        // recovery); also cable only
+        case GAMEPAD_CMD_RESET_TO_ROM_BOOTLOADER:
+        {
+            battery_status_s power = {0};
+            battery_get_status(&power);
+            if (webusb_get_sink() && !power.plugged)
+            {
+                cb(CFG_BLOCK_GAMEPAD, command, false, NULL, 0);
+                break;
+            }
+            sys_hal_rom_bootloader();
+        }
+        break;
+
         // Come back up over another transport (boot memory), whatever powers us: in the mode given
         // (kept, as a boot combo's would be), else in the current one; pairing, as the pairing boot
         // combo does, when asked
