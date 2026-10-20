@@ -436,7 +436,7 @@ void _hoja_task_1()
     sys_hal_time_us(&c1_timestamp);
     boot_timeline_task(c1_timestamp);
 #endif
-#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
+#if defined(HOJA_NS2_PROBE_LOG)
     sys_hal_time_us(&c1_timestamp);
     ns2_bt_probe_task(c1_timestamp);
 #endif

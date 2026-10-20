@@ -1,6 +1,6 @@
 #include "utilities/ns2_bt_probe.h"
 
-#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
+#if defined(HOJA_NS2_PROBE_LOG)
 
 #include <string.h>
 #include "pico/time.h"
@@ -47,12 +47,14 @@ static const uint8_t _ns2p_report_descriptor[97] = {
     0xC0,
 };
 
+#if defined(HOJA_NS2_BT_PROBE) && HOJA_NS2_BT_PROBE
 void ns2_bt_probe_identity(core_hid_device_t *device)
 {
     device->pid = 0x2069;
     device->hid_report_descriptor = _ns2p_report_descriptor;
     device->hid_report_descriptor_len = sizeof(_ns2p_report_descriptor);
 }
+#endif
 
 void ns2_bt_probe_record(ns2_bt_probe_kind_t kind, const uint8_t *data, uint16_t len)
 {
@@ -73,12 +75,23 @@ void ns2_bt_probe_record(ns2_bt_probe_kind_t kind, const uint8_t *data, uint16_t
 
 void ns2_bt_probe_task(uint64_t now_us)
 {
-    static bool done = false;
-    if (done)
-        return;
     const uint32_t ms = (uint32_t)(now_us / 1000);
+#if defined(HOJA_NS2_BLE_PROBE) && HOJA_NS2_BLE_PROBE
+    // LE: a minute of whatever happens
+    if (ms < 60000u && _log.count < NS2P_MAX)
+        return;
+#else
     bool talked = _first_ms && (ms - _first_ms) >= NS2P_AFTER_MS;
     if (!talked && _log.count < NS2P_MAX && ms < NS2P_GIVEUP_MS)
+        return;
+#endif
+    ns2_bt_probe_flush();
+}
+
+void ns2_bt_probe_flush(void)
+{
+    static bool done = false;
+    if (done)
         return;
     done = true;
 

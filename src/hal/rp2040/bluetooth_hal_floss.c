@@ -1,3 +1,4 @@
+#include "utilities/ns2_bt_probe.h"
 #include "board_config.h"
 
 // FLOSS Bluetooth for the RM2 (CYW43), or an ESP32 running the HCI bridge (esp32_hci.c). Same
@@ -524,6 +525,12 @@ static void _bt_hal_wii_write_iac(void)
 
 static void _bt_hal_shutdown(void)
 {
+#if defined(HOJA_NS2_PROBE_LOG)
+    // Who asked (the caller's address, for the map file)
+    uint32_t from = (uint32_t)(uintptr_t)__builtin_return_address(0);
+    uint8_t note[5] = {2, (uint8_t)from, (uint8_t)(from >> 8), (uint8_t)(from >> 16), (uint8_t)(from >> 24)};
+    ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+#endif
     _shutdown_pending = true;
 }
 
@@ -1757,6 +1764,15 @@ static void _bt_hal_swift_pair_start(void)
 // Bench: a connectable LE advert as a Pro Controller 2 (Nintendo 0x0553, product 0x2069, in the form
 // a Joy-Con 2 advertises), to see what a Switch 2 does with a radio that has no 2M PHY. FLOSS asks
 // for nothing on the link itself, so everything on it comes from the console.
+static void _bt_hal_ns2_ble_probe_event(const floss_le_evt_t *evt, void *user)
+{
+    (void)user;
+    uint8_t e[10] = {(uint8_t)evt->type, evt->status, (uint8_t)evt->handle, (uint8_t)(evt->handle >> 8),
+                     evt->tx_phy, evt->rx_phy, (uint8_t)evt->interval, (uint8_t)(evt->interval >> 8),
+                     (uint8_t)evt->mtu, (uint8_t)(evt->mtu >> 8)};
+    ns2_bt_probe_record(NS2P_LE_EVT, e, sizeof(e));
+}
+
 static void _bt_hal_ns2_ble_probe_start(void)
 {
     static const uint8_t ms[26] = {
@@ -1785,9 +1801,18 @@ static void _bt_hal_ns2_ble_probe_start(void)
     p.interval_min = 0x30;
     p.interval_max = 0x30;
     p.own_addr_type = FLOSS_LE_ADDR_PUBLIC;
-    floss_le_adv_set_params(&p);
-    floss_le_adv_set_data(ad.data, ad.len);
-    floss_le_adv_start();
+    uint8_t note[4] = {1};
+    note[1] = (uint8_t)floss_le_adv_set_params(&p);
+    note[2] = (uint8_t)floss_le_adv_set_data(ad.data, ad.len);
+    note[3] = (uint8_t)floss_le_adv_start();
+    ns2_bt_probe_record(NS2P_NOTE, note, sizeof(note));
+
+    static bool listening = false;
+    if (!listening)
+    {
+        listening = true;
+        floss_le_add_listener(_bt_hal_ns2_ble_probe_event, NULL);
+    }
 }
 #endif
 
@@ -2411,6 +2436,9 @@ static void _bt_hal_task(uint64_t timestamp)
     // stack, in every mode
     if (_shutdown_pending)
     {
+#if defined(HOJA_NS2_PROBE_LOG)
+        ns2_bt_probe_flush();
+#endif
         _shutdown_pending = false;
         transport_evt_cb((tp_evt_s){
             .evt = TP_EVT_POWERCOMMAND,
