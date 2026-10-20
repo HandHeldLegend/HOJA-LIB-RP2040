@@ -569,7 +569,15 @@ static void _bt_hal_on_output_report(uint8_t report_id, const uint8_t *data, uin
 // their reserved bytes, and the report interval steps through _diag_intervals_us.
 #define BT_DIAG_OFFSET   47 // reserved_bulk, after the report ID
 #define BT_DIAG_STEP_US  15000000u
-static const uint32_t _diag_intervals_us[] = {8000, 4000, 2000, 1000};
+#ifndef BT_DIAG_INTERVALS
+#define BT_DIAG_INTERVALS 8000, 4000, 2000, 1000
+#endif
+static const uint32_t _diag_intervals_us[] = {BT_DIAG_INTERVALS};
+#if defined(BT_DIAG_CLOCK_STEPS)
+// Bench: each diagnostic step a clock-lock setting, 0xFFFF for unlocked (reported in byte 1)
+static const uint16_t _diag_clock_phases_us[] = {BT_DIAG_CLOCK_STEPS};
+#endif
+
 static uint8_t _diag_step = 0;
 static uint32_t _diag_step_at_us = 0;
 static uint32_t _diag_tick_due_us = 0;
@@ -692,7 +700,12 @@ static void _bt_hal_diag_fill(uint8_t *data, uint32_t now)
     uint32_t late = now - _diag_tick_due_us;
     uint8_t *d = &data[BT_DIAG_OFFSET];
     d[0] = 0xD1;
+#if defined(BT_DIAG_CLOCK_STEPS)
+    // The step's clock-lock phase in 100 us, 0xFF unlocked (sinput_diag.py groups by this byte)
+    d[1] = (_diag_clock_phases_us[_diag_step] == 0xFFFFu) ? 0xFFu : (uint8_t)(_diag_clock_phases_us[_diag_step] / 100u);
+#else
     d[1] = (uint8_t)(_report_interval_us / 100u);
+#endif
     d[2] = c ? c->mode : 0xFF;
     floss_put_le16(&d[3], c ? c->sniff_interval : 0);
     d[5] = c ? (uint8_t)c->inflight : 0xFF;
@@ -742,8 +755,13 @@ static void _bt_hal_diag_step(uint32_t now)
     }
     if (floss_time_diff(now, _diag_step_at_us) >= 0)
     {
+#if defined(BT_DIAG_CLOCK_STEPS)
+        _diag_step = (uint8_t)((_diag_step + 1) % FLOSS_ARRAY_SIZE(_diag_clock_phases_us));
+        _report_interval_us = _diag_intervals_us[_diag_step % FLOSS_ARRAY_SIZE(_diag_intervals_us)];
+#else
         _diag_step = (uint8_t)((_diag_step + 1) % FLOSS_ARRAY_SIZE(_diag_intervals_us));
         _report_interval_us = _diag_intervals_us[_diag_step];
+#endif
         _diag_step_at_us = now + BT_DIAG_STEP_US;
     }
 }
@@ -804,6 +822,120 @@ static void _bt_hal_try_send(void)
     }
 }
 
+/***********************************************/
+/********* Reports on the link's clock *********/
+
+// SInput on a PC: the host polls every slot pair (1.25 ms) on its clock, the link's, and a report
+// waits for the next poll. Timed by our own clock, which drifts against it, a report's moment
+// slides across the polls; near one, small timing wobble decides between catching it and the next,
+// and reports arrive 1.25 and 3.75 ms apart in turns. So the link clock is read every so often
+// (HCI Read Clock) and each report's moment held at one point of the 1.25 ms cycle.
+#define BT_HAL_CLOCK_CYCLE_US   1250u   // A slot pair
+#define BT_HAL_CLOCK_SYNC_US    250000u // A fresh look at the link clock this often
+#define BT_HAL_CLOCK_FIRST_US   20000u  // The first look, once the session is up
+#define BT_HAL_CLOCK_SAMPLES    4       // Reads a look; the quickest answer is kept
+#define BT_HAL_CLOCK_RTT_MAX_US 1500u   // A slower answer says too little about when the clock was read
+#ifndef BT_HAL_CLOCK_PHASE_US
+// The report's moment, as a slot of the host's starts: building and handing it to the radio takes
+// about 0.5 ms, so it is waiting there well before the next poll (1.25 ms on). Measured on a GCU 2
+// and an Intel radio, of 0, 300, 600 and 900 us after the slot starts, 0 kept the most reports on
+// the beat (78-83%, against 64-76% unlocked); 600 us lands on the poll and is the worst.
+#define BT_HAL_CLOCK_PHASE_US   0u
+#endif
+
+static floss_timer_t _clock_timer;
+static bool _clock_enabled = true;
+static uint32_t _clock_phase_us = BT_HAL_CLOCK_PHASE_US;
+static bool _clock_locked = false;
+static uint32_t _clock_cycle_at_us = 0; // A local time one of the host's transmit slots started
+static uint8_t _clock_samples = 0;
+static uint32_t _clock_issue_us = 0;
+static uint32_t _clock_best_rtt_us = 0;
+static uint32_t _clock_best_at_us = 0;
+
+static void _bt_hal_clock_read(void);
+
+static void _bt_hal_clock_done(uint16_t handle, uint8_t status, uint32_t clock, uint16_t accuracy, void *user)
+{
+    (void)handle;
+    (void)accuracy;
+    (void)user;
+    uint32_t now = floss_hal_time_us();
+    if (!_connected)
+        return;
+
+    uint32_t rtt = now - _clock_issue_us;
+    if (status == 0 && rtt < _clock_best_rtt_us)
+    {
+        // Read somewhere in the round trip: take its middle, and the middle of the clock's 312.5 us
+        // tick. The clock counts half slots; its low two bits place it in the slot pair, the host's
+        // transmit slot starting at 0.
+        uint32_t into = ((clock & 3u) * 625u) / 2u + 156u;
+        _clock_best_rtt_us = rtt;
+        _clock_best_at_us = _clock_issue_us + rtt / 2u - into;
+    }
+
+    if (++_clock_samples < BT_HAL_CLOCK_SAMPLES)
+    {
+        _bt_hal_clock_read();
+        return;
+    }
+    if (_clock_best_rtt_us <= BT_HAL_CLOCK_RTT_MAX_US)
+    {
+        _clock_cycle_at_us = _clock_best_at_us;
+        _clock_locked = true;
+    }
+}
+
+static void _bt_hal_clock_read(void)
+{
+    _clock_issue_us = floss_hal_time_us();
+    if (floss_gap_read_clock(floss_hid_handle(), 1, _bt_hal_clock_done, NULL) != FLOSS_OK)
+        _clock_samples = BT_HAL_CLOCK_SAMPLES; // Tried again at the next look
+}
+
+static void _bt_hal_clock_tick(floss_timer_t *t, void *arg)
+{
+    (void)arg;
+    if (!_connected || !_mode_sinput)
+        return;
+    floss_timer_start(t, BT_HAL_CLOCK_SYNC_US);
+    _clock_samples = 0;
+    _clock_best_rtt_us = UINT32_MAX;
+    _bt_hal_clock_read();
+}
+
+static void _bt_hal_clock_start(void)
+{
+    _clock_locked = false;
+    if (_mode_sinput)
+        floss_timer_start(&_clock_timer, BT_HAL_CLOCK_FIRST_US);
+}
+
+static void _bt_hal_clock_stop(void)
+{
+    _clock_locked = false;
+    floss_timer_stop(&_clock_timer);
+}
+
+// A report deadline moved onto the link's cycle, by at most half a cycle
+static uint32_t _bt_hal_clock_align(uint32_t deadline)
+{
+#if HOJA_BT_FLOSS_DIAG && defined(BT_DIAG_CLOCK_STEPS)
+    _clock_enabled = (_diag_clock_phases_us[_diag_step] != 0xFFFFu);
+    if (_clock_enabled)
+        _clock_phase_us = _diag_clock_phases_us[_diag_step];
+#endif
+    if (!_clock_locked || !_clock_enabled)
+        return deadline;
+    int32_t off = (int32_t)(deadline - _clock_cycle_at_us - _clock_phase_us) % (int32_t)BT_HAL_CLOCK_CYCLE_US;
+    if (off < 0)
+        off += (int32_t)BT_HAL_CLOCK_CYCLE_US;
+    if (off > (int32_t)(BT_HAL_CLOCK_CYCLE_US / 2u))
+        off -= (int32_t)BT_HAL_CLOCK_CYCLE_US;
+    return deadline - (uint32_t)off;
+}
+
 // Fixed deadlines so tick latency doesn't stretch the interval
 static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
 {
@@ -822,6 +954,7 @@ static void _bt_hal_report_tick(floss_timer_t *t, void *arg)
         // A whole interval behind, restart from now instead of bursting
         _report_deadline_us = now + _bt_hal_report_period();
     }
+    _report_deadline_us = _bt_hal_clock_align(_report_deadline_us);
     floss_timer_start_at(t, _report_deadline_us);
 
     _send_pending = true;
@@ -1116,6 +1249,7 @@ static void _bt_hal_on_connected(const floss_addr_t *host)
     _bt_hal_apply_scan();
     _bt_hal_swift_pair_stop();
     _bt_hal_report_timer_start();
+    _bt_hal_clock_start();
 }
 
 // The HID channels closed. Called once per session: when FLOSS leaves the connected state (the
@@ -1128,6 +1262,7 @@ static void _bt_hal_session_closed(void)
     _connected = false;
     _send_pending = false;
     floss_timer_stop(&_report_timer);
+    _bt_hal_clock_stop();
 
     // Torn down by our own restart: the stack comes back and reconnects
     if (_restart_pending)
@@ -2162,6 +2297,11 @@ static bool _bt_hal_mode_apply(void)
     // SInput asks the host to poll every slot pair (1.25 ms, Windows' own rate). Asking for the
     // report interval lets the radio poll coarsely, and each report then waits for the next poll.
     _hid_cfg.qos_latency_us = _mode_sinput ? 1250u : 0;
+#if defined(HOJA_BT_SINPUT_INFLIGHT)
+    // Bench: how many SInput reports may wait in the radio (times its completion batching)
+    if (_mode_sinput)
+        _hid_cfg.max_inflight = HOJA_BT_SINPUT_INFLIGHT;
+#endif
 
     if (_mode_wii)
     {
@@ -2217,6 +2357,7 @@ static bool _bt_hal_mode_apply(void)
 static void _bt_hal_timers_init(void)
 {
     floss_timer_init(&_report_timer, _bt_hal_report_tick, NULL);
+    floss_timer_init(&_clock_timer, _bt_hal_clock_tick, NULL);
     floss_timer_init(&_reconnect_timer, _bt_hal_reconnect_handler, NULL);
     floss_timer_init(&_wii_reconnect_timer, _bt_hal_wii_reconnect_handler, NULL);
     floss_timer_init(&_wii_page_stall_timer, _bt_hal_wii_page_stall_handler, NULL);
