@@ -35,4 +35,7 @@ void core_ns2gc_usb_device_requested(uint16_t length);
 void core_ns2gc_usb_string_requested(uint8_t index);
 void core_ns2gc_usb_configured(void);
 
+// Each USB task pass: leaves a Switch 1 once it has finished setting up
+void core_ns2gc_usb_task(uint64_t now_us);
+
 #endif

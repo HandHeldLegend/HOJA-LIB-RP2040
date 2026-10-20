@@ -43,12 +43,19 @@ typedef enum
 // A Switch 2 makes its vendor request about 2 ms after configuring; long after this, it isn't one
 #define NS2GC_SWITCH2_WAIT_US 250000u
 
+// A Switch 1 left in the middle of setting the device up backs off for seconds before it looks at
+// the port again: it gets to finish (configured, or this long), then the restart is a plain unplug
+#define NS2GC_SWITCH1_LEAVE_US 1000000u
+#define NS2GC_SWITCH1_SETTLED_US 200000u
+
 // Until power-off: the next start (Slippi again) is the device this host should see
 static ns2gc_host_t _ns2gc_host = NS2GC_HOST_UNKNOWN;
 static bool _ns2gc_detecting = false;
 static bool _ns2gc_device_seen = false;
 static bool _ns2gc_configured = false;
 static uint64_t _ns2gc_configured_us = 0;
+static bool _ns2gc_leaving = false;
+static uint64_t _ns2gc_decided_us = 0;
 
 static void _ns2gc_decide(ns2gc_host_t host)
 {
@@ -57,9 +64,27 @@ static void _ns2gc_decide(ns2gc_host_t host)
     _ns2gc_detecting = false;
     _ns2gc_host = host;
 
-    // Anything but a Switch 2 gets the GameCube adapter, started again as that
-    if (host != NS2GC_HOST_SWITCH2)
+    // A computer carries straight on as the GameCube adapter. A Switch 1 first finishes setting up
+    // (core_ns2gc_usb_task); a Switch 2 keeps this controller.
+    if (host == NS2GC_HOST_COMPUTER)
         hoja_request_usb_restart();
+    else if (host == NS2GC_HOST_SWITCH1)
+    {
+        _ns2gc_leaving = true;
+        _ns2gc_decided_us = sys_hal_now_us();
+    }
+}
+
+void core_ns2gc_usb_task(uint64_t now_us)
+{
+    if (!_ns2gc_leaving)
+        return;
+    bool settled = _ns2gc_configured && (now_us - _ns2gc_configured_us) >= NS2GC_SWITCH1_SETTLED_US;
+    if (settled || (now_us - _ns2gc_decided_us) >= NS2GC_SWITCH1_LEAVE_US)
+    {
+        _ns2gc_leaving = false;
+        hoja_request_usb_restart();
+    }
 }
 
 void core_ns2gc_usb_device_requested(uint16_t length)
@@ -82,7 +107,7 @@ void core_ns2gc_usb_string_requested(uint8_t index)
 
 void core_ns2gc_usb_configured(void)
 {
-    if (!_ns2gc_detecting)
+    if (!_ns2gc_detecting && !_ns2gc_leaving)
         return;
     _ns2gc_configured = true;
     _ns2gc_configured_us = sys_hal_now_us();
@@ -354,6 +379,7 @@ static void _ns2gc_transport_stop(void)
 {
     _ns2gc_running = false;
     _ns2gc_detecting = false;
+    _ns2gc_leaving = false;
     _ns2gc_game_rumble = false;
     _ns2gc_sample = NULL;
     _ns2gc_motor_set(0);
@@ -436,6 +462,11 @@ void core_ns2gc_usb_string_requested(uint8_t index)
 
 void core_ns2gc_usb_configured(void)
 {
+}
+
+void core_ns2gc_usb_task(uint64_t now_us)
+{
+    (void)now_us;
 }
 
 #endif

@@ -246,6 +246,7 @@ bool transport_usb_init(core_params_s *params)
 void transport_usb_task(uint64_t timestamp)
 {
     hhl_tusb_task();
+    core_ns2gc_usb_task(timestamp);
 
     if (!_usb_hal_mounted)
     {
