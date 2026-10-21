@@ -548,7 +548,10 @@ static void _bt_hal_wii_iac_handler(floss_timer_t *t, void *arg)
     if (!_mode_wii || !_discoverable || _connected)
         return;
     _wii_iac_wii_first = !_wii_iac_wii_first;
+    // The ESP32 takes a new list only as its inquiry scan starts, so pause the scan around it
+    floss_gap_set_scan(false, true);
     _bt_hal_wii_write_iac(_wii_iac_wii_first);
+    _bt_hal_apply_scan();
     floss_timer_start(t, BT_HAL_WII_IAC_TURN_US);
 }
 #endif
