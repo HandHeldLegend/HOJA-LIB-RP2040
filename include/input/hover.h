@@ -17,4 +17,8 @@ void hover_access_safe(mapper_input_s *out);
 void hover_init();
 void hover_config_command(uint8_t cmd, webreport_cmd_confirm_t cb);
 
+// True when a trigger (0 left, 1 right) is fitted as mechanical: chosen by the owner, or found by
+// auto detection. Always false on boards without HOJA_MECHANICAL_TRIGGERS.
+bool hover_trigger_mechanical(uint8_t side);
+
 #endif

@@ -42,10 +42,17 @@ __attribute__((weak)) const char *bluetooth_driver_part_code(void)
 // name/maker/manifest_url/firmware_url/manual_url are filled at runtime from the
 // hoja config (see _device_static_refresh); only the compile-time fields are
 // initialized here.
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+#define MECHANICAL_TRIGGER_SUPPORT 1
+#else
+#define MECHANICAL_TRIGGER_SUPPORT 0
+#endif
+
 deviceInfoStatic_s    device_static = {
     .fw_version     = FIRMWARE_VERSION_TIMESTAMP,
     .snes_supported = SNES_SUPPORT,
-    .joybus_supported = JOYBUS_SUPPORT
+    .joybus_supported = JOYBUS_SUPPORT,
+    .mechanical_triggers_supported = MECHANICAL_TRIGGER_SUPPORT
 };
 
 #define ANALOG_SUPPORTED (ALX | ALY | ARX | ARY | ALT | ART)

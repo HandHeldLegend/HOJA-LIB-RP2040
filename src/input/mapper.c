@@ -559,6 +559,25 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
 
     bool heartbeat = false;
 
+    // A mechanical trigger's analog input reads nothing (hover zeroes it). While its click has no
+    // mapping of its own, the click presses the analog input's mapping fully instead, so a mode that
+    // maps only the analog trigger (XInput by default) still sees it.
+    uint16_t mech_stand_in[2] = {0, 0};
+    bool mech_use[2] = {false, false};
+    if (op->remap_en)
+    {
+        const uint8_t click[2] = {INPUT_CODE_LT, INPUT_CODE_RT};
+        for (uint8_t s = 0; s < 2; s++)
+        {
+            int8_t code = op->input_slots[click[s]].output_code;
+            if (hover_trigger_mechanical(s) && (code < 0 || code >= op->output_types_max))
+            {
+                mech_use[s] = true;
+                mech_stand_in[s] = _all_inputs.presses[click[s]] ? MAPPER_ANALOG_MAX : 0;
+            }
+        }
+    }
+
     for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
     {
         // i here is the input code
@@ -566,6 +585,11 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
         int8_t mapped_output_code = op->input_slots[i].output_code;
         uint16_t *input = &_all_inputs.inputs[i];
         bool *press = &_all_inputs.presses[i];
+
+        if (i == INPUT_CODE_LT_ANALOG && mech_use[0])
+            input = &mech_stand_in[0];
+        else if (i == INPUT_CODE_RT_ANALOG && mech_use[1])
+            input = &mech_stand_in[1];
 
         uint8_t output_type = 0;
         // Codes this firmware does not know (written by a newer config app) count as unmapped

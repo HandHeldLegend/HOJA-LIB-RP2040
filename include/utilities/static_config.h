@@ -40,7 +40,8 @@ typedef struct
     uint32_t    fw_version; 
     uint8_t     snes_supported : 1;
     uint8_t     joybus_supported : 1;
-    uint8_t     reserved_bits : 6;
+    uint8_t     mechanical_triggers_supported : 1; // Triggers can be fitted as mechanical (hoverConfig_s.trigger_hw)
+    uint8_t     reserved_bits : 5;
     uint8_t     reserved_bytes[93];
 } deviceInfoStatic_s;
 

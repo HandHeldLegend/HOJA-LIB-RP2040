@@ -6,6 +6,8 @@
 #include "input_shared_types.h"
 #include "input/macros/macro_tourney.h"
 
+#include <string.h>
+
 SNAPSHOT_TYPE(hover, mapper_input_s);
 
 snapshot_hover_t _hover_snap;
@@ -24,6 +26,138 @@ uint8_t _hover_inverts[36] = {0};
 mapper_input_s _boot_capture = {0};
 
 #define HOVER_DEFAULT_DEADZONE 128
+
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+// Auto detection judges each click by how far the trigger's analog reading moved since the last
+// release (raw counts, after inversion). A stock trigger clicks only at the end of its travel; a
+// mechanical one barely moves the sensor, if it reaches it at all.
+#define HOVER_MECH_TRAVEL_MAX           300  // A click after less travel than this had none
+#define HOVER_MECH_ANALOG_TRAVEL_MIN    1200 // A click after more than this ended real travel
+// Clicks in a row before the finding changes, so one odd reading never takes the analog away
+#define HOVER_MECH_CLICKS_TO_SET        5
+#define HOVER_MECH_CLICKS_TO_CLEAR      2
+
+typedef struct
+{
+    uint16_t low;   // Lowest and highest reading since the click was last released
+    uint16_t high;
+    uint8_t  mech_clicks;
+    uint8_t  analog_clicks;
+    bool     armed; // Seen released since boot, so low and high mean something
+    bool     clicked;
+} hover_mech_s;
+
+static hover_mech_s _hover_mech[2];
+static const uint8_t _hover_mech_click[2]  = {INPUT_CODE_LT, INPUT_CODE_RT};
+static const uint8_t _hover_mech_analog[2] = {INPUT_CODE_LT_ANALOG, INPUT_CODE_RT_ANALOG};
+
+static void _hover_mech_init(void)
+{
+    // Settings from older firmware have 0xFF here: both triggers start on Auto
+    if (hover_config->trigger_hw_version != TRIGGER_HW_VERSION)
+    {
+        hover_config->trigger_hw[0] = TRIGGER_HW_AUTO;
+        hover_config->trigger_hw[1] = TRIGGER_HW_AUTO;
+        hover_config->trigger_hw_version = TRIGGER_HW_VERSION;
+    }
+
+    memset(_hover_mech, 0, sizeof(_hover_mech));
+}
+
+// One reading of a trigger on Auto. True when the finding changed (and wants saving).
+static bool _hover_mech_track(uint8_t side, uint16_t raw, bool click)
+{
+    hover_mech_s *m = &_hover_mech[side];
+    uint8_t *hw = &hover_config->trigger_hw[side];
+
+    if (!click)
+    {
+        if (!m->armed || m->clicked)
+        {
+            m->low = raw;
+            m->high = raw;
+            m->armed = true;
+        }
+        else
+        {
+            if (raw < m->low) m->low = raw;
+            if (raw > m->high) m->high = raw;
+        }
+        m->clicked = false;
+        return false;
+    }
+
+    // Judge the click once, as it closes
+    if (m->clicked || !m->armed)
+    {
+        m->clicked = true;
+        return false;
+    }
+    m->clicked = true;
+
+    uint16_t top = (raw > m->high) ? raw : m->high;
+    uint16_t travel = (top > m->low) ? (top - m->low) : 0;
+    bool detected = (*hw & TRIGGER_HW_DETECTED_MECHANICAL) != 0;
+    bool changed = false;
+
+    if (travel < HOVER_MECH_TRAVEL_MAX)
+    {
+        m->analog_clicks = 0;
+        if (!detected && ++m->mech_clicks >= HOVER_MECH_CLICKS_TO_SET)
+        {
+            *hw |= TRIGGER_HW_DETECTED_MECHANICAL;
+            changed = true;
+        }
+    }
+    else if (travel > HOVER_MECH_ANALOG_TRAVEL_MIN)
+    {
+        // An analog trigger put back in
+        m->mech_clicks = 0;
+        if (detected && ++m->analog_clicks >= HOVER_MECH_CLICKS_TO_CLEAR)
+        {
+            *hw &= (uint8_t)~TRIGGER_HW_DETECTED_MECHANICAL;
+            changed = true;
+        }
+    }
+    else
+    {
+        m->mech_clicks = 0;
+        m->analog_clicks = 0;
+    }
+
+    if (changed)
+    {
+        m->mech_clicks = 0;
+        m->analog_clicks = 0;
+    }
+    return changed;
+}
+#endif
+
+bool hover_trigger_mechanical(uint8_t side)
+{
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    if (side > 1 || hover_config->trigger_hw_version != TRIGGER_HW_VERSION)
+        return false;
+
+    uint8_t hw = hover_config->trigger_hw[side];
+    switch (hw & TRIGGER_HW_CHOICE_MASK)
+    {
+        case TRIGGER_HW_MECHANICAL:
+            return true;
+
+        case TRIGGER_HW_ANALOG:
+            return false;
+
+        // Auto, and choices this firmware does not know
+        default:
+            return (hw & TRIGGER_HW_DETECTED_MECHANICAL) != 0;
+    }
+#else
+    (void)side;
+    return false;
+#endif
+}
 
 // Calculate scaler when deadzone or range changes
 // Q8 fixed-point scaler: scaled = (value * scaler) >> 8
@@ -166,6 +300,10 @@ void hover_init(void)
         _calibration_ch_active = 0x00;
     }
 
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    _hover_mech_init();
+#endif
+
     static bool boot = false;
 
     if(!boot)
@@ -200,6 +338,17 @@ void hover_init(void)
 
         _boot_capture.presses[slot] = (_boot_capture.inputs[slot] > half);
     }
+
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    for (uint8_t s = 0; s < 2; s++)
+    {
+        if (hover_trigger_mechanical(s))
+        {
+            _boot_capture.inputs[_hover_mech_analog[s]] = 0;
+            _boot_capture.presses[_hover_mech_analog[s]] = false;
+        }
+    }
+#endif
 }
 
 void hover_access_safe(mapper_input_s *out)
@@ -263,6 +412,18 @@ void hover_task(uint64_t timestamp)
             input.inputs[slot] = 0xFFF - input.inputs[slot];
         }
     }
+
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    bool mech_save = false;
+    for (uint8_t s = 0; s < 2; s++)
+    {
+        if ((hover_config->trigger_hw[s] & TRIGGER_HW_CHOICE_MASK) == TRIGGER_HW_AUTO)
+            mech_save |= _hover_mech_track(s, input.inputs[_hover_mech_analog[s]], input.presses[_hover_mech_click[s]]);
+    }
+    // At most a few times in the controller's life: when its triggers are swapped
+    if (mech_save)
+        settings_commit_blocks();
+#endif
 
     if(_calibration_ch_active == 0xFF)
     {
@@ -336,12 +497,22 @@ void hover_task(uint64_t timestamp)
         hoverSlot_s *cfg = &hover_config->config[slot];
 
         input.inputs[slot] = _hover_scale_input(
-            input.inputs[slot], 
-            cfg->min, 
-            HOVER_DEFAULT_DEADZONE, 
+            input.inputs[slot],
+            cfg->min,
+            HOVER_DEFAULT_DEADZONE,
             _hover_scalers[slot]
         );
     }
+
+#if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    // A mechanical trigger's sensor has nothing to measure: whatever it reads (resting offset, noise
+    // from the sticks' magnets) must not press anything
+    for (uint8_t s = 0; s < 2; s++)
+    {
+        if (hover_trigger_mechanical(s))
+            input.inputs[_hover_mech_analog[s]] = 0;
+    }
+#endif
 
     snapshot_hover_write(&_hover_snap, &input);
 }

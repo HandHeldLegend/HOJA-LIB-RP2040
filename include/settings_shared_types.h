@@ -273,13 +273,28 @@ typedef struct
 
 #define HOVER_SLOT_SIZE sizeof(hoverSlot_s)
 
-typedef struct 
+// How a trigger is fitted (trigger_hw). A mechanical trigger is a click with no travel: its analog
+// input reads nothing and its click stands in for it. Bits 0-1 hold the owner's choice; bit 7 what
+// auto detection found, which counts only while the choice is Auto. Global, not per profile: it
+// describes the controller, and an owner can swap triggers at any time.
+#define TRIGGER_HW_VERSION              1
+#define TRIGGER_HW_AUTO                 0
+#define TRIGGER_HW_ANALOG               1
+#define TRIGGER_HW_MECHANICAL           2
+#define TRIGGER_HW_CHOICE_MASK          0x03
+#define TRIGGER_HW_DETECTED_MECHANICAL  0x80
+
+typedef struct
 {
     uint8_t hover_config_version;
     uint8_t hover_calibration_set;
     hoverSlot_s config[36]; // SIZE=4
-    uint8_t reserved[110];
+    uint8_t trigger_hw_version; // TRIGGER_HW_VERSION once trigger_hw is set (older firmware left 0xFF)
+    uint8_t trigger_hw[2];      // Left, right
+    uint8_t reserved[107];
 } hoverConfig_s;
+
+_Static_assert(sizeof(hoverConfig_s) == 256, "hoverConfig_s must remain 256 bytes");
 
 // Input config replaces our remap config
 // It also now contains information for when it will be used
