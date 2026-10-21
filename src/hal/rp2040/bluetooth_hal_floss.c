@@ -500,10 +500,26 @@ static void _bt_hal_apply_scan(void)
         floss_gap_set_scan(_discoverable, true);
 }
 
+#if BT_HAL_ESP32
+// The ESP32's controller answers only the first access code in the list, so while discoverable in
+// Wii mode the first place takes turns: the Wii's (its SYNC search) and the general one (a
+// computer's, as Dolphin's Sync). Two inquiry scans each (1.28 s apart); both searches last several
+// seconds.
+#define BT_HAL_WII_IAC_TURN_US 2560000u
+static floss_timer_t _wii_iac_timer;
+static bool _wii_iac_wii_first = true;
+#endif
+
 static void _bt_hal_set_discoverable(bool discoverable)
 {
     _discoverable = discoverable;
     _bt_hal_apply_scan();
+#if BT_HAL_ESP32
+    if (_mode_wii && discoverable)
+        floss_timer_start(&_wii_iac_timer, BT_HAL_WII_IAC_TURN_US);
+    else
+        floss_timer_stop(&_wii_iac_timer);
+#endif
 }
 
 static void _bt_hal_write_page_timeout(uint16_t slots)
@@ -514,15 +530,28 @@ static void _bt_hal_write_page_timeout(uint16_t slots)
 }
 
 // The Wii's SYNC search only finds devices listening on the Limited Inquiry Access Code, so in
-// Wii mode answer both it and the general code
-static void _bt_hal_wii_write_iac(void)
+// Wii mode answer both it and the general code (a computer's search)
+static void _bt_hal_wii_write_iac(bool wii_first)
 {
     uint8_t p[7];
     p[0] = 2;
-    floss_put_le24(&p[1], NWII_HID_INQUIRY_ACCESS_CODE);
-    floss_put_le24(&p[4], BT_HAL_GAP_IAC_GENERAL);
+    floss_put_le24(&p[1], wii_first ? NWII_HID_INQUIRY_ACCESS_CODE : BT_HAL_GAP_IAC_GENERAL);
+    floss_put_le24(&p[4], wii_first ? BT_HAL_GAP_IAC_GENERAL : NWII_HID_INQUIRY_ACCESS_CODE);
     floss_hci_cmd(FLOSS_HCI_WRITE_CURRENT_IAC_LAP, p, sizeof(p), NULL, NULL);
 }
+
+#if BT_HAL_ESP32
+static void _bt_hal_wii_iac_handler(floss_timer_t *t, void *arg)
+{
+    (void)arg;
+    // Found by a host, or no longer searchable: the turns end until discoverable again
+    if (!_mode_wii || !_discoverable || _connected)
+        return;
+    _wii_iac_wii_first = !_wii_iac_wii_first;
+    _bt_hal_wii_write_iac(_wii_iac_wii_first);
+    floss_timer_start(t, BT_HAL_WII_IAC_TURN_US);
+}
+#endif
 
 static void _bt_hal_shutdown(void)
 {
@@ -2189,7 +2218,12 @@ static void _bt_hal_on_ready(void)
                                                         : BT_HAL_DEFAULT_PAGE_TIMEOUT;
         _bt_hal_write_page_timeout(page_timeout);
         if (_mode_wii)
-            _bt_hal_wii_write_iac();
+        {
+#if BT_HAL_ESP32
+            _wii_iac_wii_first = true;
+#endif
+            _bt_hal_wii_write_iac(true);
+        }
     }
 
     if (!_bt_hal_beacon_listen())
@@ -2377,6 +2411,9 @@ static void _bt_hal_timers_init(void)
     floss_timer_init(&_wii_page_stall_timer, _bt_hal_wii_page_stall_handler, NULL);
     floss_timer_init(&_wii_teardown_timer, _bt_hal_wii_teardown_handler, NULL);
     floss_timer_init(&_wii_stall_timer, _bt_hal_wii_stall_handler, NULL);
+#if BT_HAL_ESP32
+    floss_timer_init(&_wii_iac_timer, _bt_hal_wii_iac_handler, NULL);
+#endif
     floss_timer_init(&_call_timer, _bt_hal_call_timeout, NULL);
     floss_timer_init(&_swift_pair_timer, _bt_hal_swift_pair_timeout, NULL);
 #if defined(HOJA_TRANSPORT_DONGLE_DRIVER)
