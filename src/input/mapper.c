@@ -547,6 +547,9 @@ void mapper_webusb_remap_preview_end(void)
 }
 mapper_operation_s _standard_op = {.input_slots = NULL, .output_types = NULL, .remap_en=true, .rapid_value={0}, .rapid_press_state ={0}};
 
+// The app holding the game's input at rest (defined with mapper_hold_game_inputs)
+static volatile bool _mapper_hold_game;
+
 #define MAPPER_ANALOG_MAX 0xFFF
 
 mapper_input_s _mapper_operation(mapper_operation_s *op)
@@ -783,8 +786,12 @@ mapper_input_s _mapper_operation(mapper_operation_s *op)
     // Heartbeat
     if(heartbeat) idle_manager_heartbeat();
 
-    // Haptic clicks
-    pcm_play_bump(haptic_right, haptic_left);
+    // Haptic clicks, from one pass only: while the app holds the game's input at rest, the game's pass
+    // sees no press but the app's live view does, and the two together restarted the bump every cycle
+    // a trigger was held. The app's pass takes over while it holds the game's input.
+    bool game_pass = (op == &_standard_op);
+    if (game_pass != _mapper_hold_game)
+        pcm_play_bump(haptic_right, haptic_left);
 
     return tmp;
 }
