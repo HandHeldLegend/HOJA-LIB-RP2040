@@ -283,7 +283,10 @@ void hover_init(void)
         if(_used_hover_slots==0) hover_config->hover_calibration_set=1;
 
         hover_config->hover_config_version = CFG_BLOCK_HOVER_VERSION;
-        
+
+        // A reset block (the app's settings reset blanks the version byte) puts the triggers back on Auto
+        hover_config->trigger_hw_version = 0xFF;
+
         for(int i = 0; i < MAPPER_INPUT_COUNT; i++)
         {
             _hover_set_ch_to_default(i);
