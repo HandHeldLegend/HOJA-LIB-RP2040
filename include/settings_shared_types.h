@@ -275,8 +275,8 @@ typedef struct
 
 // How a trigger is fitted (trigger_hw). A mechanical trigger is a click with no travel: its analog
 // input reads nothing and its click stands in for it. Bits 0-1 hold the owner's choice; bit 7 what
-// auto detection found, which counts only while the choice is Auto. Global, not per profile: it
-// describes the controller, and an owner can swap triggers at any time.
+// detection found from use (kept up to date whatever the choice, but it counts only on Auto).
+// Global, not per profile: it describes the controller, and an owner can swap triggers any time.
 #define TRIGGER_HW_VERSION              1
 #define TRIGGER_HW_AUTO                 0
 #define TRIGGER_HW_ANALOG               1

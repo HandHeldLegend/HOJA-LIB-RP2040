@@ -64,7 +64,7 @@ static void _hover_mech_init(void)
     memset(_hover_mech, 0, sizeof(_hover_mech));
 }
 
-// One reading of a trigger on Auto. True when the finding changed (and wants saving).
+// One reading of a trigger. True when the finding changed (and wants saving).
 static bool _hover_mech_track(uint8_t side, uint16_t raw, bool click)
 {
     hover_mech_s *m = &_hover_mech[side];
@@ -414,12 +414,11 @@ void hover_task(uint64_t timestamp)
     }
 
 #if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
+    // Detection runs whatever the owner chose (it counts only on Auto), so the app can point out a
+    // choice the triggers no longer match after a swap
     bool mech_save = false;
     for (uint8_t s = 0; s < 2; s++)
-    {
-        if ((hover_config->trigger_hw[s] & TRIGGER_HW_CHOICE_MASK) == TRIGGER_HW_AUTO)
-            mech_save |= _hover_mech_track(s, input.inputs[_hover_mech_analog[s]], input.presses[_hover_mech_click[s]]);
-    }
+        mech_save |= _hover_mech_track(s, input.inputs[_hover_mech_analog[s]], input.presses[_hover_mech_click[s]]);
     // At most a few times in the controller's life: when its triggers are swapped
     if (mech_save)
         settings_commit_blocks();
