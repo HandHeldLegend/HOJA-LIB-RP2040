@@ -13,6 +13,7 @@
 #include "utilities/settings.h"
 
 #include "input/mapper.h"
+#include "input/hover.h"
 #include "input/dpad.h"
 #include "input/imu.h"
 
@@ -182,10 +183,8 @@ bool sinput_api_hook_get_input(sinput_input_s *out)
 
     out->buttons.power = input.presses[SINPUT_CODE_MISC_3];
 
-    // A digital trigger press is a full analog press too (as on GameCube): many PC games read only the
-    // axis, and a mechanical trigger has no analog of its own
-    out->triggers.left  = out->buttons.l_trigger ? 4095 : input.inputs[SINPUT_CODE_LT_ANALOG];
-    out->triggers.right = out->buttons.r_trigger ? 4095 : input.inputs[SINPUT_CODE_RT_ANALOG];
+    out->triggers.left  = input.inputs[SINPUT_CODE_LT_ANALOG];
+    out->triggers.right = input.inputs[SINPUT_CODE_RT_ANALOG];
 
     out->joysticks.left.x  = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LX_LEFT], input.inputs[SINPUT_CODE_LX_RIGHT]); 
     out->joysticks.left.y  = mapper_joystick_concat(0,input.inputs[SINPUT_CODE_LY_UP]  , input.inputs[SINPUT_CODE_LY_DOWN] ); 
@@ -308,10 +307,11 @@ bool core_sinput_init(core_params_s *params)
             .left = analog_static.axis_lx,
             .right = analog_static.axis_rx,
         },
-        .triggers = 
+        // A mechanical trigger is a digital trigger only: the host is told it has no analog
+        .triggers =
         {
-            .left = analog_static.axis_lt,
-            .right = analog_static.axis_rt,
+            .left = analog_static.axis_lt && !hover_trigger_mechanical(0),
+            .right = analog_static.axis_rt && !hover_trigger_mechanical(1),
         },
         .leds =
         {
