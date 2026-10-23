@@ -46,11 +46,15 @@ typedef struct
 
 #define HOJA_HAPTICS_INIT(intensity) lra_hal_init(intensity)
 #define HOJA_HAPTICS_TASK(timestamp) lra_hal_task(timestamp)
+#define HOJA_HAPTICS_FILL(timestamp) lra_hal_fill(timestamp)
 #define HOJA_HAPTICS_STOP() lra_hal_stop()
 
 void lra_hal_stop();
 bool lra_hal_init(uint8_t intensity);
+// Every pass (rapid): only refills the output itself when the fill task is running late
 void lra_hal_task(uint64_t timestamp);
+// Budget-aware (recurring): renders the next PCM buffer into the output once a half is free
+void lra_hal_fill(uint64_t timestamp);
 void lra_hal_push_amfm(haptic_packet_s *packet);
 void lra_hal_set_standard(uint8_t intensity, bool brake);
 #endif

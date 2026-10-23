@@ -93,10 +93,20 @@ void haptics_stop()
     #endif
 }
 
+// Every pass: whatever the haptics driver must not miss
 void haptics_task(uint64_t timestamp)
 {
     #if defined(HOJA_HAPTICS_TASK)
     HOJA_HAPTICS_TASK(timestamp);
+    #endif
+}
+
+// Within the cycle's spare time: rendering the next output, and the test buzz. Kept off the rapid
+// path so the work never holds back a report.
+void haptics_fill_task(uint64_t timestamp)
+{
+    #if defined(HOJA_HAPTICS_FILL)
+    HOJA_HAPTICS_FILL(timestamp);
     #endif
 
     if(_haptic_test_remaining > 0)

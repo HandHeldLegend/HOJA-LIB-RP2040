@@ -30,70 +30,122 @@
 
 #define SAMPLE_RATE         PCM_SAMPLE_RATE
 #define REPETITION_RATE     PCM_SAMPLE_REPETITIONS
-#define BUFFER_SIZE         PCM_BUFFER_SIZE*2
 #define PWM_WRAP            PCM_WRAP_VAL
 
-uint dma_reset;
+// The output ring: two halves of PCM_BUFFER_SIZE samples, each written REPETITION_RATE times so one
+// DMA channel per PWM slice can stream it to the compare register, one word per PWM wrap, with no
+// CPU between refills. Each word holds both motors (low half = the slice's A pin, high half = B).
+#define LRA_HALF_WORDS      (PCM_BUFFER_SIZE * REPETITION_RATE)
+#define LRA_RING_WORDS      (LRA_HALF_WORDS * 2)
+#define LRA_RING_BYTES      (LRA_RING_WORDS * sizeof(uint32_t))
+_Static_assert((LRA_RING_BYTES & (LRA_RING_BYTES - 1)) == 0, "the DMA read ring needs a power-of-two size");
 
-// Channel A is mandatory for the LRA HAL; channel B is optional and gated at
-// runtime by _chan_b_enable. PWM slices + DMA channels are claimed dynamically
-// at init. The GPIO pins + dual-channel flag come from hoja_config_s.haptics.
-uint dma_cc_l, dma_trigger_l, dma_sample;
-uint pwm_slice_l;
+__attribute__((aligned(LRA_RING_BYTES))) static uint32_t _lra_ring[LRA_RING_WORDS] = {0};
 
-uint dma_cc_r, dma_trigger_r, dma_reset_r;
-uint pwm_slice_r;
+// Up to two slices: the motors share one when their pins are a slice's A and B
+#define LRA_MAX_STREAMS 2
+static int  _lra_stream_chan[LRA_MAX_STREAMS] = {-1, -1};
+static uint _lra_stream_slice[LRA_MAX_STREAMS];
+static uint8_t  _lra_stream_count = 0;
+static uint32_t _lra_stream_mask = 0;
+
+// Endless on RP2350; on RP2040 about 37 hours at 32 kHz, restarted by _lra_hal_keep_running
+#define LRA_STREAM_TRANSFERS 0xFFFFFFFFu
+
+// A half is written by the fill task soon after the DMA moves off it. If the fill task hasn't run
+// this long after that, the rapid task writes it instead, well before the DMA comes back to it.
+#define LRA_HALF_US         ((PCM_BUFFER_SIZE * 1000000u) / PCM_SAMPLE_RATE)
+#define LRA_FILL_LATE_US    (LRA_HALF_US / 2u)
 
 static uint8_t _chan_a_pin    = 0;
 static uint8_t _chan_b_pin    = 0;
 static bool    _chan_b_enable = false;
 
-uint32_t dma_trigger_start_mask = 0;
-volatile uint32_t *dma_trigger_start_ptr = &dma_trigger_start_mask;
+static bool     _lra_running = false;
+// The half written last; the other one is free once the DMA plays this one
+static uint8_t  _lra_filled_half = 1;
+static uint64_t _lra_free_since_us = 0;
 
-uint32_t single_sample;
-uint32_t *single_sample_ptr = &single_sample;
-
-// The current audio buffer in use
-static volatile uint audio_buffer_idx = 0;
-//static uint32_t audio_buffers[2][BUFFER_SIZE] = {0};
-
-__attribute__((aligned(512))) uint32_t audio_buffer[BUFFER_SIZE] = {0};
-uint32_t *audio_buffer_ptr = &audio_buffer[0];
-
-// Bool to indicate we need to fill our next sine wave
-static volatile bool ready_next_sine = false;
-
-static void __isr __time_critical_func(_dma_handler)()
+// The half the DMA is reading now
+static uint8_t _lra_playing_half(void)
 {
-    audio_buffer_idx = 1-audio_buffer_idx;
-    //dma_hw->ch[dma_sample].al1_read_addr    = (intptr_t) &audio_buffers[audio_buffer_idx][0];
-    dma_hw->ch[dma_trigger_l].al1_read_addr = (intptr_t) &single_sample_ptr;
+    const uintptr_t at = (uintptr_t)dma_hw->ch[_lra_stream_chan[0]].read_addr - (uintptr_t)_lra_ring;
+    return (uint8_t)((at / sizeof(uint32_t)) / LRA_HALF_WORDS);
+}
 
-    // Trigger right channel if we have one
-    if(_chan_b_enable)
-        dma_hw->ch[dma_trigger_r].al1_read_addr = (intptr_t) &single_sample_ptr;
+// Render the next PCM buffer straight into the free half
+static void _lra_hal_fill_free_half(void)
+{
+    uint32_t samples[PCM_BUFFER_SIZE];
+    const uint8_t half = (uint8_t)(1u - _lra_filled_half);
 
-    dma_start_channel_mask(dma_trigger_start_mask);
-    ready_next_sine = true;
-    dma_hw->ints1 = 1u << dma_trigger_l;
-    uint8_t available_buffer = 1 - audio_buffer_idx;
+    pcm_generate_buffer(samples);
+
+    uint32_t *dst = &_lra_ring[half * LRA_HALF_WORDS];
+    for (int i = 0; i < PCM_BUFFER_SIZE; i++)
+    {
+        for (int r = 0; r < REPETITION_RATE; r++)
+        {
+            *dst++ = samples[i];
+        }
+    }
+
+    _lra_filled_half = half;
+    _lra_free_since_us = 0;
+}
+
+static bool _lra_hal_half_free(void)
+{
+    return _lra_playing_half() == _lra_filled_half;
+}
+
+// RP2040 transfer counts run out: restart them together so the slices stay in step
+static void _lra_hal_keep_running(void)
+{
+#if PICO_RP2040
+    if (dma_channel_is_busy(_lra_stream_chan[0]))
+        return;
+
+    uint32_t chan_mask = 0;
+    for (int s = 0; s < _lra_stream_count; s++)
+    {
+        dma_channel_set_trans_count(_lra_stream_chan[s], LRA_STREAM_TRANSFERS, false);
+        chan_mask |= 1u << _lra_stream_chan[s];
+    }
+    dma_start_channel_mask(chan_mask);
+#endif
+}
+
+static void _lra_hal_stream_start(uint slice)
+{
+    const int chan = dma_claim_unused_channel(true);
+
+    dma_channel_config c = dma_channel_get_default_config(chan);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, true);
+    channel_config_set_write_increment(&c, false);
+    channel_config_set_ring(&c, false, __builtin_ctz(LRA_RING_BYTES));
+    channel_config_set_dreq(&c, DREQ_PWM_WRAP0 + slice); // one word per PWM cycle
+
+    dma_channel_configure(chan, &c, &pwm_hw->slice[slice].cc, _lra_ring, LRA_STREAM_TRANSFERS, false);
+
+    _lra_stream_chan[_lra_stream_count]  = chan;
+    _lra_stream_slice[_lra_stream_count] = slice;
+    _lra_stream_count++;
+    _lra_stream_mask |= 1u << slice;
 }
 
 void lra_hal_stop()
 {
-    dma_channel_abort(dma_cc_l);
-    dma_channel_abort(dma_trigger_l);
-    dma_channel_abort(dma_sample);
-    dma_channel_abort(dma_reset);
-    pwm_set_enabled(pwm_slice_l, false);
+    if (!_lra_running)
+        return;
+    _lra_running = false;
 
-    if(_chan_b_enable)
+    for (int s = 0; s < _lra_stream_count; s++)
     {
-        dma_channel_abort(dma_cc_r);
-        dma_channel_abort(dma_trigger_r);
-        pwm_set_enabled(pwm_slice_r, false);
+        dma_channel_abort(_lra_stream_chan[s]);
     }
+    pwm_set_mask_enabled(pwm_hw->en & ~_lra_stream_mask);
 }
 
 bool lra_hal_init(uint8_t intensity)
@@ -108,222 +160,87 @@ bool lra_hal_init(uint8_t intensity)
     // Initialize the PCM
     pcm_init(intensity);
 
-    if(hal_init) return true;
+    if (hal_init) return true;
     hal_init = true;
 
 #if defined(HOJA_LRA_HAL_ENABLE_DRV2605L)
-    if(!drv2605l_init(cfg->drv2605l.i2c_instance, cfg->drv2605l.od_clamp))
+    if (!drv2605l_init(cfg->drv2605l.i2c_instance, cfg->drv2605l.od_clamp))
         return false;
 #endif
 
-    // Initialize the PWM and DMA channels
+    // One PWM cycle per repeated sample
     uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
-    float clock_div = ( (float) f_clk_sys * 1000.0f) / PWM_WRAP / (float) SAMPLE_RATE / (float) REPETITION_RATE;
-
-    // Clock div equation should basically equal 1
-    //clock_div = 1.0f;
+    float clock_div = ((float)f_clk_sys * 1000.0f) / PWM_WRAP / (float)SAMPLE_RATE / (float)REPETITION_RATE;
 
     pwm_config config = pwm_get_default_config();
     pwm_config_set_clkdiv(&config, clock_div);
     pwm_config_set_wrap(&config, PWM_WRAP);
 
-    uint32_t pwm_enable_mask = 0;
+    const uint slice_a = pwm_gpio_to_slice_num(_chan_a_pin);
+    gpio_set_function(_chan_a_pin, GPIO_FUNC_PWM);
+    pwm_init(slice_a, &config, false);
+    _lra_hal_stream_start(slice_a);
 
-    // ---- Channel A (mandatory) ----
+    if (_chan_b_enable)
     {
-        dma_sample = dma_claim_unused_channel(true);
-        gpio_set_function(_chan_a_pin, GPIO_FUNC_PWM);
-
-        pwm_slice_l = pwm_gpio_to_slice_num(_chan_a_pin);
-        pwm_init(pwm_slice_l, &config, false);
-
-        pwm_enable_mask         |= (1U<<pwm_slice_l);
-        dma_cc_l                 = dma_claim_unused_channel(true);
-        dma_trigger_l            = dma_claim_unused_channel(true);
-        dma_reset                = dma_claim_unused_channel(true);
-        dma_trigger_start_mask  |= (1U<<dma_trigger_l);
-
-        // setup PWM DMA channel LEFT
-        dma_channel_config dma_cc_l_cfg = dma_channel_get_default_config(dma_cc_l);
-        channel_config_set_transfer_data_size(&dma_cc_l_cfg, DMA_SIZE_32);
-        channel_config_set_read_increment(&dma_cc_l_cfg, false);
-        channel_config_set_write_increment(&dma_cc_l_cfg, false);
-        channel_config_set_chain_to(&dma_cc_l_cfg, dma_sample);               // Chain to increment DMA sample. This loads our next sample to &single_sample after we perform REPETITION_RATE num of transfers
-        channel_config_set_dreq(&dma_cc_l_cfg, DREQ_PWM_WRAP0 + pwm_slice_l); // transfer on PWM cycle end
-
-        dma_channel_configure(dma_cc_l,
-                            &dma_cc_l_cfg,
-                            &pwm_hw->slice[pwm_slice_l].cc, // write to PWM slice CC register (Compare)
-                            &single_sample,
-                            REPETITION_RATE, // Write the sample to the CC 4 times
-                            false);
-
-        // setup trigger DMA channel LEFT
-        dma_channel_config dma_trigger_l_cfg = dma_channel_get_default_config(dma_trigger_l);
-        channel_config_set_transfer_data_size(&dma_trigger_l_cfg, DMA_SIZE_32);    // transfer 32-bits at a time
-        channel_config_set_read_increment(&dma_trigger_l_cfg, false);              // always read from the same address
-        channel_config_set_write_increment(&dma_trigger_l_cfg, false);             // always write to the same address
-        channel_config_set_dreq(&dma_trigger_l_cfg, DREQ_PWM_WRAP0 + pwm_slice_l); // transfer on PWM cycle end
-        channel_config_set_chain_to(&dma_trigger_l_cfg, dma_reset);
-
-        dma_channel_configure(dma_trigger_l,
-                            &dma_trigger_l_cfg,
-                            &dma_hw->ch[dma_cc_l].al3_read_addr_trig, // write to PWM DMA channel read address trigger
-                            &single_sample_ptr,                       // read from location containing the address of single_sample
-                            REPETITION_RATE * BUFFER_SIZE,            // trigger once per audio sample per repetition rate
-                            false);
-
-        // Don't worry about interrupt
-        //dma_channel_set_irq1_enabled(dma_trigger_l, true); // fire interrupt when trigger DMA channel is done
-        //// We do not set up our ISR for dma_trigger_l since they are in sync
-        //irq_set_exclusive_handler(DMA_IRQ_1, _dma_handler);
-        //irq_set_enabled(DMA_IRQ_1, true);
-
-        // setup sample DMA channel
-        dma_channel_config dma_sample_cfg = dma_channel_get_default_config(dma_sample);
-        channel_config_set_transfer_data_size(&dma_sample_cfg, DMA_SIZE_32); // transfer 8-bits at a time
-        channel_config_set_read_increment(&dma_sample_cfg, true);            // increment read address to go through audio buffer
-        channel_config_set_write_increment(&dma_sample_cfg, false);          // always write to the same address
-        channel_config_set_ring(&dma_sample_cfg, false, 9); // 1<<9 = 512. 512/4 = 128 buffer bytes
-
-        dma_channel_configure(dma_sample,
-                            &dma_sample_cfg,
-                            &single_sample,       // write to single_sample. This contains the data for both CH A and CH B
-                            &audio_buffer[0],     // read from audio buffer
-                            1,                    // only do one transfer (once per PWM DMA completion due to chaining)
-                            false                 // don't start yet
-        );  
-
-        // Set up a dummy transfer to just get looping
-        dma_channel_config dma_reset_cfg = dma_channel_get_default_config(dma_reset);
-        channel_config_set_transfer_data_size(&dma_reset_cfg, DMA_SIZE_32);
-        channel_config_set_read_increment(&dma_reset_cfg, false); 
-        channel_config_set_write_increment(&dma_reset_cfg, false); 
-
-        dma_channel_configure(dma_reset,
-                            &dma_reset_cfg, 
-                            &dma_hw->multi_channel_trigger,
-                            &dma_trigger_start_mask,
-                            1, // only do one transfer
-                            false
-        );
-
-        // clear audio buffer
-        memset(audio_buffer, 0, BUFFER_SIZE);
-        //memset(audio_buffers[1], 0, BUFFER_SIZE);
-    }
-
-    // ---- Channel B (optional, dual-channel LRA) ----
-    if(_chan_b_enable)
-    {
+        const uint slice_b = pwm_gpio_to_slice_num(_chan_b_pin);
         gpio_set_function(_chan_b_pin, GPIO_FUNC_PWM);
 
-        pwm_slice_r = pwm_gpio_to_slice_num(_chan_b_pin);
-        pwm_init(pwm_slice_r, &config, false);
-
-        pwm_enable_mask         |= (1U<<pwm_slice_r);
-        dma_cc_r                 = dma_claim_unused_channel(true);
-        dma_trigger_r            = dma_claim_unused_channel(true);
-        dma_reset_r              = dma_claim_unused_channel(true);
-        dma_trigger_start_mask  |= (1U<<dma_trigger_r);
-
-        // setup PWM DMA channel RIGHT
-        dma_channel_config dma_cc_r_cfg = dma_channel_get_default_config(dma_cc_r);
-
-        channel_config_set_transfer_data_size(&dma_cc_r_cfg, DMA_SIZE_32);
-        channel_config_set_read_increment(&dma_cc_r_cfg, false);
-        channel_config_set_write_increment(&dma_cc_r_cfg, false);
-        // We do not chain the right channel to anything
-        channel_config_set_dreq(&dma_cc_r_cfg, DREQ_PWM_WRAP0 + pwm_slice_r); // transfer on PWM cycle end
-
-        dma_channel_configure(dma_cc_r,
-                            &dma_cc_r_cfg,
-                            &pwm_hw->slice[pwm_slice_r].cc, // write to PWM slice CC register (Compare)
-                            &single_sample,
-                            REPETITION_RATE, // Write the sample to the CC 4 times
-                            false);
-        
-        // setup trigger DMA channel RIGHT
-        dma_channel_config dma_trigger_r_cfg = dma_channel_get_default_config(dma_trigger_r);
-        channel_config_set_transfer_data_size(&dma_trigger_r_cfg, DMA_SIZE_32);    // transfer 32-bits at a time
-        channel_config_set_read_increment(&dma_trigger_r_cfg, false);              // always read from the same address
-        channel_config_set_write_increment(&dma_trigger_r_cfg, false);             // always write to the same address
-        channel_config_set_dreq(&dma_trigger_r_cfg, DREQ_PWM_WRAP0 + pwm_slice_r); // transfer on PWM cycle end
-
-        dma_channel_configure(dma_trigger_r,
-                            &dma_trigger_r_cfg,
-                            &dma_hw->ch[dma_cc_r].al3_read_addr_trig, // write to PWM DMA channel read address trigger
-                            &single_sample_ptr,                       // read from location containing the address of single_sample
-                            REPETITION_RATE * BUFFER_SIZE,            // trigger once per audio sample per repetition rate
-                            false);
+        // On the A slice's other output, the A stream's word already carries it
+        if (slice_b != slice_a)
+        {
+            pwm_init(slice_b, &config, false);
+            _lra_hal_stream_start(slice_b);
+        }
     }
 
-    pwm_set_mask_enabled(pwm_enable_mask);
-    dma_start_channel_mask(dma_trigger_start_mask);
+    // Both halves start silent; the first refill comes once the DMA reaches the second half
+    memset(_lra_ring, 0, sizeof(_lra_ring));
+    _lra_filled_half = 1;
+    _lra_free_since_us = 0;
 
+    // The channels wait on their slices, which start on the same cycle
+    uint32_t chan_mask = 0;
+    for (int s = 0; s < _lra_stream_count; s++)
+    {
+        chan_mask |= 1u << _lra_stream_chan[s];
+    }
+    dma_start_channel_mask(chan_mask);
+    pwm_set_mask_enabled(pwm_hw->en | _lra_stream_mask);
+
+    _lra_running = true;
     return true;
 }
 
-// True while DMA is playing the first half, so the second half is free to
-// write. Reads dma_trigger_l's countdown (REPETITION_RATE PWM wraps per sample
-// across the whole ring) rather than dma_sample's read address, which can sit
-// on the ring boundary and hide a flip.
-static bool get_inactive_buffer_half(void)
+void lra_hal_fill(uint64_t timestamp)
 {
-    uint32_t remaining = dma_hw->ch[dma_trigger_l].transfer_count;
-    uint32_t half_wraps = (uint32_t)REPETITION_RATE * (uint32_t)PCM_BUFFER_SIZE;
-    return remaining > half_wraps;
-}
+    (void)timestamp;
+    if (!_lra_running)
+        return;
 
-// Each half-buffer plays for 8 ms. The DMA position is only sampled when this
-// task runs, so a task late by two periods sees the same half free again and
-// would leave it replaying stale samples. If no flip is seen for a little over
-// one period, refill the free half anyway.
-#define LRA_HALF_BUFFER_US  ((PCM_BUFFER_SIZE * 1000000u) / PCM_SAMPLE_RATE)
-#define LRA_MISSED_FLIP_US  (LRA_HALF_BUFFER_US + 1000u)
+    _lra_hal_keep_running();
 
-static void _lra_fill_half(bool second_half, const uint32_t *samples)
-{
-    memcpy(&audio_buffer[second_half ? PCM_BUFFER_SIZE : 0], samples, PCM_BUFFER_SIZE * sizeof(uint32_t));
+    if (_lra_hal_half_free())
+        _lra_hal_fill_free_half();
 }
 
 void lra_hal_task(uint64_t timestamp)
 {
-    static bool started = false;
-    static bool inactive_half = true;
-    static uint64_t last_flip_us = 0;
-    // The next half-buffer, rendered ahead so a flip only costs a memcpy
-    static uint32_t buffered[PCM_BUFFER_SIZE] = {0};
+    if (!_lra_running)
+        return;
 
-    if (!started)
+    if (!_lra_hal_half_free())
+        return;
+
+    if (!_lra_free_since_us)
     {
-        // Fill both halves and render one ahead before tracking flips
-        started = true;
-        last_flip_us = timestamp;
-        pcm_generate_buffer(buffered);
-        _lra_fill_half(false, buffered);
-        pcm_generate_buffer(buffered);
-        _lra_fill_half(true, buffered);
-        pcm_generate_buffer(buffered);
-        inactive_half = get_inactive_buffer_half();
+        _lra_free_since_us = timestamp;
         return;
     }
 
-    bool inactive_this = get_inactive_buffer_half();
-    bool flipped = (inactive_this != inactive_half);
-
-    if (!flipped && ((timestamp - last_flip_us) > LRA_MISSED_FLIP_US))
-    {
-        flipped = true;
-    }
-
-    if (flipped)
-    {
-        inactive_half = inactive_this;
-        last_flip_us = timestamp;
-        _lra_fill_half(inactive_half, buffered);
-        pcm_generate_buffer(buffered);
-    }
+    // Normally the fill task has done this already
+    if ((timestamp - _lra_free_since_us) >= LRA_FILL_LATE_US)
+        _lra_hal_fill_free_half();
 }
 
 void lra_hal_push_amfm(haptic_packet_s *packet)
