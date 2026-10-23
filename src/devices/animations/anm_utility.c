@@ -110,6 +110,55 @@ static inline uint8_t _anm_utility_channel(uint8_t in, uint32_t brightness, uint
     return (uint8_t)CAPUINT8(base + ((_dithering_table[idx] >> phase) & 0x1u));
 }
 
+#if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+// out holds RGB_DITHER_FRAMES frames back to back, played in turn by the LED driver
+#define ANM_OUT_FRAMES RGB_DITHER_FRAMES
+
+// Which of the frames take the upper level, for a channel n/8 of the way there: spread evenly, so
+// even 1/8 repeats at RGB_DRIVER_REFRESHRATE * RGB_DRIVER_OUTPUT_FRAMES / 8 (90 Hz at 60 x 12),
+// too fast to flicker (the 10-45 Hz patterns at a 60 Hz refresh did)
+static const uint8_t _anm_dither_masks[RGB_DITHER_FRAMES] = {
+    0x00, 0x80, 0x88, 0xA4, 0xAA, 0xDA, 0xEE, 0xFE
+};
+
+// One channel across the frames: its two nearest levels in the right proportion. A channel on a
+// whole level gets the same value in every frame.
+static inline void _anm_utility_dither(uint8_t in, uint32_t brightness, uint8_t rotate, uint8_t *base, uint8_t *mask)
+{
+    uint32_t eighths = ((uint32_t)in * brightness * RGB_DITHER_FRAMES + DITHER_BRIGHT_MAX / 2u) / DITHER_BRIGHT_MAX;
+    uint32_t m = _anm_dither_masks[eighths % RGB_DITHER_FRAMES];
+    *base = (uint8_t)CAPUINT8(eighths / RGB_DITHER_FRAMES);
+    *mask = (uint8_t)((m << rotate) | (m >> ((RGB_DITHER_FRAMES - rotate) % RGB_DITHER_FRAMES)));
+}
+#else
+#define ANM_OUT_FRAMES 1
+#endif
+
+// One LED at brightness: its output, or with output frames its value in each of them
+static inline void _anm_utility_led(const rgb_s *in, rgb_s *out, int i, uint32_t brightness, uint8_t phase)
+{
+    #if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+    (void)phase;
+    // Each LED's pattern starts at its own frame, so a dimmed pad doesn't pulse in step
+    const uint8_t rotate = (uint8_t)((i * 3u) % RGB_DITHER_FRAMES);
+    uint8_t r, g, b, mr, mg, mb;
+    _anm_utility_dither(in[i].r, brightness, rotate, &r, &mr);
+    _anm_utility_dither(in[i].g, brightness, rotate, &g, &mg);
+    _anm_utility_dither(in[i].b, brightness, rotate, &b, &mb);
+    for (int f = 0; f < RGB_DITHER_FRAMES; f++)
+    {
+        rgb_s *o = &out[f * RGB_DRIVER_LED_COUNT + i];
+        o->r = (uint8_t)(r + ((mr >> f) & 1u));
+        o->g = (uint8_t)(g + ((mg >> f) & 1u));
+        o->b = (uint8_t)(b + ((mb >> f) & 1u));
+    }
+    #else
+    out[i].r = _anm_utility_channel(in[i].r, brightness, phase);
+    out[i].g = _anm_utility_channel(in[i].g, brightness, phase);
+    out[i].b = _anm_utility_channel(in[i].b, brightness, phase);
+    #endif
+}
+
 // Brightness is 0 to DITHER_BRIGHT_MAX (1530)
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 {
@@ -123,7 +172,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
     if(!brightness)
     {
         // Set all out to 0
-        for(int i = 0; i < RGB_DRIVER_LED_COUNT; i++)
+        for(int i = 0; i < RGB_DRIVER_LED_COUNT * ANM_OUT_FRAMES; i++)
         {
             out[i].color = 0;
         }
@@ -137,9 +186,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             {
                 int8_t w = rgb_led_groups[rcfg->player_group_index][i];
                 if(w < 0) continue;
-                out[w].r = _anm_utility_channel(in[w].r, status_bright, repeating);
-                out[w].g = _anm_utility_channel(in[w].g, status_bright, repeating);
-                out[w].b = _anm_utility_channel(in[w].b, status_bright, repeating);
+                _anm_utility_led(in, out, w, status_bright, repeating);
             }
         }
 
@@ -149,9 +196,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
             {
                 int8_t w = rgb_led_groups[rcfg->notification_group_index][i];
                 if(w < 0) continue;
-                out[w].r = _anm_utility_channel(in[w].r, status_bright, repeating);
-                out[w].g = _anm_utility_channel(in[w].g, status_bright, repeating);
-                out[w].b = _anm_utility_channel(in[w].b, status_bright, repeating);
+                _anm_utility_led(in, out, w, status_bright, repeating);
             }
         }
 
@@ -163,9 +208,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
     {
         // Each LED's dither runs at its own offset, so a dimmed pad doesn't pulse in step
         uint8_t phase = (uint8_t)((repeating + (uint32_t)i * 5u) % DITHER_MAX_LOOP);
-        out[i].r = _anm_utility_channel(in[i].r, brightness, phase);
-        out[i].g = _anm_utility_channel(in[i].g, brightness, phase);
-        out[i].b = _anm_utility_channel(in[i].b, brightness, phase);
+        _anm_utility_led(in, out, i, brightness, phase);
     }
 
     repeating = (repeating+1)%DITHER_MAX_LOOP;

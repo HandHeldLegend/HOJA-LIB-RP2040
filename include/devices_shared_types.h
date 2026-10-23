@@ -13,6 +13,14 @@
 #ifndef RGB_DRIVER_LED_COUNT
 #define RGB_DRIVER_LED_COUNT 32
 #endif
+// LED frames per animation frame (optional). Above 1, the LED driver plays RGB_DITHER_FRAMES frames in
+// turn at that rate from hardware, each channel dithered between its two nearest levels, so fades on
+// dim LEDs don't step. The chain must fit in one frame with its latch gap (~30 us per LED + 300 us).
+#ifndef RGB_DRIVER_OUTPUT_FRAMES
+#define RGB_DRIVER_OUTPUT_FRAMES 1
+#endif
+// The dither cycle: each channel's level is kept in 1/RGB_DITHER_FRAMES steps
+#define RGB_DITHER_FRAMES 8
 
 // Handle RGB mode choosing compiler side
 #if (RGB_DRIVER_ORDER == RGB_ORDER_GRB)

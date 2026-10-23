@@ -20,6 +20,7 @@ typedef struct
 #define RGB_DRIVER_INIT() rgb_hal_init()
 #define RGB_DRIVER_DEINIT() rgb_hal_deinit()
 #define RGB_DRIVER_UPDATE(data) rgb_hal_update(data)
+#define RGB_DRIVER_FRAMES() rgb_hal_frames()
 
 void rgb_hal_init();
 
@@ -27,6 +28,11 @@ void rgb_hal_deinit();
 
 // Update all RGBs
 void rgb_hal_update(rgb_s *data);
+
+#if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+// The RGB_DITHER_FRAMES frames (RGB_DRIVER_LED_COUNT each, back to back) the hardware plays in turn
+rgb_s *rgb_hal_frames(void);
+#endif
 
 #endif
 #endif

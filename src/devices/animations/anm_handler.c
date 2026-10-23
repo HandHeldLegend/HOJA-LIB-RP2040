@@ -478,9 +478,14 @@ void anm_handler_tick()
     uint16_t brightness = _anim_brightness;
     if (hold && brightness < ANM_CONNECTING_MIN_BRIGHTNESS)
         brightness = ANM_CONNECTING_MIN_BRIGHTNESS;
+    #if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+    // Straight into the frames the LED driver plays in turn
+    anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, RGB_DRIVER_FRAMES(), brightness);
+    #else
     anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, _adjusted_ani_leds, brightness);
 
     RGB_DRIVER_UPDATE(_adjusted_ani_leds);
+    #endif
     #endif
 }
 
