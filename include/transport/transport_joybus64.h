@@ -11,5 +11,7 @@ bool transport_jbgc_autoinit(transport_autoinit_state_t *sm, core_params_s *para
 bool transport_jb64_init(core_params_s *params);
 void transport_jb64_task(uint64_t timestamp);
 void transport_jb64_stop(void);
+// Identify (probe and reset) and poll commands answered so far (both wrap)
+void transport_jb64_command_counts(uint32_t *probes, uint32_t *polls);
 
 #endif

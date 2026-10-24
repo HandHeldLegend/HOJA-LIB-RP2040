@@ -5,6 +5,7 @@
 #include "hal/sys_hal.h"
 #include "transport/transport_bt.h"
 #include "transport/transport_dongle.h"
+#include "transport/transport_joybus64.h"
 #include "utilities/boot_timeline.h"
 #include "utilities/settings.h"
 #include "hhl_tusb_config.h" // Which USB modes this build has (XInput, Slippi)
@@ -27,6 +28,9 @@
 #define AUTODETECT_DONGLE_WAIT_MS   5500
 // Edges that count as a console on the retro port
 #define AUTODETECT_JOYBUS_EDGES     20
+// Identify commands with no poll among them, answering as an N64: a GameCube (our N64 answer means
+// nothing to it, so it keeps asking). An N64 polls on the frame after its first.
+#define AUTODETECT_GAMECUBE_PROBES  3
 #define AUTODETECT_LATCH_EDGES      10
 
 // What this board can be plugged into
@@ -120,6 +124,11 @@ static core_reportformat_t _usb_start_mode(void)
 {
     return (_usb_computer_mode() == CORE_REPORTFORMAT_SWPRO) ? CORE_REPORTFORMAT_SWPRO : CORE_REPORTFORMAT_SINPUT;
 }
+
+#if AUTODETECT_N64 && AUTODETECT_GAMECUBE
+static uint32_t _n64_probes_start = 0;
+static uint32_t _n64_polls_start = 0;
+#endif
 
 static void _switch_to(core_reportformat_t format, gamepad_transport_t transport, phase_t next)
 {
@@ -692,6 +701,9 @@ void autodetect_task(uint64_t now_us)
         if(_phase == PHASE_WIRED) _retro_port_watch(true, true);
         if(_phase == PHASE_N64)
         {
+#if AUTODETECT_N64 && AUTODETECT_GAMECUBE
+            transport_jb64_command_counts(&_n64_probes_start, &_n64_polls_start);
+#endif
             _retro_port_watch(false, true);
             // On battery the radio starts while we wait for polls, rather than after. Polls are
             // answered meanwhile; the next pass sees any that came, before the wait is judged.
@@ -720,6 +732,20 @@ void autodetect_task(uint64_t now_us)
             _switch_to(CORE_REPORTFORMAT_SNES, GAMEPAD_TRANSPORT_NESBUS, PHASE_DONE);
             break;
         }
+#if AUTODETECT_N64 && AUTODETECT_GAMECUBE
+        // A GameCube, told by its traffic alone: on battery, or with its 5V off, as well
+        {
+            uint32_t probes, polls;
+            transport_jb64_command_counts(&probes, &polls);
+            if(((probes - _n64_probes_start) >= AUTODETECT_GAMECUBE_PROBES) && (polls == _n64_polls_start))
+            {
+                _retro_port_watch(false, false);
+                transport_bt_radio_off();
+                _switch_to(CORE_REPORTFORMAT_GAMECUBE, GAMEPAD_TRANSPORT_JOYBUSGC, PHASE_DONE);
+                break;
+            }
+        }
+#endif
         if(elapsed_ms < AUTODETECT_N64_WAIT_MS)
             break;
         _retro_port_watch(false, false);

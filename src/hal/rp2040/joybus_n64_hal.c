@@ -70,6 +70,16 @@ volatile static uint8_t _byteCount = 0;
 // the frame is over. See _n64_eof_handler().
 volatile static bool _n64_drop_frame = false;
 
+// Commands answered, for Auto: a console that keeps asking who we are but never polls is a GameCube
+static volatile uint32_t _n64_probes = 0;
+static volatile uint32_t _n64_polls  = 0;
+
+void transport_jb64_command_counts(uint32_t *probes, uint32_t *polls)
+{
+  *probes = _n64_probes;
+  *polls  = _n64_polls;
+}
+
 // End-of-frame watcher SM (joybus_eof in joybus.pio). Optional: if the PIO
 // block has no room we run without bus healing rather than failing to init.
 static uint _n64_eof_sm     = 0;
@@ -255,6 +265,7 @@ void __time_critical_func(_n64_command_handler)()
                 asm("nop");
             joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
             _n64_send_probe();
+            _n64_probes++;
             _workingCmd = 0;
             break;
 
@@ -265,6 +276,7 @@ void __time_critical_func(_n64_command_handler)()
                 asm("nop");
             joybus_jump_output(PIO_IN_USE_N64, PIO_SM, _n64_offset);
             _n64_send_poll();
+            _n64_polls++;
             tasks_report_count++;
             _workingCmd = 0;
             break;
