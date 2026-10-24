@@ -212,6 +212,53 @@ function(_hoja_ld_set_flash_length TEXT_VAR LENGTH)
   set(${TEXT_VAR} "${_text}" PARENT_SCOPE)
 endfunction()
 
+# The code every report runs on core 1, from the task loop to the transport: the input read (buttons,
+# triggers, motion), the mapper, the SInput report, the USB stack and the haptics output. From flash
+# it runs several times slower: the flash cache can't hold it alongside everything else core 1 and
+# core 0 run, so most of it is fetched again for every report (measured on the GCU 2: the report
+# build 248 us from flash, 58 us from RAM). Applied with FLOSS's own list (hoja_use_floss).
+function(_hoja_report_path_ram_objects OUT_VAR)
+  set(_objects
+    *utilities/tasks.c.obj
+    *src/hoja.c.obj
+    *cores/cores.c.obj
+    *input/mapper.c.obj
+    *input/hover.c.obj
+    *input/imu.c.obj
+    *input/dpad.c.obj
+    *input/idle_manager.c.obj
+    *input/macros/macro_tourney.c.obj
+    *motion_gesture.c.obj
+    *drivers/imu/lsm6dsr.c.obj
+    *hal/rp2040/i2c_hal.c.obj
+    *hal/rp2040/adc_hal.c.obj
+    *hal/rp2040/sys_hal.c.obj
+    *hal/rp2040/gpio_hal.c.obj
+    *hal/rp2040/usb_hal.c.obj
+    *hal/rp2040/lra_hal.c.obj
+    *devices/haptics.c.obj
+    *utilities/pcm.c.obj
+    *utilities/interval.c.obj
+    *usb/webusb.c.obj
+    *cores/core_sinput.c.obj
+    *libsinput_lib_hid.a:*
+    *usbd.c.obj
+    *usbd_control.c.obj
+    *dcd_rp2040.c.obj
+    *hid_device.c.obj
+    *tusb.c.obj
+    *tusb_fifo.c.obj
+    *hhl_tusb_hid.c.obj
+    *hhl_tusb_drivers.c.obj
+    *hhl_tusb_callbacks.c.obj
+    *hhl_tusb_transport.c.obj
+    *hhl_tusb_webusb.c.obj
+    # The board's own input read (cb_hoja_read_input)
+    *.dir/main.c.obj
+  )
+  set(${OUT_VAR} ${_objects} PARENT_SCOPE)
+endfunction()
+
 # A board's board.cmake calls this to use FLOSS. The code on every report's path (the radio's bus
 # driver, FLOSS's poll, HCI, L2CAP data and HID send) runs from RAM: from flash, the rest of the
 # task loop evicts it from the flash cache between reports and every exchange with the radio runs
@@ -219,7 +266,9 @@ endfunction()
 function(hoja_use_floss TARGET)
   set_target_properties(${TARGET} PROPERTIES HOJA_BT_FLOSS ON)
 
+  _hoja_report_path_ram_objects(_report_path)
   set(_ram_objects
+    ${_report_path}
     */floss/src/floss.c.obj
     */floss/src/core/*.c.obj
     *floss_hci.c.obj
