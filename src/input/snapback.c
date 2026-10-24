@@ -3,6 +3,7 @@
 #include "input/snapback/snapback_utils.h"
 #include "input/snapback/snapback_auto.h"
 #include "input/snapback/snapback_lpf.h"
+#include "input/snapback/snapback_capture.h"
 
 #include "input/analog.h"
 #include "usb/webusb.h"
@@ -88,6 +89,10 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
     static analog_axis_s r_out = {0};
 
     sbutil_data_to_axis(input, &l, &r);
+
+    // Releases and flicks for tuning, as the filters see them
+    if(webusb_outputting_check())
+        snapback_capture_process(&l, &r);
 
     switch(analog_config->l_snapback_type)
     {   

@@ -16,6 +16,7 @@ typedef enum
   WEBUSB_ID_PROFILE,            // Settings profiles: list, switch, rename, copy (utilities/profiles.h)
   WEBUSB_LEGACY_SET_BOOTLOADER = 15,
   WEBUSB_LEGACY_GET_FW_VERSION = 0xAF, 
+  WEBUSB_SNAPBACK_CAPTURE = 249, // A stick coming back from a push, both axes at the analog rate (snapback_capture.h)
   WEBUSB_ANALOG_DUMP = 250,
   WEBUSB_INPUT_JOYSTICKS = 254,
   WEBUSB_INPUT_RAW = 255, 

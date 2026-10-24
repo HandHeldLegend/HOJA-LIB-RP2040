@@ -10,6 +10,7 @@
 #include "input/analog.h"
 #include "input/imu.h"
 #include "input/hover.h"
+#include "input/snapback/snapback_capture.h"
 #include "devices/battery.h"
 #include "devices/fuelgauge.h"
 
@@ -331,6 +332,11 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
                 case 1:
                 // Change focused input ID
                 _webusb_focused_hover = data[2];
+                break;
+
+                case 2:
+                // Record a stick coming back from a push: 0 left, 1 right, 0xFF stops
+                snapback_capture_arm(data[2]);
                 break;
             }
         break;
