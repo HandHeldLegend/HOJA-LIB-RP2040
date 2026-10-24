@@ -197,9 +197,26 @@ typedef struct
 #define ANALOG_EXP_SENSITIVITY_MAX  300
 #define ANALOG_EXP_SENSITIVITY_DEFAULT 100
 
-typedef struct 
+// One stick's tuning for the Spring snapback filter (type 3), from the app's tuning step. A version
+// other than SNAPBACK_SPRING_CFG_VERSION means none is stored: the firmware fills in its defaults.
+#define SNAPBACK_SPRING_CFG_VERSION 1
+#define SNAPBACK_SPRING_FLAG_TUNED  0x01 // Fitted to this stick (clear: the built-in defaults)
+typedef struct
 {
-        uint8_t     analog_config_version; 
+        uint8_t     version;
+        uint8_t     flags;          // SNAPBACK_SPRING_FLAG_*
+        int32_t     a1[8];          // Free stick: s[n+1] = a1 s[n] + a2 s[n-1], Q16, per octant
+        int32_t     a2[8];          // (octant 0 is +x, counting towards +y)
+        uint16_t    decide_step;    // A release stays within this many counts per sample of the spring
+        uint16_t    grab_err;       // The thumb has the stick back past this one-step error (counts)
+        uint16_t    stiff_den;      // A centre crossing is a rebound at stiffness 1/stiff_den or more
+        uint16_t    cross_speed;    // Centre crossings faster than this (counts per sample) are checked
+} snapbackSpringCfg_s;
+_Static_assert(sizeof(snapbackSpringCfg_s) == 74, "snapbackSpringCfg_s must remain 74 bytes");
+
+typedef struct
+{
+        uint8_t     analog_config_version;
         uint8_t     analog_calibration_set;
         uint16_t    lx_invert : 1; 
         uint16_t    lx_center : 15; 
@@ -221,8 +238,13 @@ typedef struct
         uint16_t    r_snapback_intensity;
         uint8_t     l_exp_scaler; // Offset-encoded exponent (see ANALOG_EXP_*)
         uint8_t     r_exp_scaler;
-        uint8_t     reserved[326];
+        // Past the per-profile part (profiles.c ends it at r_exp_scaler): a stick's spring is
+        // hardware, the same in every profile
+        snapbackSpringCfg_s l_spring;
+        snapbackSpringCfg_s r_spring;
+        uint8_t     reserved[178];
 } analogConfig_s; // 1024 bytes
+_Static_assert(sizeof(analogConfig_s) == 1024, "analogConfig_s must remain 1024 bytes");
 
 #define ACFGSIZE sizeof(analogConfig_s)
 

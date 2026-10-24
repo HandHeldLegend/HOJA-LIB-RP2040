@@ -1,6 +1,7 @@
 #include "input/analog.h"
 #include "input/stick_scaling.h"
 #include "input/snapback.h"
+#include "input/snapback/snapback_spring.h"
 #include "input/stick_deadzone.h"
 #include "input/idle_manager.h"
 
@@ -134,6 +135,7 @@ void analog_init()
         _capture_centers = true;
     }
     stick_scaling_init();
+    snapback_spring_load();
 
     _center_offsets[0] = (int16_t) STICK_INTERNAL_CENTER - analog_config->lx_center;
     _center_offsets[1] = (int16_t) STICK_INTERNAL_CENTER - analog_config->ly_center;

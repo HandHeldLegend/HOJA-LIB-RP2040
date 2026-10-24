@@ -4,6 +4,7 @@
 #include "input/snapback/snapback_auto.h"
 #include "input/snapback/snapback_lpf.h"
 #include "input/snapback/snapback_capture.h"
+#include "input/snapback/snapback_spring.h"
 
 #include "input/analog.h"
 #include "usb/webusb.h"
@@ -106,6 +107,11 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
         snapback_auto_process(&l, &l_out);
         break;
 
+        // Spring
+        case 3:
+        snapback_spring_process(&l, &l_out);
+        break;
+
         // Off
         case 2:
         l_out.x          = l.x;
@@ -126,6 +132,11 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
         // Auto
         case 1:
         snapback_auto_process(&r, &r_out);
+        break;
+
+        // Spring
+        case 3:
+        snapback_spring_process(&r, &r_out);
         break;
 
         // Off
