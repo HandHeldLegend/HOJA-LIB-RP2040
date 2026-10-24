@@ -169,9 +169,19 @@ void transport_nesbus_task(uint64_t timestamp)
 
     if(k_nesbus_sm.running)
     {
-        // Update NESBus data at our input poll rate
+        static bool build_due = false;
+
+        // Each poll interval starts a task cycle, which reads the input on the next pass; the data
+        // is updated once it has (nothing else starts a cycle here)
         if(interval_run(timestamp, INPUT_POLL_RATE, &interval))
         {
+            tasks_mark_frame_isr();
+            build_due = true;
+        }
+        else if(build_due && tasks_get_required_done())
+        {
+            build_due = false;
+
             static mapper_input_s input = {0};
             input = mapper_get_input();
 

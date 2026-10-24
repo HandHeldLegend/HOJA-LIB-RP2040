@@ -388,7 +388,8 @@ void tasks_mark_sent_isr(void)
     _tasks_sent_isr_signal = true;
 }
 
-// A report's input is due (the USB frame that sends, the dongle link ahead of a build): restart the
+// A report's input is due (the USB frame that sends, the dongle link ahead of a build, a console
+// transport's build interval): restart the
 // cycle for fresh input, unless the current one is still running. Safe from an interrupt.
 void tasks_mark_frame_isr(void)
 {

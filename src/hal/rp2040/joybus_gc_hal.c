@@ -457,9 +457,19 @@ void transport_jbgc_task(uint64_t timestamp)
     return;
 
   static interval_s interval = {0};
+  static bool build_due = false;
 
+  // Each poll interval starts a task cycle, which reads the input on the next pass; the report is
+  // built once it has, so the console gets input read for it (nothing else starts a cycle here)
   if (interval_run(timestamp, _gc_hal_params->core_pollrate_us, &interval))
   {
+    tasks_mark_frame_isr();
+    build_due = true;
+  }
+  else if (build_due && tasks_get_required_done())
+  {
+    build_due = false;
+
     // Get input report here
     static core_report_s report;
     if (core_get_generated_report(&report))
