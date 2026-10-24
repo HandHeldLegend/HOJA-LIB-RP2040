@@ -125,7 +125,7 @@ static const uint8_t _anm_dither_masks[RGB_DITHER_FRAMES] = {
 // whole level gets the same value in every frame.
 static inline void _anm_utility_dither(uint8_t in, uint32_t brightness, uint8_t rotate, uint8_t *base, uint8_t *mask)
 {
-    uint32_t eighths = ((uint32_t)in * brightness * RGB_DITHER_FRAMES + DITHER_BRIGHT_MAX / 2u) / DITHER_BRIGHT_MAX;
+    uint32_t eighths = ((uint32_t)in * brightness * RGB_DITHER_FRAMES + RGB_BRIGHTNESS_FULL / 2u) / RGB_BRIGHTNESS_FULL;
     uint32_t m = _anm_dither_masks[eighths % RGB_DITHER_FRAMES];
     *base = (uint8_t)CAPUINT8(eighths / RGB_DITHER_FRAMES);
     *mask = (uint8_t)((m << rotate) | (m >> ((RGB_DITHER_FRAMES - rotate) % RGB_DITHER_FRAMES)));
@@ -159,13 +159,17 @@ static inline void _anm_utility_led(const rgb_s *in, rgb_s *out, int i, uint32_t
     #endif
 }
 
-// Brightness is 0 to DITHER_BRIGHT_MAX (1530)
+// Brightness is 0 to RGB_BRIGHTNESS_FULL
 void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
 {
     static uint8_t repeating = 0;
-    brightness = (brightness>DITHER_BRIGHT_MAX) ? DITHER_BRIGHT_MAX : brightness;
+    brightness = (brightness>RGB_BRIGHTNESS_FULL) ? RGB_BRIGHTNESS_FULL : brightness;
+    // In whole 8-bit steps the dimmest settings step and flicker, so they share one floor (about
+    // 10%). Dithered in eighths of a step, the LEDs can dim smoothly all the way down.
+    #if (RGB_DRIVER_OUTPUT_FRAMES <= 1)
     if(brightness)
         brightness = (brightness<50) ? 50 : brightness;
+    #endif
 
     // If we have 0 brightness, always illuminate our player
     // status LEDs
@@ -178,7 +182,7 @@ void anm_utility_process(rgb_s *in, rgb_s *out, uint16_t brightness)
         }
 
         const hoja_rgb_cfg_s *rcfg = &hoja_config_get()->rgb;
-        const uint32_t status_bright = (DITHER_BRIGHT_MAX * STATUS_ONLY_SCALE) / 256u;
+        const uint32_t status_bright = (RGB_BRIGHTNESS_FULL * STATUS_ONLY_SCALE) / 256u;
 
         if(rcfg->player_group_index >= 0)
         {

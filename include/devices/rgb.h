@@ -15,6 +15,15 @@
 #endif
 
 #define RGB_TASK_INTERVAL (1000000/RGB_DRIVER_REFRESHRATE) 
+
+// Brightness as the animations carry it: 1530 at full, 16 times finer with output frames, so the
+// dithered low end isn't rounded to whole steps before it's dithered
+#if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+    #define RGB_BRIGHTNESS_SUBSTEPS 16u
+#else
+    #define RGB_BRIGHTNESS_SUBSTEPS 1u
+#endif
+#define RGB_BRIGHTNESS_FULL (1530u * RGB_BRIGHTNESS_SUBSTEPS)
 #define RGB_FADE_FIXED_SHIFT 16
 #define RGB_FADE_FIXED_MULT (uint32_t) (1<<RGB_FADE_FIXED_SHIFT)
 #define RGB_FLOAT_TO_FIXED(f) ((uint32_t) (f * RGB_FADE_FIXED_MULT))
@@ -92,5 +101,7 @@ void rgb_set_idle(bool enable);
 bool rgb_deinit(callback_t cb);
 void rgb_init(int mode, int brightness);
 void rgb_task(uint64_t timestamp);
+// The LEDs' brightness (0 to RGB_BRIGHTNESS_FULL) for a brightness setting (0 to 1)
+uint16_t rgb_brightness_from_setting(float setting);
 
 #endif

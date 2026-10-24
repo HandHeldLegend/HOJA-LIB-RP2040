@@ -44,7 +44,29 @@ float _exponentialRamp(float input) {
 
     // Exponential curve factor, adjust for steepness
     const float exponent = 1.5f; // Higher values increase steepness
+
+#if (RGB_DRIVER_OUTPUT_FRAMES > 1)
+    // Dithered LEDs could light far dimmer, but settings that dim read as a jump from off, not a
+    // glow. So the lowest setting (1%) lights at half the knee's light, and each 1% up to the knee
+    // adds the same; from the knee up the curve is unchanged. Turning on still fades up from dark:
+    // the brightness ramp passes through the dimmer levels on its way.
+    const float knee = 0.10f;
+    const float lowest = 0.01f;
+    if (input <= 0.0f)
+        return 0.0f;
+    if (input < knee)
+    {
+        float t = (input - lowest) / (knee - lowest);
+        t = (t < 0.0f) ? 0.0f : t;
+        return powf(knee, exponent) * (0.5f + 0.5f * t);
+    }
+#endif
     return powf(input, exponent);
+}
+
+uint16_t rgb_brightness_from_setting(float setting)
+{
+    return (uint16_t)((float)RGB_BRIGHTNESS_FULL * _exponentialRamp(setting));
 }
 #else
 bool rgb_deinit(callback_t cb)
@@ -240,8 +262,7 @@ void rgb_init(int mode, int brightness)
     cbright = cbright > 4096 ? 4096 : cbright;
 
     float cbrightratio = cbright/4096.0f;
-    float nratio = _exponentialRamp(cbrightratio);
-    set_brightness = (uint16_t) (1530.0f * nratio);
+    set_brightness = rgb_brightness_from_setting(cbrightratio);
     
     static bool _rgb_ll_init = false;
     if(!_rgb_ll_init)

@@ -369,7 +369,10 @@ void anm_set_idle_enable(bool enable)
     {
         store_mode = _current_mode;
         store_bright = _anim_brightness_target;
-        anm_handler_setup_mode(RGB_ANIM_IDLE, 500, _anim_speed);
+        // The idle glow dims the LEDs, never brightens them past the user's setting
+        const uint16_t idle_bright = (uint16_t)(500u * RGB_BRIGHTNESS_SUBSTEPS);
+        anm_handler_setup_mode(RGB_ANIM_IDLE, (store_bright < idle_bright) ? (uint16_t)store_bright : idle_bright,
+                               _anim_speed);
         _anm_idle_active = true;
 
     }
@@ -388,11 +391,29 @@ void anm_set_idle_enable(bool enable)
 static rgb_s _anm_hold_leds[RGB_DRIVER_LED_COUNT] = {0};
 
 // While connecting, something has to show the controller is on: a player or notification color too
-// dark to see (black, or a board without either group) shows a neutral white instead, and the
-// brightness is at least about the wireless default. The user's colors and brightness return once
-// connected.
+// dark to see (black, or a board without either group) shows a neutral white instead, and it plays
+// at least as bright as the 5% setting, but never brighter than the user's setting above that. The
+// user's colors return once connected.
 #define ANM_CONNECTING_DARK            0x30u
-#define ANM_CONNECTING_MIN_BRIGHTNESS  300u
+#define ANM_CONNECTING_MIN_SETTING     0.05f
+
+// The connecting minimum fades in and out with the hold, so the brightness slides between it and the
+// user's setting instead of jumping
+static uint16_t _anm_hold_min_tick(bool hold)
+{
+    static uint16_t min = 0;
+    static uint16_t shown = 0;
+    if (!min)
+        min = rgb_brightness_from_setting(ANM_CONNECTING_MIN_SETTING);
+
+    uint32_t step = ((uint32_t)min * FADE_STEP_FIXED) / RGB_FADE_FIXED_MULT;
+    step = step ? step : 1u;
+    if (hold)
+        shown = ((uint32_t)shown + step > min) ? min : (uint16_t)(shown + step);
+    else
+        shown = (shown > step) ? (uint16_t)(shown - step) : 0u;
+    return shown;
+}
 
 static rgb_s _anm_connecting_color(rgb_s color)
 {
@@ -476,8 +497,9 @@ void anm_handler_tick()
     // Process brightness/gamma
     _anm_brightness_tick();
     uint16_t brightness = _anim_brightness;
-    if (hold && brightness < ANM_CONNECTING_MIN_BRIGHTNESS)
-        brightness = ANM_CONNECTING_MIN_BRIGHTNESS;
+    const uint16_t hold_min = _anm_hold_min_tick(hold);
+    if (brightness < hold_min)
+        brightness = hold_min;
     #if (RGB_DRIVER_OUTPUT_FRAMES > 1)
     // Straight into the frames the LED driver plays in turn
     anm_utility_process(hold ? _anm_hold_leds : _current_ani_leds, RGB_DRIVER_FRAMES(), brightness);
