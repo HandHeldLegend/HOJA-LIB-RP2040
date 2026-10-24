@@ -102,14 +102,13 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
         snapback_lpf_process(&l, &l_out);
         break;
 
-        // Auto
+        // Auto: the spring model once this stick is tuned (3 was Spring on its own, before release)
         case 1:
-        snapback_auto_process(&l, &l_out);
-        break;
-
-        // Spring
         case 3:
-        snapback_spring_process(&l, &l_out);
+        if (snapback_spring_tuned(0))
+            snapback_spring_process(&l, &l_out);
+        else
+            snapback_auto_process(&l, &l_out);
         break;
 
         // Off
@@ -129,14 +128,13 @@ void snapback_process(analog_data_s *input, analog_data_s *output)
         snapback_lpf_process(&r, &r_out);
         break;
 
-        // Auto
+        // Auto: the spring model once this stick is tuned (3 was Spring on its own, before release)
         case 1:
-        snapback_auto_process(&r, &r_out);
-        break;
-
-        // Spring
         case 3:
-        snapback_spring_process(&r, &r_out);
+        if (snapback_spring_tuned(1))
+            snapback_spring_process(&r, &r_out);
+        else
+            snapback_auto_process(&r, &r_out);
         break;
 
         // Off

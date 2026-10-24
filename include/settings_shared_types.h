@@ -197,7 +197,7 @@ typedef struct
 #define ANALOG_EXP_SENSITIVITY_MAX  300
 #define ANALOG_EXP_SENSITIVITY_DEFAULT 100
 
-// One stick's tuning for the Spring snapback filter (type 3), from the app's tuning step. A version
+// One stick's tuning for the spring snapback model, from the app's tuning step. Auto uses it once TUNED is set. A version
 // other than SNAPBACK_SPRING_CFG_VERSION means none is stored: the firmware fills in its defaults.
 #define SNAPBACK_SPRING_CFG_VERSION 1
 #define SNAPBACK_SPRING_FLAG_TUNED  0x01 // Fitted to this stick (clear: the built-in defaults)

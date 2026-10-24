@@ -81,6 +81,7 @@ typedef struct
 static spring_params_s _spring_params[2][2];
 static volatile uint8_t _spring_live[2] = {0, 0};
 static volatile bool _spring_loaded = false;
+static volatile bool _spring_tuned[2] = {false, false};
 
 // A tuning the filter can trust: a stable, ringing spring for every octant and sane thresholds
 static bool _spring_cfg_valid(const snapbackSpringCfg_s *c)
@@ -144,8 +145,14 @@ void snapback_spring_load(void)
         const int32_t dz = (stick == 0) ? analog_config->l_deadzone : analog_config->r_deadzone;
         p->settled = (dz < SPRING_SETTLED_MIN) ? SPRING_SETTLED_MIN : ((dz > SPRING_SETTLED_MAX) ? SPRING_SETTLED_MAX : dz);
         __atomic_store_n(&_spring_live[stick], next, __ATOMIC_RELEASE);
+        _spring_tuned[stick] = (c->flags & SNAPBACK_SPRING_FLAG_TUNED) != 0;
     }
     _spring_loaded = true;
+}
+
+bool snapback_spring_tuned(uint8_t stick)
+{
+    return _spring_loaded && _spring_tuned[(stick > 1) ? 1 : stick];
 }
 
 // The octant of (x, y): within 22.5 degrees of an axis (tan 22.5 = 0.4142) or a diagonal
