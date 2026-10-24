@@ -473,8 +473,10 @@ void tasks_run(void)
     {
         if (_tasks_sm.recurring_count == 0) return;
 
+        // A task that isn't due passes its turn: waiting on it would hold every other recurring
+        // task to its interval. One waiting for room in the cycle keeps its turn.
         t = _tasks_sm.recurring[_tasks_sm.recurring_completed];
-        if(!_tasks_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
+        if(_tasks_interval_due(t, sys_hal_now_us()) && !_tasks_try_run(t, RUNTIME_MAX_NO_UPDATE)) return;
         _tasks_sm.recurring_completed = (_tasks_sm.recurring_completed + 1) % _tasks_sm.recurring_count;
     }
 }
