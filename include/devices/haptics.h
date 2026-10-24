@@ -28,6 +28,5 @@ void haptics_set_std(uint8_t amplitude, bool brake);
 void haptics_stop();
 bool haptics_init();
 void haptics_task(uint64_t timestamp);
-void haptics_fill_task(uint64_t timestamp);
 
 #endif

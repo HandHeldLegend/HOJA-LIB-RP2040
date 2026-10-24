@@ -52,11 +52,6 @@ static uint32_t _lra_stream_mask = 0;
 // Endless on RP2350; on RP2040 about 37 hours at 32 kHz, restarted by _lra_hal_keep_running
 #define LRA_STREAM_TRANSFERS 0xFFFFFFFFu
 
-// A half is written by the fill task soon after the DMA moves off it. If the fill task hasn't run
-// this long after that, the rapid task writes it instead, well before the DMA comes back to it.
-#define LRA_HALF_US         ((PCM_BUFFER_SIZE * 1000000u) / PCM_SAMPLE_RATE)
-#define LRA_FILL_LATE_US    (LRA_HALF_US / 2u)
-
 static uint8_t _chan_a_pin    = 0;
 static uint8_t _chan_b_pin    = 0;
 static bool    _chan_b_enable = false;
@@ -64,7 +59,6 @@ static bool    _chan_b_enable = false;
 static bool     _lra_running = false;
 // The half written last; the other one is free once the DMA plays this one
 static uint8_t  _lra_filled_half = 1;
-static uint64_t _lra_free_since_us = 0;
 
 // The half the DMA is reading now
 static uint8_t _lra_playing_half(void)
@@ -91,7 +85,6 @@ static void _lra_hal_fill_free_half(void)
     }
 
     _lra_filled_half = half;
-    _lra_free_since_us = 0;
 }
 
 static bool _lra_hal_half_free(void)
@@ -197,7 +190,6 @@ bool lra_hal_init(uint8_t intensity)
     // Both halves start silent; the first refill comes once the DMA reaches the second half
     memset(_lra_ring, 0, sizeof(_lra_ring));
     _lra_filled_half = 1;
-    _lra_free_since_us = 0;
 
     // The channels wait on their slices, which start on the same cycle
     uint32_t chan_mask = 0;
@@ -212,35 +204,21 @@ bool lra_hal_init(uint8_t intensity)
     return true;
 }
 
-void lra_hal_fill(uint64_t timestamp)
-{
-    (void)timestamp;
-    if (!_lra_running)
-        return;
-
-    _lra_hal_keep_running();
-
-    if (_lra_hal_half_free())
-        _lra_hal_fill_free_half();
-}
-
+// Every pass: a register read, and every 8 ms the next buffer. It renders the moment a half frees
+// up, as late as it can be and still have the whole half ahead of the DMA, so rumble plays 8 ms
+// after it's rendered. A budget-aware task can't do this: the recurring rotation waits on tasks that
+// aren't due yet (the LEDs' 60 Hz), so it only comes round every ~17 ms.
 void lra_hal_task(uint64_t timestamp)
 {
+    (void)timestamp;
     if (!_lra_running)
         return;
 
     if (!_lra_hal_half_free())
         return;
 
-    if (!_lra_free_since_us)
-    {
-        _lra_free_since_us = timestamp;
-        return;
-    }
-
-    // Normally the fill task has done this already
-    if ((timestamp - _lra_free_since_us) >= LRA_FILL_LATE_US)
-        _lra_hal_fill_free_half();
+    _lra_hal_fill_free_half();
+    _lra_hal_keep_running();
 }
 
 void lra_hal_push_amfm(haptic_packet_s *packet)

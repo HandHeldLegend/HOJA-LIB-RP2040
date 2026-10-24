@@ -328,12 +328,6 @@ static task_s _task_haptics = {
   .type_mask = (TASK_TYPE_RAPID)
 };
 
-static task_s _task_haptics_fill = {
-  .fn = haptics_fill_task,
-  .name = "haptics fill",
-  .type_mask = (TASK_TYPE_RECURRING)
-};
-
 static task_s _task_sysmon = {
   .fn = sysmon_task,
   .name = "sysmon",
@@ -384,7 +378,6 @@ void _hoja_init_core_tasks(void)
   {
     default:
     tasks_register(&_task_haptics);
-    tasks_register(&_task_haptics_fill);
     break;
 
     case CORE_REPORTFORMAT_XINPUT:
@@ -392,14 +385,12 @@ void _hoja_init_core_tasks(void)
     case CORE_REPORTFORMAT_GAMECUBE:
     case CORE_REPORTFORMAT_N64:
     tasks_register(&_task_haptics);
-    tasks_register(&_task_haptics_fill);
     break;
 
     case CORE_REPORTFORMAT_SINPUT:
     case CORE_REPORTFORMAT_SWPRO:
     case CORE_REPORTFORMAT_WII:
     tasks_register(&_task_haptics);
-    tasks_register(&_task_haptics_fill);
     tasks_register(&_task_motion);
     break;
 
