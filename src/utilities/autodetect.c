@@ -135,25 +135,28 @@ static void _switch_to(core_reportformat_t format, gamepad_transport_t transport
 static volatile bool _joybus_watching = false;
 static volatile bool _latch_watching = false;
 
+// Every edge is acknowledged, counted only while watched: one that lands as a watch stops (between
+// the flag clearing and the pin's interrupt turning off) would otherwise stay pending and hold the
+// core in this handler for good. A GameCube's traffic hit that about half the time.
 static void _retro_port_irq(void)
 {
     const hoja_config_s *cfg = hoja_config_get();
 
 #if AUTODETECT_GAMECUBE
     const uint data_pin = cfg->joybus.data_pin;
-    if(_joybus_watching && (gpio_get_irq_event_mask(data_pin) & GPIO_IRQ_EDGE_FALL))
+    if(gpio_get_irq_event_mask(data_pin) & GPIO_IRQ_EDGE_FALL)
     {
         gpio_acknowledge_irq(data_pin, GPIO_IRQ_EDGE_FALL);
-        _joybus_edges++;
+        if(_joybus_watching) _joybus_edges++;
     }
 #endif
 
 #if AUTODETECT_SNES
     const uint latch_pin = cfg->nesbus.latch_pin;
-    if(_latch_watching && (gpio_get_irq_event_mask(latch_pin) & GPIO_IRQ_EDGE_RISE))
+    if(gpio_get_irq_event_mask(latch_pin) & GPIO_IRQ_EDGE_RISE)
     {
         gpio_acknowledge_irq(latch_pin, GPIO_IRQ_EDGE_RISE);
-        _latch_edges++;
+        if(_latch_watching) _latch_edges++;
     }
 #endif
 }
@@ -193,14 +196,19 @@ static void _retro_port_watch(bool joybus, bool latch)
     if(joybus != _joybus_watching)
     {
         const uint data_pin = cfg->joybus.data_pin;
-        _joybus_watching = joybus;
         if(joybus)
         {
+            _joybus_watching = true;
             gpio_init(data_pin);
             gpio_pull_up(data_pin);
+            gpio_set_irq_enabled(data_pin, GPIO_IRQ_EDGE_FALL, true);
         }
-        else gpio_disable_pulls(data_pin);
-        gpio_set_irq_enabled(data_pin, GPIO_IRQ_EDGE_FALL, joybus);
+        else
+        {
+            gpio_set_irq_enabled(data_pin, GPIO_IRQ_EDGE_FALL, false);
+            _joybus_watching = false;
+            gpio_disable_pulls(data_pin);
+        }
     }
 #endif
 
@@ -208,14 +216,19 @@ static void _retro_port_watch(bool joybus, bool latch)
     if(latch != _latch_watching)
     {
         const uint latch_pin = cfg->nesbus.latch_pin;
-        _latch_watching = latch;
         if(latch)
         {
+            _latch_watching = true;
             gpio_init(latch_pin);
             gpio_pull_down(latch_pin);
+            gpio_set_irq_enabled(latch_pin, GPIO_IRQ_EDGE_RISE, true);
         }
-        else gpio_disable_pulls(latch_pin);
-        gpio_set_irq_enabled(latch_pin, GPIO_IRQ_EDGE_RISE, latch);
+        else
+        {
+            gpio_set_irq_enabled(latch_pin, GPIO_IRQ_EDGE_RISE, false);
+            _latch_watching = false;
+            gpio_disable_pulls(latch_pin);
+        }
     }
 #endif
 
