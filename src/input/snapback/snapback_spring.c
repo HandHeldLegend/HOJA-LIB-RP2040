@@ -19,6 +19,10 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_RELEASE      1200
 #define SPRING_DECIDE       6
 #define SPRING_DEFAULT_DECIDE_STEP  45
+// A release crosses centre when the free spring says, a sample late at most; a flick the thumb throws
+// across is 4-11 samples late (GCU 2 and ProGCC 3S recordings), as no thumb is as fast as the spring.
+// A stick still on its own side 3 samples after the free spring crossed is the thumb, and passes.
+#define SPRING_CROSS_MARGIN 3
 
 // Let go partway back (a turnaround): the stick crosses centre fast, then brakes against the spring
 // (stiffness 0.052-0.47 per sample squared seen 2.5 ms on) where the thumb keeps going (-0.03-0.03).
@@ -26,6 +30,8 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_OUT          300
 #define SPRING_DEFAULT_CROSS_SPEED  20
 #define SPRING_CHECK        5
+// That flick's own crossing is the thumb's too: no crossing check until it is back at an edge, or 20 ms
+#define SPRING_THUMB_CROSS_MAX 40
 #define SPRING_DEFAULT_STIFF_DEN    25   // a spring if stiffness >= 1/25
 
 // While holding, the thumb taking the stick back shows as the next sample missing the spring
@@ -54,6 +60,11 @@ typedef struct
     uint8_t  step;
     uint8_t  grab;
     uint8_t  settle;
+    uint8_t  layer;              // what started the decision or hold: 1 a release, 2 a crossing
+    uint8_t  free_crossed;       // samples since the free spring crossed centre, 0xFF before
+    bool     crossed;            // the stick has crossed centre since the release line
+    bool     thumb_cross;        // the thumb is throwing it across: skip the crossing check
+    uint8_t  thumb_cross_age;
     uint16_t hold;
     int32_t  edge_x, edge_y;     // where it left the edge
     int32_t  x1, y1, x2, y2;     // the last two samples
@@ -224,6 +235,28 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
 
     bool neutral = false;
 
+    // After a release line, a stick that stays on its own side well after the free spring crossed is
+    // being thrown across by the thumb: it passes now instead of waiting for the grab check (and the
+    // idle case below skips its crossing check, so that sample needs nothing more)
+    if (((s->state == SPRING_DECIDING) || (s->state == SPRING_HOLDING)) && (s->layer == 1) && !s->crossed)
+    {
+        s->crossed = past_centre;
+        if (s->free_crossed == 0xFFu)
+        {
+            if (((int64_t)fx * s->edge_x + (int64_t)fy * s->edge_y) < 0)
+                s->free_crossed = 0;
+        }
+        else
+        {
+            s->free_crossed++;
+        }
+        if (!s->crossed && (s->free_crossed != 0xFFu) && (s->free_crossed >= SPRING_CROSS_MARGIN))
+        {
+            s->state = SPRING_IDLE;
+            s->thumb_cross = true;
+        }
+    }
+
     switch (s->state)
     {
         case SPRING_IDLE:
@@ -231,7 +264,7 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
             {
                 s->state = SPRING_AT_EDGE;
             }
-            else if (crossing)
+            else if (crossing && !s->thumb_cross)
             {
                 s->state = SPRING_CHECKING;
                 s->step = 0;
@@ -257,6 +290,9 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                 s->fx1 = x;
                 s->fy1 = y;
                 s->step = 0;
+                s->layer = 1;
+                s->free_crossed = 0xFFu;
+                s->crossed = false;
                 s->state = SPRING_DECIDING;
             }
             break;
@@ -298,6 +334,7 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                 {
                     s->octant = _spring_octant(s->out_x, s->out_y);
                     _spring_hold_start(s);
+                    s->layer = 2;
                 }
                 else
                 {
@@ -308,6 +345,14 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
             break;
 
         case SPRING_HOLDING:
+            // Keep the free spring running until the stick has crossed, for the throw check above
+            if ((s->layer == 1) && !s->crossed)
+            {
+                s->fx2 = s->fx1;
+                s->fy2 = s->fy1;
+                s->fx1 = fx;
+                s->fy1 = fy;
+            }
             s->hold++;
             s->grab = (step_err > (int64_t)k->grab_err * k->grab_err) ? (uint8_t)(s->grab + 1u) : 0u;
             s->settle = (d < k->settled) ? (uint8_t)(s->settle + 1u) : 0u;
@@ -323,6 +368,10 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
     // A thumb move that ends at the edge is watched again for the next release
     if ((s->state == SPRING_IDLE) && (d >= SPRING_EDGE))
         s->state = SPRING_AT_EDGE;
+
+    s->thumb_cross_age = s->thumb_cross ? (uint8_t)(s->thumb_cross_age + 1u) : 0u;
+    if ((s->state == SPRING_AT_EDGE) || (s->thumb_cross_age > SPRING_THUMB_CROSS_MAX))
+        s->thumb_cross = false;
 
     // The out direction follows the stick while nothing is being decided or held
     if (((s->state == SPRING_IDLE) || (s->state == SPRING_AT_EDGE)) && (d > SPRING_OUT))
