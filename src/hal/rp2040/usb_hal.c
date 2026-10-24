@@ -92,12 +92,12 @@ static void _usb_hal_on_mount(void)
 
 static void _usb_hal_on_sof(uint32_t frame_count)
 {
+    bool send_frame = false;
+
     switch (_usb_frames)
     {
     case 1:
-        // Align the task cycle to each USB frame so input is sampled before send.
-        tasks_mark_frame_isr();
-        _usb_sendit = true;
+        send_frame = true;
         break;
 
     case 8:
@@ -110,7 +110,7 @@ static void _usb_hal_on_sof(uint32_t frame_count)
             {
                 ms_counter = 0;
                 sequence_step = (sequence_step + 1) % 3;
-                _usb_sendit = true;
+                send_frame = true;
             }
         }
         break;
@@ -120,9 +120,17 @@ static void _usb_hal_on_sof(uint32_t frame_count)
         if (ms_counter >= _usb_frames)
         {
             ms_counter = 0;
-            _usb_sendit = true;
+            send_frame = true;
         }
         break;
+    }
+
+    // The task cycle starts on the frame that sends, so each report carries input read just
+    // before it, and the input is read once per report
+    if (send_frame)
+    {
+        tasks_mark_frame_isr();
+        _usb_sendit = true;
     }
 }
 

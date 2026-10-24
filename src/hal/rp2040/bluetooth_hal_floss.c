@@ -1593,12 +1593,24 @@ static void _bt_hal_dongle_build(void)
 // then only sends, on time, and every report leaves the same age. If the task loop missed that,
 // the tick builds it, late.
 #define BT_HAL_DONGLE_BUILD_LEAD_US 400
+// The task cycle (the input read: buttons, triggers, motion) starts this long before the build, so
+// it has finished by then: each report carries input this fresh, read once for it
+#define BT_HAL_DONGLE_SAMPLE_LEAD_US 500
 static bool _dongle_built = false;
+static uint32_t _dongle_sampled_due = 0;
 
 static void _bt_hal_dongle_prebuild(void)
 {
     uint32_t due;
-    if (_dongle_built || !floss_link_next_report_at(&due))
+    if (!floss_link_next_report_at(&due))
+        return;
+    if ((due != _dongle_sampled_due) &&
+        ((int32_t)(time_us_32() - (due - BT_HAL_DONGLE_BUILD_LEAD_US - BT_HAL_DONGLE_SAMPLE_LEAD_US)) >= 0))
+    {
+        _dongle_sampled_due = due;
+        tasks_mark_frame_isr();
+    }
+    if (_dongle_built)
         return;
     if ((int32_t)(time_us_32() - (due - BT_HAL_DONGLE_BUILD_LEAD_US)) < 0)
         return;
@@ -1627,7 +1639,8 @@ static void _bt_hal_dongle_tick(void)
         if (_dongle_have_report)
         {
             floss_link_set_input(DONGLE_LINK_IN_REPORT, _dongle_report, (uint8_t)_dongle_report_len);
-            tasks_mark_sent_isr();
+            // Counted only: the next cycle starts ahead of the next build (_bt_hal_dongle_prebuild)
+            tasks_mark_sent();
         }
     }
     _dongle_built = false; // a report built for an app tick is dropped; the next one is fresh

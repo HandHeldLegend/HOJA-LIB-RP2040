@@ -388,17 +388,19 @@ void tasks_mark_sent_isr(void)
     _tasks_sent_isr_signal = true;
 }
 
-// A new USB frame: restart the cycle for fresh input, unless the current one is still running
+// A report's input is due (the USB frame that sends, the dongle link ahead of a build): restart the
+// cycle for fresh input, unless the current one is still running. Safe from an interrupt.
 void tasks_mark_frame_isr(void)
 {
     _tasks_frame_isr_signal = true;
 }
 
-// Used where it's not ISR context and safe to call sys_hal_now_us
+// A transport whose cycles start on frames (tasks_mark_frame_isr): the send only counts. Starting
+// a cycle here as well would read the input again for a report that's a frame away, and the
+// frame restarts the cycle anyway.
 void tasks_mark_sent(void)
 {
     tasks_report_count++;
-    _tasks_reset_sm();
 }
 
 bool tasks_get_required_done(void)

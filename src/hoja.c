@@ -270,7 +270,7 @@ bool _core_format_init(void)
 static task_s _task_core = {
   .fn = core_task,
   .name = "core",
-  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+  .type_mask = (TASK_TYPE_RAPID | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_rgb = {
@@ -285,7 +285,9 @@ static task_s _task_rgb = {
 static task_s _task_hover = {
   .fn = hover_task,
   .name = "hover",
-  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_RECURRING | TASK_TYPE_SHUTDOWN)
+  // Once per cycle: the input each report carries. Reading it again in spare time costs a full read
+  // for a report it doesn't reach.
+  .type_mask = (TASK_TYPE_REQUIRED | TASK_TYPE_SHUTDOWN)
 };
 
 static task_s _task_macros = {
