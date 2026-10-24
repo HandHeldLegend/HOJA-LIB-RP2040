@@ -216,7 +216,8 @@ endfunction()
 # triggers, motion), the mapper, the SInput report, the USB stack and the haptics output. From flash
 # it runs several times slower: the flash cache can't hold it alongside everything else core 1 and
 # core 0 run, so most of it is fetched again for every report (measured on the GCU 2: the report
-# build 248 us from flash, 58 us from RAM). Applied with FLOSS's own list (hoja_use_floss).
+# build 248 us from flash, 58 us from RAM). A board's board.cmake asks for it with
+# hoja_use_report_path_in_ram (hoja_use_floss includes it).
 function(_hoja_report_path_ram_objects OUT_VAR)
   set(_objects
     *utilities/tasks.c.obj
@@ -286,15 +287,32 @@ function(hoja_use_floss TARGET)
     *hlink.c.obj
   )
 
+  _hoja_ram_text_script(${TARGET} ${_ram_objects})
+endfunction()
+
+# A board's board.cmake calls this, before hoja_use_bootloader, to run the report path from RAM (see
+# _hoja_report_path_ram_objects). Boards with FLOSS have it already.
+function(hoja_use_report_path_in_ram TARGET)
+  get_target_property(_floss ${TARGET} HOJA_BT_FLOSS)
+  if(_floss)
+    return()
+  endif()
+  _hoja_report_path_ram_objects(_report_path)
+  _hoja_ram_text_script(${TARGET} ${_report_path})
+endfunction()
+
+# The SDK's linker script with these objects' code in RAM (copied there at boot, like
+# __not_in_flash_func), set as the target's script. hoja_use_bootloader patches it after.
+function(_hoja_ram_text_script TARGET)
   _hoja_sdk_linker_script(_ld_in)
-  set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_floss_ram.ld)
+  set(_ld_out ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_ram.ld)
   file(READ ${_ld_in} _ld)
   set(_flash_text "*(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)")
   string(FIND "${_ld}" "${_flash_text}" _at)
   if(_at EQUAL -1)
-    message(FATAL_ERROR "hoja_use_floss: unexpected linker script ${_ld_in}")
+    message(FATAL_ERROR "_hoja_ram_text_script: unexpected linker script ${_ld_in}")
   endif()
-  list(JOIN _ram_objects " " _ram_objects)
+  list(JOIN ARGN " " _ram_objects)
   string(REPLACE "${_flash_text}"
     "*(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a: ${_ram_objects}) .text*)"
     _ld "${_ld}")
