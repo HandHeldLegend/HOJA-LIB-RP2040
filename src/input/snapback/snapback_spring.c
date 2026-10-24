@@ -31,8 +31,10 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 // While holding, the thumb taking the stick back shows as the next sample missing the spring
 #define SPRING_DEFAULT_GRAB_ERR     40
 #define SPRING_GRAB_COUNT   3
-// The rebound is over once the stick stays near centre
-#define SPRING_SETTLED      200
+// The rebound is over once the stick stays inside its deadzone for 10 ms (40-200 counts): with a
+// small deadzone, ringing that had looked settled at 200 still showed
+#define SPRING_SETTLED_MIN  40
+#define SPRING_SETTLED_MAX  200
 #define SPRING_SETTLE_COUNT 20
 #define SPRING_HOLD_MAX     200
 
@@ -73,6 +75,7 @@ typedef struct
     int32_t grab_err;
     int32_t stiff_den;
     int32_t cross_speed;
+    int32_t settled;
 } spring_params_s;
 
 static spring_params_s _spring_params[2][2];
@@ -138,6 +141,8 @@ void snapback_spring_load(void)
         p->grab_err = c->grab_err;
         p->stiff_den = c->stiff_den;
         p->cross_speed = c->cross_speed;
+        const int32_t dz = (stick == 0) ? analog_config->l_deadzone : analog_config->r_deadzone;
+        p->settled = (dz < SPRING_SETTLED_MIN) ? SPRING_SETTLED_MIN : ((dz > SPRING_SETTLED_MAX) ? SPRING_SETTLED_MAX : dz);
         __atomic_store_n(&_spring_live[stick], next, __ATOMIC_RELEASE);
     }
     _spring_loaded = true;
@@ -225,6 +230,8 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                 s->step = 0;
                 s->stiff_num = 0;
                 s->stiff_den = 0;
+                // This sample is already past centre: hold it with the rest of the check
+                neutral = true;
             }
             break;
 
@@ -296,7 +303,7 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
         case SPRING_HOLDING:
             s->hold++;
             s->grab = (step_err > (int64_t)k->grab_err * k->grab_err) ? (uint8_t)(s->grab + 1u) : 0u;
-            s->settle = (d < SPRING_SETTLED) ? (uint8_t)(s->settle + 1u) : 0u;
+            s->settle = (d < k->settled) ? (uint8_t)(s->settle + 1u) : 0u;
             if (s->grab >= SPRING_GRAB_COUNT)
                 s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
             else if (s->settle >= SPRING_SETTLE_COUNT || s->hold >= SPRING_HOLD_MAX)
