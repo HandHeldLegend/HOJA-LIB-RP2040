@@ -1,6 +1,7 @@
 #include "input/snapback/snapback_spring.h"
 #include "utilities/settings.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -23,6 +24,18 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 // across is 4-11 samples late (GCU 2 and ProGCC 3S recordings), as no thumb is as fast as the spring.
 // A stick still on its own side 3 samples after the free spring crossed is the thumb, and passes.
 #define SPRING_CROSS_MARGIN 3
+// For 7 ms after the release line the free spring still says where a released stick must be, so the
+// release check carries on through the hold: a hand that pauses near centre, or takes the stick
+// somewhere the spring wouldn't, ends the hold as soon as it leaves the spring's path
+#define SPRING_FREE_CHECK   14
+// On the far side of a centre crossing, a free spring turns back within a quarter swing and gets no
+// further out than its crossing speed over its frequency (theta, radians a sample). Real releases reach
+// 1.21 and 1.16 of those (GCU 2, ProGCC 3S), turnaround rebounds well under; a hand that eases off after
+// centre and then pushes on goes past both. Still going out after 1.4 quarter swings, or out past 1.5x
+// the reach, ends a decision or hold: the turnaround check can't tell such a hand from a rebound in
+// its first 2.5 ms, and the grab check doesn't see a steady push
+#define SPRING_PEAK_MARGIN      1.5
+#define SPRING_QUARTER_MARGIN   1.4
 
 // Let go partway back (a turnaround): the stick crosses centre fast, then brakes against the spring
 // (stiffness 0.052-0.47 per sample squared seen 2.5 ms on) where the thumb keeps going (-0.03-0.03).
@@ -30,8 +43,6 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_OUT          300
 #define SPRING_DEFAULT_CROSS_SPEED  20
 #define SPRING_CHECK        5
-// That flick's own crossing is the thumb's too: no crossing check until it is back at an edge, or 20 ms
-#define SPRING_THUMB_CROSS_MAX 40
 #define SPRING_DEFAULT_STIFF_DEN    25   // a spring if stiffness >= 1/25
 
 // While holding, the thumb taking the stick back shows as the next sample missing the spring
@@ -42,6 +53,17 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_SETTLED_MIN  40
 #define SPRING_SETTLED_MAX  200
 #define SPRING_SETTLE_COUNT 20
+// A free spring is only still at the top of a swing, for a sample or two. Held still far out (moving
+// under 1/64 of its distance a sample, 4 samples running) it is the thumb or hand, parked where it
+// wants the stick: the grab check misses that, as a still stick is nearly what the spring predicts
+#define SPRING_STILL_MIN    600
+#define SPRING_STILL_DIV    64
+#define SPRING_STILL_COUNT  4
+// A spring only ever pulls the stick back towards centre. Speeding up away from centre (out past 300,
+// 3 samples running) it is being pushed: a hand that eased off just after centre, which the crossing
+// check can take for a spring braking
+#define SPRING_PUSH_MIN     300
+#define SPRING_PUSH_COUNT   3
 #define SPRING_HOLD_MAX     200
 
 typedef enum
@@ -60,17 +82,28 @@ typedef struct
     uint8_t  step;
     uint8_t  grab;
     uint8_t  settle;
+    uint8_t  still;
+    uint8_t  push;
+    uint16_t d_prev;             // the last two samples' distances
+    uint16_t d_prev2;
     uint8_t  layer;              // what started the decision or hold: 1 a release, 2 a crossing
     uint8_t  free_crossed;       // samples since the free spring crossed centre, 0xFF before
     bool     crossed;            // the stick has crossed centre since the release line
-    bool     thumb_cross;        // the thumb is throwing it across: skip the crossing check
-    uint8_t  thumb_cross_age;
     uint16_t hold;
     int32_t  edge_x, edge_y;     // where it left the edge
     int32_t  x1, y1, x2, y2;     // the last two samples
     int32_t  fx1, fy1, fx2, fy2; // the free spring since the release line
     int32_t  out_x, out_y;       // the direction it was last out in, for the crossing layer
     int64_t  p1, p2;             // the last two positions along it
+    int64_t  q1;                 // the last position along the release direction
+    int64_t  l1_fall;            // a release's centre crossing: its speed, samples since, turned back
+    uint8_t  l1_n;
+    bool     l1_crossed;
+    bool     l1_turned;
+    int64_t  x_fall;             // the same for a crossing check
+    uint8_t  x_n;
+    uint8_t  x_octant;
+    bool     x_turned;
     int64_t  stiff_num, stiff_den;
 } spring_axis_s;
 
@@ -87,6 +120,8 @@ typedef struct
     int32_t stiff_den;
     int32_t cross_speed;
     int32_t settled;
+    uint16_t peak_q8[8];         // the furthest out a free spring gets, per unit crossing speed (Q8)
+    uint8_t  quarter_n[8];       // the longest it keeps going out after crossing, samples
 } spring_params_s;
 
 static spring_params_s _spring_params[2][2];
@@ -155,6 +190,18 @@ void snapback_spring_load(void)
         p->cross_speed = c->cross_speed;
         const int32_t dz = (stick == 0) ? analog_config->l_deadzone : analog_config->r_deadzone;
         p->settled = (dz < SPRING_SETTLED_MIN) ? SPRING_SETTLED_MIN : ((dz > SPRING_SETTLED_MAX) ? SPRING_SETTLED_MAX : dz);
+        for (int o = 0; o < 8; o++)
+        {
+            // Worked out here, once, so the per-sample tests stay integer
+            const double a1 = c->a1[o] / 65536.0;
+            const double a2 = c->a2[o] / 65536.0;
+            double ratio = a1 / (2.0 * sqrt(-a2));
+            ratio = (ratio > 1.0) ? 1.0 : ((ratio < -1.0) ? -1.0 : ratio);
+            double theta = acos(ratio);
+            theta = (theta < 0.01) ? 0.01 : theta;
+            p->peak_q8[o] = (uint16_t)(256.0 * SPRING_PEAK_MARGIN / theta);
+            p->quarter_n[o] = (uint8_t)ceil(SPRING_QUARTER_MARGIN * (M_PI / 2.0) / theta);
+        }
         __atomic_store_n(&_spring_live[stick], next, __ATOMIC_RELEASE);
         _spring_tuned[stick] = (c->flags & SNAPBACK_SPRING_FLAG_TUNED) != 0;
     }
@@ -190,12 +237,24 @@ static inline int64_t _spring_sq(int32_t dx, int32_t dy)
     return (int64_t)dx * dx + (int64_t)dy * dy;
 }
 
+// Past a centre crossing (q along the direction it came from, so the far side is negative): out further
+// than a free spring could get for its crossing speed, or still going out when it would have turned back
+static bool _spring_hand(const spring_params_s *k, uint8_t octant, int64_t q, int64_t q_prev, int64_t fall,
+                         uint8_t n, bool turned)
+{
+    const bool beyond = (-q * 256) > (fall * k->peak_q8[octant]);
+    const bool late = !turned && (q < 0) && (q < q_prev) && (n > k->quarter_n[octant]);
+    return beyond || late;
+}
+
 static void _spring_hold_start(spring_axis_s *s)
 {
     s->state = SPRING_HOLDING;
     s->hold = 0;
     s->grab = 0;
     s->settle = 0;
+    s->still = 0;
+    s->push = 0;
 }
 
 void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
@@ -236,8 +295,9 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
     bool neutral = false;
 
     // After a release line, a stick that stays on its own side well after the free spring crossed is
-    // being thrown across by the thumb: it passes now instead of waiting for the grab check (and the
-    // idle case below skips its crossing check, so that sample needs nothing more)
+    // being thrown across by the thumb: it passes now instead of waiting for the grab check. Its
+    // crossing still gets the crossing check: a turnaround eased back slowly and then let go looks the
+    // same up to here, and only its stiffness tells it from the thumb
     if (((s->state == SPRING_DECIDING) || (s->state == SPRING_HOLDING)) && (s->layer == 1) && !s->crossed)
     {
         s->crossed = past_centre;
@@ -253,125 +313,188 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
         if (!s->crossed && (s->free_crossed != 0xFFu) && (s->free_crossed >= SPRING_CROSS_MARGIN))
         {
             s->state = SPRING_IDLE;
-            s->thumb_cross = true;
         }
     }
 
-    switch (s->state)
+    // The far side of a centre crossing (see SPRING_PEAK_MARGIN): a hand there ends the decision or
+    // hold, and this sample passes as it is
+    const int64_t q0 = (int64_t)x * s->edge_x + (int64_t)y * s->edge_y;
+    bool hand = false;
+    if (((s->state == SPRING_DECIDING) || (s->state == SPRING_HOLDING)) && (s->layer == 1))
     {
-        case SPRING_IDLE:
-            if (d >= SPRING_EDGE)
-            {
-                s->state = SPRING_AT_EDGE;
-            }
-            else if (crossing && !s->thumb_cross)
-            {
-                s->state = SPRING_CHECKING;
-                s->step = 0;
-                s->stiff_num = 0;
-                s->stiff_den = 0;
-                // This sample is already past centre: hold it with the rest of the check
-                neutral = true;
-            }
-            break;
-
-        case SPRING_AT_EDGE:
-            if (d >= SPRING_EDGE)
-            {
-                s->edge_x = x;
-                s->edge_y = y;
-            }
-            else if (d < SPRING_RELEASE)
-            {
-                // Released, or the thumb pulling back: the free spring starts from here
-                s->octant = _spring_octant(s->edge_x, s->edge_y);
-                s->fx2 = s->x1;
-                s->fy2 = s->y1;
-                s->fx1 = x;
-                s->fy1 = y;
-                s->step = 0;
-                s->layer = 1;
-                s->free_crossed = 0xFFu;
-                s->crossed = false;
-                s->state = SPRING_DECIDING;
-            }
-            break;
-
-        case SPRING_DECIDING:
+        if (!s->l1_crossed)
         {
-            s->step++;
-            s->fx2 = s->fx1;
-            s->fy2 = s->fy1;
-            s->fx1 = fx;
-            s->fy1 = fy;
-            const int32_t limit = k->decide_step * s->step;
-            if (s->step >= 2 && free_err > (int64_t)limit * limit)
+            if ((s->q1 >= 0) && (q0 < 0))
             {
-                // Not the spring: the thumb has it
-                s->state = SPRING_IDLE;
+                s->l1_crossed = true;
+                s->l1_fall = s->q1 - q0;
+                s->l1_n = 0;
+                s->l1_turned = false;
             }
-            else
-            {
-                if (s->step >= SPRING_DECIDE)
-                    _spring_hold_start(s);
-                // Until it's known, a swing past centre isn't shown
-                neutral = past_centre || (s->state == SPRING_HOLDING);
-            }
-            break;
         }
-
-        case SPRING_CHECKING:
-            // The acceleration is the previous sample's, so its position goes with it
-            s->step++;
-            if (s->step >= 2)
+        else
+        {
+            s->l1_n++;
+            if ((q0 < 0) && (q0 > s->q1))
+                s->l1_turned = true;
+            if (_spring_hand(k, s->octant, q0, s->q1, s->l1_fall, s->l1_n, s->l1_turned))
             {
-                s->stiff_num += acc * s->p1;
-                s->stiff_den += s->p1 * s->p1;
+                s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
+                hand = true;
             }
-            if (s->step >= SPRING_CHECK)
-            {
-                if (s->stiff_den > 0 && -s->stiff_num * k->stiff_den >= s->stiff_den)
-                {
-                    s->octant = _spring_octant(s->out_x, s->out_y);
-                    _spring_hold_start(s);
-                    s->layer = 2;
-                }
-                else
-                {
-                    s->state = SPRING_IDLE;
-                }
-            }
-            neutral = (s->state == SPRING_CHECKING) || (s->state == SPRING_HOLDING);
-            break;
+        }
+    }
+    else if ((s->state == SPRING_CHECKING) || ((s->state == SPRING_HOLDING) && (s->layer == 2)))
+    {
+        s->x_n++;
+        if ((p0 < 0) && (p0 > s->p1))
+            s->x_turned = true;
+        if (_spring_hand(k, s->x_octant, p0, s->p1, s->x_fall, s->x_n, s->x_turned))
+        {
+            s->state = SPRING_IDLE;
+            hand = true;
+        }
+    }
 
-        case SPRING_HOLDING:
-            // Keep the free spring running until the stick has crossed, for the throw check above
-            if ((s->layer == 1) && !s->crossed)
+    if (!hand)
+    {
+        switch (s->state)
+        {
+            case SPRING_IDLE:
+                if (d >= SPRING_EDGE)
+                {
+                    s->state = SPRING_AT_EDGE;
+                }
+                else if (crossing)
+                {
+                    s->state = SPRING_CHECKING;
+                    s->step = 0;
+                    s->stiff_num = 0;
+                    s->stiff_den = 0;
+                    s->x_fall = fall;
+                    s->x_n = 0;
+                    s->x_octant = _spring_octant(s->out_x, s->out_y);
+                    s->x_turned = false;
+                    // This sample is already past centre: hold it with the rest of the check
+                    neutral = true;
+                }
+                break;
+
+            case SPRING_AT_EDGE:
+                if (d >= SPRING_EDGE)
+                {
+                    s->edge_x = x;
+                    s->edge_y = y;
+                }
+                else if (d < SPRING_RELEASE)
+                {
+                    // Released, or the thumb pulling back: the free spring starts from here
+                    s->octant = _spring_octant(s->edge_x, s->edge_y);
+                    s->fx2 = s->x1;
+                    s->fy2 = s->y1;
+                    s->fx1 = x;
+                    s->fy1 = y;
+                    s->step = 0;
+                    s->layer = 1;
+                    s->free_crossed = 0xFFu;
+                    s->crossed = false;
+                    s->l1_crossed = false;
+                    s->state = SPRING_DECIDING;
+                }
+                break;
+
+            case SPRING_DECIDING:
             {
+                s->step++;
                 s->fx2 = s->fx1;
                 s->fy2 = s->fy1;
                 s->fx1 = fx;
                 s->fy1 = fy;
+                const int32_t limit = k->decide_step * s->step;
+                if (s->step >= 2 && free_err > (int64_t)limit * limit)
+                {
+                    // Not the spring: the thumb has it
+                    s->state = SPRING_IDLE;
+                }
+                else
+                {
+                    if (s->step >= SPRING_DECIDE)
+                        _spring_hold_start(s);
+                    // Until it's known, a swing past centre isn't shown
+                    neutral = past_centre || (s->state == SPRING_HOLDING);
+                }
+                break;
             }
-            s->hold++;
-            s->grab = (step_err > (int64_t)k->grab_err * k->grab_err) ? (uint8_t)(s->grab + 1u) : 0u;
-            s->settle = (d < k->settled) ? (uint8_t)(s->settle + 1u) : 0u;
-            if (s->grab >= SPRING_GRAB_COUNT)
-                s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
-            else if (s->settle >= SPRING_SETTLE_COUNT || s->hold >= SPRING_HOLD_MAX)
-                s->state = SPRING_IDLE;
-            else
-                neutral = true;
-            break;
-    }
 
+            case SPRING_CHECKING:
+                // The acceleration is the previous sample's, so its position goes with it
+                s->step++;
+                if (s->step >= 2)
+                {
+                    s->stiff_num += acc * s->p1;
+                    s->stiff_den += s->p1 * s->p1;
+                }
+                if (s->step >= SPRING_CHECK)
+                {
+                    if (s->stiff_den > 0 && -s->stiff_num * k->stiff_den >= s->stiff_den)
+                    {
+                        s->octant = _spring_octant(s->out_x, s->out_y);
+                        _spring_hold_start(s);
+                        s->layer = 2;
+                    }
+                    else
+                    {
+                        s->state = SPRING_IDLE;
+                    }
+                }
+                neutral = (s->state == SPRING_CHECKING) || (s->state == SPRING_HOLDING);
+                break;
+
+            case SPRING_HOLDING:
+            {
+                const bool free_check = (s->layer == 1) && (s->step < SPRING_FREE_CHECK);
+                const int32_t free_limit = k->decide_step * (s->step + 1);
+                if (free_check && (free_err > (int64_t)free_limit * free_limit))
+                {
+                    // Off the free spring's path: the thumb or hand has it
+                    s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
+                    break;
+                }
+                // Keep the free spring running for the release check and the throw check above
+                if ((s->layer == 1) && (!s->crossed || free_check))
+                {
+                    s->fx2 = s->fx1;
+                    s->fy2 = s->fy1;
+                    s->fx1 = fx;
+                    s->fy1 = fy;
+                }
+                if (free_check)
+                    s->step++;
+                s->hold++;
+                s->grab = (step_err > (int64_t)k->grab_err * k->grab_err) ? (uint8_t)(s->grab + 1u) : 0u;
+                s->settle = (d < k->settled) ? (uint8_t)(s->settle + 1u) : 0u;
+                {
+                    const int32_t moved = (int32_t)d - (int32_t)s->d_prev;
+                    const bool still = (d >= SPRING_STILL_MIN) && ((moved < 0 ? -moved : moved) * SPRING_STILL_DIV <= (int32_t)d);
+                    s->still = still ? (uint8_t)(s->still + 1u) : 0u;
+                    const int32_t speeding_out = (int32_t)d - 2 * (int32_t)s->d_prev + (int32_t)s->d_prev2;
+                    const bool push = (d >= SPRING_PUSH_MIN) && (moved > 0) && (speeding_out > 0);
+                    s->push = push ? (uint8_t)(s->push + 1u) : 0u;
+                }
+                if ((s->push >= SPRING_PUSH_COUNT) || (s->still >= SPRING_STILL_COUNT) || (s->grab >= SPRING_GRAB_COUNT))
+                    s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
+                else if (s->settle >= SPRING_SETTLE_COUNT || s->hold >= SPRING_HOLD_MAX)
+                    s->state = SPRING_IDLE;
+                else
+                    neutral = true;
+                break;
+            }
+        }
+
+    }
     // A thumb move that ends at the edge is watched again for the next release
     if ((s->state == SPRING_IDLE) && (d >= SPRING_EDGE))
         s->state = SPRING_AT_EDGE;
-
-    s->thumb_cross_age = s->thumb_cross ? (uint8_t)(s->thumb_cross_age + 1u) : 0u;
-    if ((s->state == SPRING_AT_EDGE) || (s->thumb_cross_age > SPRING_THUMB_CROSS_MAX))
-        s->thumb_cross = false;
 
     // The out direction follows the stick while nothing is being decided or held
     if (((s->state == SPRING_IDLE) || (s->state == SPRING_AT_EDGE)) && (d > SPRING_OUT))
@@ -388,6 +511,9 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
         s->p1 = p0;
     }
 
+    s->q1 = (int64_t)x * s->edge_x + (int64_t)y * s->edge_y;
+    s->d_prev2 = s->d_prev;
+    s->d_prev = d;
     s->x2 = s->x1;
     s->y2 = s->y1;
     s->x1 = x;
