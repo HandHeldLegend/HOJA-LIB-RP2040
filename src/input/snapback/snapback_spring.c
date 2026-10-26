@@ -63,13 +63,13 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_SETTLED_MAX  200
 #define SPRING_SETTLE_COUNT 20
 // A free spring is only still at the top of a swing, for a sample or two. Held still far out (moving
-// under 1/64 of its distance a sample) for 0.45 of a quarter swing, and 4 samples at least, it is the
+// under 1/64 of its distance a sample) for 0.45 of a quarter swing, and 5 samples at least, it is the
 // thumb or hand, parked where it wants the stick: the grab check misses that, as a still stick is nearly
 // what the spring predicts. A slow stick lingers longer at the top (a worn 43 Hz stick: 4 samples, so
-// 6 here; 51-65 Hz sticks keep 4-5)
+// 6 here), and some fast sticks' swings top out flat (a 63 Hz stick: 4 samples within 7 counts)
 #define SPRING_STILL_MIN    600
 #define SPRING_STILL_DIV    64
-#define SPRING_STILL_COUNT  4
+#define SPRING_STILL_COUNT  5
 #define SPRING_STILL_SWING  0.45
 // A spring only ever pulls the stick back towards centre. Accelerating away from centre (3 samples
 // running, all three out past 300) it is being pushed: a hand that eased off just after centre, which the
