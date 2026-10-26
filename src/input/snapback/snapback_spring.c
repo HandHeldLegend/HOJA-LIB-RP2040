@@ -20,6 +20,11 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_RELEASE      1200
 #define SPRING_DECIDE       6
 #define SPRING_DEFAULT_DECIDE_STEP  45
+// A released stick is already falling fast through the release line: 105-229 counts a sample on every
+// stick recorded (ProGCC 3S, GCU 2, a worn ProGCC 3+). A slower fall is the thumb guiding it back
+// (thumb moves and in-game throws: 9-82), so it passes at once, whatever decide_step is: that lets a
+// stick's tuning hold its own wider let-gos without catching its slower thumb moves
+#define SPRING_LINE_SPEED   90
 // A release crosses centre when the free spring says, a sample late at most; a flick the thumb throws
 // across is 4-11 samples late (GCU 2 and ProGCC 3S recordings), as no thumb is as fast as the spring.
 // A stick still on its own side 3 samples after the free spring crossed is the thumb, and passes.
@@ -259,6 +264,14 @@ static bool _spring_hand(const spring_params_s *k, uint8_t octant, int64_t q, in
     return beyond || late;
 }
 
+// Falling through the release line slower than SPRING_LINE_SPEED along the direction it left the edge in
+static bool _spring_slow_fall(const spring_axis_s *s, int32_t x, int32_t y)
+{
+    const int64_t fall = (int64_t)(s->x1 - x) * s->edge_x + (int64_t)(s->y1 - y) * s->edge_y;
+    const int64_t edge_sq = (int64_t)s->edge_x * s->edge_x + (int64_t)s->edge_y * s->edge_y;
+    return (fall <= 0) || (fall * fall < (int64_t)SPRING_LINE_SPEED * SPRING_LINE_SPEED * edge_sq);
+}
+
 static void _spring_hold_start(spring_axis_s *s)
 {
     s->state = SPRING_HOLDING;
@@ -397,6 +410,11 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                 {
                     s->edge_x = x;
                     s->edge_y = y;
+                }
+                else if ((d < SPRING_RELEASE) && _spring_slow_fall(s, x, y))
+                {
+                    // Guided back through the line: the thumb has it
+                    s->state = SPRING_IDLE;
                 }
                 else if (d < SPRING_RELEASE)
                 {
