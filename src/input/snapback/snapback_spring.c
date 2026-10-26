@@ -78,6 +78,13 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 // read as a push while the spring was still pulling it in
 #define SPRING_PUSH_MIN     300
 #define SPRING_PUSH_COUNT   3
+// A free spring only loses energy (distance^2 + (speed / theta)^2). Once a hold's ringing has died down
+// (its least energy under 250), energy back up by 300 is a hand moving the stick: a slow steady drag
+// sideways after a let-go, which neither the grab check (it follows the spring's next step) nor the push
+// check (it doesn't speed up) sees. Before it dies down a worn stick's ringing itself swings more than
+// that, being stiffer near centre than its fitted spring
+#define SPRING_DRAG_QUIET   250
+#define SPRING_DRAG_RISE    300
 #define SPRING_HOLD_MAX     200
 
 typedef enum
@@ -104,6 +111,7 @@ typedef struct
     uint8_t  free_crossed;       // samples since the free spring crossed centre, 0xFF before
     bool     crossed;            // the stick has crossed centre since the release line
     uint16_t hold;
+    uint32_t energy_min;         // the hold's least energy so far (SPRING_DRAG_QUIET)
     int32_t  edge_x, edge_y;     // where it left the edge
     int32_t  x1, y1, x2, y2;     // the last two samples
     int32_t  fx1, fy1, fx2, fy2; // the free spring since the release line
@@ -137,6 +145,7 @@ typedef struct
     uint16_t peak_q8[8];         // the furthest out a free spring gets, per unit crossing speed (Q8)
     uint8_t  quarter_n[8];       // the longest it keeps going out after crossing, samples
     uint8_t  still_n[8];         // samples held still that make it the hand (SPRING_STILL_SWING)
+    uint32_t inv_theta_sq_q8[8]; // 1 / theta^2 (Q8), to weigh speed against distance in the energy
 } spring_params_s;
 
 static spring_params_s _spring_params[2][2];
@@ -218,6 +227,7 @@ void snapback_spring_load(void)
             p->quarter_n[o] = (uint8_t)ceil(SPRING_QUARTER_MARGIN * (M_PI / 2.0) / theta);
             const int still_n = (int)ceil(SPRING_STILL_SWING * (M_PI / 2.0) / theta);
             p->still_n[o] = (uint8_t)((still_n < SPRING_STILL_COUNT) ? SPRING_STILL_COUNT : still_n);
+            p->inv_theta_sq_q8[o] = (uint32_t)(256.0 / (theta * theta));
         }
         __atomic_store_n(&_spring_live[stick], next, __ATOMIC_RELEASE);
         _spring_tuned[stick] = (c->flags & SNAPBACK_SPRING_FLAG_TUNED) != 0;
@@ -272,10 +282,40 @@ static bool _spring_slow_fall(const spring_axis_s *s, int32_t x, int32_t y)
     return (fall <= 0) || (fall * fall < (int64_t)SPRING_LINE_SPEED * SPRING_LINE_SPEED * edge_sq);
 }
 
+static uint32_t _spring_isqrt(uint64_t n)
+{
+    uint64_t root = 0;
+    uint64_t bit = 1ull << 62;
+    while (bit > n)
+        bit >>= 2;
+    while (bit)
+    {
+        if (n >= root + bit)
+        {
+            n -= root + bit;
+            root = (root >> 1) + bit;
+        }
+        else
+        {
+            root >>= 1;
+        }
+        bit >>= 2;
+    }
+    return (uint32_t)root;
+}
+
+// The spring's energy as a distance: sqrt(r^2 + (v / theta)^2), v over the last two samples
+static uint32_t _spring_energy(const spring_params_s *k, uint8_t octant, const spring_axis_s *s, int32_t x, int32_t y)
+{
+    const uint64_t v2 = (uint64_t)_spring_sq(x - s->x2, y - s->y2); // (2v)^2
+    return _spring_isqrt((uint64_t)_spring_sq(x, y) + ((v2 * k->inv_theta_sq_q8[octant]) >> 10));
+}
+
 static void _spring_hold_start(spring_axis_s *s)
 {
     s->state = SPRING_HOLDING;
     s->hold = 0;
+    s->energy_min = UINT32_MAX;
     s->grab = 0;
     s->settle = 0;
     s->still = 0;
@@ -513,7 +553,17 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                     const bool push = (s->d_prev2 >= SPRING_PUSH_MIN) && (moved > 0) && (speeding_out > 0);
                     s->push = push ? (uint8_t)(s->push + 1u) : 0u;
                 }
-                if ((s->push >= SPRING_PUSH_COUNT) || (s->still >= k->still_n[s->octant]) || (s->grab >= SPRING_GRAB_COUNT))
+                bool drag = false;
+                {
+                    const uint32_t energy = _spring_energy(k, s->octant, s, x, y);
+                    if (s->hold > 2)
+                    {
+                        if (energy < s->energy_min)
+                            s->energy_min = energy;
+                        drag = (s->energy_min < SPRING_DRAG_QUIET) && (energy > s->energy_min + SPRING_DRAG_RISE);
+                    }
+                }
+                if ((s->push >= SPRING_PUSH_COUNT) || (s->still >= k->still_n[s->octant]) || (s->grab >= SPRING_GRAB_COUNT) || drag)
                     s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
                 else if (s->settle >= SPRING_SETTLE_COUNT || s->hold >= SPRING_HOLD_MAX)
                     s->state = SPRING_IDLE;
