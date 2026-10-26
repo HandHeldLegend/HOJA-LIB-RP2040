@@ -66,10 +66,11 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_STILL_DIV    64
 #define SPRING_STILL_COUNT  4
 #define SPRING_STILL_SWING  0.45
-// A spring only ever pulls the stick back towards centre. Speeding up away from centre (3 samples
+// A spring only ever pulls the stick back towards centre. Accelerating away from centre (3 samples
 // running, all three out past 300) it is being pushed: a hand that eased off just after centre, which the
-// crossing check can take for a spring braking. A sample nearer centre would count the turn the distance
-// makes as it passes through centre, which reads as speeding up
+// crossing check can take for a spring braking. The acceleration is the stick's own, along where it is:
+// the distance from centre curves up as a stick passes beside centre (let go 350-700 off the axis), which
+// read as a push while the spring was still pulling it in
 #define SPRING_PUSH_MIN     300
 #define SPRING_PUSH_COUNT   3
 #define SPRING_HOLD_MAX     200
@@ -490,7 +491,7 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                     const int32_t moved = (int32_t)d - (int32_t)s->d_prev;
                     const bool still = (d >= SPRING_STILL_MIN) && ((moved < 0 ? -moved : moved) * SPRING_STILL_DIV <= (int32_t)d);
                     s->still = still ? (uint8_t)(s->still + 1u) : 0u;
-                    const int32_t speeding_out = (int32_t)d - 2 * (int32_t)s->d_prev + (int32_t)s->d_prev2;
+                    const int64_t speeding_out = (int64_t)(x - 2 * s->x1 + s->x2) * x + (int64_t)(y - 2 * s->y1 + s->y2) * y;
                     const bool push = (s->d_prev2 >= SPRING_PUSH_MIN) && (moved > 0) && (speeding_out > 0);
                     s->push = push ? (uint8_t)(s->push + 1u) : 0u;
                 }
