@@ -1358,6 +1358,19 @@ bool mapper_game_inputs_held(void)
     return _mapper_hold_game;
 }
 
+// A press, or a stick out of its deadzone
+static bool _mapper_held_activity(const analog_data_s *joysticks, const mapper_input_s *hovers)
+{
+    if (joysticks->lx || joysticks->ly || joysticks->rx || joysticks->ry)
+        return true;
+    for (int i = 0; i < MAPPER_INPUT_COUNT; i++)
+    {
+        if (hovers->presses[i])
+            return true;
+    }
+    return false;
+}
+
 mapper_input_s mapper_get_translated_input()
 {
     analog_data_s joysticks;
@@ -1396,6 +1409,10 @@ mapper_input_s mapper_get_input()
         _mapper_hold_game = false;
     if (_mapper_neutral || _mapper_hold_game)
     {
+        // The game sees the pad at rest, but a hand on it still keeps the idle timer off: the mapper's
+        // heartbeat below only sees this pass, and not every app view runs the app's own pass
+        if (_mapper_held_activity(&joysticks, &hovers))
+            idle_manager_heartbeat();
         memset(&joysticks, 0, sizeof(joysticks));
         memset(&hovers, 0, sizeof(hovers));
     }
