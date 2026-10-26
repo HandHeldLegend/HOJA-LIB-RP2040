@@ -26,8 +26,12 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_CROSS_MARGIN 3
 // For 7 ms after the release line the free spring still says where a released stick must be, so the
 // release check carries on through the hold: a hand that pauses near centre, or takes the stick
-// somewhere the spring wouldn't, ends the hold as soon as it leaves the spring's path
+// somewhere the spring wouldn't, ends the hold as soon as it leaves the spring's path. Past the decision
+// it allows 5/4 of decide_step: a worn stick's full swing drifts off its fitted spring by 35-38 counts a
+// sample 4-5 ms on (fitted decide_step 39), where the thumb is far further off
 #define SPRING_FREE_CHECK   14
+#define SPRING_FREE_SLACK_NUM   5
+#define SPRING_FREE_SLACK_DEN   4
 // On the far side of a centre crossing, a free spring turns back within a quarter swing and gets no
 // further out than its crossing speed over its frequency (theta, radians a sample). Real releases reach
 // 1.21 and 1.16 of those (GCU 2, ProGCC 3S), turnaround rebounds well under; a hand that eases off after
@@ -54,14 +58,18 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_SETTLED_MAX  200
 #define SPRING_SETTLE_COUNT 20
 // A free spring is only still at the top of a swing, for a sample or two. Held still far out (moving
-// under 1/64 of its distance a sample, 4 samples running) it is the thumb or hand, parked where it
-// wants the stick: the grab check misses that, as a still stick is nearly what the spring predicts
+// under 1/64 of its distance a sample) for 0.45 of a quarter swing, and 4 samples at least, it is the
+// thumb or hand, parked where it wants the stick: the grab check misses that, as a still stick is nearly
+// what the spring predicts. A slow stick lingers longer at the top (a worn 43 Hz stick: 4 samples, so
+// 6 here; 51-65 Hz sticks keep 4-5)
 #define SPRING_STILL_MIN    600
 #define SPRING_STILL_DIV    64
 #define SPRING_STILL_COUNT  4
-// A spring only ever pulls the stick back towards centre. Speeding up away from centre (out past 300,
-// 3 samples running) it is being pushed: a hand that eased off just after centre, which the crossing
-// check can take for a spring braking
+#define SPRING_STILL_SWING  0.45
+// A spring only ever pulls the stick back towards centre. Speeding up away from centre (3 samples
+// running, all three out past 300) it is being pushed: a hand that eased off just after centre, which the
+// crossing check can take for a spring braking. A sample nearer centre would count the turn the distance
+// makes as it passes through centre, which reads as speeding up
 #define SPRING_PUSH_MIN     300
 #define SPRING_PUSH_COUNT   3
 #define SPRING_HOLD_MAX     200
@@ -122,6 +130,7 @@ typedef struct
     int32_t settled;
     uint16_t peak_q8[8];         // the furthest out a free spring gets, per unit crossing speed (Q8)
     uint8_t  quarter_n[8];       // the longest it keeps going out after crossing, samples
+    uint8_t  still_n[8];         // samples held still that make it the hand (SPRING_STILL_SWING)
 } spring_params_s;
 
 static spring_params_s _spring_params[2][2];
@@ -201,6 +210,8 @@ void snapback_spring_load(void)
             theta = (theta < 0.01) ? 0.01 : theta;
             p->peak_q8[o] = (uint16_t)(256.0 * SPRING_PEAK_MARGIN / theta);
             p->quarter_n[o] = (uint8_t)ceil(SPRING_QUARTER_MARGIN * (M_PI / 2.0) / theta);
+            const int still_n = (int)ceil(SPRING_STILL_SWING * (M_PI / 2.0) / theta);
+            p->still_n[o] = (uint8_t)((still_n < SPRING_STILL_COUNT) ? SPRING_STILL_COUNT : still_n);
         }
         __atomic_store_n(&_spring_live[stick], next, __ATOMIC_RELEASE);
         _spring_tuned[stick] = (c->flags & SNAPBACK_SPRING_FLAG_TUNED) != 0;
@@ -453,7 +464,9 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
             case SPRING_HOLDING:
             {
                 const bool free_check = (s->layer == 1) && (s->step < SPRING_FREE_CHECK);
-                const int32_t free_limit = k->decide_step * (s->step + 1);
+                const int32_t free_limit = (s->step + 1 > SPRING_DECIDE)
+                    ? (k->decide_step * (s->step + 1) * SPRING_FREE_SLACK_NUM) / SPRING_FREE_SLACK_DEN
+                    : k->decide_step * (s->step + 1);
                 if (free_check && (free_err > (int64_t)free_limit * free_limit))
                 {
                     // Off the free spring's path: the thumb or hand has it
@@ -478,10 +491,10 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                     const bool still = (d >= SPRING_STILL_MIN) && ((moved < 0 ? -moved : moved) * SPRING_STILL_DIV <= (int32_t)d);
                     s->still = still ? (uint8_t)(s->still + 1u) : 0u;
                     const int32_t speeding_out = (int32_t)d - 2 * (int32_t)s->d_prev + (int32_t)s->d_prev2;
-                    const bool push = (d >= SPRING_PUSH_MIN) && (moved > 0) && (speeding_out > 0);
+                    const bool push = (s->d_prev2 >= SPRING_PUSH_MIN) && (moved > 0) && (speeding_out > 0);
                     s->push = push ? (uint8_t)(s->push + 1u) : 0u;
                 }
-                if ((s->push >= SPRING_PUSH_COUNT) || (s->still >= SPRING_STILL_COUNT) || (s->grab >= SPRING_GRAB_COUNT))
+                if ((s->push >= SPRING_PUSH_COUNT) || (s->still >= k->still_n[s->octant]) || (s->grab >= SPRING_GRAB_COUNT))
                     s->state = (d >= SPRING_EDGE) ? SPRING_AT_EDGE : SPRING_IDLE;
                 else if (s->settle >= SPRING_SETTLE_COUNT || s->hold >= SPRING_HOLD_MAX)
                     s->state = SPRING_IDLE;
