@@ -954,8 +954,13 @@ static void _bt_hal_clock_tick(floss_timer_t *t, void *arg)
 static void _bt_hal_clock_start(void)
 {
     _clock_locked = false;
+#if !BT_HAL_ESP32
+    // Not on the ESP32 bridge: its answers come too late over the link to lock to (~3.5 ms), and its
+    // controller runs out of memory after ~355 Read Clocks (22 s into a session) and resets. The host
+    // keeps the dead link until its supervision timeout.
     if (_mode_sinput)
         floss_timer_start(&_clock_timer, BT_HAL_CLOCK_FIRST_US);
+#endif
 }
 
 static void _bt_hal_clock_stop(void)
