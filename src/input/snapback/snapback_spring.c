@@ -46,13 +46,17 @@ static const int32_t _spring_default_a2[8] = {-62953, -62076, -62255, -61868, -6
 #define SPRING_PEAK_MARGIN      1.5
 #define SPRING_QUARTER_MARGIN   1.4
 
-// Let go partway back (a turnaround): the stick crosses centre fast, then brakes against the spring
-// (stiffness 0.052-0.47 per sample squared seen 2.5 ms on) where the thumb keeps going (-0.03-0.03).
-// A crossing faster than 20 counts a sample (40 per ms) is held while its stiffness is measured.
+// Let go partway back (a turnaround): the stick crosses centre fast, then brakes against the spring where
+// the thumb keeps going. A crossing faster than cross_speed counts a sample is held while its stiffness
+// (per sample squared, 2.5 ms on) is measured. Stiffness alone doesn't separate them on every stick (a
+// ProGCC 3S's played turnarounds 0.036 and up, a GCU 2's thumb crossings up to 0.042): played turnarounds
+// cross fast and brake softly, thumb crossings are slow. Stiffness x crossing speed does, the same on every
+// stick: turnarounds 3.9 and up, thumb moves 2.2 at most (GCU 2, ProGCC 3S, GCU 1). A spring at 3 or more.
 #define SPRING_OUT          300
 #define SPRING_DEFAULT_CROSS_SPEED  20
 #define SPRING_CHECK        5
-#define SPRING_DEFAULT_STIFF_DEN    25   // a spring if stiffness >= 1/25
+#define SPRING_STIFF_SPEED_Q16      (3 << 16)
+#define SPRING_DEFAULT_STIFF_DEN    25   // no longer used: kept so stored tunings stay valid
 
 // While holding, the thumb taking the stick back shows as the next sample missing the spring
 #define SPRING_DEFAULT_GRAB_ERR     40
@@ -139,7 +143,6 @@ typedef struct
     int32_t a2[8];
     int32_t decide_step;
     int32_t grab_err;
-    int32_t stiff_den;
     int32_t cross_speed;
     int32_t settled;
     uint16_t peak_q8[8];         // the furthest out a free spring gets, per unit crossing speed (Q8)
@@ -210,7 +213,6 @@ void snapback_spring_load(void)
         }
         p->decide_step = c->decide_step;
         p->grab_err = c->grab_err;
-        p->stiff_den = c->stiff_den;
         p->cross_speed = c->cross_speed;
         const int32_t dz = (stick == 0) ? analog_config->l_deadzone : analog_config->r_deadzone;
         p->settled = (dz < SPRING_SETTLED_MIN) ? SPRING_SETTLED_MIN : ((dz > SPRING_SETTLED_MAX) ? SPRING_SETTLED_MAX : dz);
@@ -309,6 +311,19 @@ static uint32_t _spring_energy(const spring_params_s *k, uint8_t octant, const s
 {
     const uint64_t v2 = (uint64_t)_spring_sq(x - s->x2, y - s->y2); // (2v)^2
     return _spring_isqrt((uint64_t)_spring_sq(x, y) + ((v2 * k->inv_theta_sq_q8[octant]) >> 10));
+}
+
+// The crossing check's verdict: stiffness (Q16) x crossing speed (counts a sample) of a spring
+static bool _spring_braking(const spring_axis_s *s)
+{
+    if ((s->stiff_den <= 0) || (s->stiff_num >= 0))
+        return false;
+    const uint32_t out_len = _spring_isqrt((uint64_t)((int64_t)s->out_x * s->out_x + (int64_t)s->out_y * s->out_y));
+    if (out_len == 0)
+        return false;
+    const int64_t stiffness_q16 = (-s->stiff_num << 16) / s->stiff_den;
+    const int64_t speed = s->x_fall / (int64_t)out_len;
+    return stiffness_q16 * speed >= SPRING_STIFF_SPEED_Q16;
 }
 
 static void _spring_hold_start(spring_axis_s *s)
@@ -506,7 +521,7 @@ void snapback_spring_process(analog_axis_s *input, analog_axis_s *output)
                 }
                 if (s->step >= SPRING_CHECK)
                 {
-                    if (s->stiff_den > 0 && -s->stiff_num * k->stiff_den >= s->stiff_den)
+                    if (_spring_braking(s))
                     {
                         s->octant = _spring_octant(s->out_x, s->out_y);
                         _spring_hold_start(s);
