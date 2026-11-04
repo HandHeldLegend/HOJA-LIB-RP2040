@@ -343,7 +343,7 @@ bool _joybus_n64_hal_init()
     // Grab a PIO block + state machine, preferring one that also fits the
     // end-of-frame watcher (see joybus_claim_pio). Watcher is optional: a board
     // whose PIO blocks are too full loses bus healing, not the transport.
-    if(!joybus_claim_pio(&_n64_pio, &_n64_sm, &_n64_offset,
+    if(!joybus_claim_pio(_n64_data_pin, &_n64_pio, &_n64_sm, &_n64_offset,
                          &_n64_eof_sm, &_n64_eof_offset, &_n64_eof_active))
         return false;
 

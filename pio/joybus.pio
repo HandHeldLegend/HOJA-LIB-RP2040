@@ -102,7 +102,11 @@ decr:
 // If a fourth PIO program is ever added, re-check this -- degrading to
 // decoder-alone is silent, and the symptom is simply that unimplemented commands
 // stop being healed.
-static inline bool joybus_claim_pio(PIO *pio_out, uint *sm_out, uint *offset_out,
+//
+// On the RP2350B a block reaches 32 GPIOs from its base (0 or 16), and the RGB
+// driver moves a block to base 16 for an LED line above GPIO 31. Such a block
+// can't drive a low data pin, so it is skipped.
+static inline bool joybus_claim_pio(uint pin, PIO *pio_out, uint *sm_out, uint *offset_out,
                                     uint *eof_sm_out, uint *eof_offset_out,
                                     bool *eof_active_out)
 {
@@ -111,6 +115,9 @@ static inline bool joybus_claim_pio(PIO *pio_out, uint *sm_out, uint *offset_out
     for (uint i = 0; i < NUM_PIOS; i++)
     {
         PIO pio = pio_get_instance(i);
+
+        uint base = pio_get_gpio_base(pio);
+        if (pin < base || pin >= base + 32u) continue;
 
         if (!pio_can_add_program(pio, &joybus_program)) continue;
         uint offset = pio_add_program(pio, &joybus_program);
@@ -138,7 +145,8 @@ static inline bool joybus_claim_pio(PIO *pio_out, uint *sm_out, uint *offset_out
         pio_remove_program(pio, &joybus_program, offset);
     }
 
-    return pio_claim_free_sm_and_add_program(&joybus_program, pio_out, sm_out, offset_out);
+    return pio_claim_free_sm_and_add_program_for_gpio_range(&joybus_program, pio_out, sm_out,
+                                                             offset_out, pin, 1, true);
 }
 
 static inline void joybus_jump_output(PIO pio, uint sm, uint offset)

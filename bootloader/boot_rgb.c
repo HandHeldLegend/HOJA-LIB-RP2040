@@ -46,6 +46,13 @@ static uint32_t _boot_rgb_frame_at_ms;
 
 static void _boot_rgb_init(void)
 {
+#if PICO_PIO_USE_GPIO_BASE
+    // An RP2350B block reaches 32 GPIOs from its base: an LED line above 31 (ProGCC 4: GPIO 35)
+    // needs base 16, set before any program is loaded
+    if (BOOT_RGB_PIN >= 32)
+        pio_set_gpio_base(BOOT_RGB_PIO, 16);
+#endif
+
     uint offset = pio_add_program(BOOT_RGB_PIO, &ws2812_program);
     pio_sm_config c = ws2812_program_get_default_config(offset);
 

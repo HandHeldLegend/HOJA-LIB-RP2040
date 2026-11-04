@@ -107,10 +107,14 @@ rgb_s *rgb_hal_frames(void)
 
 void rgb_hal_init()
 {
-    // Dynamically grab a PIO block + state machine with room for the program.
+    // Dynamically grab a PIO block + state machine with room for the program. The block must reach
+    // the data pin: on the RP2350B a pin above 31 needs a block at GPIO base 16 (ProGCC 4: GPIO 35),
+    // which the SDK sets on a free block.
     uint offset = 0;
     uint sm = 0;
-    if(!pio_claim_free_sm_and_add_program(&ws2812_program, &_rgb_pio, &sm, &offset))
+    uint pin = hoja_config_get()->rgb_driver.gpio_pin;
+    if (!pio_claim_free_sm_and_add_program_for_gpio_range(&ws2812_program, &_rgb_pio, &sm, &offset,
+                                                          pin, 1, true))
     {
         _rgb_state_machine = -1;
         return;

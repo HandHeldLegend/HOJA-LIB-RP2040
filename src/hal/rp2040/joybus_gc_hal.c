@@ -301,7 +301,7 @@ bool _joybus_gc_hal_init()
   // Grab a PIO block + state machine, preferring one that also fits the
   // end-of-frame watcher (see joybus_claim_pio). Watcher is optional: a board
   // whose PIO blocks are too full loses bus healing, not the transport.
-  if(!joybus_claim_pio(&_gc_pio, &_gc_sm, &_gamecube_offset,
+  if(!joybus_claim_pio(_gc_data_pin, &_gc_pio, &_gc_sm, &_gamecube_offset,
                        &_gc_eof_sm, &_gc_eof_offset, &_gc_eof_active))
   {
     rgb_set_pulsing(COLOR_RED);

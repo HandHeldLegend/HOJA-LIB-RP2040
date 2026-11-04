@@ -71,7 +71,12 @@ typedef struct
 } nesbus_pio_sm_s;
 static void nesbus_pio_init(nesbus_pio_sm_s *nsm, irq_handler_t irq_handler, uint latch, uint data, uint clock) {
     uint offset = 0;
-    pio_claim_free_sm_and_add_program(&nesbus_pio_program, &nsm->pio, &nsm->sm_data, &offset);
+    // A block that reaches all three pins: on the RP2350B the RGB driver may have moved one to
+    // GPIO base 16, which can't reach pins below 16
+    uint pin_lo = MIN(latch, MIN(data, clock));
+    uint pin_hi = MAX(latch, MAX(data, clock));
+    pio_claim_free_sm_and_add_program_for_gpio_range(&nesbus_pio_program, &nsm->pio, &nsm->sm_data,
+                                                     &offset, pin_lo, pin_hi - pin_lo + 1, true);
     pio_sm_config data_c  = nesbus_pio_program_get_default_config(offset);
     pio_sm_config latch_c = nesbus_pio_program_get_default_config(offset);
     nsm->offset_data = offset;
