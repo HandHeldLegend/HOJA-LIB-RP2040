@@ -19,7 +19,15 @@
 
 // The mode carried over a restart. The RP2040 keeps it in a watchdog scratch register; here it is RAM
 // the reset leaves alone (.noinit), with its complement beside it so stale RAM reads as nothing.
-static volatile uint32_t _sys_hal_bootmemory[2] __attribute__((section(".noinit")));
+// A board whose restarts pass through a bootloader that uses RAM gives two words that bootloader
+// leaves alone instead (its linker script's __boot_memory).
+static volatile uint32_t _sys_hal_bootmemory_own[2] __attribute__((section(".noinit")));
+extern uint32_t __boot_memory[2] __attribute__((weak));
+
+static volatile uint32_t *_sys_hal_bootmemory_at(void)
+{
+    return __boot_memory ? (volatile uint32_t *)__boot_memory : _sys_hal_bootmemory_own;
+}
 
 static volatile uint32_t _sys_hal_time_high = 0;
 static void (*volatile _sys_hal_alarm_fn)(void) = NULL;
@@ -333,13 +341,15 @@ uint32_t sys_hal_random()
 
 uint32_t sys_hal_get_bootmemory()
 {
-    if (_sys_hal_bootmemory[0] != ~_sys_hal_bootmemory[1])
+    const volatile uint32_t *memory = _sys_hal_bootmemory_at();
+    if (memory[0] != ~memory[1])
         return 0;
-    return _sys_hal_bootmemory[0];
+    return memory[0];
 }
 
 void sys_hal_set_bootmemory(uint32_t in)
 {
-    _sys_hal_bootmemory[0] = in;
-    _sys_hal_bootmemory[1] = ~in;
+    volatile uint32_t *memory = _sys_hal_bootmemory_at();
+    memory[0] = in;
+    memory[1] = ~in;
 }
