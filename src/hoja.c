@@ -28,7 +28,6 @@
 #include "input/hover.h"
 #include "input/stick_scaling.h"
 
-#include "hardware/sync.h"
 #include "devices/fuelgauge.h"
 #include "utilities/tasks.h"
 
@@ -421,17 +420,20 @@ void _hoja_init_core_tasks(void)
 #endif
 }
 
-// Core 1 task loop entrypoint
-void _hoja_task_1()
+// The task loop (core 1), before its first pass
+static void _hoja_task_1_setup(void)
 {
-  static uint64_t c1_timestamp = 0;
-
   // init core on core 1
   _core_format_init();
 
   _hoja_init_core_tasks();
+}
 
-  for (;;)
+// One pass of the task loop
+static inline void _hoja_task_1_pass(void)
+{
+  static uint64_t c1_timestamp = 0;
+
   {
     tasks_run();
 #if defined(HOJA_BOOT_TIMELINE) && HOJA_BOOT_TIMELINE
@@ -510,15 +512,29 @@ void _hoja_task_1()
   }
 }
 
-// Core 0 task loop entrypoint
-void _hoja_task_0()
+// Core 1 task loop entrypoint
+void _hoja_task_1()
+{
+  _hoja_task_1_setup();
+
+  for (;;)
+  {
+    _hoja_task_1_pass();
+  }
+}
+
+// The stick loop (core 0), before its first pass
+static void _hoja_task_0_setup(void)
+{
+  // We can lock core 0 for writing to flash
+  flash_hal_init();
+}
+
+// One pass of the stick loop
+static inline void _hoja_task_0_pass(void)
 {
   static uint64_t c0_timestamp = 0;
 
-  // We can lock core 0 for writing to flash
-  flash_hal_init();
-
-  for (;;)
   {
     sys_hal_time_us(&c0_timestamp);
 
@@ -531,6 +547,33 @@ void _hoja_task_0()
     }
   }
 }
+
+// Core 0 task loop entrypoint
+void _hoja_task_0()
+{
+  _hoja_task_0_setup();
+
+  for (;;)
+  {
+    _hoja_task_0_pass();
+  }
+}
+
+#if defined(HOJA_BSP_CORES) && (HOJA_BSP_CORES == 1)
+// One core: the two loops' passes take turns. The stick loop paces itself (ANALOG_POLL_INTERVAL), so
+// a pass of it between two of the task loop's costs a time check unless a read is due.
+static void _hoja_task_single(void)
+{
+  _hoja_task_0_setup();
+  _hoja_task_1_setup();
+
+  for (;;)
+  {
+    _hoja_task_0_pass();
+    _hoja_task_1_pass();
+  }
+}
+#endif
 
 bool _system_requirements_init()
 {
@@ -594,5 +637,9 @@ void hoja_init(const hoja_config_s *config)
   _system_devices_init();
 
   // Init tasks finally
+#if defined(HOJA_BSP_CORES) && (HOJA_BSP_CORES == 1)
+  sys_hal_start_dualcore(_hoja_task_single, NULL);
+#else
   sys_hal_start_dualcore(_hoja_task_0, _hoja_task_1);
+#endif
 }

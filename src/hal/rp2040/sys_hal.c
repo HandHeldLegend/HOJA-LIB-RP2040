@@ -11,6 +11,8 @@
 #include "hardware/clocks.h"
 #include "pico/bootrom.h"
 #include "pico/rand.h"
+#include "pico/multicore.h"
+#include "hardware/sync.h"
 
 #include "hoja_bsp.h"
 
@@ -88,6 +90,21 @@ void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void)
     {
         task_core_0();
     }
+}
+
+uint32_t sys_hal_core_num(void)
+{
+    return get_core_num();
+}
+
+uint32_t sys_hal_irq_save(void)
+{
+    return save_and_disable_interrupts();
+}
+
+void sys_hal_irq_restore(uint32_t state)
+{
+    restore_interrupts(state);
 }
 
 uint32_t _time_owner = 0;

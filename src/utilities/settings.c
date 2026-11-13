@@ -1,6 +1,5 @@
 #include "utilities/settings.h"
 #include "utilities/autodetect.h"
-#include "hardware/flash.h"
 #include "hoja.h"
 
 #include "hal/mutex_hal.h"

@@ -13,6 +13,13 @@ bool sys_hal_init();
 
 void sys_hal_start_dualcore(void (*task_core_0)(void), void (*task_core_1)(void));
 
+// The core this runs on (always 0 on a chip with one)
+uint32_t sys_hal_core_num(void);
+
+// Interrupts off on this core, and back to how they were
+uint32_t sys_hal_irq_save(void);
+void     sys_hal_irq_restore(uint32_t state);
+
 // Return a random uint32_t type number
 uint32_t sys_hal_random();
 

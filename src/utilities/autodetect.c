@@ -10,7 +10,9 @@
 #include "utilities/settings.h"
 #include "hhl_tusb_config.h" // Which USB modes this build has (XInput, Slippi)
 
+#if HOJA_BSP_CHIPSET == CHIPSET_RP2040
 #include "hardware/gpio.h"
+#endif
 
 // No joybus polls by then means no N64: a running game polls every frame
 #define AUTODETECT_N64_WAIT_MS      1000

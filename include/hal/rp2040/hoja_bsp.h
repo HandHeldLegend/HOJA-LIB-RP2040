@@ -2,8 +2,12 @@
 #define HOJA_BSP_H
 
 #define CHIPSET_RP2040 0xF001
+#define CHIPSET_NRF52  0xF002
 
 #define HOJA_BSP_CHIPSET CHIPSET_RP2040
+
+// Two cores: the stick processing loop on core 0, the task loop on core 1 (hoja.c)
+#define HOJA_BSP_CORES 2
 //#define HOJA_BSP_CLOCK_SPEED_HZ 200000000 // 200 Mhz
 #define HOJA_BSP_CLOCK_SPEED_HZ 133000000 // 133 Mhz
 // How many I2C peripheral channels there are

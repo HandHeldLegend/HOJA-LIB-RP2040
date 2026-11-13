@@ -20,8 +20,10 @@
 
 #include "hhl_tusb.h"
 
-#include "pico.h"
-#include "hardware/sync.h"
+#include <stdatomic.h>
+
+#include "hoja_bsp.h"
+#include "hal/sys_hal.h"
 
 // The app's live input isn't a report to the game: the game's own reports keep the task cycle and the
 // report rate
@@ -42,15 +44,20 @@ static uint8_t _webusb_deferred[WEBUSB_DEFERRED_LEN][64];
 static uint8_t _webusb_deferred_size[WEBUSB_DEFERRED_LEN];
 static volatile uint8_t _webusb_deferred_head = 0;
 static volatile uint8_t _webusb_deferred_tail = 0;
-#define WEBUSB_USB_CORE 1u // The task loop's core (hoja.c _hoja_task_1), where TinyUSB runs
-static uint _webusb_sink_core = WEBUSB_USB_CORE;
+// The task loop's core (hoja.c _hoja_task_1), where TinyUSB runs
+#if HOJA_BSP_CORES > 1
+#define WEBUSB_USB_CORE 1u
+#else
+#define WEBUSB_USB_CORE 0u
+#endif
+static uint32_t _webusb_sink_core = WEBUSB_USB_CORE;
 
 void webusb_set_sink(const webusb_sink_s *sink)
 {
     // A session ended or began elsewhere: the game gets its input back
     mapper_hold_game_inputs(false);
     _webusb_sink = sink ? sink : &_webusb_usb_sink;
-    _webusb_sink_core = sink ? get_core_num() : WEBUSB_USB_CORE;
+    _webusb_sink_core = sink ? sys_hal_core_num() : WEBUSB_USB_CORE;
     _webusb_deferred_tail = _webusb_deferred_head;
 }
 
@@ -89,16 +96,16 @@ bool webusb_ready_blocking(int timeout)
 
 static void _webusb_defer(const uint8_t *data, uint16_t size)
 {
-    uint32_t irq = save_and_disable_interrupts();
+    uint32_t irq = sys_hal_irq_save();
     uint8_t next = (uint8_t)((_webusb_deferred_head + 1u) % WEBUSB_DEFERRED_LEN);
     if (next != _webusb_deferred_tail && size <= 64)
     {
         memcpy(_webusb_deferred[_webusb_deferred_head], data, size);
         _webusb_deferred_size[_webusb_deferred_head] = (uint8_t)size;
-        __dmb();
+        atomic_thread_fence(memory_order_release);
         _webusb_deferred_head = next;
     }
-    restore_interrupts(irq);
+    sys_hal_irq_restore(irq);
 }
 
 static void _webusb_send_deferred(void)
@@ -119,7 +126,7 @@ void webusb_send_bulk(const uint8_t *data, uint16_t size)
         return;
     }
 
-    if (get_core_num() != _webusb_sink_core)
+    if (sys_hal_core_num() != _webusb_sink_core)
     {
         _webusb_defer(data, size);
         return;
