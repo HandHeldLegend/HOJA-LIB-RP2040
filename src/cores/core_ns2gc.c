@@ -14,6 +14,9 @@
 #include "hoja.h"
 
 #include "ns2_lib.h"
+#if defined(HOJA_NS2_BLE)
+#include "transport/ns2_ble.h"
+#endif
 #include "ns2_lib_usb.h"
 #include "dongle.h"
 #include "utilities/ns2_bt_probe.h"
@@ -194,6 +197,15 @@ static void _ns2gc_set_connected(bool connected)
 // stick clicks, Home, Capture, C), on their Pro Controller 2 bits (the report shares its layout)
 void ns2_api_hook_get_input(ns2_input_s *out)
 {
+#if defined(HOJA_NS2_BLE)
+    // The Pro Controller 2 over Bluetooth LE has the library, not this core
+    if (ns2_ble_running())
+    {
+        ns2_ble_input(out);
+        return;
+    }
+#endif
+
     mapper_input_s input = mapper_get_input();
 
     out->a = input.presses[GAMECUBE_CODE_A];
@@ -311,6 +323,13 @@ static void _ns2gc_rumble_task(void)
     bool sample_on = _ns2gc_sample && !(_ns2gc_sample_step & 1);
     _ns2gc_motor_set((_ns2gc_game_rumble || sample_on) ? 255 : 0);
 }
+
+#if defined(HOJA_NS2_BLE)
+void core_ns2gc_rumble_task(void)
+{
+    _ns2gc_rumble_task();
+}
+#endif
 
 // Command 0x0A/0x02: play a sample (0 stops the one playing)
 void ns2_api_hook_play_vibration_sample(uint8_t sample_id)

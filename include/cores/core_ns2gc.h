@@ -53,6 +53,10 @@ void core_ns2gc_dongle_stop(void);
 // This controller as the console knows it (type, address, serial, colours), the same on every
 // transport: a pairing made on one holds on the others
 void core_ns2gc_identity(ns2_device_config_s *cfg, const uint8_t mac[6]);
+
+// Steps the rumble the console's samples start (its connection buzz, say) to their end. For
+// whoever runs the NS2 library without this core's own task (transport/ns2_ble.c).
+void core_ns2gc_rumble_task(void);
 #endif
 
 #endif
