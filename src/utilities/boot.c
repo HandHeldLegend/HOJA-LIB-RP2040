@@ -361,8 +361,9 @@ static core_reportformat_t boot_default_wired(void)
 static core_reportformat_t boot_default_wireless(void)
 {
 #if HOJA_BT_LE_ONLY
-    // The radio's one mode, whatever is saved
-    return CORE_REPORTFORMAT_SWPRO;
+    // The radio's two modes: SInput when it is the one saved, else Switch (it has no Auto)
+    return (gamepad_config->gamepad_default_wireless == CORE_REPORTFORMAT_SINPUT) ? CORE_REPORTFORMAT_SINPUT
+                                                                                  : CORE_REPORTFORMAT_SWPRO;
 #else
     const core_reportformat_t format = (core_reportformat_t)gamepad_config->gamepad_default_wireless;
     switch (format)
@@ -567,8 +568,11 @@ static void boot_apply_battery_transport(boot_info_s *info)
     }
 }
 
-// A radio with one mode (HOJA_BT_LE_ONLY): a mode picked by hand, the pairing combo's and a mode
-// that would look for a dongle all come out as Switch over Bluetooth
+// A radio with Bluetooth LE alone (HOJA_BT_LE_ONLY) has two modes, Switch and SInput, and no dongle.
+// SInput is kept when it was asked for by name: a mode combo, a restart's request, or the saved
+// wireless default. Everything else comes out as Switch over Bluetooth: another mode picked by
+// hand, one that would look for a dongle, and the pairing combo with no mode named (which on other
+// radios pairs a computer on battery).
 static void boot_apply_radio_modes(boot_info_s *info)
 {
 #if HOJA_BT_LE_ONLY
@@ -577,8 +581,10 @@ static void boot_apply_radio_modes(boot_info_s *info)
     if ((info->transport != GAMEPAD_TRANSPORT_BLUETOOTH) && (info->transport != GAMEPAD_TRANSPORT_DONGLE))
         return;
 
+    const bool sinput_named = info->mode_chosen || (boot_default_wireless() == CORE_REPORTFORMAT_SINPUT);
     info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
-    info->reportformat = CORE_REPORTFORMAT_SWPRO;
+    if ((info->reportformat != CORE_REPORTFORMAT_SINPUT) || !sinput_named)
+        info->reportformat = CORE_REPORTFORMAT_SWPRO;
 #else
     (void)info;
 #endif
