@@ -21,6 +21,8 @@
 #include "devices/fuelgauge.h"
 #include "utilities/pcm.h"
 
+#include "hal/sys_hal.h"
+
 #include "sinput_lib.h"
 #include "sinput_lib_hid.h"
 
@@ -244,17 +246,35 @@ bool sinput_api_hook_get_touchpads(sinput_touchpads_s *out)
     return true;
 }
 
+// A host asks for the features as it opens the gamepad, and SDL then looks for the reply in at most
+// 100 reports, read one a millisecond. A handle opened a while before has a full queue by then (64
+// reports on Windows), and with a thousand more a second arriving the reply was pushed out of it
+// before SDL got that far: 2 times in 12 on a Steam Controller, which left SDL with a gamepad it had
+// no driver for. For this long after the reply nothing else is sent, so the reply stays queued
+// until it is read. Long enough for 64 reports read 3 ms apart.
+#define SINPUT_FEATURES_REPLY_ID 0x02u
+#define SINPUT_FEATURES_QUIET_US 200000u
+
+static uint64_t _si_quiet_until_us = 0;
+
 bool _core_sinput_get_generated_report(core_report_s *out)
 {
-    if(sinput_api_generate_inputreport(out->data))
-    {
-        out->reportformat=CORE_REPORTFORMAT_SINPUT;
-        out->size=64; // 64 bytes including our report ID
+    if (!sinput_api_generate_inputreport(out->data))
+        return false;
 
-        out->reliable = out->data[0] != SINPUT_INPUT_ID_INPUT;
-        return true;
-    }
-    return false;
+    const bool reply = out->data[0] != SINPUT_INPUT_ID_INPUT;
+    const uint64_t now_us = sys_hal_now_us();
+
+    if (reply && (out->data[1] == SINPUT_FEATURES_REPLY_ID))
+        _si_quiet_until_us = now_us + SINPUT_FEATURES_QUIET_US;
+    else if (!reply && (now_us < _si_quiet_until_us))
+        return false;
+
+    out->reportformat=CORE_REPORTFORMAT_SINPUT;
+    out->size=64; // 64 bytes including our report ID
+
+    out->reliable = reply;
+    return true;
 }
 
 static core_hid_device_t _sinput_hid_device = {
