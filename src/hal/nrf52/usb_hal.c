@@ -1,0 +1,406 @@
+#include "board_config.h"
+#include "utilities/autodetect.h"
+
+#if defined(HOJA_TRANSPORT_USB_DRIVER) && (HOJA_TRANSPORT_USB_DRIVER == USB_DRIVER_HAL)
+
+#include <stdio.h>
+
+#include "transport/transport_usb.h"
+
+#include "cores/cores.h"
+
+#include "utilities/settings.h"
+#include "utilities/tasks.h"
+
+#include "hal/sys_hal.h"
+
+#include "usb/webusb.h"
+
+#include "cores/core_ns2gc.h"
+#include "nrf52_hal.h"
+#include "tusb.h"
+
+#include "hoja.h"
+
+#include "hhl_tusb.h"
+
+// WebUSB landing URL the browser offers when the device is plugged in. Defaults
+// to the HOJA config web app; a board may override it by defining
+// HOJA_WEBUSB_URL in its board_config.h (optional, rarely needed).
+#if defined(HOJA_WEBUSB_URL)
+#define USB_WEBUSB_URL HOJA_WEBUSB_URL
+#else
+#define USB_WEBUSB_URL "handheldlegend.github.io/hoja3"
+#endif
+
+core_params_s *_usb_core_params = NULL;
+const core_hid_device_t *_usbhal_hiddev = NULL;
+
+// USB string index 3; must outlive enumeration.
+static char _usb_serial_str[13];
+
+static void _usb_hal_set_serial_from_mac(const uint8_t mac[6])
+{
+    snprintf(_usb_serial_str, sizeof(_usb_serial_str),
+             "%02X%02X%02X%02X%02X%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+//--------------------------------------------------------------------+
+// USB poll-rate scheduling (registered as HHL SOF / mount hooks)
+//--------------------------------------------------------------------+
+
+volatile uint8_t sequence_step = 0;
+volatile uint8_t ms_counter = 0;
+uint32_t _usb_frames = 8;
+volatile bool _usb_ready = false;
+volatile bool _usb_sendit = false;
+volatile uint8_t _usb_sent_id = 0xFF;
+
+static bool _usb_hal_mounted = false;
+static void _usb_hal_hid_output_report(const uint8_t *buffer, uint16_t len)
+{
+    if (_usb_core_params != NULL && _usb_core_params->core_report_tunnel != NULL)
+    {
+        _usb_core_params->core_report_tunnel(buffer, len);
+    }
+}
+
+void hhl_tusb_event_device_requested(void)
+{
+    autodetect_on_usb_host();
+
+    // How much the host asked for (the setup packet stays in the USB unit while it is answered)
+    core_ns2gc_usb_device_requested((uint16_t)(NRF_USBD->WLENGTHL | (NRF_USBD->WLENGTHH << 8)));
+}
+
+void hhl_tusb_event_string_requested(uint8_t index)
+{
+    core_ns2gc_usb_string_requested(index);
+}
+
+void hhl_tusb_event_bos_requested(void)
+{
+    autodetect_on_usb_bos();
+}
+
+static void _usb_hal_on_mount(void)
+{
+    _usb_hal_mounted = true;
+    core_ns2gc_usb_configured();
+}
+
+
+static void _usb_hal_on_sof(uint32_t frame_count)
+{
+    bool send_frame = false;
+
+    switch (_usb_frames)
+    {
+    case 1:
+        send_frame = true;
+        break;
+
+    case 8:
+        ms_counter++;
+        {
+            // 8/8/9ms per 3 reports = 25ms, exactly two reports per 60fps
+            // frame. ms_counter is reset on fire, so the period is threshold+1.
+            uint8_t trigger_threshold = (sequence_step == 2) ? 8 : 7;
+            if (ms_counter > trigger_threshold)
+            {
+                ms_counter = 0;
+                sequence_step = (sequence_step + 1) % 3;
+                send_frame = true;
+            }
+        }
+        break;
+
+    default:
+        ms_counter++;
+        if (ms_counter >= _usb_frames)
+        {
+            ms_counter = 0;
+            send_frame = true;
+        }
+        break;
+    }
+
+    // The task cycle starts on the frame that sends, so each report carries input read just
+    // before it, and the input is read once per report
+    if (send_frame)
+    {
+        tasks_mark_frame_isr();
+        _usb_sendit = true;
+    }
+}
+
+
+//--------------------------------------------------------------------+
+// The chip's USB power events and interrupt (TinyUSB's nRF5x driver is told of both)
+//--------------------------------------------------------------------+
+
+// As TinyUSB's driver numbers them (nrfx's NRFX_POWER_USB_EVT_*)
+#define USB_HAL_POWER_DETECTED 0u
+#define USB_HAL_POWER_REMOVED  1u
+#define USB_HAL_POWER_READY    2u
+
+extern void tusb_hal_nrf_power_event(uint32_t event);
+
+static bool _usb_hal_power_irq_on = false;
+
+void USBD_IRQHandler(void)
+{
+    tud_int_handler(0);
+}
+
+void POWER_CLOCK_IRQHandler(void)
+{
+    if (NRF_POWER->EVENTS_USBDETECTED)
+    {
+        NRF_POWER->EVENTS_USBDETECTED = 0;
+        tusb_hal_nrf_power_event(USB_HAL_POWER_DETECTED);
+    }
+    if (NRF_POWER->EVENTS_USBPWRRDY)
+    {
+        NRF_POWER->EVENTS_USBPWRRDY = 0;
+        tusb_hal_nrf_power_event(USB_HAL_POWER_READY);
+    }
+    if (NRF_POWER->EVENTS_USBREMOVED)
+    {
+        NRF_POWER->EVENTS_USBREMOVED = 0;
+        tusb_hal_nrf_power_event(USB_HAL_POWER_REMOVED);
+        // The driver stops the crystal with USB; the microsecond clock keeps time by it
+        NRF_CLOCK->TASKS_HFCLKSTART = 1;
+    }
+}
+
+// After the stack starts: brings the device onto the bus if the cable is already in, and from then
+// on by the power events
+static void _usb_hal_attach(void)
+{
+    if (NRF_USBD->ENABLE)
+    {
+        // A restart of the stack (a mode change): the unit is still powered up, only off the bus
+        tud_connect();
+    }
+    else
+    {
+        // No events come for a cable that was in before we listened
+        const uint32_t status = NRF_POWER->USBREGSTATUS;
+        if (status & POWER_USBREGSTATUS_VBUSDETECT_Msk)
+            tusb_hal_nrf_power_event(USB_HAL_POWER_DETECTED);
+        if (status & POWER_USBREGSTATUS_OUTPUTRDY_Msk)
+            tusb_hal_nrf_power_event(USB_HAL_POWER_READY);
+    }
+
+    if (_usb_hal_power_irq_on)
+        return;
+    _usb_hal_power_irq_on = true;
+
+    NVIC_SetPriority(USBD_IRQn, 2);
+    NRF_POWER->EVENTS_USBDETECTED = 0;
+    NRF_POWER->EVENTS_USBPWRRDY = 0;
+    NRF_POWER->EVENTS_USBREMOVED = 0;
+    NRF_POWER->INTENSET = POWER_INTENSET_USBDETECTED_Msk | POWER_INTENSET_USBPWRRDY_Msk |
+                          POWER_INTENSET_USBREMOVED_Msk;
+    NVIC_SetPriority(POWER_CLOCK_IRQn, 2);
+    NVIC_ClearPendingIRQ(POWER_CLOCK_IRQn);
+    NVIC_EnableIRQ(POWER_CLOCK_IRQn);
+}
+
+// TinyUSB's driver switches the frame interrupt on and notes that it was asked to, and built with
+// optimisation it does them in that order. A frame is always waiting by then, so the interrupt fires
+// between the two, finds no note, takes the frame for the driver's own one-off use and switches the
+// interrupt back off: one frame arrives and no more, and no report is ever paced. The build wraps the
+// driver's function (--wrap=dcd_sof_enable) so the USB interrupt waits until both are done.
+extern void __real_dcd_sof_enable(uint8_t rhport, bool en);
+
+void __wrap_dcd_sof_enable(uint8_t rhport, bool en)
+{
+    const bool irq_on = NVIC_GetEnableIRQ(USBD_IRQn) != 0;
+
+    NVIC_DisableIRQ(USBD_IRQn);
+    __DSB();
+    __ISB();
+    __real_dcd_sof_enable(rhport, en);
+    if (irq_on)
+        NVIC_EnableIRQ(USBD_IRQn);
+}
+
+//--------------------------------------------------------------------+
+// Transport
+//--------------------------------------------------------------------+
+
+static void _usb_hal_webusb_rx(const uint8_t *data, uint16_t len)
+{
+    webusb_command_handler((uint8_t *)data, len);
+    hhl_tusb_task();
+}
+
+void transport_usb_stop()
+{
+    _usb_hal_mounted = false;
+    hhl_tusb_stop();
+}
+
+core_report_s _core_report = {0};
+
+bool transport_usb_init(core_params_s *params)
+{
+    _usb_core_params = params;
+    _usb_hal_mounted = false;
+    memset(_core_report.data, 0, 64);
+
+    if (_usb_core_params->hid_device)
+    {
+        _usbhal_hiddev = _usb_core_params->hid_device;
+    }
+    else
+    {
+        return false;
+    }
+
+    const hoja_config_s *cfg = hoja_config_get();
+
+    hhl_tusb_config_s tcfg = {0};
+    tcfg.strings.manufacturer = (cfg && cfg->device_maker) ? cfg->device_maker : "HOJA";
+    tcfg.strings.product      = (cfg && cfg->device_name)  ? cfg->device_name  : "Gamepad";
+    _usb_hal_set_serial_from_mac(params->transport_dev_mac);
+    tcfg.strings.serial_number = _usb_serial_str;
+
+    tcfg.hooks.vendor_rx = _usb_hal_webusb_rx;
+    tcfg.hooks.platform_sleep_ms = sys_hal_sleep_ms;
+    tcfg.hooks.hid_output_report = _usb_hal_hid_output_report;
+    tcfg.hooks.on_mount = _usb_hal_on_mount;
+    tcfg.hooks.on_sof = _usb_hal_on_sof;
+
+    switch (_usb_core_params->core_report_format)
+    {
+    case CORE_REPORTFORMAT_SINPUT:
+        _usb_frames = 1;
+        tcfg.driver = HHL_TUSB_DRIVER_HID;
+        tcfg.webusb.enabled = true;
+        tcfg.webusb.url = USB_WEBUSB_URL;
+        tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
+        break;
+
+    case CORE_REPORTFORMAT_SWPRO:
+        _usb_frames = 8;
+        tcfg.driver = HHL_TUSB_DRIVER_HID;
+        tcfg.webusb.enabled = true;
+        tcfg.webusb.url = USB_WEBUSB_URL;
+        tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
+        break;
+
+    case CORE_REPORTFORMAT_XINPUT:
+#if (HHL_TUSB_DRIVER_XINPUT_ENABLE)
+        _usb_frames = 1;
+        tcfg.driver = HHL_TUSB_DRIVER_XINPUT;
+        break;
+#else
+        return false;
+#endif
+
+    case CORE_REPORTFORMAT_SLIPPI:
+        // The Switch 2's GameCube controller, a report every 4 ms
+        if (core_ns2gc_running())
+        {
+            _usb_frames = 4;
+            core_ns2gc_usb_config(&tcfg);
+            break;
+        }
+#if (HHL_TUSB_DRIVER_SLIPPI_ENABLE)
+        // On a console, Nintendo's adapter: polled every 8 ms
+        tcfg.slippi_console = core_ns2gc_console_rate();
+        _usb_frames = tcfg.slippi_console ? 8 : 1;
+        tcfg.driver = HHL_TUSB_DRIVER_SLIPPI;
+        // The config app's interface beside the adapter when the app switched us here: the host is a
+        // computer then. Otherwise the plain adapter, as a console knows it.
+        tcfg.webusb.enabled = hoja_usb_mode_by_app();
+        tcfg.webusb.url = USB_WEBUSB_URL;
+        tcfg.webusb.popup_enable_flag = &gamepad_config->webusb_enable_popup;
+        break;
+#else
+        return false;
+#endif
+
+    default:
+        return false;
+    }
+
+    if (tcfg.driver == HHL_TUSB_DRIVER_HID)
+    {
+        tcfg.hid.device_descriptor = (const uint8_t *)_usbhal_hiddev->device_descriptor;
+        tcfg.hid.device_descriptor_len = HHL_TUSB_STD_DEVICE_DESC_LEN;
+        tcfg.hid.config_descriptor = _usbhal_hiddev->config_descriptor;
+        tcfg.hid.config_descriptor_len = _usbhal_hiddev->config_descriptor_len;
+        tcfg.hid.report_descriptor = _usbhal_hiddev->hid_report_descriptor;
+        tcfg.hid.report_descriptor_len = _usbhal_hiddev->hid_report_descriptor_len;
+        tcfg.hid.max_power_ma = _usbhal_hiddev->max_power_ma;
+    }
+
+    hhl_tusb_init(&tcfg);
+
+    if (!hhl_tusb_start())
+        return false;
+    _usb_hal_attach();
+    return true;
+}
+
+void transport_usb_task(uint64_t timestamp)
+{
+    hhl_tusb_task();
+    core_ns2gc_usb_task(timestamp);
+
+    if (!_usb_hal_mounted)
+    {
+        return;
+    }
+
+    // The config app on this cable gets its live input beside the game's reports, which carry on:
+    // "Send inputs to game" decides what they hold (the input, or a controller at rest). Over BLE (or
+    // another sink) BLE config sends the app its own live input.
+    if (webusb_outputting_check() && !webusb_get_sink())
+        webusb_send_rawinput(timestamp);
+
+    if (!_usb_ready)
+    {
+        _usb_ready = hhl_tusb_report_ready();
+    }
+
+    if (_usb_sendit && _usb_ready)
+    {
+        if (!tasks_get_required_done())
+        {
+            return;
+        }
+
+        _usb_sendit = false;
+        _usb_ready = false;
+
+        if (core_get_generated_report(&_core_report))
+        {
+            if (hhl_tusb_report_send(_core_report.data[0], &_core_report.data[1], _core_report.size - 1))
+            {
+                tasks_mark_sent();
+                hhl_tusb_task();
+            }
+        }
+    }
+}
+
+void usb_hal_frame_events_hold(bool hold)
+{
+    if (_usb_hal_mounted)
+        hhl_tusb_sof_cb_enable(!hold);
+}
+
+#else
+
+void usb_hal_frame_events_hold(bool hold)
+{
+    (void)hold;
+}
+
+#endif

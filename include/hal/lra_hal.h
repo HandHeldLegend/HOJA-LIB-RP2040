@@ -22,6 +22,24 @@ typedef struct
 } lra_drv2605l_cfg_s;
 #endif
 
+#if (HOJA_BSP_CHIPSET == CHIPSET_NRF52)
+// LRA haptics config on the nRF52: the two motors behind a stereo I2S amplifier (16 bits a channel at
+// the PCM engine's rate). enable_pin switches the amplifier on (high), or NRF52_PIN_NONE. The
+// intensity_* values are 0..1 ratios of the amplifier's full scale; leave any at 0.0f to use the
+// library default.
+typedef struct
+{
+    uint8_t sck_pin;           // I2S bit clock
+    uint8_t lrck_pin;          // I2S left/right clock
+    uint8_t sdout_pin;         // I2S data to the amplifier
+    uint8_t enable_pin;        // amplifier enable
+    bool    channel_b_enable;  // drive a second channel (the right one)
+    bool    channel_swap;      // swap left/right routing
+    float   intensity_max;     // amplitude ceiling (0.0f = library default)
+    float   intensity_min_lo;  // low-frequency amplitude floor (0.0f = default)
+    float   intensity_min_hi;  // high-frequency amplitude floor (0.0f = default)
+} lra_hal_cfg_s;
+#else
 // LRA haptics config. PWM slices + DMA channels are allocated dynamically at
 // init, so only GPIO pins are supplied. channel_b is the optional second motor
 // (set channel_b_enable=false for single-channel boards). The intensity_* values
@@ -39,6 +57,7 @@ typedef struct
     lra_drv2605l_cfg_s drv2605l;
 #endif
 } lra_hal_cfg_s;
+#endif
 
 #define HOJA_HAPTICS_SET_STD(intensity, brake) lra_hal_set_standard(intensity, brake)
 
