@@ -302,6 +302,13 @@ void hover_init(void)
     {
         _calibration_ch_active = 0x00;
     }
+    // A block saved before its calibration was finished: any save does that (a host pairing, say),
+    // and what it saves is the empty range a calibration starts from, with which every hover input
+    // reads nothing. The calibration carries on instead, as at the first start.
+    else if (!_calibration_ch_active)
+    {
+        hover_calibrate_start(0xFF);
+    }
 
 #if defined(HOJA_MECHANICAL_TRIGGERS) && (HOJA_MECHANICAL_TRIGGERS > 0)
     _hover_mech_init();
