@@ -6,7 +6,11 @@
 
 #include "hal/sys_hal.h"
 
+// The log's own buffer. A board whose log lives in kept RAM (below) never uses it, and where RAM is
+// short its bench build may name a small one.
+#ifndef BENCH_LOG_LEN
 #define BENCH_LOG_LEN       8192u
+#endif
 // A kept log: half the length, in RAM the board's linker script sets aside
 #define BENCH_LOG_KEEP_LEN  4096u
 #define BENCH_LOG_MAGIC     0x474F4C42u // "BLOG"
