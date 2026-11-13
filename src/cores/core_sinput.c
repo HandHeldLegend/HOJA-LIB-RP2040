@@ -189,6 +189,9 @@ bool sinput_api_hook_get_input(sinput_input_s *out)
 
     out->buttons.power = input.presses[SINPUT_CODE_MISC_3];
 
+    out->buttons.l_touchpad = input.presses[SINPUT_CODE_TP_1];
+    out->buttons.r_touchpad = input.presses[SINPUT_CODE_TP_2];
+
     out->triggers.left  = (_si_mech_axis[0] && out->buttons.l_trigger) ? 4095 : input.inputs[SINPUT_CODE_LT_ANALOG];
     out->triggers.right = (_si_mech_axis[1] && out->buttons.r_trigger) ? 4095 : input.inputs[SINPUT_CODE_RT_ANALOG];
 
@@ -215,6 +218,29 @@ bool sinput_api_hook_get_motion(sinput_motion_s *out)
 
     out->timestamp_us = imu.timestamp;
 
+    return true;
+}
+
+// A pad nothing touches reads 0 all through: its pressure is how a host tells a finger is down
+static void _si_touchpad(const touchpad_data_s *pad, int16_t *x, int16_t *y, int16_t *pressure)
+{
+    *x = pad->touched ? pad->x : 0;
+    *y = pad->touched ? pad->y : 0;
+    *pressure = 0;
+    if (pad->touched)
+        *pressure = (int16_t)((pad->pressure > TOUCHPAD_PRESSURE_MAX) ? TOUCHPAD_PRESSURE_MAX
+                                                                    : (pad->pressure ? pad->pressure : 1u));
+}
+
+bool sinput_api_hook_get_touchpads(sinput_touchpads_s *out)
+{
+    touchpad_data_s left = {0};
+    touchpad_data_s right = {0};
+    if (!cb_hoja_read_touchpads(&left, &right))
+        return false;
+
+    _si_touchpad(&left, &out->left.x, &out->left.y, &out->left.pressure);
+    _si_touchpad(&right, &out->right.x, &out->right.y, &out->right.pressure);
     return true;
 }
 
@@ -299,6 +325,11 @@ bool core_sinput_init(core_params_s *params)
 
     _sinput_hid_device.device_descriptor = (hoja_usb_device_descriptor_t *)sinput_hid_get_device_descriptor();
 
+    // A board with touchpads has the pair
+    touchpad_data_s pad_left = {0};
+    touchpad_data_s pad_right = {0};
+    const bool touchpads = cb_hoja_read_touchpads(&pad_left, &pad_right);
+
     sinput_device_cfg_s cfg = 
     {
         .buttons = 
@@ -324,6 +355,11 @@ bool core_sinput_init(core_params_s *params)
         {
             .left = analog_static.axis_lt && !digital_triggers_only,
             .right = analog_static.axis_rt && !digital_triggers_only,
+        },
+        .touchpads =
+        {
+            .touchpad_left = touchpads,
+            .touchpad_right = touchpads,
         },
         .leds =
         {

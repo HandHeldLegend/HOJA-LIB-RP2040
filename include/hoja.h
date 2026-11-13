@@ -14,6 +14,7 @@
 #include "devices/fuelgauge.h"
 
 #include "input/analog.h"
+#include "input/touchpad.h"
 #include "utilities/callback.h"
 
 // SInput descriptor enums (sinput_sdl_gamepad_type_t / sinput_sdl_face_style_t).
@@ -302,6 +303,9 @@ uint16_t cb_hoja_read_battery();
 // Accessible as a uint16_t array of size 4 only
 void cb_hoja_read_joystick(uint16_t *input);
 void cb_hoja_read_input(mapper_input_s *input);
+// A board with touchpads: where each stands now, and true. Asked with every report that carries
+// them, from the task loop. The default is a board with none.
+bool cb_hoja_read_touchpads(touchpad_data_s *left, touchpad_data_s *right);
 void cb_hoja_init();
 
 void hoja_restart();

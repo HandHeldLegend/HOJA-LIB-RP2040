@@ -140,6 +140,13 @@ __attribute__((weak)) void cb_hoja_read_input(mapper_input_s *input)
   (void)&input;
 }
 
+__attribute__((weak)) bool cb_hoja_read_touchpads(touchpad_data_s *left, touchpad_data_s *right)
+{
+  (void)left;
+  (void)right;
+  return false;
+}
+
 volatile bool _deinit_lockout = false;
 void hoja_deinit(callback_t cb)
 {
