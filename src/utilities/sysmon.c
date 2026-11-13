@@ -63,6 +63,16 @@ void sysmon_task(uint64_t timestamp)
 
     if(!_sysbattery.connected) return;
 
+#if !defined(HOJA_TRANSPORT_BT_DRIVER) && !defined(HOJA_TRANSPORT_DONGLE_DRIVER)
+    // A battery but no wireless mode: off the cable there is nothing to connect to
+    if(!_sysbattery.plugged)
+    {
+        _shutdown_lockout = true;
+        hoja_deinit(hoja_shutdown);
+        return;
+    }
+#endif
+
     if(_shutdown_timeout_initiated)
     {
         static uint64_t critical_deadline_us = 0;
