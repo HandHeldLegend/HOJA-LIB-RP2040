@@ -58,6 +58,8 @@
     #define IMU_DRIVER_LSM6DSR_I2C 2
     // Unified LSM6DSR driver: bus (SPI/I2C) is chosen per-channel in the cfg.
     #define IMU_DRIVER_LSM6DSR     3
+    // LSM6DSV16X on I2C, one sensor
+    #define IMU_DRIVER_LSM6DSV16X  4
     // Override: board supplies its own IMU driver + cfg type out-of-tree.
     // See hoja.h (HOJA_IMU_CFG_TYPE) for the override hook.
     #define IMU_DRIVER_CUSTOM      0xFF
@@ -67,6 +69,7 @@
 
     // Battery Drivers
     #define BATTERY_DRIVER_BQ25180 1
+    #define BATTERY_DRIVER_MP2733  2
     // Override: board supplies its own battery driver + cfg type out-of-tree.
     // See hoja.h (HOJA_BATTERY_CFG_TYPE) for the override hook.
     #define BATTERY_DRIVER_CUSTOM  0xFF

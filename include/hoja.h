@@ -40,6 +40,10 @@
     #include "drivers/battery/bq25180.h"
     typedef bq25180_cfg_s hoja_battery_cfg_t;
     #define HOJA_BATTERY_CFG_PRESENT 1
+  #elif (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_MP2733)
+    #include "drivers/battery/mp2733.h"
+    typedef mp2733_cfg_s hoja_battery_cfg_t;
+    #define HOJA_BATTERY_CFG_PRESENT 1
   #elif (HOJA_BATTERY_DRIVER == BATTERY_DRIVER_CUSTOM)
     // Override hook: board_config.h must include the custom driver's header and
     // #define HOJA_BATTERY_CFG_TYPE to that driver's config struct type. The
@@ -79,6 +83,10 @@
   #if (HOJA_IMU_DRIVER == IMU_DRIVER_LSM6DSR)
     #include "drivers/imu/lsm6dsr.h"
     typedef lsm6dsr_cfg_s hoja_imu_cfg_t;
+    #define HOJA_IMU_CFG_PRESENT 1
+  #elif (HOJA_IMU_DRIVER == IMU_DRIVER_LSM6DSV16X)
+    #include "drivers/imu/lsm6dsv16x.h"
+    typedef lsm6dsv16x_cfg_s hoja_imu_cfg_t;
     #define HOJA_IMU_CFG_PRESENT 1
   #elif (HOJA_IMU_DRIVER == IMU_DRIVER_CUSTOM)
     // Override hook: board_config.h includes the custom driver's header and
