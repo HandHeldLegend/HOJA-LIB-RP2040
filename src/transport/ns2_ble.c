@@ -1,5 +1,8 @@
 #include "transport/ns2_ble.h"
 
+// Every board's build lists this file; it is something only where the build has the mode
+#if defined(HOJA_NS2_BLE)
+
 #include <stdio.h>
 #include <string.h>
 
@@ -13,13 +16,19 @@
 #include <math.h>
 
 #include "cores/core_ns2gc.h"
+#include "cores/core_switch.h"
+#include "cores/cores.h"
+#include "devices/battery.h"
 #include "devices/haptics.h"
-#include "input/analog.h"
 #include "input/hover.h"
 #include "input/imu.h"
+#include "input/mapper.h"
 #include "hal/sys_hal.h"
 #include "input_shared_types.h"
+#include "transport/transport.h"
 #include "utilities/pcm.h"
+#include "utilities/settings.h"
+#include "utilities/tasks.h"
 
 // The Switch 2 addresses a controller's attributes by handle, so the database is the retail
 // controller's and nothing else: NS2-LIB-HID's table, from handle 1, FLOSS's own services cleared out
@@ -28,17 +37,16 @@
 // The console never runs Bluetooth pairing. Its own pairing commands, over GATT, agree a key, and it
 // encrypts the link with that key from then on (the long term key request names EDIV and Rand 0).
 // The library hands the key over once agreed; a paired controller advertises to its console by
-// address to be taken back.
+// address to be taken back. The console and its key are saved as the gamepad's Switch (the saved
+// host and the key a Switch 1 would have given over USB): this is Switch mode on this build.
 
 #define NS2_BLE_ATTR_MAX        64u
 #define NS2_BLE_CCCD_MAX        8u
 #define NS2_BLE_NO_LINK         0xFFFFu
 #define NS2_BLE_ADV_INTERVAL    0x30u // 30 ms, as the retail controller
 #define NS2_BLE_INPUT_INFLIGHT  2u
-#define NS2_BLE_STORE_KEY       (FLOSS_STORE_KEY_APP_BASE + 0x20u)
-
-// A trigger counts as pressed (ZL, ZR) from a quarter of its pull
-#define NS2_BLE_TRIGGER_PRESSED 1024u
+#define NS2_BLE_LEAVING         0x13u // HCI: the remote user ended the connection
+#define NS2_BLE_POWERING_OFF    0x15u // HCI: the remote device is powering off
 
 // Rumble, as the console writes it: for each motor a block of a header and up to three samples, a
 // sample every 5 ms. The header's high nibble is 4 + the samples in the block (its low nibble counts
@@ -114,6 +122,7 @@
 #define NS2_BLE_STICK_CENTER    2048
 #define NS2_BLE_STICK_MIN       1
 #define NS2_BLE_STICK_MAX       4095
+#define NS2_BLE_TRIGGER_FULL    255u
 
 typedef struct
 {
@@ -125,6 +134,16 @@ static floss_gatt_attr_t _ns2_ble_attrs[NS2_BLE_ATTR_MAX];
 static floss_gatt_cccd_t _ns2_ble_cccd[NS2_BLE_CCCD_MAX];
 
 static bool _ns2_ble_started = false;
+static bool _ns2_ble_stopped = false; // Left by ns2_ble_stop: quiet until started again
+// The advert asks a sleeping console to wake. Only when the player asked: the gamepad was started
+// by hand, or Home is pressed. An advert that always asked woke the console the moment it slept.
+static bool _ns2_ble_wake = false;
+// A Switch 2 has no command to turn its controllers off, as the first Switch has. Going to sleep, it
+// stops any vibration sample and ends the link itself (HCI reason 0x13, read off the gamepad's own
+// log of a console put to sleep), and a controller it let go stays quiet until a button is pressed.
+// For this gamepad that is off: its power button starts it again, and it wakes the console.
+static bool _ns2_ble_console = false;      // The link is with the saved console (it has our key)
+static bool _ns2_ble_console_left = false; // It ended the link: powered off from the task
 static uint16_t _ns2_ble_link = NS2_BLE_NO_LINK;
 
 static ns2_ble_pairing_s _ns2_ble_pairing;
@@ -145,6 +164,42 @@ void ns2_api_hook_set_pairing(const ns2_pairing_s *pairing)
     memcpy(_ns2_ble_pairing.ltk, pairing->ltk, sizeof(_ns2_ble_pairing.ltk));
     _ns2_ble_paired = true;
     _ns2_ble_pairing_new = true;
+}
+
+static bool _ns2_ble_blank(const uint8_t *data, uint8_t len)
+{
+    for (uint8_t i = 0; i < len; i++)
+    {
+        if (data[i])
+            return false;
+    }
+    return true;
+}
+
+bool ns2_ble_paired(void)
+{
+    return (switchpair_config->switchpair_config_version == CFG_BLOCK_SWITCHPAIR_VERSION) &&
+           !_ns2_ble_blank(gamepad_config->host_mac_switch, sizeof(gamepad_config->host_mac_switch)) &&
+           !_ns2_ble_blank(switchpair_config->link_key, sizeof(switchpair_config->link_key));
+}
+
+static void _ns2_ble_pairing_load(void)
+{
+    _ns2_ble_paired = ns2_ble_paired();
+    if (!_ns2_ble_paired)
+        return;
+    memcpy(_ns2_ble_pairing.host_mac, gamepad_config->host_mac_switch, sizeof(_ns2_ble_pairing.host_mac));
+    memcpy(_ns2_ble_pairing.ltk, switchpair_config->link_key, sizeof(_ns2_ble_pairing.ltk));
+}
+
+// Saved by the flash task: on the nRF52 that stops the chip for a page erase (about 85 ms), which
+// the link rides out as a few missed connection events
+static void _ns2_ble_pairing_save(void)
+{
+    memcpy(gamepad_config->host_mac_switch, _ns2_ble_pairing.host_mac, sizeof(_ns2_ble_pairing.host_mac));
+    memcpy(switchpair_config->link_key, _ns2_ble_pairing.ltk, sizeof(_ns2_ble_pairing.ltk));
+    switchpair_config->switchpair_config_version = CFG_BLOCK_SWITCHPAIR_VERSION;
+    settings_commit_blocks();
 }
 
 static uint16_t _ns2_ble_rumble_frequency(uint32_t code)
@@ -379,7 +434,6 @@ static void _ns2_ble_motion(uint8_t block[NS2_BLE_MOTION_LEN])
 
 static uint16_t _ns2_ble_stick(int value)
 {
-    value += NS2_BLE_STICK_CENTER;
     if (value < NS2_BLE_STICK_MIN)
         value = NS2_BLE_STICK_MIN;
     if (value > NS2_BLE_STICK_MAX)
@@ -387,52 +441,62 @@ static uint16_t _ns2_ble_stick(int value)
     return (uint16_t)value;
 }
 
-// Each button as its label reads, whatever profile the gamepad's own mode has
+// The Switch profile's buttons and sticks, as Switch mode reads them over USB (core_switch.c)
 void ns2_ble_input(ns2_input_s *out)
 {
-    mapper_input_s in;
-    analog_data_s sticks;
-    hover_access_safe(&in);
-    analog_access_safe(&sticks, ANALOG_ACCESS_DEADZONE_DATA);
+    mapper_input_s in = mapper_get_input();
+
+    bool dpad[4] = {in.presses[SWITCH_CODE_DOWN], in.presses[SWITCH_CODE_RIGHT], in.presses[SWITCH_CODE_LEFT],
+                    in.presses[SWITCH_CODE_UP]};
+    dpad_translate_input(dpad);
 
     memset(out, 0, sizeof(*out));
-    out->a = in.presses[INPUT_CODE_SOUTH];
-    out->b = in.presses[INPUT_CODE_EAST];
-    out->x = in.presses[INPUT_CODE_WEST];
-    out->y = in.presses[INPUT_CODE_NORTH];
-    out->up = in.presses[INPUT_CODE_UP];
-    out->down = in.presses[INPUT_CODE_DOWN];
-    out->left = in.presses[INPUT_CODE_LEFT];
-    out->right = in.presses[INPUT_CODE_RIGHT];
-    out->l = in.presses[INPUT_CODE_LB];
-    out->r = in.presses[INPUT_CODE_RB];
-    // A trigger with no click of its own is pressed by its pull
-    out->zl = in.presses[INPUT_CODE_LT] || (in.inputs[INPUT_CODE_LT_ANALOG] >= NS2_BLE_TRIGGER_PRESSED);
-    out->zr = in.presses[INPUT_CODE_RT] || (in.inputs[INPUT_CODE_RT_ANALOG] >= NS2_BLE_TRIGGER_PRESSED);
-    out->plus = in.presses[INPUT_CODE_START];
-    out->minus = in.presses[INPUT_CODE_SELECT];
-    out->home = in.presses[INPUT_CODE_HOME];
-    out->capture = in.presses[INPUT_CODE_SHARE];
-    out->l_js = in.presses[INPUT_CODE_LS];
-    out->r_js = in.presses[INPUT_CODE_RS];
-    out->gl = in.presses[INPUT_CODE_LP1];
-    out->gr = in.presses[INPUT_CODE_RP1];
+    out->down = dpad[0];
+    out->right = dpad[1];
+    out->left = dpad[2];
+    out->up = dpad[3];
 
-    out->ls_x = _ns2_ble_stick(sticks.lx);
-    out->ls_y = _ns2_ble_stick(sticks.ly);
-    out->rs_x = _ns2_ble_stick(sticks.rx);
-    out->rs_y = _ns2_ble_stick(sticks.ry);
+    out->a = in.presses[SWITCH_CODE_A];
+    out->b = in.presses[SWITCH_CODE_B];
+    out->x = in.presses[SWITCH_CODE_X];
+    out->y = in.presses[SWITCH_CODE_Y];
+    out->l = in.presses[SWITCH_CODE_L];
+    out->r = in.presses[SWITCH_CODE_R];
+    out->zl = in.presses[SWITCH_CODE_ZL];
+    out->zr = in.presses[SWITCH_CODE_ZR];
+    out->plus = in.presses[SWITCH_CODE_PLUS];
+    out->minus = in.presses[SWITCH_CODE_MINUS];
+    out->home = in.presses[SWITCH_CODE_HOME];
+    out->capture = in.presses[SWITCH_CODE_CAPTURE];
+    out->l_js = in.presses[SWITCH_CODE_LS];
+    out->r_js = in.presses[SWITCH_CODE_RS];
 
-    // Pulled through to the click reads full, as on the retail controller
-    const uint16_t lt = in.inputs[INPUT_CODE_LT_ANALOG] >> 4;
-    const uint16_t rt = in.inputs[INPUT_CODE_RT_ANALOG] >> 4;
-    out->lt = (out->zl || (lt > 255u)) ? 255u : (uint8_t)lt;
-    out->rt = (out->zr || (rt > 255u)) ? 255u : (uint8_t)rt;
+    // The Pro Controller 2's back buttons have no code in the Switch profile yet: they are the
+    // first back button on each side as wired, whatever the profile gives those two
+    mapper_input_s wired;
+    hover_access_safe(&wired);
+    out->gl = wired.presses[INPUT_CODE_LP1];
+    out->gr = wired.presses[INPUT_CODE_RP1];
+
+    core_switch_gesture_input(&in);
+
+    out->ls_x = _ns2_ble_stick(mapper_joystick_concat(NS2_BLE_STICK_CENTER, in.inputs[SWITCH_CODE_LX_LEFT],
+                                                      in.inputs[SWITCH_CODE_LX_RIGHT]));
+    out->ls_y = _ns2_ble_stick(mapper_joystick_concat(NS2_BLE_STICK_CENTER, in.inputs[SWITCH_CODE_LY_DOWN],
+                                                      in.inputs[SWITCH_CODE_LY_UP]));
+    out->rs_x = _ns2_ble_stick(mapper_joystick_concat(NS2_BLE_STICK_CENTER, in.inputs[SWITCH_CODE_RX_LEFT],
+                                                      in.inputs[SWITCH_CODE_RX_RIGHT]));
+    out->rs_y = _ns2_ble_stick(mapper_joystick_concat(NS2_BLE_STICK_CENTER, in.inputs[SWITCH_CODE_RY_DOWN],
+                                                      in.inputs[SWITCH_CODE_RY_UP]));
+
+    // This controller's triggers are buttons: full while pressed
+    out->lt = out->zl ? NS2_BLE_TRIGGER_FULL : 0u;
+    out->rt = out->zr ? NS2_BLE_TRIGGER_FULL : 0u;
 }
 
 bool ns2_ble_running(void)
 {
-    return _ns2_ble_started;
+    return _ns2_ble_started && !_ns2_ble_stopped;
 }
 
 bool ns2_ble_linked(void)
@@ -469,6 +533,7 @@ static bool _ns2_ble_ltk(uint16_t handle, uint16_t ediv, const uint8_t rand[8], 
     (void)user;
     if (!_ns2_ble_paired)
         return false;
+    _ns2_ble_console = true;
     // FLOSS takes it least significant byte first
     for (uint8_t i = 0; i < sizeof(_ns2_ble_pairing.ltk); i++)
         ltk[i] = _ns2_ble_pairing.ltk[sizeof(_ns2_ble_pairing.ltk) - 1u - i];
@@ -563,11 +628,12 @@ static uint16_t _ns2_ble_build_gatt(void)
 
 // ---- The link ----
 
-// To the paired console by address, asking to be taken back; to any console otherwise
+// To the console the library was started with, by address, asking to be taken back; to any console
+// when it was started with none (none saved, or pairing)
 static void _ns2_ble_advertise(void)
 {
     uint8_t adv[NS2_ADV_DATA_MAX_SIZE];
-    const uint8_t len = ns2_api_get_advertisement(adv, _ns2_ble_paired);
+    const uint8_t len = ns2_api_get_advertisement(adv, _ns2_ble_paired && _ns2_ble_wake);
 
     floss_le_adv_params_t params;
     floss_le_adv_params_defaults(&params);
@@ -579,6 +645,17 @@ static void _ns2_ble_advertise(void)
     floss_le_adv_set_params(&params);
     floss_le_adv_set_data(adv, len);
     floss_le_adv_start();
+}
+
+// The gamepad's own view of the link: its status light, and what waits on a connection
+static void _ns2_ble_connection(bool connected)
+{
+    transport_evt_cb((tp_evt_s){
+        .evt = TP_EVT_CONNECTIONCHANGE,
+        .evt_connectionchange = {
+            .connection = connected ? TP_CONNECTION_CONNECTED : TP_CONNECTION_DISCONNECTED,
+        },
+    });
 }
 
 static void _ns2_ble_event(const floss_le_evt_t *evt, void *user)
@@ -595,7 +672,11 @@ static void _ns2_ble_event(const floss_le_evt_t *evt, void *user)
             _ns2_ble_link = evt->handle;
             _ns2_ble_reply_len = 0;
             _ns2_ble_motion_running = false;
+            _ns2_ble_wake = false;
+            _ns2_ble_console = false;
+            _ns2_ble_console_left = false;
             ns2_api_ble_connected(host_mac);
+            _ns2_ble_connection(true);
             break;
         }
 
@@ -604,7 +685,15 @@ static void _ns2_ble_event(const floss_le_evt_t *evt, void *user)
                 break;
             _ns2_ble_link = NS2_BLE_NO_LINK;
             ns2_api_ble_disconnected();
-            _ns2_ble_advertise();
+            _ns2_ble_connection(false);
+            // The console let the gamepad go: off (from the task). A link that was lost, or one
+            // with anything else, is offered back without waking a console that is asleep.
+            _ns2_ble_wake = false;
+            if (_ns2_ble_console && ((evt->status == NS2_BLE_LEAVING) || (evt->status == NS2_BLE_POWERING_OFF)))
+                _ns2_ble_console_left = true;
+            else if (!_ns2_ble_stopped)
+                _ns2_ble_advertise();
+            _ns2_ble_console = false;
             break;
 
         default:
@@ -612,13 +701,30 @@ static void _ns2_ble_event(const floss_le_evt_t *evt, void *user)
     }
 }
 
-bool ns2_ble_start(const uint8_t dev_mac[6])
+// One of the gamepad's colours (0xRRGGBB) as the library takes it
+static ns2_rgb_s _ns2_ble_colour(uint32_t rgb)
 {
-    if (_ns2_ble_started)
-        return true;
+    return (ns2_rgb_s){.r = (uint8_t)(rgb >> 16), .g = (uint8_t)(rgb >> 8), .b = (uint8_t)rgb};
+}
 
-    _ns2_ble_paired = floss_hal_store_read(NS2_BLE_STORE_KEY, &_ns2_ble_pairing, sizeof(_ns2_ble_pairing)) ==
-                      (int)sizeof(_ns2_ble_pairing);
+bool ns2_ble_start(const uint8_t dev_mac[6], bool pairing)
+{
+    // Carrying on after a stop, or started twice: the library and the database are as they were
+    if (_ns2_ble_started)
+    {
+        _ns2_ble_stopped = false;
+        if (_ns2_ble_link == NS2_BLE_NO_LINK)
+            _ns2_ble_advertise();
+        return true;
+    }
+
+    // Pairing: started as a controller no console knows. With a console in its settings the
+    // library names it in every advert, the kind that is not asking to be taken back too, and
+    // any other console passes those over. The saved console stays saved until another takes
+    // its place.
+    _ns2_ble_paired = false;
+    if (!pairing)
+        _ns2_ble_pairing_load();
 
     ns2_device_config_s cfg = {0};
     cfg.type = NS2_DEVTYPE_PRO2;
@@ -630,7 +736,12 @@ bool ns2_ble_start(const uint8_t dev_mac[6])
     const uint32_t id = ((uint32_t)dev_mac[2] << 24) | ((uint32_t)dev_mac[3] << 16) |
                         ((uint32_t)dev_mac[4] << 8) | dev_mac[5];
     snprintf((char *)cfg.device_serial, sizeof(cfg.device_serial), "HJW5%010lu", (unsigned long)id);
-    memset(&cfg.colors, 0xFF, sizeof(cfg.colors));
+    // The gamepad's own colours, as Switch mode gives them to a first Switch. That console's two
+    // grips are this one's highlight and grip.
+    cfg.colors.body = _ns2_ble_colour(gamepad_config->gamepad_color_body);
+    cfg.colors.buttons = _ns2_ble_colour(gamepad_config->gamepad_color_buttons);
+    cfg.colors.highlight = _ns2_ble_colour(gamepad_config->gamepad_color_grip_left);
+    cfg.colors.grip = _ns2_ble_colour(gamepad_config->gamepad_color_grip_right);
 
     if (ns2_api_init(&cfg) != NS2_CONFIG_OK)
         return false;
@@ -651,16 +762,69 @@ bool ns2_ble_start(const uint8_t dev_mac[6])
     policy.update_delay_us = 0;
     floss_le_set_link_policy(&policy);
 
+    // The console turns motion on by command; the sensor is read from the start, so the first
+    // block it asks for is a real one
+    imu_set_read_mode(IMU_MODE_STANDARD);
+
+    // Started by hand (off the cable, its power button pressed), the gamepad wakes its console as a
+    // retail controller's Home does. On a cable it may have started by itself (a charger): it
+    // waits to be taken, and leaves a sleeping console asleep.
+    battery_status_s power = {0};
+    battery_get_status(&power);
+    _ns2_ble_wake = !power.plugged;
+
     floss_le_add_listener(_ns2_ble_event, NULL);
     _ns2_ble_started = true;
+    _ns2_ble_stopped = false;
     _ns2_ble_advertise();
     return true;
 }
 
+void ns2_ble_stop(void)
+{
+    if (!_ns2_ble_started || _ns2_ble_stopped)
+        return;
+
+    // The controller sends the goodbye by itself: nothing here needs to run again for it
+    _ns2_ble_stopped = true;
+    floss_le_adv_stop();
+    if (_ns2_ble_link != NS2_BLE_NO_LINK)
+        floss_le_disconnect(_ns2_ble_link, NS2_BLE_LEAVING);
+}
+
+void ns2_ble_forget(void)
+{
+    memset(&_ns2_ble_pairing, 0, sizeof(_ns2_ble_pairing));
+    _ns2_ble_paired = false;
+    _ns2_ble_pairing_new = false;
+    _ns2_ble_pairing_save();
+
+    // Its key is gone: a link to it goes, and any console may find the controller
+    if (!ns2_ble_running())
+        return;
+    if (_ns2_ble_link != NS2_BLE_NO_LINK)
+        floss_le_disconnect(_ns2_ble_link, NS2_BLE_LEAVING);
+    else
+        _ns2_ble_advertise();
+}
+
 void ns2_ble_task(void)
 {
-    if (!_ns2_ble_started)
+    if (!ns2_ble_running())
         return;
+
+    // The gamepad reads its buttons and its motion sensor once to a cycle of its task loop, and a
+    // cycle starts when a transport says a report is due (a USB frame, say). Left alone it starts
+    // every 8 ms: buttons 125 times a second and motion 375, for a link that reports 200 times.
+    // Reports here go when the console's connection events make room, so the cycle runs on the
+    // motion block's own clock (800 Hz) instead: no block carries a sample older than one step.
+    static uint64_t cycle_clock = 0;
+    const uint64_t clock = sys_hal_now_us() / NS2_BLE_MOTION_CLOCK_US;
+    if (clock != cycle_clock)
+    {
+        cycle_clock = clock;
+        tasks_mark_frame_isr();
+    }
 
     // The console's vibration samples run to their end here: no core's task is stepping them
     core_ns2gc_rumble_task();
@@ -668,11 +832,28 @@ void ns2_ble_task(void)
     if (_ns2_ble_pairing_new)
     {
         _ns2_ble_pairing_new = false;
-        floss_hal_store_write(NS2_BLE_STORE_KEY, &_ns2_ble_pairing, sizeof(_ns2_ble_pairing));
+        _ns2_ble_pairing_save();
     }
 
     if (_ns2_ble_link == NS2_BLE_NO_LINK)
+    {
+        // The console let the gamepad go (going to sleep, or clearing its controllers): off
+        if (_ns2_ble_console_left)
+        {
+            _ns2_ble_console_left = false;
+            transport_evt_cb((tp_evt_s){
+                .evt = TP_EVT_POWERCOMMAND,
+                .evt_powercommand = {.power_command = TP_POWERCOMMAND_SHUTDOWN},
+            });
+        }
+        // Home wakes a sleeping console, as on the retail controller
+        else if (_ns2_ble_paired && !_ns2_ble_wake && mapper_get_input().presses[SWITCH_CODE_HOME])
+        {
+            _ns2_ble_wake = true;
+            _ns2_ble_advertise();
+        }
         return;
+    }
 
     // Replies to the console's commands first, in order: one FLOSS has no room for waits here
     for (;;)
@@ -704,5 +885,8 @@ void ns2_ble_task(void)
     else
         _ns2_ble_motion_running = false;
 
-    floss_gatt_notify(_ns2_ble_link, NS2_HANDLE_PRO2_INPUT_VALUE, report, sizeof(report));
+    if (floss_gatt_notify(_ns2_ble_link, NS2_HANDLE_PRO2_INPUT_VALUE, report, sizeof(report)) == FLOSS_OK)
+        tasks_mark_sent();
 }
+
+#endif

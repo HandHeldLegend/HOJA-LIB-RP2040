@@ -127,6 +127,7 @@
     #define BT_DRIVER_HAL 1
     #define BT_DRIVER_ESP32HOJA 2
     #define BT_DRIVER_ESP32HCI 3 // ESP32 running the HCI bridge, the host stack on the RP2040
+    #define BT_DRIVER_NRF52 4 // The nRF52's own radio (Bluetooth LE alone), FLOSS over the controller in the same chip
 
     // Older board_config.h files declared HOJA_BLUETOOTH_DRIVER instead of
     // HOJA_TRANSPORT_BT_DRIVER. Values match (BLUETOOTH_DRIVER_* == BT_DRIVER_*).
@@ -151,6 +152,10 @@
 
     // A host stack on the RP2040, BTstack or FLOSS (Wii mode, pairing storage at the top of flash)
     #define HOJA_BT_HOST_STACK (HOJA_BT_USES_BTSTACK || HOJA_BT_USES_FLOSS)
+
+    // A radio with Bluetooth LE alone carries one mode: Switch, as a Switch 2's Pro Controller 2
+    // (transport/ns2_ble.h). Off the cable, whatever mode is picked comes out as that one.
+    #define HOJA_BT_LE_ONLY (HOJA_TRANSPORT_BT_DRIVER == BT_DRIVER_NRF52)
 
     // USB Drivers
     #define USB_DRIVER_HAL 1

@@ -253,10 +253,16 @@ void ns_api_hook_set_power(uint8_t shutdown)
 
 void ns_api_hook_set_usbpair(ns_usbpair_s pairing_data)
 {
+#if defined(HOJA_NS2_BLE)
+    // The saved Switch is the Switch 2 paired over Bluetooth LE (transport/ns2_ble.c): a key for
+    // Classic Bluetooth would replace its own, and this build has no use for one
+    (void)pairing_data;
+#else
     memcpy(gamepad_config->host_mac_switch, pairing_data.host_mac, 6);
     memcpy(switchpair_config->link_key, pairing_data.link_key, 16);
     switchpair_config->switchpair_config_version = CFG_BLOCK_SWITCHPAIR_VERSION;
     settings_commit_blocks();
+#endif
 }
 
 void ns_api_hook_set_imu_mode(ns_imu_mode_t imu_mode)
@@ -324,6 +330,21 @@ static void _core_switch_probe_connected(void)
 bool core_switch_init(core_params_s *params)
 {
     _core_switch_params = params;
+
+#if defined(HOJA_NS2_BLE)
+    // Built with Switch mode over Bluetooth as a Switch 2's Pro Controller 2 (transport/ns2_ble.h).
+    // NS2-LIB-HID has the link and makes the reports there; this core lends the mode, so the Switch
+    // profile, colour and tasks are the ones in use.
+    if (params->transport_type == GAMEPAD_TRANSPORT_BLUETOOTH)
+    {
+        params->core_report_format = CORE_REPORTFORMAT_SWPRO;
+        params->core_report_generator = NULL;
+        params->core_report_tunnel = NULL;
+        params->hid_device = NULL;
+        pcm_init(-1);
+        return transport_init(params);
+    }
+#endif
 
     ns_device_config_s cfg = {0};
     cfg.type = NS_DEVTYPE_PROCON;

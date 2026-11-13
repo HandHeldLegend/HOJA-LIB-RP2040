@@ -360,6 +360,10 @@ static core_reportformat_t boot_default_wired(void)
 
 static core_reportformat_t boot_default_wireless(void)
 {
+#if HOJA_BT_LE_ONLY
+    // The radio's one mode, whatever is saved
+    return CORE_REPORTFORMAT_SWPRO;
+#else
     const core_reportformat_t format = (core_reportformat_t)gamepad_config->gamepad_default_wireless;
     switch (format)
     {
@@ -374,6 +378,7 @@ static core_reportformat_t boot_default_wireless(void)
         break;
     }
     return CORE_REPORTFORMAT_UNDEFINED;
+#endif
 }
 
 // The default for this power source. On battery the wireless default applies, except that an N64
@@ -562,6 +567,23 @@ static void boot_apply_battery_transport(boot_info_s *info)
     }
 }
 
+// A radio with one mode (HOJA_BT_LE_ONLY): a mode picked by hand, the pairing combo's and a mode
+// that would look for a dongle all come out as Switch over Bluetooth
+static void boot_apply_radio_modes(boot_info_s *info)
+{
+#if HOJA_BT_LE_ONLY
+    if (info->flags & COREBOOT_FLAG_ALTFLASH)
+        return;
+    if ((info->transport != GAMEPAD_TRANSPORT_BLUETOOTH) && (info->transport != GAMEPAD_TRANSPORT_DONGLE))
+        return;
+
+    info->transport = GAMEPAD_TRANSPORT_BLUETOOTH;
+    info->reportformat = CORE_REPORTFORMAT_SWPRO;
+#else
+    (void)info;
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // Boot memory API
 // ---------------------------------------------------------------------------
@@ -702,5 +724,8 @@ void boot_init(void)
     // 8. Battery status resolves AUTO transport to USB, or wireless: the dongle first, then
     //    Bluetooth.
     boot_apply_battery_transport(&_boot_info);
+
+    // 9. What this board's radio can carry.
+    boot_apply_radio_modes(&_boot_info);
     BOOT_TIMELINE(TL_BOOT, _boot_info.transport);
 }

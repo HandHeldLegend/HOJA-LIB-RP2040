@@ -177,20 +177,26 @@ if(HOJA_NRF52_BLE)
   # FLOSS, the host stack over that controller (src/hal/nrf52/ble/floss_port.c)
   set(FLOSS_ROOT ${HOJA_LIB_ROOT}/external/floss)
   file(GLOB_RECURSE FLOSS_C "${FLOSS_ROOT}/src/*.c")
-  target_sources(hoja_lib INTERFACE
-    ${FLOSS_C}
-    # A Pro Controller 2 for a Switch 2: this radio has the 2M PHY the console wants
-    ${HOJA_LIB_ROOT}/src/transport/ns2_ble.c
-  )
+  target_sources(hoja_lib INTERFACE ${FLOSS_C})
   target_include_directories(hoja_lib INTERFACE
     ${FLOSS_ROOT}/include
     ${FLOSS_ROOT}/src
   )
   target_compile_definitions(hoja_lib INTERFACE
     HOJA_BT_FLOSS=1
-    HOJA_NS2_BLE=1
     FLOSS_USER_CONFIG_FILE="floss_config_hoja.h"
   )
+
+  # Switch mode over Bluetooth as a Switch 2's Pro Controller 2 (transport/ns2_ble.h): this radio
+  # has the 2M PHY the console wants, and no Classic Bluetooth for a first Switch. The board
+  # project's HOJA_NS2_BLE, on unless it says otherwise; a board takes it up by naming
+  # BT_DRIVER_NRF52 as its Bluetooth driver.
+  if(NOT DEFINED HOJA_NS2_BLE)
+    set(HOJA_NS2_BLE ON)
+  endif()
+  if(HOJA_NS2_BLE)
+    target_compile_definitions(hoja_lib INTERFACE HOJA_NS2_BLE=1)
+  endif()
 endif()
 
 # A board's firmware: the linker script with the board's flash and RAM (MEMORY, then nrfx's
