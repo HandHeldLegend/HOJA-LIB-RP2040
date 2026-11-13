@@ -18,6 +18,7 @@ set(HOJA_COMMON_SOURCES
   ${HOJA_LIB_ROOT}/src/utilities/pcm.c
   ${HOJA_LIB_ROOT}/src/utilities/hooks.c
   ${HOJA_LIB_ROOT}/src/utilities/sysmon.c
+  ${HOJA_LIB_ROOT}/src/utilities/bench_log.c
   ${HOJA_LIB_ROOT}/src/utilities/tasks.c
   ${HOJA_LIB_ROOT}/src/devices/haptics.c
   ${HOJA_LIB_ROOT}/src/devices/rgb.c

@@ -15,6 +15,7 @@ typedef enum
   WEBUSB_ID_BLOCK_FINGERPRINTS, // CRC32s of every block, so the app reads only what changed
   WEBUSB_ID_PROFILE,            // Settings profiles: list, switch, rename, copy (utilities/profiles.h)
   WEBUSB_LEGACY_SET_BOOTLOADER = 15,
+  WEBUSB_ID_BENCH_LOG = 0xB0,   // Bench only (HOJA_BENCH_LOG): the next of the text kept by utilities/bench_log.h
   WEBUSB_LEGACY_GET_FW_VERSION = 0xAF, 
   WEBUSB_SNAPBACK_CAPTURE = 249, // A stick coming back from a push, both axes at the analog rate (snapback_capture.h)
   WEBUSB_ANALOG_DUMP = 250,

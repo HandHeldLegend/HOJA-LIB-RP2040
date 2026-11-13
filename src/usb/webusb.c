@@ -6,6 +6,7 @@
 #include "utilities/static_config.h"
 #include "utilities/profiles.h"
 #include "utilities/crc32.h"
+#include "utilities/bench_log.h"
 
 #include "input/analog.h"
 #include "input/imu.h"
@@ -351,6 +352,17 @@ void webusb_command_handler(uint8_t *data, uint32_t size)
         case WEBUSB_LEGACY_SET_BOOTLOADER:
             // Do nothing
         break;
+
+#if defined(HOJA_BENCH_LOG)
+        case WEBUSB_ID_BENCH_LOG:
+        {
+            // [id][length][text]
+            uint8_t out[64] = {WEBUSB_ID_BENCH_LOG};
+            out[1] = (uint8_t)bench_log_read(&out[2], sizeof(out) - 2);
+            webusb_send_bulk(out, sizeof(out));
+        }
+        break;
+#endif
 
         case WEBUSB_LEGACY_GET_FW_VERSION:
             // Do nothing
