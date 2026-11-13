@@ -1,3 +1,13 @@
+# The chip family the library is built for: its HAL (src/hal/<family>) and SDK. RP2040/RP2350 unless
+# the board project sets another before adding this folder.
+if(NOT DEFINED HOJA_PLATFORM)
+  set(HOJA_PLATFORM rp2040)
+endif()
+if(NOT HOJA_PLATFORM STREQUAL "rp2040")
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/hoja_${HOJA_PLATFORM}.cmake)
+  return()
+endif()
+
 add_library(hoja_lib INTERFACE)
 
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/external/NS-LIB-HID")
@@ -34,60 +44,16 @@ if(EXISTS "${HOJA_NS2_LIB_DIR}/CMakeLists.txt")
   target_compile_definitions(hoja_lib INTERFACE HOJA_NS2=1 HOJA_NS2_USB_PAIRING=${HOJA_NS2_USB_PAIRING})
 endif()
 
-file(GLOB_RECURSE DRIVERS_C "${CMAKE_CURRENT_LIST_DIR}/src/drivers/*.c")
+set(HOJA_LIB_ROOT ${CMAKE_CURRENT_LIST_DIR})
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/hoja_sources.cmake)
 file(GLOB_RECURSE HAL_C "${CMAKE_CURRENT_LIST_DIR}/src/hal/rp2040/*.c")
-file(GLOB_RECURSE RGB_C "${CMAKE_CURRENT_LIST_DIR}/src/devices/animations/*.c")
-file(GLOB_RECURSE MACROS_C "${CMAKE_CURRENT_LIST_DIR}/src/input/macros/*.c")
-file(GLOB_RECURSE SNAPBACK_C "${CMAKE_CURRENT_LIST_DIR}/src/input/snapback/*.c")
-file(GLOB_RECURSE CORES_C "${CMAKE_CURRENT_LIST_DIR}/src/cores/*.c")
-file(GLOB_RECURSE TRANSPORTS_C "${CMAKE_CURRENT_LIST_DIR}/src/transport/*.c")
 
 message("Globbed C files: ${DRIVERS_C}")
 message("Globbed HAL files: ${HAL_C}")
 
 target_sources(hoja_lib INTERFACE
-  ${CMAKE_CURRENT_LIST_DIR}/src/hoja.c
-  
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/boot.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/interval.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ringbuffer.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/settings.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/profiles.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/static_config.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/pcm.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/hooks.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/sysmon.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/tasks.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/haptics.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/rgb.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/battery.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/devices/fuelgauge.c
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/imu.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/motion_gesture.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/autodetect.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/boot_timeline.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/utilities/ns2_bt_probe.c
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/mapper.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/snapback.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_scaling.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/stick_deadzone.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/analog.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/dpad.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/macros.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/idle_manager.c 
-  ${CMAKE_CURRENT_LIST_DIR}/src/input/hover.c 
-
-  ${CMAKE_CURRENT_LIST_DIR}/src/usb/webusb.c 
-
-  ${MACROS_C} 
-  ${DRIVERS_C}
+  ${HOJA_COMMON_SOURCES}
   ${HAL_C}
-  ${RGB_C}
-  ${SNAPBACK_C}
-  ${CORES_C}
-  ${TRANSPORTS_C}
 )
 
 target_include_directories(hoja_lib INTERFACE
