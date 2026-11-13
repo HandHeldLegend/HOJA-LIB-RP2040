@@ -5,6 +5,7 @@
 
 #include "flash_layout.h"
 #include "hal/flash_hal.h"
+#include "nrf52_hal.h"
 #include "utilities/crc32.h"
 
 // The record store of rp2040/record_hal.c, in the board's storage area (flash_layout.h): the same
@@ -32,7 +33,16 @@ _Static_assert(RECORD_HAL_SECTOR_LEN == FLASH_SECTOR_SIZE, "a record is one flas
 _Static_assert(RECORD_HAL_IDS < RECORD_HAL_POOL_SECTORS, "a write needs a sector no newest copy holds");
 _Static_assert(RECORD_HAL_POOL_SECTORS < RECORD_HAL_NONE, "a sector index fits a byte");
 
+// Over an update. A board's updater may erase the store along with the firmware (Valve's bootloader
+// on the Steam Controller erases all the flash it can write). The newest copies then wait in RAM the
+// updater leaves alone and the firmware's own memory stays clear of, named by the board's linker
+// script: __record_carry, of __record_carry_size bytes (a symbol whose address is the size). Without
+// the symbol nothing is carried.
+extern uint8_t __record_carry[] __attribute__((weak));
+extern uint8_t __record_carry_size[] __attribute__((weak));
+
 static uint8_t _record_hal_current[RECORD_HAL_IDS]; // The sector holding each id's newest copy
+static bool _record_hal_scanned = false;
 static uint32_t _record_hal_seq;                     // The newest sequence number seen
 static uint8_t _record_hal_next;                     // Where the next write looks first (wear spreads)
 static uint8_t __attribute__((aligned(4))) _record_hal_sector[FLASH_SECTOR_SIZE];
@@ -61,7 +71,7 @@ static uint8_t _record_hal_free_sector(void)
     return RECORD_HAL_NONE;
 }
 
-bool record_hal_init(void)
+static void _record_hal_scan(void)
 {
     memset(_record_hal_current, RECORD_HAL_NONE, sizeof(_record_hal_current));
     _record_hal_seq = 0;
@@ -81,6 +91,75 @@ bool record_hal_init(void)
             _record_hal_next = (uint8_t)((s + 1u) % RECORD_HAL_POOL_SECTORS);
         }
     }
+    _record_hal_scanned = true;
+}
+
+// A carried record's length: its header and payload, to a whole word
+static uint32_t _record_hal_carried_len(const record_hal_header_s *h)
+{
+    return (uint32_t)sizeof(*h) + ((h->length + 3u) & ~3u);
+}
+
+// What an update carried goes back into a store it left empty. Once: the copies in RAM are spent
+// here either way, so a store someone empties later stays empty.
+static void _record_hal_carry_back(void)
+{
+    if (!__record_carry)
+        return;
+
+    bool empty = true;
+    for (uint16_t id = 0; id < RECORD_HAL_IDS; id++)
+        empty &= (_record_hal_current[id] == RECORD_HAL_NONE);
+
+    const uint8_t *end = __record_carry + (uint32_t)(uintptr_t)__record_carry_size;
+    const uint8_t *at = __record_carry;
+    while (empty && (at + sizeof(record_hal_header_s) <= end))
+    {
+        const record_hal_header_s *h = (const record_hal_header_s *)at;
+        if ((h->magic != RECORD_HAL_MAGIC) || (h->length > RECORD_HAL_PAYLOAD_MAX_LEN) ||
+            (at + _record_hal_carried_len(h) > end) || !_record_hal_is_whole(h))
+            break;
+
+        if (_record_hal_current[h->id] == RECORD_HAL_NONE)
+        {
+            const record_hal_part_s part = {.data = h + 1, .len = h->length};
+            record_hal_write(h->id, &part, 1);
+        }
+        at += _record_hal_carried_len(h);
+    }
+    memset(__record_carry, 0, sizeof(record_hal_header_s));
+}
+
+void nrf52_record_carry(void)
+{
+    if (!__record_carry)
+        return;
+    // Asked before the store was read (a button combination at start)
+    if (!_record_hal_scanned)
+        _record_hal_scan();
+
+    // Back to back, lowest id first, ended by a header that is none. One that no longer fits is
+    // left behind.
+    uint8_t *end = __record_carry + (uint32_t)(uintptr_t)__record_carry_size;
+    uint8_t *at = __record_carry;
+    for (uint16_t id = 0; id < RECORD_HAL_IDS; id++)
+    {
+        if (_record_hal_current[id] == RECORD_HAL_NONE)
+            continue;
+        const record_hal_header_s *h = _record_hal_at(_record_hal_current[id]);
+        const uint32_t len = _record_hal_carried_len(h);
+        if (at + len + sizeof(record_hal_header_s) > end)
+            continue;
+        memcpy(at, h, len);
+        at += len;
+    }
+    memset(at, 0, sizeof(record_hal_header_s));
+}
+
+bool record_hal_init(void)
+{
+    _record_hal_scan();
+    _record_hal_carry_back();
     return true;
 }
 

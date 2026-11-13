@@ -35,6 +35,12 @@ static inline uint32_t nrf52_psel(uint32_t gpio)
 // Input with a pull-down, or with no pull at all (gpio_hal_init offers pull-up or none)
 void nrf52_gpio_init_input(uint32_t gpio, bool pull_up, bool pull_down);
 
+// ---- Records ----
+
+// The record store's newest copies, into the RAM a board keeps for them over an update that erases
+// the store (record_hal.c). sys_hal_bootloader does this; the next start puts them back.
+void nrf52_record_carry(void);
+
 // ---- I2C ----
 
 // A read that runs by itself (the unit's DMA) while the task loop carries on: for a long read made

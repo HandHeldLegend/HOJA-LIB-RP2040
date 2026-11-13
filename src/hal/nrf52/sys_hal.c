@@ -198,6 +198,8 @@ __attribute__((weak)) void cb_nrf52_bootloader_request(void)
 
 void sys_hal_bootloader()
 {
+    // The update may erase what the board has saved
+    nrf52_record_carry();
     cb_nrf52_bootloader_request();
     sys_hal_reboot();
 }
