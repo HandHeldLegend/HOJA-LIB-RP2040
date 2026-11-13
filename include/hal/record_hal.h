@@ -11,6 +11,9 @@
 #include <stdint.h>
 
 #define RECORD_HAL_IDS             8u
+// The ids: 0 the global settings and 1 upward the profiles (utilities/profiles.c), and the last for
+// a Bluetooth stack's own keys, on a board whose stack keeps them here (hal/nrf52/ble/floss_port.c)
+#define RECORD_HAL_ID_RADIO        (RECORD_HAL_IDS - 1u)
 #define RECORD_HAL_SECTOR_LEN      4096u // One record per flash sector
 #define RECORD_HAL_HEADER_LEN      20u
 #define RECORD_HAL_PAYLOAD_MAX_LEN (RECORD_HAL_SECTOR_LEN - RECORD_HAL_HEADER_LEN)

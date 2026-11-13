@@ -90,7 +90,7 @@ static const profiles_slice_s _profiles_slices[] = {
 #define PROFILES_SLICES    (sizeof(_profiles_slices) / sizeof(_profiles_slices[0]))
 #define PROFILES_PARTS_LEN (1u + PROFILES_SLICES) // The name, then the slices
 
-_Static_assert(PROFILES_RECORD_FIRST + PROFILES_COUNT <= RECORD_HAL_IDS, "a record id for each profile");
+_Static_assert(PROFILES_RECORD_FIRST + PROFILES_COUNT <= RECORD_HAL_ID_RADIO, "a record id for each profile");
 _Static_assert(PROFILES_COUNT <= 8u, "a bit per profile in _profiles_dirty_mask");
 _Static_assert(PROFILES_PARTS_LEN <= RECORD_HAL_PARTS_MAX, "a profile's record in one write");
 _Static_assert(sizeof(profile_s) <= RECORD_HAL_PAYLOAD_MAX_LEN, "a profile fills more than its record");
