@@ -12,6 +12,8 @@
 #define I2C_HAL_TX_MAX_LEN    64u
 // A transfer that timed out has this long to stop before the unit is switched off and on
 #define I2C_HAL_STOP_WAIT_US  500u
+// A background read (nrf52_i2c_read_start) is given up after this
+#define I2C_HAL_BACKGROUND_US 20000u
 
 #define I2C_HAL_ERROR_GENERIC (-1)
 #define I2C_HAL_ERROR_TIMEOUT (-2)
@@ -22,6 +24,10 @@ typedef struct
     uint32_t baud_khz;
     bool ready;
     bool suspended; // The last write ended without a stop
+    bool background; // A background read is running
+    int background_result;
+    size_t background_len;
+    uint64_t background_until_us;
     uint8_t tx[I2C_HAL_TX_MAX_LEN];
 } i2c_hal_instance_s;
 
@@ -120,6 +126,82 @@ static void _i2c_hal_abort(i2c_hal_instance_s *i2c)
     i2c->suspended = false;
 }
 
+// Where a background read stands: ended (its result kept), or given up when it has run too long
+static void _i2c_hal_background_poll(i2c_hal_instance_s *i2c)
+{
+    NRF_TWIM_Type *twim = i2c->twim;
+
+    if (!i2c->background)
+        return;
+
+    if (twim->EVENTS_ERROR)
+    {
+        i2c->background_result = I2C_HAL_ERROR_GENERIC;
+        _i2c_hal_abort(i2c);
+    }
+    else if (twim->EVENTS_STOPPED)
+    {
+        i2c->background_result =
+            (twim->RXD.AMOUNT == i2c->background_len) ? (int)i2c->background_len : I2C_HAL_ERROR_GENERIC;
+    }
+    else if (sys_hal_now_us() >= i2c->background_until_us)
+    {
+        i2c->background_result = I2C_HAL_ERROR_TIMEOUT;
+        _i2c_hal_abort(i2c);
+    }
+    else
+        return;
+
+    twim->SHORTS = 0;
+    i2c->background = false;
+}
+
+bool nrf52_i2c_read_start(uint8_t instance, uint8_t addr, uint8_t *dst, size_t len)
+{
+    if ((instance >= I2C_HAL_MAX_INSTANCES) || !_i2c_hal[instance].ready || !len || (len > 0xFFFFu))
+        return false;
+
+    i2c_hal_instance_s *i2c = &_i2c_hal[instance];
+    NRF_TWIM_Type *twim = i2c->twim;
+
+    // Not behind bus hooks, whose holder expects the bus back when a call returns, and not while
+    // a write waits to be carried on
+    _i2c_hal_background_poll(i2c);
+    if (i2c->background || i2c->suspended || _i2c_hal_hooks[instance])
+        return false;
+
+    twim->RXD.PTR = (uint32_t)dst;
+    twim->RXD.MAXCNT = len;
+    twim->FREQUENCY = _i2c_hal_frequency(i2c->baud_khz);
+    twim->ADDRESS = addr;
+    twim->EVENTS_STOPPED = 0;
+    twim->EVENTS_SUSPENDED = 0;
+    twim->EVENTS_ERROR = 0;
+    twim->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
+
+    i2c->background = true;
+    i2c->background_result = 0;
+    i2c->background_len = len;
+    i2c->background_until_us = sys_hal_now_us() + I2C_HAL_BACKGROUND_US;
+    twim->TASKS_STARTRX = 1;
+    return true;
+}
+
+bool nrf52_i2c_read_busy(uint8_t instance)
+{
+    if (instance >= I2C_HAL_MAX_INSTANCES)
+        return false;
+    _i2c_hal_background_poll(&_i2c_hal[instance]);
+    return _i2c_hal[instance].background;
+}
+
+int nrf52_i2c_read_result(uint8_t instance)
+{
+    if ((instance >= I2C_HAL_MAX_INSTANCES) || nrf52_i2c_read_busy(instance))
+        return 0;
+    return _i2c_hal[instance].background_result;
+}
+
 // A write, a read, or a write followed by a read under a repeated start. Returns the length of the
 // last part, or a negative error.
 static int _i2c_hal_transfer(uint8_t instance, uint8_t addr, const uint8_t *tx, size_t tx_len, uint8_t *rx,
@@ -134,6 +216,10 @@ static int _i2c_hal_transfer(uint8_t instance, uint8_t addr, const uint8_t *tx, 
 
     i2c_hal_instance_s *i2c = &_i2c_hal[instance];
     NRF_TWIM_Type *twim = i2c->twim;
+
+    // A background read has the unit until it ends (or is given up)
+    while (i2c->background)
+        _i2c_hal_background_poll(i2c);
 
     if (_i2c_hal_hooks[instance])
         _i2c_hal_hooks[instance]->acquire();

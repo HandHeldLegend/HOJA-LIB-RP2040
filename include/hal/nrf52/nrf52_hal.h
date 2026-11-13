@@ -5,6 +5,7 @@
 // HAL's own files.
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "nrf.h"
@@ -33,6 +34,17 @@ static inline uint32_t nrf52_psel(uint32_t gpio)
 
 // Input with a pull-down, or with no pull at all (gpio_hal_init offers pull-up or none)
 void nrf52_gpio_init_input(uint32_t gpio, bool pull_up, bool pull_down);
+
+// ---- I2C ----
+
+// A read that runs by itself (the unit's DMA) while the task loop carries on: for a long read made
+// often, which would otherwise hold the loop for its whole length (2 ms for 80 bytes at 400 kHz).
+// One at a time for an instance. Any other call on the instance first waits for it to end, so a
+// caller that shares the bus asks nrf52_i2c_read_busy before a call it would rather skip.
+bool nrf52_i2c_read_start(uint8_t instance, uint8_t addr, uint8_t *dst, size_t len);
+bool nrf52_i2c_read_busy(uint8_t instance);
+// Once it is no longer busy: the bytes read, or a negative error. 0 when none was started.
+int nrf52_i2c_read_result(uint8_t instance);
 
 // ---- System ----
 
