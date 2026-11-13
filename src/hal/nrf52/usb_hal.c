@@ -147,6 +147,9 @@ static void _usb_hal_on_sof(uint32_t frame_count)
 
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
+// Below the radio and the timers that keep a Bluetooth link on time (ble/nimble_port.c)
+#define USB_HAL_IRQ_PRIORITY 4u
+
 static bool _usb_hal_power_irq_on = false;
 
 void USBD_IRQHandler(void)
@@ -198,13 +201,13 @@ static void _usb_hal_attach(void)
         return;
     _usb_hal_power_irq_on = true;
 
-    NVIC_SetPriority(USBD_IRQn, 2);
+    NVIC_SetPriority(USBD_IRQn, USB_HAL_IRQ_PRIORITY);
     NRF_POWER->EVENTS_USBDETECTED = 0;
     NRF_POWER->EVENTS_USBPWRRDY = 0;
     NRF_POWER->EVENTS_USBREMOVED = 0;
     NRF_POWER->INTENSET = POWER_INTENSET_USBDETECTED_Msk | POWER_INTENSET_USBPWRRDY_Msk |
                           POWER_INTENSET_USBREMOVED_Msk;
-    NVIC_SetPriority(POWER_CLOCK_IRQn, 2);
+    NVIC_SetPriority(POWER_CLOCK_IRQn, USB_HAL_IRQ_PRIORITY);
     NVIC_ClearPendingIRQ(POWER_CLOCK_IRQn);
     NVIC_EnableIRQ(POWER_CLOCK_IRQn);
 }

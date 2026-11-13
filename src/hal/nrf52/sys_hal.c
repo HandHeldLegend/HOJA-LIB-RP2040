@@ -11,6 +11,7 @@
 #define SYS_HAL_TIMER_PRESCALER 4u // 16 MHz / 2^4
 #define SYS_HAL_CC_READ         0u
 #define SYS_HAL_CC_WRAP         1u
+#define SYS_HAL_CC_ALARM        2u
 
 #define SYS_HAL_WDT_TIMEOUT_S   5u
 #define SYS_HAL_WDT_RELOAD      0x6E524635u
@@ -21,6 +22,8 @@
 static volatile uint32_t _sys_hal_bootmemory[2] __attribute__((section(".noinit")));
 
 static volatile uint32_t _sys_hal_time_high = 0;
+static void (*volatile _sys_hal_alarm_fn)(void) = NULL;
+static volatile uint64_t _sys_hal_alarm_at_us = 0;
 static uint32_t _sys_hal_reset_reason = 0;
 
 extern void _start(void);
@@ -90,6 +93,41 @@ void TIMER2_IRQHandler(void)
         (void)SYS_HAL_TIMER->EVENTS_COMPARE[SYS_HAL_CC_WRAP];
         _sys_hal_time_high++;
     }
+
+    // The compare matches the low half of the alarm's time, so it also fires a whole wrap early for
+    // one more than 71 minutes off: only the clock says whether it is due
+    SYS_HAL_TIMER->EVENTS_COMPARE[SYS_HAL_CC_ALARM] = 0;
+    void (*fn)(void) = _sys_hal_alarm_fn;
+    if (fn && (sys_hal_now_us() >= _sys_hal_alarm_at_us))
+    {
+        _sys_hal_alarm_fn = NULL;
+        SYS_HAL_TIMER->INTENCLR = TIMER_INTENCLR_COMPARE2_Msk;
+        fn();
+    }
+}
+
+void nrf52_alarm_set(uint64_t at_us, void (*fn)(void))
+{
+    const uint32_t state = sys_hal_irq_save();
+
+    _sys_hal_alarm_at_us = at_us;
+    _sys_hal_alarm_fn = fn;
+    SYS_HAL_TIMER->CC[SYS_HAL_CC_ALARM] = (uint32_t)at_us;
+    SYS_HAL_TIMER->EVENTS_COMPARE[SYS_HAL_CC_ALARM] = 0;
+    SYS_HAL_TIMER->INTENSET = TIMER_INTENSET_COMPARE2_Msk;
+    // Due already, or too close for the compare to be sure of catching it
+    if (sys_hal_now_us() + 4u >= at_us)
+        NVIC_SetPendingIRQ(SYS_HAL_TIMER_IRQ);
+
+    sys_hal_irq_restore(state);
+}
+
+void nrf52_alarm_cancel(void)
+{
+    const uint32_t state = sys_hal_irq_save();
+    _sys_hal_alarm_fn = NULL;
+    SYS_HAL_TIMER->INTENCLR = TIMER_INTENCLR_COMPARE2_Msk;
+    sys_hal_irq_restore(state);
 }
 
 uint64_t sys_hal_now_us(void)
@@ -271,6 +309,11 @@ uint32_t sys_hal_random()
 {
     uint32_t value = 0;
 
+    // The Bluetooth controller fills its own pool from this generator, by interrupt, and leaves the
+    // interrupt armed while it is filling: held off here, and the generator left running for it
+    const bool irq_was_on = NVIC_GetEnableIRQ(RNG_IRQn) != 0;
+    NVIC_DisableIRQ(RNG_IRQn);
+
     NRF_RNG->TASKS_START = 1;
     for (uint8_t i = 0; i < 4; i++)
     {
@@ -280,7 +323,10 @@ uint32_t sys_hal_random()
         }
         value = (value << 8) | (NRF_RNG->VALUE & 0xFFu);
     }
-    NRF_RNG->TASKS_STOP = 1;
+    if (!(NRF_RNG->INTENSET & RNG_INTENSET_VALRDY_Msk))
+        NRF_RNG->TASKS_STOP = 1;
+    if (irq_was_on)
+        NVIC_EnableIRQ(RNG_IRQn);
 
     return value;
 }

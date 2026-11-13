@@ -46,6 +46,11 @@ bool nrf52_usb_power_present(void);
 // Why the chip last reset (POWER RESETREAS, read and cleared at boot)
 uint32_t nrf52_reset_reason(void);
 
+// One alarm on the microsecond clock: fn runs from the clock's interrupt at at_us, or at once if that
+// has passed. Setting it again replaces the one waiting.
+void nrf52_alarm_set(uint64_t at_us, void (*fn)(void));
+void nrf52_alarm_cancel(void);
+
 // The board's way into its bootloader, called by sys_hal_bootloader just before the reset. The HAL's
 // default does nothing (a plain restart).
 void cb_nrf52_bootloader_request(void);

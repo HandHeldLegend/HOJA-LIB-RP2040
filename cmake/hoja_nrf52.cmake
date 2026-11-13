@@ -38,6 +38,8 @@ endif()
 
 include(${HOJA_LIB_ROOT}/cmake/hoja_sources.cmake)
 file(GLOB_RECURSE HAL_C "${HOJA_LIB_ROOT}/src/hal/nrf52/*.c")
+# The Bluetooth LE controller is its own choice (HOJA_NRF52_BLE, below)
+list(FILTER HAL_C EXCLUDE REGEX "/src/hal/nrf52/ble/")
 
 # TinyUSB as a device, with the classes HHL-TINYUSB-DRIVERS builds on
 set(TINYUSB_C
@@ -92,6 +94,86 @@ target_link_libraries(hoja_lib INTERFACE
   hhl_tinyusb_drivers
   m
 )
+
+# Bluetooth LE: NimBLE's open controller (link layer and nRF radio driver) inside the firmware, with
+# no operating system under it (src/hal/nrf52/ble). The board project sets HOJA_NRF52_BLE and gives
+# NIMBLE_DIR, an apache/mynewt-nimble checkout.
+if(HOJA_NRF52_BLE)
+  if(NOT EXISTS "${NIMBLE_DIR}/nimble/controller")
+    message(FATAL_ERROR "hoja_nrf52: HOJA_NRF52_BLE needs NIMBLE_DIR, a mynewt-nimble checkout (${NIMBLE_DIR})")
+  endif()
+
+  # Our changes to NimBLE (cmake/nimble_patches), on a checkout that does not have them yet. A patch
+  # that reverses cleanly is already there.
+  find_package(Git REQUIRED)
+  file(GLOB _nimble_patches "${HOJA_LIB_ROOT}/cmake/nimble_patches/*.patch")
+  foreach(_patch ${_nimble_patches})
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} -C ${NIMBLE_DIR} apply --reverse --check ${_patch}
+      RESULT_VARIABLE _patch_missing OUTPUT_QUIET ERROR_QUIET
+    )
+    if(_patch_missing)
+      execute_process(
+        COMMAND ${GIT_EXECUTABLE} -C ${NIMBLE_DIR} apply ${_patch}
+        RESULT_VARIABLE _patch_failed
+      )
+      if(_patch_failed)
+        message(FATAL_ERROR "hoja_nrf52: ${_patch} does not apply to ${NIMBLE_DIR}")
+      endif()
+    endif()
+  endforeach()
+
+  # NimBLE's own defaults for its settings, as a header (ours come first: nimble/syscfg/syscfg.h)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(_nimble_gen ${CMAKE_CURRENT_BINARY_DIR}/nimble_generated)
+  file(MAKE_DIRECTORY ${_nimble_gen})
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} ${HOJA_LIB_ROOT}/cmake/nimble_syscfg.py ${NIMBLE_DIR}
+            ${_nimble_gen}/nimble_syscfg_defaults.h
+    RESULT_VARIABLE _nimble_gen_result
+  )
+  if(_nimble_gen_result)
+    message(FATAL_ERROR "hoja_nrf52: could not generate NimBLE's settings header (PyYAML installed?)")
+  endif()
+
+  file(GLOB NIMBLE_CONTROLLER_C "${NIMBLE_DIR}/nimble/controller/src/*.c")
+  # Channel sounding (off) is the only part that needs a crypto library
+  list(FILTER NIMBLE_CONTROLLER_C EXCLUDE REGEX "/ble_ll_(cs|cs_drbg|crypto)\.c$")
+  file(GLOB HOJA_NRF52_BLE_C "${HOJA_LIB_ROOT}/src/hal/nrf52/ble/*.c")
+  target_sources(hoja_lib INTERFACE
+    ${HOJA_NRF52_BLE_C}
+    ${NIMBLE_CONTROLLER_C}
+    ${NIMBLE_DIR}/nimble/drivers/nrf5x/src/ble_hw.c
+    ${NIMBLE_DIR}/nimble/drivers/nrf5x/src/ble_phy.c
+    ${NIMBLE_DIR}/nimble/drivers/nrf5x/src/nrf52/phy.c
+    ${NIMBLE_DIR}/nimble/transport/src/transport.c
+    ${NIMBLE_DIR}/porting/nimble/src/endian.c
+    ${NIMBLE_DIR}/porting/nimble/src/mem.c
+    ${NIMBLE_DIR}/porting/nimble/src/os_mbuf.c
+    ${NIMBLE_DIR}/porting/nimble/src/os_mempool.c
+    ${NIMBLE_DIR}/porting/nimble/src/os_msys.c
+    ${NIMBLE_DIR}/porting/nimble/src/os_cputime.c
+    ${NIMBLE_DIR}/porting/nimble/src/os_cputime_pwr2.c
+    ${NIMBLE_DIR}/porting/nimble/src/hal_timer.c
+  )
+  target_include_directories(hoja_lib INTERFACE
+    # Ours first: its syscfg/syscfg.h stands in front of the one NimBLE's porting folder ships
+    ${HOJA_LIB_ROOT}/include/hal/nrf52/nimble
+    ${_nimble_gen}
+    ${NIMBLE_DIR}/porting/nimble/include
+    ${NIMBLE_DIR}/nimble/include
+    ${NIMBLE_DIR}/nimble/controller/include
+    # Private to the controller: the port sets what its task sets before its loop
+    ${NIMBLE_DIR}/nimble/controller/src
+    ${NIMBLE_DIR}/nimble/drivers/nrf5x/include
+    ${NIMBLE_DIR}/nimble/drivers/nrf5x/src
+    ${NIMBLE_DIR}/nimble/transport/include
+  )
+  target_compile_definitions(hoja_lib INTERFACE
+    HOJA_NRF52_BLE=1
+    NIMBLE_CFG_CONTROLLER=1
+  )
+endif()
 
 # A board's firmware: the linker script with the board's flash and RAM (MEMORY, then nrfx's
 # nrf_common.ld), and a raw .bin beside the .elf.

@@ -1,0 +1,13 @@
+diff --git a/nimble/include/nimble/hci_common.h b/nimble/include/nimble/hci_common.h
+index 241112dc..a44dadc1 100644
+--- a/nimble/include/nimble/hci_common.h
++++ b/nimble/include/nimble/hci_common.h
+@@ -1544,7 +1544,7 @@ struct ble_hci_vs_set_scan_cfg_cp {
+ #define BLE_HCI_CONN_FILT_NO_WL             (0)
+ #define BLE_HCI_CONN_FILT_USE_WL            (1)
+ #define BLE_HCI_CONN_FILT_MAX               (1)
+-#define BLE_HCI_CONN_ITVL_MIN               (0x0006)
++#define BLE_HCI_CONN_ITVL_MIN               (0x0004)
+ #define BLE_HCI_CONN_ITVL_MAX               (0x0c80)
+ #define BLE_HCI_CONN_LATENCY_MIN            (0x0000)
+ #define BLE_HCI_CONN_LATENCY_MAX            (0x01f3)
