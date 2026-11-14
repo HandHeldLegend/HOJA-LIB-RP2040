@@ -214,6 +214,436 @@ static void _imu_apply_sensitivity(imu_data_s *sample)
   sample->az = _imu_mul_clip_int16(sample->az, imu_config->imu_accel_sensitivity[2]);
 }
 
+static void _imu_apply_accel_sensitivity(imu_data_s *sample)
+{
+  sample->ax = _imu_mul_clip_int16(sample->ax, imu_config->imu_accel_sensitivity[0]);
+  sample->ay = _imu_mul_clip_int16(sample->ay, imu_config->imu_accel_sensitivity[1]);
+  sample->az = _imu_mul_clip_int16(sample->az, imu_config->imu_accel_sensitivity[2]);
+}
+
+// ---- The gyro's bias, kept up while the gamepad rests ----
+//
+// A gyro reads a little off zero when nothing turns, by an amount that moves with temperature and
+// time, and a host takes it as a slow turn. The calibration the user runs measures it once, to a
+// whole count a channel. Here it is measured again whenever the gamepad is resting, to a fraction
+// of a count, and taken off every sample.
+//
+// Resting is told from the channels themselves, half a second at a look. What one channel reads
+// less what the other reads has no turning in it, only the two sensors' own noise: so however
+// noisy this pair is, at whatever temperature, that difference says how much the channels would
+// vary with nothing moving. A look is still when the channels vary no more than a few times that.
+// A board with one channel has no such measure and is held to a fixed figure instead. Three still
+// looks in a row that agree to a count set the bias; each still look after them moves it a
+// quarter of the way to what it measured.
+#define IMU_BIAS_LOOK_US 500000u
+#define IMU_BIAS_LOOK_MIN 32u  // Samples a look needs
+#define IMU_BIAS_LOOKS 3u      // Still looks in a row before the bias is taken from them
+// A sample this many counts from the bias is the gamepad moving, whatever the rest of the look says
+#define IMU_BIAS_REACH 96
+// Still: the two channels' variances together within this many times the difference's ...
+#define IMU_BIAS_STILL_TIMES 6u
+// ... with this much allowed where the difference shows none at all (both sat on one value), in
+// quarters of a count squared
+#define IMU_BIAS_STILL_FLOOR_Q2 2u
+// One channel alone: its variance under this, in quarters of a count squared
+#define IMU_BIAS_SINGLE_LIMIT_Q2 4u
+// Looks agree: their means within this of each other (256ths of a count)
+#define IMU_BIAS_AGREE_Q8 256
+
+#define IMU_GYRO_FRAC_BITS 12
+
+typedef struct
+{
+  bool started;
+  bool dual;
+  int32_t bias[2][3];   // A channel's reading at rest, in 256ths of a count
+  // The look in hand
+  uint64_t look_from_us;
+  uint16_t n;
+  bool moving;
+  int16_t base[2][3];   // The bias to the nearest count as the look began: sums are about this
+  int32_t sum[2][3];
+  uint32_t sq[2][3];
+  uint32_t sq_diff[3];
+  // The still looks so far
+  uint8_t streak;
+  int32_t streak_sum[2][3];
+  int32_t streak_min[2][3];
+  int32_t streak_max[2][3];
+  int32_t owed[3];      // What rounding has kept back from the reports so far
+} imu_bias_s;
+
+static imu_bias_s _imu_bias = {0};
+
+
+// ---- The bias, learned while the gamepad is moved ----
+//
+// A rest is the only time the bias can be read straight off, and a gamepad in use is not put
+// down. But the accelerometers say which way is down whatever the hands do, and a gyro with a
+// bias left on it turns "down" a little wrong, all the time. So "down" is kept here as the gyro
+// turns it and pulled gently to where the accelerometers have it; and the pull that takes, steady
+// in one direction, is the bias showing. It goes on to the bias both channels share.
+//
+// It cannot show the bias about "down" itself: turning that way moves nothing the accelerometers
+// can see. That part is left to the rests.
+//
+// Run over 45 s of a GCU 2 in the hands, with a bias of 0.68 degrees a second put on: what could
+// be shown of it was down from 0.5 to 0.02 after 35 s held and turned slowly. Left learning
+// through quick moves and shakes it went back out to 0.4, the accelerometers then being full of
+// the hands' own pushing; so it learns only once the gamepad has been turning gently, and
+// weighing 1 g, for a second.
+#define IMU_LEVEL_ONE_G 4096           // Accelerometer counts a g, at 8 g full scale
+#define IMU_LEVEL_TRUST 614            // "Down" is taken from a sample within this of 1 g (0.15 g)
+#define IMU_LEVEL_CALM_G 246           // Calm: within this of 1 g (0.06 g) ...
+#define IMU_LEVEL_CALM_SUM_Q8 219429   // ... and every axis under 30 degrees a second (the channels' sum, 256ths)
+#define IMU_LEVEL_CALM_US 1000000u     // ... for this long
+#define IMU_LEVEL_GAP_US 50000u        // No sample for this long: "down" is taken afresh
+#define IMU_LEVEL_LIMIT_Q24 (48 << 24) // The most it will put on, either way: 48 counts, 3.4 degrees a second
+// Radians a 256th of a count of the channels' sum turns in a microsecond, times 2^30, as n / 2^23
+#define IMU_LEVEL_TURN_NUM 21493
+// The pull is 1 / 2^20 of the difference a microsecond: "down" follows the accelerometers in about a second
+#define IMU_LEVEL_PULL_SHIFT 20
+// Counts of bias (2^24ths) for a pull held a microsecond: a tenth of the pull's rate, so the bias
+// follows in about ten seconds
+#define IMU_LEVEL_LEARN_NUM 1373
+
+typedef struct
+{
+  bool started;
+  bool learning;
+  int32_t down[3];    // Which way is down in the sensors' axes, a unit vector in 2^30ths
+  int32_t common[3];  // The bias learned here, on both channels alike, in 2^24ths of a count
+  uint64_t last_us;
+  uint32_t calm_us;
+} imu_level_s;
+
+static imu_level_s _imu_level = {0};
+
+static uint32_t _imu_isqrt(uint32_t value)
+{
+  uint32_t root = 0;
+  uint32_t bit = 1u << 30;
+  while (bit > value)
+    bit >>= 2;
+  while (bit)
+  {
+    if (value >= (root + bit))
+    {
+      value -= root + bit;
+      root = (root >> 1) + bit;
+    }
+    else
+      root >>= 1;
+    bit >>= 2;
+  }
+  return root;
+}
+
+static inline int32_t _imu_mul_q30(int32_t a, int32_t b)
+{
+  return (int32_t)(((int64_t)a * b) >> 30);
+}
+
+// sum_q8: the channels' sum with every bias off, in 256ths of a count. acc: the channels' mean.
+static void _imu_level_update(const int32_t sum_q8[3], const imu_data_s *acc, uint64_t now_us)
+{
+  const int32_t a[3] = {acc->ax, acc->ay, acc->az};
+  const uint32_t mag = _imu_isqrt((uint32_t)((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2])));
+  const int32_t off_g = (int32_t)mag - IMU_LEVEL_ONE_G;
+  const bool trusted = (mag > 0u) && (off_g < IMU_LEVEL_TRUST) && (off_g > -IMU_LEVEL_TRUST);
+
+  int32_t seen[3] = {0, 0, 0};
+  if (trusted)
+  {
+    const int32_t scale = (int32_t)((1u << 30) / mag);
+    for (int axis = 0; axis < 3; axis++)
+      seen[axis] = a[axis] * scale;
+  }
+
+  const uint64_t gap_us = now_us - _imu_level.last_us;
+  if (!_imu_level.started || (gap_us > IMU_LEVEL_GAP_US))
+  {
+    if (!trusted)
+      return;
+    memcpy(_imu_level.down, seen, sizeof(seen));
+    _imu_level.started = true;
+    _imu_level.last_us = now_us;
+    _imu_level.calm_us = 0;
+    _imu_level.learning = false;
+    return;
+  }
+  _imu_level.last_us = now_us;
+  const int32_t dt_us = (int32_t)gap_us;
+
+  // The gyro turns "down" (the sensors turn one way, so what they see turns the other)
+  int32_t turn[3];
+  bool gentle = true;
+  for (int axis = 0; axis < 3; axis++)
+  {
+    turn[axis] = (int32_t)(((int64_t)sum_q8[axis] * dt_us * IMU_LEVEL_TURN_NUM) >> 23);
+    if ((sum_q8[axis] > IMU_LEVEL_CALM_SUM_Q8) || (sum_q8[axis] < -IMU_LEVEL_CALM_SUM_Q8))
+      gentle = false;
+  }
+  int32_t *down = _imu_level.down;
+  const int32_t turned[3] = {
+      down[0] + _imu_mul_q30(turn[1], down[2]) - _imu_mul_q30(turn[2], down[1]),
+      down[1] + _imu_mul_q30(turn[2], down[0]) - _imu_mul_q30(turn[0], down[2]),
+      down[2] + _imu_mul_q30(turn[0], down[1]) - _imu_mul_q30(turn[1], down[0]),
+  };
+  memcpy(down, turned, sizeof(turned));
+
+  const bool calm = trusted && gentle && (off_g < IMU_LEVEL_CALM_G) && (off_g > -IMU_LEVEL_CALM_G);
+  if (!calm)
+    _imu_level.calm_us = 0;
+  else if (_imu_level.calm_us < 0x7FFFFFFFu)
+    _imu_level.calm_us += (uint32_t)dt_us;
+  _imu_level.learning = _imu_level.calm_us >= IMU_LEVEL_CALM_US;
+
+  if (trusted)
+  {
+    int32_t pull[3];
+    for (int axis = 0; axis < 3; axis++)
+      pull[axis] = seen[axis] - down[axis];
+
+    if (_imu_level.learning)
+    {
+      // The pull across "down" is the bias left on, a turn at a time
+      const int32_t across[3] = {
+          _imu_mul_q30(down[1], pull[2]) - _imu_mul_q30(down[2], pull[1]),
+          _imu_mul_q30(down[2], pull[0]) - _imu_mul_q30(down[0], pull[2]),
+          _imu_mul_q30(down[0], pull[1]) - _imu_mul_q30(down[1], pull[0]),
+      };
+      for (int axis = 0; axis < 3; axis++)
+      {
+        int32_t common = _imu_level.common[axis] - (int32_t)(((int64_t)across[axis] * dt_us * IMU_LEVEL_LEARN_NUM) >> 30);
+        if (common > IMU_LEVEL_LIMIT_Q24)
+          common = IMU_LEVEL_LIMIT_Q24;
+        if (common < -IMU_LEVEL_LIMIT_Q24)
+          common = -IMU_LEVEL_LIMIT_Q24;
+        _imu_level.common[axis] = common;
+      }
+    }
+
+    for (int axis = 0; axis < 3; axis++)
+      down[axis] += (int32_t)(((int64_t)pull[axis] * dt_us) >> IMU_LEVEL_PULL_SHIFT);
+  }
+
+  // Kept a unit long: one step of Newton's each sample is all the little it strays needs
+  const int32_t len2 = _imu_mul_q30(down[0], down[0]) + _imu_mul_q30(down[1], down[1]) + _imu_mul_q30(down[2], down[2]);
+  const int32_t fix = (3 << 29) - (len2 >> 1);
+  for (int axis = 0; axis < 3; axis++)
+    down[axis] = _imu_mul_q30(down[axis], fix);
+}
+
+static void _imu_bias_look_begin(uint64_t now_us)
+{
+  _imu_bias.look_from_us = now_us;
+  _imu_bias.n = 0;
+  _imu_bias.moving = false;
+  for (int ch = 0; ch < 2; ch++)
+  {
+    for (int axis = 0; axis < 3; axis++)
+    {
+      const int32_t bias = _imu_bias.bias[ch][axis];
+      _imu_bias.base[ch][axis] = (int16_t)((bias >= 0) ? ((bias + 128) / 256) : -((-bias + 128) / 256));
+      _imu_bias.sum[ch][axis] = 0;
+      _imu_bias.sq[ch][axis] = 0;
+    }
+  }
+  for (int axis = 0; axis < 3; axis++)
+    _imu_bias.sq_diff[axis] = 0;
+}
+
+// From the calibration the user ran: where tracking starts, and starts again after another
+static void _imu_bias_reset(uint64_t now_us)
+{
+  memset(&_imu_bias, 0, sizeof(_imu_bias));
+  _imu_bias.dual = (imu_driver_channel_count() >= 2);
+  const uint8_t ch2 = _imu_bias.dual ? 1 : 0;
+  _imu_bias.bias[0][0] = IMU_GYRO_OFFSET_X(0) * 256;
+  _imu_bias.bias[0][1] = IMU_GYRO_OFFSET_Y(0) * 256;
+  _imu_bias.bias[0][2] = IMU_GYRO_OFFSET_Z(0) * 256;
+  _imu_bias.bias[1][0] = IMU_GYRO_OFFSET_X(ch2) * 256;
+  _imu_bias.bias[1][1] = IMU_GYRO_OFFSET_Y(ch2) * 256;
+  _imu_bias.bias[1][2] = IMU_GYRO_OFFSET_Z(ch2) * 256;
+  _imu_bias.started = true;
+  _imu_bias_look_begin(now_us);
+}
+
+// A look is over: was the gamepad still through it, and what does that say of the bias
+static void _imu_bias_look_end(void)
+{
+  const uint32_t n = _imu_bias.n;
+  int32_t mean[2][3];
+  bool still = !_imu_bias.moving;
+
+  for (int axis = 0; axis < 3; axis++)
+  {
+    uint64_t var[2];
+    for (int ch = 0; ch < 2; ch++)
+    {
+      const int32_t sum = _imu_bias.sum[ch][axis];
+      mean[ch][axis] = ((int32_t)_imu_bias.base[ch][axis] * 256) + ((sum * 256) / (int32_t)n);
+      // n squared times the variance
+      var[ch] = ((uint64_t)n * _imu_bias.sq[ch][axis]) - ((uint64_t)((int64_t)sum * sum));
+    }
+
+    const uint64_t n2 = (uint64_t)n * n;
+    if (_imu_bias.dual)
+    {
+      const int32_t sum_diff = _imu_bias.sum[0][axis] - _imu_bias.sum[1][axis];
+      const uint64_t var_diff = ((uint64_t)n * _imu_bias.sq_diff[axis]) - ((uint64_t)((int64_t)sum_diff * sum_diff));
+      if ((var[0] + var[1]) > ((IMU_BIAS_STILL_TIMES * var_diff) + ((IMU_BIAS_STILL_FLOOR_Q2 * n2) / 4u)))
+        still = false;
+    }
+    else if (var[0] > ((IMU_BIAS_SINGLE_LIMIT_Q2 * n2) / 4u))
+      still = false;
+  }
+
+  if (!still)
+  {
+    _imu_bias.streak = 0;
+    return;
+  }
+
+  bool agree = true;
+  for (int ch = 0; ch < 2; ch++)
+  {
+    for (int axis = 0; axis < 3; axis++)
+    {
+      const int32_t m = mean[ch][axis];
+      if (!_imu_bias.streak)
+      {
+        _imu_bias.streak_sum[ch][axis] = 0;
+        _imu_bias.streak_min[ch][axis] = m;
+        _imu_bias.streak_max[ch][axis] = m;
+      }
+      _imu_bias.streak_sum[ch][axis] += m;
+      if (m < _imu_bias.streak_min[ch][axis])
+        _imu_bias.streak_min[ch][axis] = m;
+      if (m > _imu_bias.streak_max[ch][axis])
+        _imu_bias.streak_max[ch][axis] = m;
+      if ((_imu_bias.streak_max[ch][axis] - _imu_bias.streak_min[ch][axis]) > IMU_BIAS_AGREE_Q8)
+        agree = false;
+    }
+  }
+
+  if (!agree)
+  {
+    // A slow change under the looks: not a rest to measure from
+    _imu_bias.streak = 0;
+    return;
+  }
+
+  if (_imu_bias.streak < 255u)
+    _imu_bias.streak++;
+  if (_imu_bias.streak < IMU_BIAS_LOOKS)
+    return;
+
+  for (int ch = 0; ch < 2; ch++)
+  {
+    for (int axis = 0; axis < 3; axis++)
+    {
+      if (_imu_bias.streak == IMU_BIAS_LOOKS)
+        _imu_bias.bias[ch][axis] = _imu_bias.streak_sum[ch][axis] / (int32_t)IMU_BIAS_LOOKS;
+      else
+        _imu_bias.bias[ch][axis] += (mean[ch][axis] - _imu_bias.bias[ch][axis]) / 4;
+    }
+  }
+  for (int axis = 0; axis < 3; axis++)
+    _imu_level.common[axis] = 0;
+}
+
+// a and b as read, offsets still on. out's gyro axes are written: the two channels' mean with
+// their biases off, scaled by the sensitivity, and only then rounded to the count a report holds,
+// with what the rounding left over owed to the next sample.
+static void _imu_gyro_combine(const imu_data_s *a, const imu_data_s *b, imu_data_s *out, uint64_t now_us)
+{
+  if (!_imu_bias.started)
+    _imu_bias_reset(now_us);
+
+  const int16_t raw[2][3] = {{a->gx, a->gy, a->gz}, {b->gx, b->gy, b->gz}};
+
+  // The look
+  if (!_imu_bias.moving)
+  {
+    int32_t dev[2][3];
+    for (int ch = 0; ch < 2; ch++)
+    {
+      for (int axis = 0; axis < 3; axis++)
+      {
+        dev[ch][axis] = (int32_t)raw[ch][axis] - _imu_bias.base[ch][axis];
+        if ((dev[ch][axis] > IMU_BIAS_REACH) || (dev[ch][axis] < -IMU_BIAS_REACH))
+          _imu_bias.moving = true;
+      }
+    }
+    if (!_imu_bias.moving)
+    {
+      for (int axis = 0; axis < 3; axis++)
+      {
+        const int32_t diff = dev[0][axis] - dev[1][axis];
+        _imu_bias.sum[0][axis] += dev[0][axis];
+        _imu_bias.sum[1][axis] += dev[1][axis];
+        _imu_bias.sq[0][axis] += (uint32_t)(dev[0][axis] * dev[0][axis]);
+        _imu_bias.sq[1][axis] += (uint32_t)(dev[1][axis] * dev[1][axis]);
+        _imu_bias.sq_diff[axis] += (uint32_t)(diff * diff);
+      }
+    }
+  }
+  if (_imu_bias.n < 0xFFFFu)
+    _imu_bias.n++;
+  if ((now_us - _imu_bias.look_from_us) >= IMU_BIAS_LOOK_US)
+  {
+    if (_imu_bias.moving)
+    {
+      _imu_bias.streak = 0;
+    }
+    else if (_imu_bias.n >= IMU_BIAS_LOOK_MIN)
+      _imu_bias_look_end();
+    _imu_bias_look_begin(now_us);
+  }
+
+  // The channels' sum with their biases off, and what was learned in the hands off both
+  int32_t sums_q8[3];
+  for (int axis = 0; axis < 3; axis++)
+    sums_q8[axis] = (((int32_t)raw[0][axis] + raw[1][axis]) * 256) - _imu_bias.bias[0][axis] - _imu_bias.bias[1][axis] -
+                    (_imu_level.common[axis] / (1 << 15));
+
+  // out's accelerometer axes are the channels' mean by now
+  _imu_level_update(sums_q8, out, now_us);
+
+  // The report
+  const int32_t one = 2 << IMU_GYRO_FRAC_BITS; // A report's count is the two channels' mean
+  int16_t counts[3];
+  for (int axis = 0; axis < 3; axis++)
+  {
+    const int32_t sum_q8 = sums_q8[axis];
+    const int64_t level = (int64_t)sum_q8 * (1 << (IMU_GYRO_FRAC_BITS - 8));
+    const int64_t scaled = (level * _imu_clamp_sensitivity(imu_config->imu_gyro_sensitivity[axis])) / IMU_SENSITIVITY_UNITY;
+    const int64_t total = scaled + _imu_bias.owed[axis];
+    int64_t count = (total >= 0) ? ((total + (one / 2)) / one) : -((-total + (one / 2)) / one);
+    _imu_bias.owed[axis] = (int32_t)(total - (count * one));
+
+    // Past what a report holds nothing is owed
+    if (count > 32767)
+    {
+      count = 32767;
+      _imu_bias.owed[axis] = 0;
+    }
+    if (count < -32768)
+    {
+      count = -32768;
+      _imu_bias.owed[axis] = 0;
+    }
+    counts[axis] = (int16_t)count;
+  }
+
+  out->gx = counts[0];
+  out->gy = counts[1];
+  out->gz = counts[2];
+}
+
+
 static void _imu_default_sensitivity(void)
 {
   for (int i = 0; i < 3; i++)
@@ -245,24 +675,17 @@ static void _imu_read_quaternion(uint64_t timestamp)
 
     imu_driver_read_pair(&this_imu[0], &this_imu[1]);
 
-    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(ch2);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(ch2);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(ch2);
+    (void)ch2;
 
     // Average
     this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
     this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
     this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
 
-    this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
-    this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
-    this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
+    // The channels' biases come off here, kept up from the gamepad's rests
+    _imu_gyro_combine(&this_imu[0], &this_imu[1], &this_imu[2], timestamp);
 
-    _imu_apply_sensitivity(&this_imu[2]);
+    _imu_apply_accel_sensitivity(&this_imu[2]);
   }
 
   _imu_apply_gestures(&this_imu[2], timestamp);
@@ -305,25 +728,18 @@ static void _imu_read_standard(uint64_t timestamp)
 
     imu_driver_read_pair(&this_imu[0], &this_imu[1]);
 
-    this_imu[0].gx -= IMU_GYRO_OFFSET_X(0);
-    this_imu[0].gy -= IMU_GYRO_OFFSET_Y(0);
-    this_imu[0].gz -= IMU_GYRO_OFFSET_Z(0);
-
-    this_imu[1].gx -= IMU_GYRO_OFFSET_X(ch2);
-    this_imu[1].gy -= IMU_GYRO_OFFSET_Y(ch2);
-    this_imu[1].gz -= IMU_GYRO_OFFSET_Z(ch2);
+    (void)ch2;
 
     // Average
     this_imu[2].ax = _imu_average_value(this_imu[0].ax, this_imu[1].ax);
     this_imu[2].ay = _imu_average_value(this_imu[0].ay, this_imu[1].ay);
     this_imu[2].az = _imu_average_value(this_imu[0].az, this_imu[1].az);
 
-    this_imu[2].gx = _imu_average_value(this_imu[0].gx, this_imu[1].gx);
-    this_imu[2].gy = _imu_average_value(this_imu[0].gy, this_imu[1].gy);
-    this_imu[2].gz = _imu_average_value(this_imu[0].gz, this_imu[1].gz);
+    // The channels' biases come off here, kept up from the gamepad's rests
+    _imu_gyro_combine(&this_imu[0], &this_imu[1], &this_imu[2], timestamp);
     this_imu[2].timestamp = timestamp;
 
-    _imu_apply_sensitivity(&this_imu[2]);
+    _imu_apply_accel_sensitivity(&this_imu[2]);
   }
 
   _imu_apply_gestures(&this_imu[2], timestamp);
@@ -361,6 +777,9 @@ uint8_t _command = 0;
 void _imu_calibrate_stop()
 {
   rgb_clear_pulsing();
+
+  // Tracking starts again from what was just measured
+  _imu_bias.started = false;
 
   if (_calibrate_done_cb != NULL)
   {
