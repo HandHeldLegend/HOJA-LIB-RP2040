@@ -1626,18 +1626,25 @@ static void _bt_hal_dongle_prebuild(void)
 static bool _bt_hal_dongle_send_app(void);
 static bool _dongle_last_tick_app = false;
 
-// Each tick sends one packet, so nothing queues behind it in the radio (at one report per slot
-// pair the air has no room for a second): the report built ahead (or now), or, in turn with it,
-// one message of the config app's when one is waiting (a reply, or the app's live report). With
-// no app traffic every tick is a report. The dongle's pacing request applies from the next period.
+// A period this long leaves the air room for a second packet after the report
+#define BT_HAL_DONGLE_ROOM_FOR_TWO_US 2500u
+
+// At one report per slot pair each tick sends one packet, so nothing queues behind it in the radio
+// (the air has no room for a second): the report built ahead (or now), or, in turn with it, one
+// message of the config app's when one is waiting (a reply, or the app's live report). A longer
+// period has room for both, so the report goes every tick and the app's packet rides along: the
+// config app's live report runs at 125 Hz and stays on until the gamepad is turned off, and taking
+// turns with it halved a console's reports (a Switch got every second one). With no app traffic
+// every tick is a report. The dongle's pacing request applies from the next period.
 static void _bt_hal_dongle_tick(void)
 {
+    const bool room = (_link_cfg.report_interval_us >= BT_HAL_DONGLE_ROOM_FOR_TWO_US);
     bool app = false;
-    if (!_dongle_last_tick_app || !dongle_api_gamepad_adopted())
+    if (room || !_dongle_last_tick_app || !dongle_api_gamepad_adopted())
         app = _bt_hal_dongle_send_app();
-    _dongle_last_tick_app = app;
+    _dongle_last_tick_app = app && !room;
 
-    if (!app)
+    if (!app || room)
     {
         if (!_dongle_built)
             _bt_hal_dongle_build();
