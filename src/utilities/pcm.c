@@ -168,27 +168,27 @@ bool pcm_raw_queue_pop(int16_t *out)
     return true;
 }
 
-// The official firmware synthesizes 20 samples per AmFm pair at 4 kHz
-// (sub_2211B6 sets both oscillators to 4000 Hz), so one grain is 5 ms.
+// The official firmware synthesizes 20 samples per AmFm pair at 4 kHz (both
+// oscillators run at 4000 Hz), so one grain is 5 ms.
 #define PCM_OFFICIAL_SAMPLE_RATE        4000
 #define PCM_OFFICIAL_SAMPLES_PER_GRAIN  20
 #define PCM_SAMPLES_PER_GRAIN           ((PCM_OFFICIAL_SAMPLES_PER_GRAIN * PCM_SAMPLE_RATE) / PCM_OFFICIAL_SAMPLE_RATE)
 
-// Its software PCM ring holds 160 samples, i.e. 8 grains. vibrationProcess
-// refuses a pair once fewer than 20 samples are free.
+// Its software PCM ring holds 160 samples, i.e. 8 grains. A pair is refused
+// once fewer than 20 samples are free.
 #define PCM_OFFICIAL_RING_SAMPLES       160
 #define PCM_AMFM_QUEUE_SIZE             (PCM_OFFICIAL_RING_SAMPLES / PCM_OFFICIAL_SAMPLES_PER_GRAIN)
 
 _Static_assert((PCM_AMFM_QUEUE_SIZE & (PCM_AMFM_QUEUE_SIZE - 1)) == 0,
                "HOJA_CROSSCORE_FIFO_TYPE needs a power-of-two length");
 
-// When the ring runs dry, GetNextVibration tops it up with a grain of AmFm
+// When the ring runs dry, it is topped up with a grain of AmFm
 // code 0x18 (no change) for this many grains, then code 0x1B (amplitude down
 // one step of 2^(-1/32)) for every grain after that.
 #define PCM_OFFICIAL_HOLD_GRAINS        201
 #define PCM_HOLD_DECAY_Q15              32066u // 2^(-1/32) * 32768
 
-// Oscillator frequencies before the first pair arrives (sub_2210C2)
+// Oscillator frequencies before the first pair arrives
 #define PCM_DEFAULT_LO_FREQUENCY_HZ     160.0f
 #define PCM_DEFAULT_HI_FREQUENCY_HZ     320.0f
 
@@ -384,7 +384,7 @@ void pcm_ns_to_fp(ns_haptics_packet_raw_s *in, haptic_packet_s *out)
 // are not truncated away
 #define PCM_RAMP_FRAC_BITS 8
 
-// One oscillator band. Like the official sub_221250, amplitude and frequency
+// One oscillator band. As in the official firmware, amplitude and frequency
 // slide linearly to their targets across each grain, and phase runs on
 // continuously except after a grain that ends silent.
 typedef struct
@@ -482,8 +482,8 @@ static void _pcm_synth_end_grain(pcm_synth_s *s)
     _pcm_band_end(&s->lo);
 }
 
-// Start the next grain from the ring. With the ring dry, top it up the way
-// GetNextVibration does: replay the last pair, then decay it.
+// Start the next grain from the ring. With the ring dry, top it up as the
+// official firmware does: replay the last pair, then decay it.
 static void _pcm_synth_next_ring_grain(pcm_synth_s *s)
 {
     if (hoja_fifo_amfm_pop(&_pcm_amfm_fifo, &s->pair))
@@ -603,8 +603,8 @@ bool pcm_amfm_push(haptic_packet_s *packet)
     _pcm_vibrator_strobe = false;
     for (uint8_t i = 0; i < count; i++)
     {
-        // Like vibrationProcess, a full ring drops this pair and the rest of
-        // the report.
+        // As in the official firmware, a full ring drops this pair and the
+        // rest of the report.
         if (!hoja_fifo_amfm_push(&_pcm_amfm_fifo, &packet->pairs[i]))
         {
             break;
