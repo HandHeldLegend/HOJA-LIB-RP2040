@@ -303,9 +303,9 @@ void ns_api_hook_get_imu(ns_gyrodata_s *out)
     out->timestamp_us = imu.timestamp;
 }
 
-void ns_api_hook_get_quaternion(ns_quaternion_s *out)
+void ns_api_hook_get_motion_history(ns_motion_history_s *out)
 {
-    imu_quaternion_access_safe(out);
+    imu_quaternion_history_access_safe(out);
 }
 
 void ns_api_hook_set_haptic_packet_raw(ns_haptics_packet_raw_s *packet)

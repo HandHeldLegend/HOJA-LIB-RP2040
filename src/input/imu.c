@@ -66,8 +66,11 @@ ns_motion_quat_integrator_s _imu_quat_integrator = {0};
 SNAPSHOT_TYPE(imu, imu_data_s);
 snapshot_imu_t _imu_snap;
 
-SNAPSHOT_TYPE(quat, ns_quaternion_s);
-snapshot_quat_t _quat_snap;
+// The orientation after each integration step, kept for the Switch's mode-2 reports: each carries
+// the first, middle and last of the samples since the one before
+SNAPSHOT_TYPE(qhist, ns_motion_history_s);
+snapshot_qhist_t _qhist_snap;
+static ns_motion_history_s _imu_quat_history;
 
 imu_data_s _imu_data = {0};
 
@@ -705,7 +708,15 @@ static void _imu_read_quaternion(uint64_t timestamp)
   sample.timestamp_us = timestamp;
 
   ns_motion_update_quaternion(&_imu_quat_state, &_imu_quat_integrator, &sample, _imu_gyro_rad_per_lsb);
-  snapshot_quat_write(&_quat_snap, &_imu_quat_state);
+  ns_motion_history_push(&_imu_quat_history, &_imu_quat_state);
+  snapshot_qhist_write(&_qhist_snap, &_imu_quat_history);
+}
+
+static void _imu_quaternion_reset(void)
+{
+  ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
+  ns_motion_history_reset(&_imu_quat_history);
+  snapshot_qhist_write(&_qhist_snap, &_imu_quat_history);
 }
 
 static void _imu_read_standard(uint64_t timestamp)
@@ -764,10 +775,10 @@ bool imu_motion_enabled(core_reportformat_t format)
   return !(imu_config->imu_mode_disable_mask & (uint16_t)(1u << format));
 }
 
-// Optional access Quaternion data (If available)
-void imu_quaternion_access_safe(ns_quaternion_s *out)
+// The orientations kept for the Switch's mode-2 reports
+void imu_quaternion_history_access_safe(ns_motion_history_s *out)
 {
-  snapshot_quat_read(&_quat_snap, out);
+  snapshot_qhist_read(&_qhist_snap, out);
 }
 
 // Function we call when our IMU calibration is completed
@@ -895,7 +906,7 @@ void imu_set_read_mode(imu_mode_t mode)
 
   case IMU_MODE_QUATERNION:
     // Clear state + prev_timestamp so the first integrate after enable is not a huge Δt.
-    ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
+    _imu_quaternion_reset();
     _imu_fn = imu_forced_task_quaternion;
     break;
   }
@@ -1004,7 +1015,7 @@ bool imu_init()
   _imu_gyro_rad_per_lsb = IMU_GYRO_DPS_PER_LSB * (3.14159265f / 180.0f);
 
   // Reset quaternion
-  ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
+  _imu_quaternion_reset();
 
   // Bring up every configured channel (weak default is a no-op when no driver).
   imu_driver_init();

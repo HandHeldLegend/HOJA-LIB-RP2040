@@ -55,7 +55,7 @@ bool        imu_driver_read_pair(imu_data_s *a, imu_data_s *b);
 const char *imu_driver_part_code(void);
 
 void imu_access_safe(imu_data_s *out);
-void imu_quaternion_access_safe(ns_quaternion_s *out);
+void imu_quaternion_history_access_safe(ns_motion_history_s *out);
 
 // True when the board has an IMU and motion is on for this mode: neither turned off everywhere
 // (imu_disabled) nor for this mode (imu_mode_disable_mask)
