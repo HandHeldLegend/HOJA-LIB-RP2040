@@ -86,6 +86,11 @@ bool webusb_outputting_check()
     return _ready_to_go;
 }
 
+void webusb_stream_stop(void)
+{
+    _webusb_mark_unready();
+}
+
 // Can be used to block until webUSB
 // is clear and ready to send output data
 // Set timeout to value greater than zero.

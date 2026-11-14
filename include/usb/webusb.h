@@ -37,6 +37,9 @@ void webusb_set_sink(const webusb_sink_s *sink);
 const webusb_sink_s *webusb_get_sink(void);
 
 bool webusb_outputting_check();
+// Nothing reads the app's traffic any more (the dongle says so): the live report stops until the
+// app's next command
+void webusb_stream_stop(void);
 void webusb_command_confirm_cb(cfg_block_t config_block, uint8_t cmd, bool success, uint8_t *data, uint32_t size);
 void webusb_send_bulk(const uint8_t *data, uint16_t size);
 void webusb_command_handler(uint8_t *data, uint32_t size);

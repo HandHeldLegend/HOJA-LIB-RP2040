@@ -1567,6 +1567,17 @@ void dongle_api_gamepad_hook_config_rx(const uint8_t data[64], uint16_t len)
     _dongle_config_rx_head = next;
 }
 
+// Nothing reads the app's traffic at the dongle (the app closed): a stop in line with the
+// commands, so a command sent before it still runs first and one sent after starts the stream again
+void dongle_api_gamepad_hook_app_unread(void)
+{
+    uint8_t next = (uint8_t)((_dongle_config_rx_head + 1u) % BT_HAL_DONGLE_CONFIG_RX_LEN);
+    if (next == _dongle_config_rx_tail)
+        return;
+    _dongle_config_rx[_dongle_config_rx_head].len = 0;
+    _dongle_config_rx_head = next;
+}
+
 // The dongle lines our reports up with its console sends
 void dongle_api_gamepad_hook_shift_reports(int16_t delta_us)
 {
@@ -1633,9 +1644,9 @@ static bool _dongle_last_tick_app = false;
 // (the air has no room for a second): the report built ahead (or now), or, in turn with it, one
 // message of the config app's when one is waiting (a reply, or the app's live report). A longer
 // period has room for both, so the report goes every tick and the app's packet rides along: the
-// config app's live report runs at 125 Hz and stays on until the gamepad is turned off, and taking
-// turns with it halved a console's reports (a Switch got every second one). With no app traffic
-// every tick is a report. The dongle's pacing request applies from the next period.
+// config app's live report runs at 125 Hz while the app reads it (the dongle stops it once the app
+// closes), and taking turns with it halved a console's reports (a Switch got every second one).
+// With no app traffic every tick is a report. The dongle's pacing request applies from the next period.
 static void _bt_hal_dongle_tick(void)
 {
     const bool room = (_link_cfg.report_interval_us >= BT_HAL_DONGLE_ROOM_FOR_TWO_US);
@@ -1833,7 +1844,10 @@ static void _bt_hal_dongle_task(uint64_t timestamp)
     while (_dongle_config_rx_tail != _dongle_config_rx_head && !dongle_api_gamepad_config_pending())
     {
         bt_hal_dongle_config_rx_s *rx = &_dongle_config_rx[_dongle_config_rx_tail];
-        webusb_command_handler(rx->data, rx->len);
+        if (rx->len)
+            webusb_command_handler(rx->data, rx->len);
+        else
+            webusb_stream_stop();
         _dongle_config_rx_tail = (uint8_t)((_dongle_config_rx_tail + 1u) % BT_HAL_DONGLE_CONFIG_RX_LEN);
     }
     webusb_send_rawinput(timestamp);
