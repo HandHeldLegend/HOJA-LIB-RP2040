@@ -393,7 +393,7 @@ bool core_switch_init(core_params_s *params)
     cfg.colors.r_grip.hex = gamepad_config->gamepad_color_grip_right;
     cfg.colors.buttons.hex = gamepad_config->gamepad_color_buttons;
 
-    cfg.gyro_full_scale_dps = 2000.0f;
+    cfg.gyro_full_scale_dps = IMU_GYRO_DPS_PER_LSB * 32768.0f; // 70 mdps a count
     cfg.gyro_rad_per_lsb = 0.0f;
 
     memcpy(cfg.device_serial, user_config->user_name, sizeof(cfg.device_serial));

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "hal/record_hal.h"
+#include "input/imu.h"
 #include "usb/webusb.h"
 #include "utilities/settings.h"
 
@@ -103,6 +104,9 @@ static uint8_t _profiles_names[PROFILES_COUNT][PROFILES_NAME_LEN];
 static uint8_t _profiles_dirty_mask = 0; // Profiles to store from the live settings (bit per profile)
 static bool _profiles_global_dirty = false;
 static uint8_t _profiles_tries = 0; // Failed writes in a row
+// Settings from older firmware: the global record to store first, then the saved profiles to convert
+static bool _profiles_upgrade_global = false;
+static uint8_t _profiles_upgrade_mask = 0;
 static profiles_request_s _profiles_request;
 
 // --- Records ---
@@ -163,9 +167,28 @@ static bool _profiles_write_global(void)
 
 // The next record waiting: the profiles stored from the live settings, then the request's own, then
 // the global record
+static bool _profiles_write_upgraded(uint8_t profile);
+
 static profiles_step_t _profiles_write_next(void)
 {
     profiles_request_s *r = &_profiles_request;
+
+    if (_profiles_upgrade_global)
+    {
+        if (!_profiles_write_global())
+            return PROFILES_STEP_FAILED;
+        _profiles_upgrade_global = false;
+        return PROFILES_STEP_WROTE;
+    }
+
+    if (_profiles_upgrade_mask)
+    {
+        const uint8_t profile = (uint8_t)__builtin_ctz(_profiles_upgrade_mask);
+        if (!_profiles_write_upgraded(profile))
+            return PROFILES_STEP_FAILED;
+        _profiles_upgrade_mask &= (uint8_t)~(1u << profile);
+        return PROFILES_STEP_WROTE;
+    }
 
     if (_profiles_dirty_mask)
     {
@@ -297,7 +320,47 @@ static bool _profiles_request_apply(void)
 static bool _profiles_pending(void)
 {
     const profiles_request_s *r = &_profiles_request;
-    return _profiles_dirty_mask || _profiles_global_dirty || r->apply || r->write;
+    return _profiles_dirty_mask || _profiles_global_dirty || r->apply || r->write || _profiles_upgrade_global ||
+           _profiles_upgrade_mask;
+}
+
+// --- Settings from older firmware ---
+
+// Where a profile's gyro sensitivity sits in its record
+#define PROFILES_GYRO_SENS_AT (offsetof(profile_s, imu) + offsetof(imuConfig_s, imu_gyro_sensitivity) - PROFILES_IMU_AT)
+
+// The motion settings' version lives only in the global record, but every saved profile keeps its own
+// gyro sensitivity. When the live settings come up from an older version, every saved profile's
+// sensitivity is brought along. Flash can't be written this early, so the profile task does it before
+// anything else: the global record first, at the new version, then the profiles. A power cut before
+// the global record is stored repeats the whole thing next time; one after it leaves the profiles not
+// yet written as they were (turning a little fast), never converted twice.
+static void _profiles_upgrade_imu(void)
+{
+    imuConfig_s *live = (imuConfig_s *)&live_settings.imu_configuration_block;
+    if ((live->imu_config_version == CFG_BLOCK_IMU_VERSION) || !imu_config_upgrade(live))
+        return;
+
+    _profiles_upgrade_global = true;
+    for (uint8_t i = 0; i < PROFILES_COUNT; i++)
+    {
+        if (_profiles_stored(i))
+            _profiles_upgrade_mask |= (uint8_t)(1u << i);
+    }
+}
+
+// A saved profile's record again, its gyro sensitivity converted
+static bool _profiles_write_upgraded(uint8_t profile)
+{
+    const profile_s *stored = _profiles_stored(profile);
+    if (!stored)
+        return true;
+
+    static profile_s upgraded;
+    memcpy(&upgraded, stored, sizeof(upgraded));
+    imu_gyro_sensitivity_upgrade(((uint8_t *)&upgraded) + PROFILES_GYRO_SENS_AT);
+    const record_hal_part_s part = {.data = (const uint8_t *)&upgraded, .len = sizeof(upgraded)};
+    return record_hal_write((uint16_t)(PROFILES_RECORD_FIRST + profile), &part, 1);
 }
 
 // --- Public ---
@@ -338,6 +401,8 @@ void profiles_init(void)
     const profile_s *active = _profiles_stored(_profiles_active);
     if (active)
         _profiles_load(active, false);
+
+    _profiles_upgrade_imu();
 }
 
 bool profiles_save(void)
@@ -356,7 +421,8 @@ void profiles_task(uint64_t now_us)
     if (!_profiles_ready || (_profiles_tries >= PROFILES_WRITE_TRIES))
         return;
 
-    if (_profiles_request.apply && !_profiles_dirty_mask && !_profiles_request_apply())
+    if (_profiles_request.apply && !_profiles_dirty_mask && !_profiles_upgrade_global && !_profiles_upgrade_mask &&
+        !_profiles_request_apply())
     {
         _profiles_answer(false);
         return;

@@ -13,10 +13,18 @@
 #include "ns_lib_motion.h"
 #include "input/motion_gesture.h"
 
-// HOJA's IMU scale, the same on every board (8 g, 2000 dps)
+// HOJA's IMU scale, the same on every board (8 g, 2000 dps). Every IMU driver delivers its counts at
+// this scale; everything that turns counts into a rate uses it, and nothing assumes 2000 / 32768.
 #define IMU_ACCEL_MG_PER_LSB    0.244f
 #define IMU_GYRO_DPS_PER_LSB    0.07f
 #define IMU_ACCEL_LSB_PER_G     4096
+
+// An IMU config from older firmware brought to the current version, calibration kept. False when it
+// is from no firmware this knows (the caller defaults it).
+bool imu_config_upgrade(imuConfig_s *cfg);
+
+// Gyro sensitivities saved before 0x14, as they now read for the same turn on screen
+void imu_gyro_sensitivity_upgrade(uint8_t sensitivity[3]);
 
 typedef enum
 {

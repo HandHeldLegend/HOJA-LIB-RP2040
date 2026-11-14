@@ -391,7 +391,8 @@ bool core_sinput_init(core_params_s *params)
             .accelerometer = imu_available,
             .accelerometer_g_range = 8,
             .gyroscope = imu_available,
-            .gyroscope_dps_range = 2000,
+            // The range the counts span at IMU_GYRO_DPS_PER_LSB (70 mdps): about 2294 dps
+            .gyroscope_dps_range = (uint16_t)((IMU_GYRO_DPS_PER_LSB * 32768.0f) + 0.5f),
         },
         .polling_rate_us = params->core_pollrate_us,
         

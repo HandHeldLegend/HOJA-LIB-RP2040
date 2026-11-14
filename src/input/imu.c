@@ -932,18 +932,63 @@ void imu_task(uint64_t now_us)
 }
 
 // IMU module initialization function
-bool imu_init()
+// ---- Settings from older firmware ----
+//
+// Before 0x14 the gyro was read at 2000 / 32768 = 61 mdps a count, where the LSM6DSR at 2000 dps gives
+// 70; the default sensitivity of 1.20 made up for most of that. Measured on a GCU 2 and an original
+// Switch Pro Controller turned together: at 1.20 the GCU 2 turned 1.196 times as far where the host reads
+// 70 mdps (the console's raw motion mode), and about 1.05 times where the firmware did (its quaternion
+// mode, SInput). Now 70 is used everywhere and 1.00 is 1:1.
+//
+// A sensitivity someone set keeps the same turn on screen where the firmware converted: it is scaled
+// by 61/70. The old default on all three axes is taken as never changed, and becomes the new one.
+#define IMU_CONFIG_V_MASK       0x12 // Before the per-mode mask
+#define IMU_CONFIG_V_61MDPS     0x13 // Before the 70 mdps reading
+#define IMU_OLD_GYRO_DEFAULT    120
+#define IMU_OLD_TO_NEW_X10000   8719 // (2000 / 32768) / 0.07, in ten-thousandths
+
+void imu_gyro_sensitivity_upgrade(uint8_t sensitivity[3])
 {
-  // Verify or default IMU
-  if (imu_config->imu_config_version == CFG_BLOCK_IMU_VERSION_PREV)
+  if ((sensitivity[0] == IMU_OLD_GYRO_DEFAULT) && (sensitivity[1] == IMU_OLD_GYRO_DEFAULT) &&
+      (sensitivity[2] == IMU_OLD_GYRO_DEFAULT))
+  {
+    for (int i = 0; i < 3; i++)
+      sensitivity[i] = IMU_GYRO_SENSITIVITY_DEFAULT;
+    return;
+  }
+
+  for (int i = 0; i < 3; i++)
+  {
+    const uint32_t scaled = (((uint32_t)sensitivity[i] * IMU_OLD_TO_NEW_X10000) + 5000u) / 10000u;
+    sensitivity[i] = _imu_clamp_sensitivity((uint8_t)((scaled > 255u) ? 255u : scaled));
+  }
+}
+
+bool imu_config_upgrade(imuConfig_s *cfg)
+{
+  if (cfg->imu_config_version == IMU_CONFIG_V_MASK)
   {
     // 0x12 -> 0x13 only added the per-mode mask (in old reserved space): keep calibration,
     // sensitivity and the global switch, and start with motion on in every mode
-    imu_config->imu_config_version = CFG_BLOCK_IMU_VERSION;
-    imu_config->imu_mode_disable_mask = 0;
-    memset(imu_config->reserved, 0, sizeof(imu_config->reserved));
+    cfg->imu_mode_disable_mask = 0;
+    memset(cfg->reserved, 0, sizeof(cfg->reserved));
+    cfg->imu_config_version = IMU_CONFIG_V_61MDPS;
   }
-  else if (imu_config->imu_config_version != CFG_BLOCK_IMU_VERSION)
+
+  if (cfg->imu_config_version == IMU_CONFIG_V_61MDPS)
+  {
+    imu_gyro_sensitivity_upgrade(cfg->imu_gyro_sensitivity);
+    cfg->imu_config_version = CFG_BLOCK_IMU_VERSION;
+  }
+
+  return cfg->imu_config_version == CFG_BLOCK_IMU_VERSION;
+}
+
+bool imu_init()
+{
+  // Verify or default IMU. The profiles bring the live settings and every saved profile up to date as
+  // they load (utilities/profiles.c); this is for a board whose profile store did not start.
+  if (!imu_config_upgrade(imu_config))
   {
     imu_config->imu_config_version = CFG_BLOCK_IMU_VERSION;
     imu_config->imu_mode_disable_mask = 0;
@@ -956,8 +1001,7 @@ bool imu_init()
     _imu_default_sensitivity();
   }
 
-  // 2000 DPS
-  _imu_gyro_rad_per_lsb = ns_motion_calculate_rps(2000);
+  _imu_gyro_rad_per_lsb = IMU_GYRO_DPS_PER_LSB * (3.14159265f / 180.0f);
 
   // Reset quaternion
   ns_motion_quaternion_reset(&_imu_quat_state, &_imu_quat_integrator);
