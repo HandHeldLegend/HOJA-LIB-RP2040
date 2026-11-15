@@ -40,10 +40,19 @@
 #define LRA_RING_BYTES      (LRA_RING_WORDS * sizeof(uint32_t))
 _Static_assert((LRA_RING_BYTES & (LRA_RING_BYTES - 1)) == 0, "the DMA read ring needs a power-of-two size");
 
-__attribute__((aligned(LRA_RING_BYTES))) static uint32_t _lra_ring[LRA_RING_WORDS] = {0};
-
 // Up to two slices: the motors share one when their pins are a slice's A and B
 #define LRA_MAX_STREAMS 2
+
+// One ring per slice stream. Both streams read ring 0 unless the motors sit on different slices but
+// on the same half of their words (both B pins on the ProGCC 4): a shared word would hand both
+// motors that one half, so the trigger bump meant for the other side played nowhere.
+__attribute__((aligned(LRA_RING_BYTES))) static uint32_t _lra_ring[LRA_MAX_STREAMS][LRA_RING_WORDS] = {0};
+
+// Split rings: channel A's motor plays the PCM word's low half and channel B's the high half, as a
+// shared word would on a board with A on an A pin and B on a B pin. Each goes in its own pin's half.
+static bool    _lra_split  = false;
+static uint8_t _lra_half_a = 0; // PWM_CHAN_A (low half) or PWM_CHAN_B (high half)
+static uint8_t _lra_half_b = 1;
 static int  _lra_stream_chan[LRA_MAX_STREAMS] = {-1, -1};
 static uint _lra_stream_slice[LRA_MAX_STREAMS];
 static uint8_t  _lra_stream_count = 0;
@@ -63,7 +72,7 @@ static uint8_t  _lra_filled_half = 1;
 // The half the DMA is reading now
 static uint8_t _lra_playing_half(void)
 {
-    const uintptr_t at = (uintptr_t)dma_hw->ch[_lra_stream_chan[0]].read_addr - (uintptr_t)_lra_ring;
+    const uintptr_t at = (uintptr_t)dma_hw->ch[_lra_stream_chan[0]].read_addr - (uintptr_t)_lra_ring[0];
     return (uint8_t)((at / sizeof(uint32_t)) / LRA_HALF_WORDS);
 }
 
@@ -75,12 +84,29 @@ static void _lra_hal_fill_free_half(void)
 
     pcm_generate_buffer(samples);
 
-    uint32_t *dst = &_lra_ring[half * LRA_HALF_WORDS];
-    for (int i = 0; i < PCM_BUFFER_SIZE; i++)
+    uint32_t *dst = &_lra_ring[0][half * LRA_HALF_WORDS];
+    if (!_lra_split)
     {
-        for (int r = 0; r < REPETITION_RATE; r++)
+        for (int i = 0; i < PCM_BUFFER_SIZE; i++)
         {
-            *dst++ = samples[i];
+            for (int r = 0; r < REPETITION_RATE; r++)
+            {
+                *dst++ = samples[i];
+            }
+        }
+    }
+    else
+    {
+        uint32_t *dst_b = &_lra_ring[1][half * LRA_HALF_WORDS];
+        for (int i = 0; i < PCM_BUFFER_SIZE; i++)
+        {
+            const uint32_t word_a = (samples[i] & 0xFFFFu) << (16u * _lra_half_a);
+            const uint32_t word_b = (samples[i] >> 16) << (16u * _lra_half_b);
+            for (int r = 0; r < REPETITION_RATE; r++)
+            {
+                *dst++   = word_a;
+                *dst_b++ = word_b;
+            }
         }
     }
 
@@ -109,7 +135,7 @@ static void _lra_hal_keep_running(void)
 #endif
 }
 
-static void _lra_hal_stream_start(uint slice)
+static void _lra_hal_stream_start(uint slice, uint32_t *ring)
 {
     const int chan = dma_claim_unused_channel(true);
 
@@ -120,7 +146,7 @@ static void _lra_hal_stream_start(uint slice)
     channel_config_set_ring(&c, false, __builtin_ctz(LRA_RING_BYTES));
     channel_config_set_dreq(&c, DREQ_PWM_WRAP0 + slice); // one word per PWM cycle
 
-    dma_channel_configure(chan, &c, &pwm_hw->slice[slice].cc, _lra_ring, LRA_STREAM_TRANSFERS, false);
+    dma_channel_configure(chan, &c, &pwm_hw->slice[slice].cc, ring, LRA_STREAM_TRANSFERS, false);
 
     _lra_stream_chan[_lra_stream_count]  = chan;
     _lra_stream_slice[_lra_stream_count] = slice;
@@ -170,20 +196,23 @@ bool lra_hal_init(uint8_t intensity)
     pwm_config_set_wrap(&config, PWM_WRAP);
 
     const uint slice_a = pwm_gpio_to_slice_num(_chan_a_pin);
+    _lra_half_a = (uint8_t)pwm_gpio_to_channel(_chan_a_pin);
     gpio_set_function(_chan_a_pin, GPIO_FUNC_PWM);
     pwm_init(slice_a, &config, false);
-    _lra_hal_stream_start(slice_a);
+    _lra_hal_stream_start(slice_a, _lra_ring[0]);
 
     if (_chan_b_enable)
     {
         const uint slice_b = pwm_gpio_to_slice_num(_chan_b_pin);
+        _lra_half_b = (uint8_t)pwm_gpio_to_channel(_chan_b_pin);
         gpio_set_function(_chan_b_pin, GPIO_FUNC_PWM);
 
         // On the A slice's other output, the A stream's word already carries it
         if (slice_b != slice_a)
         {
+            _lra_split = (_lra_half_b == _lra_half_a);
             pwm_init(slice_b, &config, false);
-            _lra_hal_stream_start(slice_b);
+            _lra_hal_stream_start(slice_b, _lra_split ? _lra_ring[1] : _lra_ring[0]);
         }
     }
 
