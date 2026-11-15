@@ -80,7 +80,12 @@ static bool boot_input_pressed(const mapper_input_s *input, mapper_input_code_t 
 
     switch (input_static.input_info[code].input_type)
     {
+    // A hall input is held once it passes the boot capture's press point (hover_init). Any reading
+    // above zero let a bumper resting just past its calibrated low point hold LB at every boot,
+    // which sends the controller to Bluetooth even on the cable.
     case MAPPER_INPUT_TYPE_HOVER:
+        return input->presses[code];
+
     case MAPPER_INPUT_TYPE_JOYSTICK:
         return input->inputs[code] > 0;
 
